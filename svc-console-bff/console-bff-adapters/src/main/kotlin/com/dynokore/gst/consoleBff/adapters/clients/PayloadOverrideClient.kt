@@ -28,64 +28,61 @@ private const val HTTP_ACCEPTED = 202
 class PayloadOverrideClient(
     @Qualifier("internalRestClientBuilder") builder: RestClient.Builder,
     registry: ResilienceRegistry,
-    clock: Clock,
+    private val clock: Clock,
     environment: Environment,
 ) : PayloadOverrides {
     private val restClient = OwningServiceEdge.restClient(builder, environment, OwningService.PAYLOAD)
     private val queries = QueriesApi(restClient)
     private val validation = ValidationApi(restClient)
-    private val edge = OwnerEdge(OwningService.PAYLOAD, registry, clock, restClient)
+    private val transport = OwnerTransport(restClient)
+    private val policy = OwningServiceEdge.policy(registry, OwningService.PAYLOAD)
 
-    override fun latestVersion(docUuid: String): OwnerReply<Long> =
-        withDoc(docUuid) { id ->
-            edge.call({ queries.getLatestDocumentVersionRequestConfig(id) }) { answer ->
-                val version = OwnerEnvelope.tree(answer.body)?.let { OwnerEnvelope.integer(it, "version") }
-                if (answer.status == HTTP_OK && version != null) {
-                    OwnerReply.Ok(version)
-                } else {
-                    edge.unreadable(answer.status)
-                }
-            }
+    override fun latestVersion(docUuid: String): OwnerReply<Long> {
+        val id = parseUuid(docUuid) ?: return OwnerReply.Unavailable("${OwningService.PAYLOAD.edge}: docUuid is not a UUID")
+        return call({ queries.getLatestDocumentVersionRequestConfig(id) }) { answer ->
+            val version = OwnerEnvelope.tree(answer.body)?.let { OwnerEnvelope.integer(it, "version") }
+            if (answer.status == HTTP_OK && version != null) OwnerReply.Ok(version) else unreadable(answer.status)
         }
+    }
 
     override fun override(
         docUuid: String,
         version: Long,
         code: String,
         reason: String,
-    ): OwnerReply<Release> =
-        withDoc(docUuid) { id ->
-            val body = OverrideValidationRequest(code = code, reason = reason)
-            if (version.toInt().toLong() != version) {
-                OwnerReply.Unavailable("${OwningService.PAYLOAD.edge}: version out of range")
-            } else {
-                edge.call({ validation.overrideValidationRequestConfig(id, version.toInt(), body) }) { answer ->
-                    released(answer)
-                }
+    ): OwnerReply<Release> {
+        val id = parseUuid(docUuid) ?: return OwnerReply.Unavailable("${OwningService.PAYLOAD.edge}: docUuid is not a UUID")
+        val versionInt = version.toInt().takeIf { it.toLong() == version }
+            ?: return OwnerReply.Unavailable("${OwningService.PAYLOAD.edge}: version out of range")
+        val body = OverrideValidationRequest(code = code, reason = reason)
+        return call({ validation.overrideValidationRequestConfig(id, versionInt, body) }) { answer ->
+            val tree = OwnerEnvelope.tree(answer.body)
+            val released = tree?.let { OwnerEnvelope.instant(it, "overriddenAt") }
+            val pending = tree?.let { OwnerEnvelope.instant(it, "requestedAt") }
+            when {
+                answer.status == HTTP_CREATED && released != null -> OwnerReply.Ok(Release.Released(released))
+                answer.status == HTTP_ACCEPTED && pending != null -> OwnerReply.Ok(Release.Pending(pending))
+                else -> unreadable(answer.status)
             }
         }
-
-    private fun released(answer: OwnerAnswer): OwnerReply<Release> {
-        val tree = OwnerEnvelope.tree(answer.body)
-        val overriddenAt = tree?.let { OwnerEnvelope.instant(it, "overriddenAt") }
-        val requestedAt = tree?.let { OwnerEnvelope.instant(it, "requestedAt") }
-        return when {
-            answer.status == HTTP_CREATED && overriddenAt != null -> OwnerReply.Ok(Release.Released(overriddenAt))
-            answer.status == HTTP_ACCEPTED && requestedAt != null -> OwnerReply.Ok(Release.Pending(requestedAt))
-            else -> edge.unreadable(answer.status)
-        }
     }
 
-    /** A document id that is not a UUID is never sent: the owner's path takes a UUID. */
-    private fun <T> withDoc(
-        docUuid: String,
-        block: (UUID) -> OwnerReply<T>,
-    ): OwnerReply<T> {
-        val id = runCatching { UUID.fromString(docUuid) }.getOrNull()
-        return if (id == null) {
-            OwnerReply.Unavailable("${OwningService.PAYLOAD.edge}: docUuid is not a UUID")
-        } else {
-            block(id)
-        }
-    }
+    private fun <T> call(
+        request: () -> org.openapitools.client.infrastructure.RequestConfig<*>,
+        onSuccess: (OwnerAnswer) -> OwnerReply<T>,
+    ): OwnerReply<T> =
+        ownerCall(
+            OwningService.PAYLOAD.edge,
+            OwningService.PAYLOAD.timeout,
+            policy,
+            clock,
+            transport,
+            request,
+            onSuccess,
+        )
+
+    private fun unreadable(status: Int) =
+        OwnerReply.Unavailable("${OwningService.PAYLOAD.edge}: unreadable answer (status $status)")
+
+    private fun parseUuid(text: String): UUID? = runCatching { UUID.fromString(text) }.getOrNull()
 }

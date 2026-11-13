@@ -33,15 +33,8 @@ class SubmissionOverrideClientTest {
     private fun write(registry: ResilienceRegistry = TestEdges.passThrough) =
         CurrentEndUserToken.callWith("Bearer u-1") { client(registry).override("ENT-1", "2026-Q1", "chk-9", "because") }
 
-    private val overridden =
-        """{"entityRef":"ENT-1","periodRef":"2026-Q1","checkId":"chk-9","verdict":"BLOCK","reason":"because",""" +
-            """"overriddenBy":"u","overriddenAt":"2026-11-13T10:00:00Z"}"""
-    private val pending =
-        """{"entityRef":"ENT-1","periodRef":"2026-Q1","checkId":"chk-9","reason":"because","requestedBy":"u",""" +
-            """"requestedAt":"2026-11-13T11:00:00Z","status":"PENDING"}"""
-
-    private fun unreadableSuccesses() =
-        listOf(201 to null, 201 to "{}", 200 to overridden, 202 to overridden, 204 to null, 201 to pending)
+    private val overridden = """{"entityRef":"ENT-1","periodRef":"2026-Q1","checkId":"chk-9","verdict":"BLOCK","reason":"because","overriddenBy":"u","overriddenAt":"2026-11-13T10:00:00Z"}"""
+    private val pending = """{"entityRef":"ENT-1","periodRef":"2026-Q1","checkId":"chk-9","reason":"because","requestedBy":"u","requestedAt":"2026-11-13T11:00:00Z","status":"PENDING"}"""
 
     private fun refused(
         status: Int,
@@ -65,9 +58,9 @@ class SubmissionOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 submission 400, 403, 404, 409 and 422 envelopes are relayed unchanged")
+    @DisplayName("INV-AC-21204 submission 400 SRT-001, 403 SRT-004, 404 SRT-005, 409 SRT-008, 422 PAY-017 are relayed unchanged")
     fun refusalsRelayed() {
-        for ((status, code) in REFUSALS) {
+        for ((status, code) in listOf(400 to "SRT-001", 403 to "SRT-004", 404 to "SRT-005", 409 to "SRT-008", 422 to "PAY-017")) {
             stub.answer(status, envelope(status, code))
             assertEquals(refused(status, code), write(), "override $status")
             stub.answer(status, envelope(status, code))
@@ -83,9 +76,9 @@ class SubmissionOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 submission 4xx with unreadable body or no code gives Unavailable")
+    @DisplayName("INV-AC-21204 submission a 4xx with an unreadable body or without a code gives Unavailable")
     fun unreadable4xx() {
-        for (raw in UNREADABLE_BODIES) {
+        for (raw in listOf(null, "", "not json", "[1]", """{"title":"T","status":422}""", """{"code":"X"}""", """{"code":7,"title":"T"}""")) {
             stub.answer(422, raw)
             assertEquals(true, write() is OwnerReply.Unavailable, "override body=$raw")
             stub.answer(404, raw)
@@ -94,7 +87,7 @@ class SubmissionOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 submission 500 gives Unavailable, also with a readable envelope")
+    @DisplayName("INV-AC-21204 submission a 500 gives Unavailable, also when its body is a readable envelope")
     fun serverError() {
         stub.answer(500, envelope(500, "SRT-008"))
         assertEquals(true, write() is OwnerReply.Unavailable)
@@ -102,7 +95,7 @@ class SubmissionOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 submission refused connection, timeout and open breaker give Unavailable")
+    @DisplayName("INV-AC-21204 submission a refused connection, a timeout and an open breaker give Unavailable")
     fun edgeFailures() {
         for (registry in listOf(TestEdges.connectRefused, TestEdges.timedOut, TestEdges.breakerOpen)) {
             stub.answer(201, overridden)
@@ -113,9 +106,9 @@ class SubmissionOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 submission 2xx unreadable or of another status gives Unavailable")
+    @DisplayName("INV-AC-21204 submission an answer that is 2xx but unreadable or of another status gives Unavailable")
     fun unreadableSuccess() {
-        for ((status, raw) in unreadableSuccesses()) {
+        for ((status, raw) in listOf(201 to null, 201 to "{}", 200 to overridden, 202 to overridden, 204 to null, 201 to pending)) {
             stub.answer(status, raw)
             assertEquals(true, write() is OwnerReply.Unavailable, "override $status $raw")
         }
@@ -126,7 +119,7 @@ class SubmissionOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 submission request has contract method, path, body and token")
+    @DisplayName("INV-AC-21204 submission the request has the contract's method, path and body members and the end-user token")
     fun requestShape() {
         stub.answer(201, overridden)
         write()
