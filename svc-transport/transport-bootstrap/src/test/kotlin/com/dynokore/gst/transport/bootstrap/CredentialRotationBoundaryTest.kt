@@ -122,6 +122,19 @@ class CredentialRotationBoundaryTest {
         }
     }
 
+    private fun Running.expectRefusal(
+        answer: Answer,
+        status: Int,
+        code: String,
+    ) {
+        // each code is a member of the generated catalogue, not a literal the catalogue lacks
+        com.dynokore.gst.catalogue.ErrorCode.entries
+            .map { it.code }
+            .contains(code) shouldBe true
+        withClue(answer.body) { answer.status shouldBe status }
+        answer.body shouldContain "/$code\""
+    }
+
     private class Answer(
         val status: Int,
         val body: String,
@@ -303,6 +316,8 @@ class CredentialRotationBoundaryTest {
         r.hold("vault/cred-c2")
         val answer = r.rotate(primary, "vault/cred-c2", r.user(tenant, RouteCaller.AP_CREDENTIAL_MANAGE_PERMISSION))
         answer.status shouldBe 500
+        answer.body shouldContain "/SRT-010\""
+        answer.body shouldNotContain "detail"
         r.state(tenant, primary) shouldBe ("ap/$primary" to null)
         r.rotations(tenant, primary) shouldBe 0
     }
@@ -314,9 +329,8 @@ class CredentialRotationBoundaryTest {
         val tenant = r.tenantWithConnections()
         val primary = r.harness.primary.value
         val user = r.user(tenant, RouteCaller.AP_CREDENTIAL_MANAGE_PERMISSION)
-        val absent = r.rotate(primary, "vault/absent", user)
-        withClue(absent.body) { absent.status shouldBe 400 }
-        r.rotate(primary, "ap/$primary", user).status shouldBe 400
+        r.expectRefusal(r.rotate(primary, "vault/absent", user), 422, "SUB-026")
+        r.expectRefusal(r.rotate(primary, "ap/$primary", user), 422, "SUB-027")
         r.rotate(primary, " ", user).status shouldBe 400
         r.rotate("nope", "vault/absent", user).status shouldBe 404
         r.state(tenant, primary) shouldBe ("ap/$primary" to null)
@@ -325,7 +339,7 @@ class CredentialRotationBoundaryTest {
         r.hold("vault/cred-c2")
         r.hold("vault/cred-c3")
         r.rotate(primary, "vault/cred-c2", user).status shouldBe 200
-        r.rotate(primary, "vault/cred-c3", user).status shouldBe 409
+        r.expectRefusal(r.rotate(primary, "vault/cred-c3", user), 409, "SUB-028")
         r.state(tenant, primary) shouldBe ("vault/cred-c2" to "ap/$primary")
     }
 

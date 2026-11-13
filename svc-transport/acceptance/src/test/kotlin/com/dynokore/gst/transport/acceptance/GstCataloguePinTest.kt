@@ -36,13 +36,13 @@ class GstCataloguePinTest {
                         bootstrap to
                             (BASELINE.getValue(bootstrap) + "com.dynokore.gst:gst-catalogue:2.11.0=runtimeClasspath\n")
                     ),
-                "look-alike row only" to (acceptance to "com.dynokore.gst:gst-catalogue-api:2.35.0=runtimeClasspath\n"),
+                "look-alike row only" to (acceptance to "com.dynokore.gst:gst-catalogue-api:2.63.0=runtimeClasspath\n"),
                 "other version" to (acceptance to "com.dynokore.gst:gst-catalogue:2.34.0=testRuntimeClasspath\n"),
-                "same name other group" to (acceptance to "com.other:gst-catalogue:2.35.0=testRuntimeClasspath\n"),
+                "same name other group" to (acceptance to "com.other:gst-catalogue:2.63.0=testRuntimeClasspath\n"),
                 "second entry in another module" to
                     (
                         "transport-domain/gradle.lockfile" to
-                            "com.dynokore.gst:gst-catalogue:2.35.0=a\ncom.dynokore.gst:gst-catalogue:2.35.0=b\n"
+                            "com.dynokore.gst:gst-catalogue:2.63.0=a\ncom.dynokore.gst:gst-catalogue:2.63.0=b\n"
                     ),
                 "empty file" to (acceptance to ""),
             )
@@ -52,7 +52,7 @@ class GstCataloguePinTest {
             (result.any { it.contains(change.first) }) shouldBe true
             println("probe '$name' -> $result")
         }
-        findings(BASELINE, TOML_TEXT.replace("\"2.35.0\"", "\"2.36.0\""), CODES).shouldNotBeEmpty()
+        findings(BASELINE, TOML_TEXT.replace("\"2.63.0\"", "\"2.36.0\""), CODES).shouldNotBeEmpty()
         findings(BASELINE - acceptance, TOML_TEXT, CODES).any { it.contains(acceptance) } shouldBe true
         findings(BASELINE, "[versions]\n", CODES).any { it.contains(TOML) } shouldBe true
         findings(BASELINE, "", CODES).any { it.contains(TOML) } shouldBe true
@@ -64,8 +64,10 @@ class GstCataloguePinTest {
         findings(BASELINE, TOML_TEXT, listOf("SUB-02")).shouldNotBeEmpty()
         findings(BASELINE, TOML_TEXT, emptyList()).shouldNotBeEmpty()
         findings(BASELINE, TOML_TEXT, listOf("SUB-024", "SUB-0240")).shouldNotBeEmpty()
-        findings(BASELINE, TOML_TEXT, listOf("SUB-023", "SUB-024")).shouldBeEmpty()
+        findings(BASELINE, TOML_TEXT, listOf("SUB-023", "SUB-024", "SUB-026", "SUB-027", "SUB-028")).shouldBeEmpty()
         findings(BASELINE, TOML_TEXT, emptyList()).joinToString() shouldContain "SUB-024"
+        findings(BASELINE, TOML_TEXT, CODES - "SUB-026").joinToString() shouldContain "SUB-026"
+        findings(BASELINE, TOML_TEXT, CODES + "SUB-0260").shouldNotBeEmpty()
     }
 
     companion object {
@@ -82,14 +84,14 @@ class GstCataloguePinTest {
                 "transport-domain/gradle.lockfile",
                 "acceptance/gradle.lockfile",
             )
-        private val CODES = listOf("SUB-023", "SUB-024")
-        private const val TOML_TEXT = "[versions]\ngstCatalogue = \"2.35.0\"\nother = \"1\"\n\n[libraries]\nx = \"y\"\n"
+        private val CODES = listOf("SUB-023", "SUB-024", "SUB-026", "SUB-027", "SUB-028")
+        private const val TOML_TEXT = "[versions]\ngstCatalogue = \"2.63.0\"\nother = \"1\"\n\n[libraries]\nx = \"y\"\n"
         private val BASELINE =
             LOCKFILES.associateWith {
                 if (it in
                     EXACTLY_ONE
                 ) {
-                    "# lock\n$GROUP:$NAME:2.35.0=testRuntimeClasspath\nfoo:bar:1=x\n"
+                    "# lock\n$GROUP:$NAME:2.63.0=testRuntimeClasspath\nfoo:bar:1=x\n"
                 } else {
                     "foo:bar:1=x\n"
                 }
@@ -142,9 +144,15 @@ class GstCataloguePinTest {
                 }
                 versions.filter { it != pin }.forEach { out += "$file: gst-catalogue $it differs from the pin $pin" }
             }
-            if ("SUB-024" !in codes) out += "ErrorCode: SUB-024 is missing"
-            if ("SUB-0240" in codes) out += "ErrorCode: SUB-0240 is present"
+            out += codeFindings(codes)
             return out
         }
+
+        private val REQUIRED_CODES = listOf("SUB-024", "SUB-026", "SUB-027", "SUB-028")
+        private val FORBIDDEN_CODES = listOf("SUB-0240", "SUB-0260")
+
+        private fun codeFindings(codes: Collection<String>): List<String> =
+            REQUIRED_CODES.filter { it !in codes }.map { "ErrorCode: $it is missing" } +
+                FORBIDDEN_CODES.filter { it in codes }.map { "ErrorCode: $it is present" }
     }
 }

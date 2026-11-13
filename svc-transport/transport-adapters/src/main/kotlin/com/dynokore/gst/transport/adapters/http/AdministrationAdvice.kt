@@ -44,25 +44,30 @@ class AdministrationAdvice(
     fun notFound(): ResponseEntity<String> = refusals.refuse(ApiRefusal(ClosedErrorCode.NOT_FOUND))
 
     /**
-     * A rotation the use case refuses (the contract names no catalogue code for it): an unset window fails closed as an
-     * internal error (a configuration fault, not the caller's); a reference the vault does not hold or that is already
-     * current is a contract violation; a rotation whose window is still open is a conflict. Nothing is changed.
+     * A rotation the use case refuses (INV-T-22003 declares the codes): an unset window fails closed as an internal
+     * error with no detail (a configuration fault, not the caller's, API-22); a reference the vault does not hold is
+     * 422 SUB-026; a reference that is already current is 422 SUB-027; a window still open is 409 SUB-028. Nothing is
+     * changed in any refusal.
      */
     @ExceptionHandler(CredentialRotationRefused::class)
     fun rotationRefused(refused: CredentialRotationRefused): ResponseEntity<String> =
-        refusals.refuse(
-            ApiRefusal(
-                when (refused.reason) {
-                    RotationRefusal.NO_WINDOW -> ClosedErrorCode.INTERNAL_ERROR
+        when (refused.reason) {
+            RotationRefusal.NO_WINDOW -> {
+                refusals.refuse(ApiRefusal(ClosedErrorCode.INTERNAL_ERROR))
+            }
 
-                    RotationRefusal.UNKNOWN_REFERENCE,
-                    RotationRefusal.SAME_AS_CURRENT,
-                    -> ClosedErrorCode.CONTRACT_VIOLATION
+            RotationRefusal.UNKNOWN_REFERENCE -> {
+                refusals.refuse(CatalogueRefusal(HTTP_UNPROCESSABLE, UNKNOWN_REFERENCE, UNKNOWN_REFERENCE_TITLE))
+            }
 
-                    RotationRefusal.ROTATION_IN_PROGRESS -> ClosedErrorCode.STALE_AGGREGATE
-                },
-            ),
-        )
+            RotationRefusal.SAME_AS_CURRENT -> {
+                refusals.refuse(CatalogueRefusal(HTTP_UNPROCESSABLE, SAME_AS_CURRENT, SAME_AS_CURRENT_TITLE))
+            }
+
+            RotationRefusal.ROTATION_IN_PROGRESS -> {
+                refusals.refuse(CatalogueRefusal(HTTP_CONFLICT, ROTATION_IN_PROGRESS, ROTATION_IN_PROGRESS_TITLE))
+            }
+        }
 
     @ExceptionHandler(ObserveGuardRefused::class)
     fun observeGuard(refused: ObserveGuardRefused): ResponseEntity<String> =
@@ -84,6 +89,13 @@ class AdministrationAdvice(
 
     private companion object {
         const val HTTP_UNPROCESSABLE = 422
+        const val HTTP_CONFLICT = 409
+        const val UNKNOWN_REFERENCE = "SUB-026"
+        const val UNKNOWN_REFERENCE_TITLE = "The replacement credential reference is not held by the secret store"
+        const val SAME_AS_CURRENT = "SUB-027"
+        const val SAME_AS_CURRENT_TITLE = "The replacement credential reference is already the current one"
+        const val ROTATION_IN_PROGRESS = "SUB-028"
+        const val ROTATION_IN_PROGRESS_TITLE = "The overlap window of an earlier rotation has not ended"
         const val ASSIGNED_ELSEWHERE = "SUB-018"
         const val ASSIGNED_TITLE = "An entity is already assigned to another connection of the tenant"
         const val CLEARING_REFUSED = "SUB-023"
