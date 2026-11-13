@@ -28,9 +28,9 @@ import java.util.UUID
 import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
 
 /**
- * INV-AC-20941: `TriggerCoverageChanged` is stored once per (tenant, entity, class) in `tenancy.trigger_coverage_replica`,
- * in order, on the tenant-bound [DSLContext] of a PostgreSQL with forced row-level security; a broken payload is a
- * [ContractViolation].
+ * INV-AC-20941: `TriggerCoverageChanged` is stored once per (tenant, entity, class) in
+ * `tenancy.trigger_coverage_replica`, in order, on the tenant-bound [DSLContext] of a PostgreSQL with forced
+ * row-level security; a broken payload is a [ContractViolation].
  */
 class TriggerCoverageChangedHandlerTest {
     private val actor = "svc:tenancy-svc"
@@ -59,8 +59,7 @@ class TriggerCoverageChangedHandlerTest {
     private fun handle(
         tenant: TenantId,
         data: String,
-    ): HandleOutcome =
-        Db.bound(tenant, actor) { dsl -> TriggerCoverageChangedHandler(dsl).handle(event(tenant, data)) }
+    ): HandleOutcome = Db.bound(tenant, actor) { dsl -> TriggerCoverageChangedHandler(dsl).handle(event(tenant, data)) }
 
     private fun rows(tenant: TenantId) =
         Db.bound(tenant, actor) { dsl ->
@@ -139,7 +138,7 @@ class TriggerCoverageChangedHandlerTest {
     }
 
     @Test
-    fun `INV-AC-20941 a class outside the five, a status outside the three or no entityRef is a contract violation and writes no row`() {
+    fun `INV-AC-20941 a broken payload is a contract violation and writes no row`() {
         val tenant = tenant()
         listOf(
             payload(triggerClass = "SOMETHING_ELSE"),
@@ -247,7 +246,7 @@ class TriggerCoverageChangedHandlerTest {
 }
 
 private fun randomHex(): String =
-    ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+    ByteArray(32).also { SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(java.util.Locale.ROOT, it) }
 
 // CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
 // start is retried with a fresh container, and the throwaway test database skips fsync.

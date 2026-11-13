@@ -82,7 +82,7 @@ class ShortCodeUsedConsumerTest {
         val tenants: TenantContext = context.getBean(TenantContext::class.java)
         val tx: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
-        val consumer: JdbcInboxConsumer = context.getBean(JdbcInboxConsumer::class.java)
+        val consumer: JdbcInboxConsumer = context.getBean("shortCodeUsedConsumer", JdbcInboxConsumer::class.java)
 
         fun <T> inTenant(
             tenant: TenantId,

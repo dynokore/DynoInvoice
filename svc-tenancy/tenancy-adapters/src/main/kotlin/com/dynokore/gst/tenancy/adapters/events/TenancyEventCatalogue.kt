@@ -64,7 +64,8 @@ object TenancyEventCatalogue {
         val known =
             ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED +
-                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE + TRIGGER_COVERAGE_CHANGED_TYPE
+                SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE +
+                TRIGGER_COVERAGE_CHANGED_TYPE
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
