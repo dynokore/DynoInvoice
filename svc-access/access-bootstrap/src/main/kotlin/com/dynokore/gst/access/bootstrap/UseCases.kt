@@ -5,6 +5,7 @@ import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
 import com.dynokore.gst.access.adapters.events.VersionStoringGrantChanges
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.landing.VariationPointRolePrecedence
+import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
@@ -80,8 +81,9 @@ class UseCases {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
         dsl: DSLContext,
+        head: AuthorityHeadStore,
     ): AuthorityChangePublisher =
-        VersionStoringGrantChanges(AuthorityChangedOutbox(outbox, mapper), StoredAuthorityVersions(dsl))
+        VersionStoringGrantChanges(AuthorityChangedOutbox(outbox, mapper, head), StoredAuthorityVersions(dsl))
 
     @Bean
     fun grantAudit(

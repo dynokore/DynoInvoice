@@ -41,7 +41,7 @@ class AuthorityChangedEnvelopeTest {
     private val mapper = JsonMapper.builder().build()
     private val tenantValue = "0a000000-0000-4000-8000-00000000000a"
     private val writer = CapturedEvents()
-    private val outbox = AuthorityChangedOutbox(writer, mapper)
+    private val outbox = AuthorityChangedOutbox(writer, mapper, InMemoryAuthorityHead())
 
     private fun change(
         level: ScopeLevel,
@@ -147,7 +147,12 @@ class AuthorityChangedEnvelopeTest {
                     PrincipalStatus.REVOKED,
                     1,
                 )
-            PrincipalRevocationOutbox(writer, mapper, Clock.systemUTC()).publishRevoked(principal) { 7L }
+            PrincipalRevocationOutbox(
+                writer,
+                mapper,
+                Clock.systemUTC(),
+                InMemoryAuthorityHead(),
+            ).publishRevoked(principal) { 7L }
             assertEquals(1, writer.appended.size, scope)
             assertTenantWide(writer.appended.single(), "PRN-1", scope)
             assertTrue(

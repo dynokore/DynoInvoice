@@ -47,6 +47,7 @@ class AuthorityChangedPayloadTest {
         AuthorityChangedOutbox(
             outbox = org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
             mapper = mapper,
+            head = InMemoryAuthorityHead(),
         )
     private val operatorOutbox =
         OperatorAccessOutbox(
@@ -293,7 +294,7 @@ class AuthorityChangedPayloadTest {
                     return emptyList()
                 }
             }
-        val grants = AuthorityChangedOutbox(writer, mapper)
+        val grants = AuthorityChangedOutbox(writer, mapper, InMemoryAuthorityHead())
         grants.publish(listOf(change()))
         grants.publish(consent(ConsentStatus.LIVE, ScopeItem.SUBMIT_INVOICE_DATA))
         val principal =
@@ -306,7 +307,12 @@ class AuthorityChangedPayloadTest {
                 PrincipalStatus.REVOKED,
                 1,
             )
-        PrincipalRevocationOutbox(writer, mapper, Clock.systemUTC()).publishRevoked(principal) { 7L }
+        PrincipalRevocationOutbox(
+            writer,
+            mapper,
+            Clock.systemUTC(),
+            InMemoryAuthorityHead(),
+        ).publishRevoked(principal) { 7L }
         assertEquals(3, captured.size)
         captured.forEach { assertEquals("com.dynokore.gst.platform.AuthorityChanged.v1", it.type) }
     }

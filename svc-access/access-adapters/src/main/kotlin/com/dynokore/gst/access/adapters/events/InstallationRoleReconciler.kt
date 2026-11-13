@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.adapters.http.InstallationRole
+import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.InstallationRoleGrantRow
 import com.dynokore.gst.access.adapters.persistence.JooqInstallationRoleGrants
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -37,6 +38,7 @@ object InstallationGrantRef {
  * new version; an entry equal to an ACTIVE row writes nothing. The event is the platform event of the catalogue, under
  * `TenantId.PLATFORM` and `EntityRef.PLATFORM`, keyed on the subject.
  */
+@Suppress("LongParameterList") // one collaborator per step of the reconcile transaction
 class InstallationRoleReconciler(
     private val platform: PlatformTenantBinding,
     private val tx: TransactionRunner,
@@ -44,6 +46,7 @@ class InstallationRoleReconciler(
     private val outbox: OutboxWriter,
     private val payloads: AuthorityChangedPayloads,
     private val clock: Clock,
+    private val head: AuthorityHeadStore,
 ) {
     /** Reconciles [entries]; returns the rows written, in the order of their events. */
     fun reconcile(entries: List<InstallationRole>): List<InstallationRoleGrantRow> =
@@ -66,6 +69,7 @@ class InstallationRoleReconciler(
                     val versioned = change.copy(authorityVersion = grants.nextAuthorityVersion())
                     grants.save(versioned)
                     append(versioned)
+                    head.advance(versioned.authorityVersion)
                     versioned
                 }
             }

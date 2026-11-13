@@ -10,6 +10,7 @@ object PublishedChannels {
     val ALL: Set<String> =
         setOf(
             AuthorityChangedOutbox.CHANNEL,
+            AuthorityHeadOutbox.CHANNEL,
             AccessAlertOutbox.CHANNEL,
             OutboxLinkMessages.CHANNEL,
             SignedLinkEventOutbox.ISSUED_CHANNEL,

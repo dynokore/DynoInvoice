@@ -6,6 +6,7 @@ import com.dynokore.gst.access.adapters.events.AuthorityChangedOutbox
 import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
 import com.dynokore.gst.access.adapters.events.VersionStoringConsentChanges
 import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
+import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.JooqConsents
 import com.dynokore.gst.access.adapters.persistence.JooqHandoverStatements
 import com.dynokore.gst.access.adapters.persistence.JooqLiveConsentProbe
@@ -72,9 +73,10 @@ class ConsentUseCases {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
         dsl: DSLContext,
+        head: AuthorityHeadStore,
     ): ConsentChangePublisher {
         // wrapped, so that the bean is not also an AuthorityChangePublisher candidate of the grant use cases
-        val events = AuthorityChangedOutbox(outbox, mapper)
+        val events = AuthorityChangedOutbox(outbox, mapper, head)
         return VersionStoringConsentChanges({ events.publish(it) }, StoredAuthorityVersions(dsl))
     }
 

@@ -6,6 +6,7 @@ import com.dynokore.gst.access.adapters.credential.VariationPointClientSecretPol
 import com.dynokore.gst.access.adapters.events.PrincipalRevocationOutbox
 import com.dynokore.gst.access.adapters.events.StoredAuthorityVersions
 import com.dynokore.gst.access.adapters.events.VersionStoringPrincipalRevocations
+import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.JooqCredentialRepository
 import com.dynokore.gst.access.adapters.persistence.JooqPrincipalRepository
 import com.dynokore.gst.access.adapters.persistence.JooqRevocationListWriter
@@ -55,9 +56,10 @@ class PrincipalUseCases {
         mapper: ObjectMapper,
         clock: Clock,
         dsl: DSLContext,
+        head: AuthorityHeadStore,
     ): PrincipalRevocationPublisher =
         VersionStoringPrincipalRevocations(
-            PrincipalRevocationOutbox(outbox, mapper, clock),
+            PrincipalRevocationOutbox(outbox, mapper, clock, head),
             StoredAuthorityVersions(dsl),
         )
 

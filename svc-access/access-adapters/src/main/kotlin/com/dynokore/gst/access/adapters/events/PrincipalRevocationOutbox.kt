@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.application.principal.PrincipalRevocationPublisher
 import com.dynokore.gst.access.domain.principal.ServicePrincipal
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -20,6 +21,7 @@ class PrincipalRevocationOutbox(
     private val outbox: OutboxWriter,
     mapper: ObjectMapper,
     private val clock: Clock,
+    private val head: AuthorityHeadStore,
 ) : PrincipalRevocationPublisher {
     private val payloads = AuthorityChangedPayloads(mapper)
 
@@ -31,15 +33,17 @@ class PrincipalRevocationOutbox(
         // version
         val context =
             EventContexts.forAggregate(TenantId.of(principal.tenant.value), EntityRef.TENANT_WIDE, principal.ref)
+        val version = nextVersion()
         outbox.append(
             listOf(
                 OutboundEvent(
                     PlatformEventCatalogue.AUTHORITY_CHANGED.eventType,
-                    payload(principal, nextVersion()).toString(),
+                    payload(principal, version).toString(),
                 ),
             ),
             context,
         )
+        head.advance(version)
     }
 
     internal fun payload(

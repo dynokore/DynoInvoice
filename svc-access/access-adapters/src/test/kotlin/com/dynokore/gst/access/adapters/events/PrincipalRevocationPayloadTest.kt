@@ -22,6 +22,7 @@ class PrincipalRevocationPayloadTest {
             outbox = org.mockito.Mockito.mock(com.dynokore.platform.outboxandqueue.OutboxWriter::class.java),
             mapper = JsonMapper.builder().build(),
             clock = Clock.fixed(Instant.parse("2026-10-22T00:00:00Z"), ZoneOffset.UTC),
+            head = InMemoryAuthorityHead(),
         )
     private val schema =
         checkNotNull(

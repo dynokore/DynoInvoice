@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.application.consent.ConsentAuthorityRecord
 import com.dynokore.gst.access.application.consent.ConsentChangePublisher
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
@@ -22,6 +23,7 @@ import tools.jackson.databind.node.ObjectNode
 class AuthorityChangedOutbox(
     private val outbox: OutboxWriter,
     mapper: ObjectMapper,
+    private val head: AuthorityHeadStore,
 ) : AuthorityChangePublisher,
     ConsentChangePublisher {
     private val payloads = AuthorityChangedPayloads(mapper)
@@ -38,6 +40,7 @@ class AuthorityChangedOutbox(
                 )
             val event = payloads.roleGrant(change).toString()
             outbox.append(listOf(OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, event)), context)
+            head.advance(change.authorityVersion)
         }
     }
 
@@ -55,6 +58,7 @@ class AuthorityChangedOutbox(
             ),
             context,
         )
+        head.advance(record.authorityVersion)
     }
 
     internal fun consentPayload(record: ConsentAuthorityRecord): ObjectNode = payloads.consent(record)

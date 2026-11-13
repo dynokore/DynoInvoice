@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.platform.auditLog.api)
     implementation(libs.platform.serviceRuntime.api)
     implementation(libs.platform.productRuntime.api)
+    implementation(libs.platform.productRuntime.impl) // the generated AuthorityHeadObservedPayload (INV-T-9059)
     implementation(libs.platform.configResolver.api)
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.tenancyJooq.impl)
