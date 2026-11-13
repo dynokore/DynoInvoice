@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.10.0
+  version: 1.11.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -168,9 +168,12 @@ components:
       name: com.dynokore.gst.access.OperatorSessionKeysChanged.v1
       title: OperatorSessionKeysChanged
       summary: OperatorSessionKeysChanged — catalogued in model/architecture/events.yaml (§19.8).
+      deprecated: true
       description: >-
-        Catalogued event OperatorSessionKeysChanged (model/architecture/events.yaml; class: domain;
-        feeds runtime replicas). Emitted by: access-svc. Consumed by: aggregation-svc,
+        Deprecated: superseded by com.dynokore.gst.platform.OperatorSessionKeysChanged.v1 on
+        gst.platform.operator-session-keys-changed.v1 (class platform, INV-Q-16498); no producer
+        publishes this message. Catalogued event OperatorSessionKeysChanged
+        (model/architecture/events.yaml; class: domain; feeds runtime replicas). Emitted by: access-svc. Consumed by: aggregation-svc,
         canonical-svc, console-bff, control-plane-svc, evidence-svc, ingestion-svc, masterdata-svc,
         notification-svc, payload-svc, reconciliation-svc, rules-svc, submission-svc, tenancy-svc,
         transport-svc. Delivery: At-least-once. Payload (catalogue text): operator-session signing
