@@ -34,12 +34,19 @@ class ArchiveVolumePublisher(
         val measuredAt = clock.instant()
         ledger.record(tenant, entityRef, bytes, measuredAt)
         val at = DateTimeFormatter.ISO_INSTANT.format(measuredAt)
+        val entity = EntityRef(entityRef)
+        // The tenant-wide entity is a platform event (INV-Q-14069 A): no entityRef on the wire.
+        val tenantWide = entity.isTenantWide
         val payload =
-            "{\"tenantRef\":${json(tenant.value.toString())},\"entityRef\":${json(entityRef)}," +
-                "\"bytes\":$bytes,\"measuredAt\":${json(at)}}"
+            if (tenantWide) {
+                "{\"tenantRef\":${json(tenant.value.toString())},\"bytes\":$bytes,\"measuredAt\":${json(at)}}"
+            } else {
+                "{\"tenantRef\":${json(tenant.value.toString())},\"entityRef\":${json(entityRef)}," +
+                    "\"bytes\":$bytes,\"measuredAt\":${json(at)}}"
+            }
         outbox.append(
-            listOf(OutboundEvent(EVENT_TYPE, payload)),
-            EventContext(tenant, EntityRef(entityRef), null, null, entityRef, null, correlation, causation),
+            listOf(OutboundEvent(if (tenantWide) TENANT_WIDE_EVENT_TYPE else EVENT_TYPE, payload)),
+            EventContext(tenant, entity, null, null, entityRef, null, correlation, causation),
         )
     }
 
@@ -58,5 +65,6 @@ class ArchiveVolumePublisher(
 
     companion object {
         const val EVENT_TYPE = "com.dynokore.gst.evidence.ArchiveVolumeMeasured.v1"
+        const val TENANT_WIDE_EVENT_TYPE = "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
     }
 }

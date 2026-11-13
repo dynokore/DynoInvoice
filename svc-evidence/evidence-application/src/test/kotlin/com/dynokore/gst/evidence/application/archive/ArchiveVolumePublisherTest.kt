@@ -2,6 +2,7 @@ package com.dynokore.gst.evidence.application.archive
 
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -145,5 +146,79 @@ class ArchiveVolumePublisherTest {
         calls.contexts[0].causation shouldBe cause
         calls.contexts[1].correlation shouldBe job
         calls.contexts[1].causation shouldBe sched
+    }
+
+    private fun publisher(
+        calls: Calls,
+        outbox: Outbox = Outbox(calls),
+    ) = ArchiveVolumePublisher(Ledger(calls), outbox, Clock.fixed(at, ZoneOffset.UTC))
+
+    @Test
+    fun `INV-AC-16556 tenant-wide call appends the platform event without entityRef`() {
+        val calls = Calls()
+        publisher(calls).publish(tenant, EntityRef.TENANT_WIDE.value, 700L, corr, cause)
+
+        calls.recorded.single() shouldBe listOf(tenant, EntityRef.TENANT_WIDE.value, 700L, at)
+        val event = calls.events.single()
+        event.type shouldBe ArchiveVolumePublisher.TENANT_WIDE_EVENT_TYPE
+        event.type shouldBe "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
+        event.dataJson shouldBe
+            "{\"tenantRef\":\"abcdef01-2345-6789-abcd-ef0123456789\",\"bytes\":700," +
+            "\"measuredAt\":\"2026-10-29T01:02:03.500Z\"}"
+        val keys = Regex("\"(\\w+)\":").findAll(event.dataJson).map { it.groupValues[1] }.toSet()
+        keys shouldBe setOf("tenantRef", "bytes", "measuredAt")
+        calls.contexts.single().tenant shouldBe tenant
+        calls.contexts.single().entity shouldBe EntityRef.TENANT_WIDE
+        calls.contexts
+            .single()
+            .entity.isTenantWide shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-16556 E1 call is unchanged and the ledger row is written`() {
+        val calls = Calls()
+        publisher(calls).publish(tenant, "E1", 5L, corr, cause)
+        calls.recorded.single() shouldBe listOf(tenant, "E1", 5L, at)
+        val event = calls.events.single()
+        event.type shouldBe ArchiveVolumePublisher.EVENT_TYPE
+        event.dataJson shouldBe
+            "{\"tenantRef\":\"abcdef01-2345-6789-abcd-ef0123456789\",\"entityRef\":\"E1\"," +
+            "\"bytes\":5,\"measuredAt\":\"2026-10-29T01:02:03.500Z\"}"
+        calls.contexts
+            .single()
+            .entity.isTenantWide shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-16556 look-alike entity is an ordinary entity`() {
+        val calls = Calls()
+        val lookAlike = "00000000-0000-0000-0000-000000000001"
+        publisher(calls).publish(tenant, lookAlike, 5L, corr, cause)
+        val event = calls.events.single()
+        event.type shouldBe ArchiveVolumePublisher.EVENT_TYPE
+        event.dataJson.contains("\"entityRef\":\"$lookAlike\"") shouldBe true
+        calls.contexts
+            .single()
+            .entity.isTenantWide shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-16556 failed append for the tenant-wide call propagates after the ledger call`() {
+        val calls = Calls()
+        val boom = IllegalStateException("outbox down")
+        val p = publisher(calls, Outbox(calls, boom))
+        shouldThrow<IllegalStateException> { p.publish(tenant, EntityRef.TENANT_WIDE.value, 5L, corr, cause) } shouldBe
+            boom
+        calls.order shouldBe listOf("record", "append")
+        calls.events.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16556 negative bytes fail before any write for tenant-wide and E1`() {
+        val calls = Calls()
+        val p = publisher(calls)
+        shouldThrow<IllegalStateException> { p.publish(tenant, EntityRef.TENANT_WIDE.value, -1L, corr, cause) }
+        shouldThrow<IllegalStateException> { p.publish(tenant, "E1", -1L, corr, cause) }
+        calls.order shouldBe emptyList()
     }
 }
