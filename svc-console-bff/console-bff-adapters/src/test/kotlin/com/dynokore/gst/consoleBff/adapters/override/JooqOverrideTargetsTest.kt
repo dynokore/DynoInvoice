@@ -3,11 +3,11 @@ package com.dynokore.gst.consoleBff.adapters.override
 import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import com.dynokore.gst.consoleBff.adapters.SignedBindings
 import io.kotest.matchers.shouldBe
+import org.jooq.ExecuteContext
+import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
-import org.jooq.tools.jdbc.MockConnection
-import org.jooq.tools.jdbc.MockDataProvider
-import org.jooq.tools.jdbc.MockResult
+import org.jooq.impl.DefaultConfiguration
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.util.UUID
@@ -52,14 +52,24 @@ class JooqOverrideTargetsTest {
         insert(t2, other, "PAY-006", "OPEN", "")
     }
 
+    private class Recorder : ExecuteListener {
+        val statements = mutableListOf<String>()
+
+        override fun executeStart(ctx: ExecuteContext) {
+            statements += ctx.sql().orEmpty()
+        }
+    }
+
     private fun <T> asTenant(
         tenant: UUID,
+        recorder: Recorder,
         block: (JooqOverrideTargets) -> T,
     ): T =
         ConsoleDb.connect(ConsoleDb.RUNTIME, ConsoleDb.RUNTIME_PASSWORD).use { c: Connection ->
             c.autoCommit = false
             SignedBindings.bind(c, tenant)
-            val result = block(JooqOverrideTargets(DSL.using(c, SQLDialect.POSTGRES)))
+            val configuration = DefaultConfiguration().set(c).set(SQLDialect.POSTGRES).set(recorder)
+            val result = block(JooqOverrideTargets(DSL.using(configuration)))
             c.commit()
             result
         }
@@ -67,7 +77,8 @@ class JooqOverrideTargetsTest {
     @Test
     fun `INV-AC-21202 find returns the stored columns of a row of the bound tenant`() {
         seed()
-        asTenant(t1) { targets ->
+        val recorder = Recorder()
+        asTenant(t1, recorder) { targets ->
             val a = checkNotNull(targets.find(pay.toString()))
             a.exceptionId shouldBe pay.toString()
             a.entityRef shouldBe "entity-$pay"
@@ -80,17 +91,18 @@ class JooqOverrideTargetsTest {
             b.code shouldBe "PER-001"
             checkNotNull(targets.find(resolved.toString())).state shouldBe "RESOLVED"
         }
+        recorder.statements.size shouldBe 3
     }
 
     @Test
     fun `INV-AC-21202 find returns null for a row of another tenant and for an unknown id`() {
         seed()
-        asTenant(t1) { targets ->
+        asTenant(t1, Recorder()) { targets ->
             targets.find(other.toString()) shouldBe null
             targets.find(UUID.randomUUID().toString()) shouldBe null
             targets.find("not-a-uuid") shouldBe null
         }
-        asTenant(t2) { targets ->
+        asTenant(t2, Recorder()) { targets ->
             targets.find(pay.toString()) shouldBe null
             checkNotNull(targets.find(other.toString())).code shouldBe "PAY-006"
         }
@@ -98,17 +110,13 @@ class JooqOverrideTargetsTest {
 
     @Test
     fun `INV-AC-21202 find runs one SELECT and no write per call`() {
-        val statements = mutableListOf<String>()
-        val provider =
-            MockDataProvider { ctx ->
-                statements += ctx.sql()
-                arrayOf(MockResult(0, DSL.using(SQLDialect.POSTGRES).newResult()))
-            }
-        JooqOverrideTargets(DSL.using(MockConnection(provider), SQLDialect.POSTGRES)).find(per.toString())
-        statements.size shouldBe 1
-        val sql = statements.single().trim().lowercase()
+        seed()
+        val recorder = Recorder()
+        asTenant(t1, recorder) { it.find(per.toString()) }
+        recorder.statements.size shouldBe 1
+        val sql = recorder.statements.single().trim().lowercase()
         sql.startsWith("select") shouldBe true
         listOf("insert ", "update ", "delete ").none { sql.contains(it) } shouldBe true
-        sql.contains("\"exception_id\" = ") shouldBe true
+        sql.contains("\"exception_id\" = ?") shouldBe true
     }
 }
