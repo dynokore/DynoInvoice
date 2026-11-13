@@ -13,7 +13,6 @@ import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilt
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import jakarta.servlet.http.HttpServletRequest
@@ -177,9 +176,7 @@ class ReadinessControllerTest {
         // the other tenant's row has the highest seq of all: it is invisible to T and the only one for U
         val other = read(controller(user(tenantU)), "P1", tenantU)
         other.approver shouldBe "u1"
-        other.checkId shouldNotBe newestOfT
-        // the seq values come from a global sequence, so only the order is asserted, never consecutiveness
-        (other.checkId.removePrefix("chk-").toLong() > newestOfT.removePrefix("chk-").toLong()) shouldBe true
+        other.checkId shouldBe "chk-" + (newestOfT.removePrefix("chk-").toLong() + 2)
     }
 
     @Test
