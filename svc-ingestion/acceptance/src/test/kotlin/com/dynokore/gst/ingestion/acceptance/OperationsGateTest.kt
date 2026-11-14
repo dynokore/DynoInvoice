@@ -45,12 +45,18 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 13
         OperationsGate.contractChannels(asyncapi).size shouldBe 3
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        // the done set is exactly the tasks the table assigns to an operation (each such task is done and answers
+        // something other than 501), nothing else
+        OperationsGate.parseDone(doneText).first shouldBe assigned.map { it.task }.toSet()
     }
+
+    /** The operation rows a task has taken (not UNASSIGNED): their methods are overridden. */
+    private val assigned =
+        OperationsGate.parse(tsv).filter { it.kind == "operation" && it.task != "UNASSIGNED" }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+        stubs shouldBe OperationsGate.contractOperations(openapi) - assigned.map { it.id }.toSet()
     }
 
     @Test
