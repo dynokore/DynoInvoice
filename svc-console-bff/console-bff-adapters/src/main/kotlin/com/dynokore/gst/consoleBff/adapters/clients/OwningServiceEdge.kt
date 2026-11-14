@@ -5,7 +5,6 @@ import com.dynokore.platform.serviceruntime.resilience.ResilientEdge
 import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import java.time.Duration
-import java.util.UUID
 
 /** `x-timeout` of overrideValidation and overrideFilingGate in the pinned contracts, in milliseconds. */
 private const val EDGE_TIMEOUT_MILLIS = 2000L
@@ -49,12 +48,4 @@ object OwningServiceEdge {
         registry: ResilienceRegistry,
         service: OwningService,
     ): ResilientEdge = registry.forEdge(service.edge)
-
-    private val canonicalUuid = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
-
-    /**
-     * The UUID of a text in the canonical 8-4-4-4-12 form, or null. `UUID.fromString` alone is lenient (it takes
-     * `1-1-1-1-1` and a text with a digit missing), so the form is checked first (ASVS V5.1, V4.1.1).
-     */
-    fun strictUuid(text: String): UUID? = if (canonicalUuid.matches(text)) UUID.fromString(text) else null
 }

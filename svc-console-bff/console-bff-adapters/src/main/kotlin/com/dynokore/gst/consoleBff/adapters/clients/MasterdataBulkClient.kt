@@ -14,6 +14,7 @@ import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import java.time.Clock
+import java.util.UUID
 
 private const val HTTP_OK = 200
 
@@ -35,12 +36,10 @@ class MasterdataBulkClient(
     private val edge = OwnerEdge(OwningService.MASTERDATA, registry, clock, restClient)
 
     override fun resolve(command: BulkCommand): OwnerReply<BulkOutcome> {
-        val key = OwningServiceEdge.strictUuid(command.idempotencyKey)
-        val ids = command.docUuids.map { OwningServiceEdge.strictUuid(it) }
-        return if (key == null) {
-            OwnerReply.Unavailable("${OwningService.MASTERDATA.edge}: idempotencyKey is not a UUID")
-        } else if (ids.contains(null)) {
-            OwnerReply.Unavailable("${OwningService.MASTERDATA.edge}: docUuids holds a member that is not a UUID")
+        val key = runCatching { UUID.fromString(command.idempotencyKey) }.getOrNull()
+        val ids = command.docUuids.map { runCatching { UUID.fromString(it) }.getOrNull() }
+        return if (key == null || ids.any { it == null }) {
+            OwnerReply.Unavailable("${OwningService.MASTERDATA.edge}: idempotency key or docUuid is not a UUID")
         } else {
             val docs = ids.filterNotNull()
             val body =
