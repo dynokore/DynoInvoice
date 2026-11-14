@@ -24,8 +24,8 @@ class OverrideWiringTest {
             context.getBean(OverrideStore::class.java).shouldBeInstanceOf<JooqOverrideStore>()
             context.getBean(HoldingChecks::class.java).shouldBeInstanceOf<JooqHoldingChecks>()
             context.getBean(ReleasedOverrideChecks::class.java).shouldBeInstanceOf<JooqReleasedOverrideChecks>()
-            context.getBeansOfType(RunReadiness::class.java).size shouldBe 0
-            context.getBeansOfType(ReadinessEntrySource::class.java).size shouldBe 0
+            context.getBeansOfType(RunReadiness::class.java).size shouldBe 1
+            context.getBeansOfType(ReadinessEntrySource::class.java).size shouldBe 1
         }
     }
 }

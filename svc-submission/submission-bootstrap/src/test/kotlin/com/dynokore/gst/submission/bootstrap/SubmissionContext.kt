@@ -49,6 +49,8 @@ object SubmissionContext {
             "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
             // INV-Q-16793 A: no cron task fires a job on the clock in the shared test contexts
             "inv.submission.job-scheduling.enabled=false",
+            // the TransportClient bean exists only with a base-url (INV-T-22121); the drain beans need it
+            "inv.transport-client.base-url=http://transport.invalid",
         )
 
     /**

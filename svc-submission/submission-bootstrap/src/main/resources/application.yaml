@@ -47,6 +47,9 @@ inv:
     # PolicyReader (a later slice). A positive integer; a missing, zero or negative value fails the start.
     retry-boundary-minutes: 240 # provisional
     job-scheduling.enabled: true # INV-Q-16793 A: fire the registered jobs on their cron; tests set it false (SubmissionContext)
+  drain:
+    # The period drain (INV-REQ-554): the number of despatches between two selections; a positive integer, a missing or non-positive value fails the start.
+    batch-size: 20
   transport-client:
     # The TransportClient adapter (INV-T-22121): no base-url here, the deployment sets it; without it no TransportClient bean exists.
     read-timeout-ms: 30000 # the x-timeout of submitPayload in the transport contract
