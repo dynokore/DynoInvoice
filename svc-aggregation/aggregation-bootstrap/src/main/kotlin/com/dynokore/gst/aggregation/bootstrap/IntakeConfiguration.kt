@@ -1,8 +1,10 @@
 package com.dynokore.gst.aggregation.bootstrap
 
+import com.dynokore.gst.aggregation.adapters.events.ShortCodeUsedOutbox
 import com.dynokore.gst.aggregation.adapters.persistence.JooqAggregateStore
 import com.dynokore.gst.aggregation.adapters.persistence.JooqHandOffStore
 import com.dynokore.gst.aggregation.adapters.persistence.JooqSeenRevisions
+import com.dynokore.gst.aggregation.adapters.persistence.JooqUsedShortCodes
 import com.dynokore.gst.aggregation.adapters.replica.StructureCodeLookup
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.AggregateRevisions
@@ -13,6 +15,7 @@ import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.SeenRevisions
 import com.dynokore.gst.aggregation.application.ShortCodes
 import com.dynokore.gst.aggregation.application.WindowRepository
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -24,11 +27,18 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class IntakeConfiguration {
     @Bean
+    fun shortCodeUsedOutbox(
+        outbox: OutboxWriter,
+        tenants: TenantContext,
+    ): ShortCodeUsedOutbox = ShortCodeUsedOutbox(outbox, tenants)
+
+    @Bean
     fun aggregateRepository(
         dsl: DSLContext,
         runner: TransactionRunner,
         tenants: TenantContext,
-    ): JooqAggregateStore = JooqAggregateStore(dsl, runner, tenants)
+        shortCodeUsed: ShortCodeUsedOutbox,
+    ): JooqAggregateStore = JooqAggregateStore(dsl, runner, tenants, JooqUsedShortCodes(dsl, tenants, shortCodeUsed))
 
     @Bean
     fun seenRevisions(

@@ -29,8 +29,13 @@ class JooqAggregateStore(
     private val dsl: DSLContext,
     private val runner: TransactionRunner,
     private val tenants: TenantContext,
+    private val usedCodes: JooqUsedShortCodes?,
 ) : AggregateRepository,
     AggregateRevisions {
+    /** A store that only reads and maps rows (the hand-off and revision readers); [store] and [replace] refuse. */
+    constructor(dsl: DSLContext, runner: TransactionRunner, tenants: TenantContext) :
+        this(dsl, runner, tenants, null)
+
     private val seen = JooqSeenRevisions(dsl, tenants, runner)
 
     override fun findByIntakeKey(
@@ -184,6 +189,10 @@ class JooqAggregateStore(
             .set(AGGREGATE.WINDOW_STATE, aggregate.windowState?.name)
             .set(AGGREGATE.SUPPLEMENTARY, aggregate.isSupplementary)
             .execute()
+        // the first use of a code is recorded and announced in this transaction (INV-AC-2779, INV-Q-11266 A)
+        checkNotNull(
+            usedCodes,
+        ) { "a store without the used-code record cannot store an aggregate" }.record(id, aggregate)
         aggregate.lines.forEachIndexed { position, line ->
             dsl
                 .insertInto(AGGREGATE_LINE)
