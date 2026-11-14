@@ -2,7 +2,6 @@ package com.dynokore.gst.submission.application.filing
 
 import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.gst.catalogue.OperationRoles
-import com.dynokore.gst.submission.application.gate.GateModes
 import com.dynokore.gst.submission.application.gate.LatestChecks
 import com.dynokore.gst.submission.application.readiness.ReleasedOverrideChecks
 import com.dynokore.gst.submission.domain.filing.FilingConflict
@@ -24,6 +23,7 @@ import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
@@ -152,7 +152,12 @@ class ConfirmFilingTest {
             ): Set<String> = emptySet()
         }
     private val released = ReleasedOverrideChecks { _, period -> if (period == "P5") setOf("chk-9") else emptySet() }
-    private val modes = GateModes { GateMode.BLOCKING }
+    private val modeCalls = mutableListOf<Pair<String, LocalDate>>()
+    private val modes =
+        GateModesAt { entity, on ->
+            modeCalls += entity to on
+            GateMode.BLOCKING
+        }
 
     private fun useCase(replica: AuthorityReplica) = ConfirmFiling(replica, dueDates, modes, latest, released, store)
 
@@ -203,8 +208,29 @@ class ConfirmFilingTest {
 
     @Test
     fun `INV-AC-20622 a period with more than one due date is refused and nothing is handed`() {
-        useCase(holder()).handle(req(period = "P3"), deadline) shouldBe ConfirmFilingResult.NoDueDate
+        shouldThrow<AmbiguousDueDateException> { useCase(holder()).handle(req(period = "P3"), deadline) }
         store.handed shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-22488 ambiguous due date throws and nothing is handed`() {
+        shouldThrow<AmbiguousDueDateException> { useCase(holder()).handle(req(period = "P3"), deadline) }
+        store.handed shouldBe emptyList()
+        log shouldBe listOf("due")
+        modeCalls shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-22488 ambiguous due date for a caller without the permission is Forbidden`() {
+        useCase(holder()).handle(req(who = u2, period = "P3"), deadline) shouldBe
+            ConfirmFilingResult.Forbidden(DecisionReason.NO_GRANT)
+        store.handed shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-22488 the gate mode is read at the filing date`() {
+        useCase(holder()).handle(req(day = 29), deadline).shouldBeInstanceOf<ConfirmFilingResult.Recorded>()
+        modeCalls shouldBe listOf("e1" to LocalDate.of(2026, 4, 29))
     }
 
     @Test

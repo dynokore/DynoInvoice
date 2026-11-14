@@ -9,8 +9,8 @@ import com.dynokore.gst.submission.application.filing.ConfirmFiling
 import com.dynokore.gst.submission.application.filing.ConfirmFilingActions
 import com.dynokore.gst.submission.application.filing.ConfirmFilingRequest
 import com.dynokore.gst.submission.application.filing.ConfirmFilingResult
+import com.dynokore.gst.submission.application.filing.GateModesAt
 import com.dynokore.gst.submission.application.filing.NewFilingFact
-import com.dynokore.gst.submission.application.gate.GateModes
 import com.dynokore.gst.submission.application.gate.LatestChecks
 import com.dynokore.gst.submission.application.readiness.ReleasedOverrideChecks
 import com.dynokore.gst.submission.domain.filing.FilingConflict
@@ -155,7 +155,7 @@ class FilingFactStoreDbTest {
         ConfirmFiling(
             replicaFor(t),
             dueDates,
-            GateModes { GateMode.BLOCKING },
+            GateModesAt { _, _ -> GateMode.BLOCKING },
             object : LatestChecks {
                 override fun latest(
                     entityRef: String,

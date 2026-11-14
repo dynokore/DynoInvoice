@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.filing
 
+import com.dynokore.gst.submission.domain.gate.GateMode
 import java.time.Instant
 import java.time.LocalDate
 
@@ -52,4 +53,12 @@ fun interface FilingDueDates {
         entityRef: String,
         periodRef: String,
     ): LocalDate?
+}
+
+/** The gate mode (VP-14) of an entity on a transaction date; never the clock (INV-REQ-1351). */
+fun interface GateModesAt {
+    fun modeAt(
+        entityRef: String,
+        on: LocalDate,
+    ): GateMode
 }

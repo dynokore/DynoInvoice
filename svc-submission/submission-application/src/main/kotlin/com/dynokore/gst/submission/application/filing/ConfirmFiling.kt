@@ -1,6 +1,5 @@
 package com.dynokore.gst.submission.application.filing
 
-import com.dynokore.gst.submission.application.gate.GateModes
 import com.dynokore.gst.submission.application.gate.LatestChecks
 import com.dynokore.gst.submission.application.readiness.ReleasedOverrideChecks
 import com.dynokore.gst.submission.domain.filing.FiledFact
@@ -57,12 +56,15 @@ sealed interface ConfirmFilingResult {
 /**
  * Confirms a filing (INV-REQ-917). Order: permission (one decision point, `AuthorityReplica.decide`, for every caller
  * kind), due date, gate, append; a refusal appends nothing. Reads no clock: `confirmedAt` is the `recordedAt` the store
- * stamped on the stored fact equal to the request, so a repeat answers the first call's value.
+ * stamped on the stored fact equal to the request, so a repeat answers the first call's value. More than one due date is
+ * a corrupt-state invariant violation: [AmbiguousDueDateException] propagates out of [handle] after the permission
+ * decision and before any gate read or append; only no date is [ConfirmFilingResult.NoDueDate]. The gate mode is read
+ * at the filing's own calendar date, its transaction date (INV-REQ-1351).
  */
 class ConfirmFiling(
     private val replica: AuthorityReplica,
     private val dueDates: FilingDueDates,
-    private val gateModes: GateModes,
+    private val gateModes: GateModesAt,
     private val latestChecks: LatestChecks,
     private val releasedOverrides: ReleasedOverrideChecks,
     private val facts: FilingFactStore,
@@ -127,18 +129,14 @@ class ConfirmFiling(
         val latest = latestChecks.latest(request.entityRef, request.periodRef)
         val released = releasedOverrides.releasedCheckIds(request.entityRef, request.periodRef)
         val overridden = latest?.checkId?.takeIf { it in released }
-        val gate = FilingGate.decide(gateModes.modeOf(request.entityRef), latest, overridden)
+        val gate = FilingGate.decide(gateModes.modeAt(request.entityRef, request.filedAt), latest, overridden)
         return (gate as? Refuse)?.let { ConfirmFilingResult.GateRefused(it.code) }
     }
 
     private fun actionOf(principal: Principal): String =
         if (principal.kind == PrincipalKind.MACHINE) ConfirmFilingActions.MACHINE else ConfirmFilingActions.PERSON
 
-    /** No date and more than one date both refuse. */
+    /** Only no date is false; more than one date throws [AmbiguousDueDateException]. */
     private fun hasDueDate(request: ConfirmFilingRequest): Boolean =
-        try {
-            dueDates.dueDateOf(request.entityRef, request.periodRef) != null
-        } catch (_: AmbiguousDueDateException) {
-            false
-        }
+        dueDates.dueDateOf(request.entityRef, request.periodRef) != null
 }
