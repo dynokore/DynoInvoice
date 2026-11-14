@@ -261,7 +261,7 @@ class MasterDataConsumerTest {
                     return HandleOutcome.APPLIED
                 }
             }
-        val dispatch = replayDispatch(fake("held"), fake("released"), fake("masterData"))
+        val dispatch = replayDispatch(fake("held"), fake("released"), fake("masterData"), fake("dueDate"))
         val tenant = UUID.randomUUID()
         dispatch.handle(resolvedEvent(tenant, "r1"))
         calls shouldBe listOf("masterData")

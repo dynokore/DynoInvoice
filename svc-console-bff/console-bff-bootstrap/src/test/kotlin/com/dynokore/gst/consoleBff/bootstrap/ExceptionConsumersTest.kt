@@ -222,7 +222,12 @@ class ExceptionConsumersTest {
         }
         val masterData = checkNotNull(catalogue.find("com.dynokore.gst.masterdata.MasterDataResolved.v1"))
         ConsoleEvents.consumed.map { it.eventType } shouldBe
-            listOf(held.eventType, released.eventType, masterData.eventType)
+            listOf(
+                held.eventType,
+                released.eventType,
+                masterData.eventType,
+                "com.dynokore.gst.tenancy.PeriodDueDateChanged.v1",
+            )
     }
 
     @Test
@@ -249,7 +254,7 @@ class ExceptionConsumersTest {
                     return HandleOutcome.APPLIED
                 }
             }
-        val dispatch = replayDispatch(fake("held"), fake("released"), fake("masterData"))
+        val dispatch = replayDispatch(fake("held"), fake("released"), fake("masterData"), fake("dueDate"))
         val tenant = UUID.randomUUID()
         dispatch.handle(heldEvent(tenant, "r1"))
         calls shouldBe listOf("held")

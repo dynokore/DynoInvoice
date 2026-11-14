@@ -37,11 +37,17 @@ object ConsoleEvents {
     const val MASTER_DATA_RESOLVED_TYPE = "com.dynokore.gst.masterdata.MasterDataResolved.v1"
     const val MASTER_DATA_RESOLVED_TOPIC = "gst.masterdata.master-data-resolved.v1"
 
+    private const val TENANCY = "tenancy-svc"
+
+    const val PERIOD_DUE_DATE_CHANGED_TYPE = "com.dynokore.gst.tenancy.PeriodDueDateChanged.v1"
+    const val PERIOD_DUE_DATE_CHANGED_TOPIC = "gst.tenancy.period-due-date-changed.v1"
+
     val consumed: List<CatalogueEntry> =
         listOf(
             Triple(DOCUMENT_HELD_TYPE, DOCUMENT_HELD_TOPIC, CANONICAL),
             Triple(DOCUMENT_RELEASED_TYPE, DOCUMENT_RELEASED_TOPIC, CANONICAL),
             Triple(MASTER_DATA_RESOLVED_TYPE, MASTER_DATA_RESOLVED_TOPIC, MASTERDATA),
+            Triple(PERIOD_DUE_DATE_CHANGED_TYPE, PERIOD_DUE_DATE_CHANGED_TOPIC, TENANCY),
         ).map { (type, topic, producer) ->
             CatalogueEntry(
                 type,
