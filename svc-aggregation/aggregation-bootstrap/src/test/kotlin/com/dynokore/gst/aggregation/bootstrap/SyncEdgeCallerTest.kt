@@ -95,7 +95,7 @@ class SyncEdgeCallerTest {
     ) {
         val operations = operations()
         val services = namedCallers(operations)
-        val lookAlikes = services.map { "$it-two" }
+        val lookAlikes = services.map { "$it-2" }
         val problems = mutableListOf<String>()
         AggregationDb.superuser().use { connection ->
             serve(dir, services + lookAlikes, loader) { context ->
