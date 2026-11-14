@@ -25,12 +25,14 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * The operations of one tag of the ingestion contract (TPL-08). The two trigger-coverage commands run the use cases of
- * `application.triggers` in one transaction of the caller's tenant (ARC-21). Every other operation answers 501 until the
- * task named for it in `operations.tsv` overrides its method: the generated interface's default is NOT_IMPLEMENTED.
+ * The operations of one tag of the ingestion contract (TPL-08). The two trigger-coverage commands run the use cases
+ * of `application.triggers` in one transaction of the caller's tenant (ARC-21). Every other operation answers 501
+ * until the task named for it in `operations.tsv` overrides its method: the generated interface's default is
+ * NOT_IMPLEMENTED.
  * A refusal is an [ApiRefusal], rendered once by [ApiRefusalAdvice] (ARC-19).
  */
 @RestController
+@Suppress("SwallowedException") // a domain validation failure or a non-user subject becomes the closed refusal (ARC-19)
 open class AdministrationController(
     private val callers: CallerSource,
     private val tenants: TenantContext,

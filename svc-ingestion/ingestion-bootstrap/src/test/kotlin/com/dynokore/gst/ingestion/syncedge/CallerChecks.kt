@@ -60,11 +60,17 @@ class CallerChecks(
         return (callers + unmapped).mapNotNull { (what, headers) ->
             val answer = send(operation, headers)
             "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}".takeIf {
-                answer.statusCode() !=
-                    501
+                !reachedHandler(answer)
             }
         }
     }
+
+    /**
+     * The handler answered: 501 from an operation no task implements yet, or 401 SRT-003 from an implemented one that
+     * reads its end-user caller (the probe's bearer token resolves to no user). A caller refusal is 403 SRT-004.
+     */
+    private fun reachedHandler(answer: HttpResponse<String>): Boolean =
+        answer.statusCode() == 501 || (answer.statusCode() == 401 && "SRT-003" in answer.body())
 
     private fun refused(
         operation: Operation,
