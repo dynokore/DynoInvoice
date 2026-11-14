@@ -1,4 +1,4 @@
--- V9__aggregate_handoff.sql (INV-T-4979; INV-REQ-718, INV-REQ-434 item 4, INV-REQ-439): the lines of an aggregate, the
+-- V10__aggregate_handoff.sql (INV-T-4979; INV-REQ-718, INV-REQ-434 item 4, INV-REQ-439): the lines of an aggregate, the
 -- hand-off mark, the transmitted mark and the replacement and supplementary marks.
 -- transmitted_at is written in production only by the SubmissionDespatched consumer of INV-T-4980 (INV-REQ-439); this
 -- service reads it. superseded_by is the id of the aggregate that replaced this one (never deleted). The document
@@ -7,7 +7,7 @@
 alter table aggregation.aggregate
     add column transmitted_at timestamptz,
     add column superseded_by uuid,
-    add column is_supplementary boolean not null default false,
+    add column supplementary boolean not null default false,
     add column handed_on_at timestamptz;
 alter table aggregation.aggregate drop constraint aggregate_document_number_key;
 create unique index aggregate_document_number_key on aggregation.aggregate (tenant_id, document_number)
@@ -28,3 +28,21 @@ create policy aggregate_line_tenant_isolation on aggregation.aggregate_line
     using      (tenant_id = (select aggregation.bound_tenant()))
     with check (tenant_id = (select aggregation.bound_tenant()));
 grant select, insert on aggregation.aggregate_line to aggregation_runtime;
+
+-- A higher revision whose difference to the recorded aggregates is zero stores no aggregate; the revision is recorded
+-- as seen against the aggregate it was compared with (INV-REQ-434 item 4), so a replay answers that aggregate and a
+-- lower revision is still refused (ING-002).
+create table aggregation.seen_revision (
+    tenant_id uuid not null,
+    entity_ref text not null,
+    source_key text not null,
+    source_revision bigint not null,
+    aggregate_id uuid not null references aggregation.aggregate (aggregate_id),
+    primary key (tenant_id, entity_ref, source_key, source_revision)
+);
+alter table aggregation.seen_revision enable row level security;
+alter table aggregation.seen_revision force row level security;
+create policy seen_revision_tenant_isolation on aggregation.seen_revision
+    using      (tenant_id = (select aggregation.bound_tenant()))
+    with check (tenant_id = (select aggregation.bound_tenant()));
+grant select, insert on aggregation.seen_revision to aggregation_runtime;

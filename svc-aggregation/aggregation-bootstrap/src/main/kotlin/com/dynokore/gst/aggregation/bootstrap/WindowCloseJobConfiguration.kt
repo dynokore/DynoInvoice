@@ -209,9 +209,10 @@ class WindowCloseSchedule {
 }
 
 /**
- * The (tenant, entity) pairs that hold an open window: the key columns of the SECURITY DEFINER function
- * `aggregation.open_window_entities()` and nothing else, read as the platform tenant. The reserved tenant-wide entity
- * cannot be a [JobTarget.Entity], so a pair that names it is left out.
+ * The (tenant, entity) pairs that hold an open window or an aggregate not yet handed on (an entity whose windows are
+ * all closed still has aggregates to hand on): the key columns of the SECURITY DEFINER function
+ * `aggregation.hand_off_entities()` (V11) and nothing else, read as the platform tenant. The reserved tenant-wide
+ * entity cannot be a [JobTarget.Entity], so a pair that names it is left out.
  */
 class OpenWindowEntitySource(
     private val scope: TenantScope,
@@ -238,7 +239,7 @@ class OpenWindowEntitySource(
             DSL.function(
                 DSL.name("to_jsonb"),
                 SQLDataType.JSONB,
-                DSL.function(DSL.name("aggregation", "open_window_entities"), SQLDataType.OTHER),
+                DSL.function(DSL.name("aggregation", "hand_off_entities"), SQLDataType.OTHER),
             )
     }
 }
