@@ -15,7 +15,12 @@ class ReadinessInputWiringTest {
     private fun field(
         target: Any,
         name: String,
-    ): Any? = target.javaClass.getDeclaredField(name).also { it.isAccessible = true }.get(target)
+    ): Any? =
+        target.javaClass
+            .getDeclaredField(name)
+            .also { it.isAccessible = true }
+            .get(target)
+
 
     @Test
     fun `INV-AC-22208 the context has exactly one ReadinessInputSource and it is the stored one over the jOOQ ports`(
