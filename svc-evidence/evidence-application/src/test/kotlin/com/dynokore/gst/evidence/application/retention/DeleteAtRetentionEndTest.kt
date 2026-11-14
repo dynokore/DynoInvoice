@@ -49,25 +49,37 @@ class DeleteAtRetentionEndTest {
                 override fun retentionEnd(
                     tenant: String,
                     partitionId: String,
-                ): Instant? = retentionEnd
+                ): Instant? {
+                    calls += "retentionEnd"
+                    return retentionEnd
+                }
             },
             object : NoticeReader {
                 override fun window(
                     tenant: String,
                     partitionId: String,
-                ): NoticeRecord? = notice
+                ): NoticeRecord? {
+                    calls += "notice"
+                    return notice
+                }
             },
             object : ApprovalReader {
                 override fun approvals(
                     tenant: String,
                     partitionId: String,
-                ): List<Approval> = approvals
+                ): List<Approval> {
+                    calls += "approvals"
+                    return approvals
+                }
             },
             object : DeletionIntegrity {
                 override fun allowsDeletion(
                     tenant: String,
                     partitionId: String,
-                ): Boolean = integrityOk
+                ): Boolean {
+                    calls += "integrity"
+                    return integrityOk
+                }
             },
             object : DeletionAudit {
                 override fun append(
@@ -105,9 +117,13 @@ class DeleteAtRetentionEndTest {
 
     private fun run() = subject.execute("T1", "user-7", "PART-1")
 
-    private fun refused(expected: DeleteAtRetentionEndResult) {
+    /** The result is [expected] and exactly the ports in [reads] were read, in order; no write port was touched. */
+    private fun refused(
+        expected: DeleteAtRetentionEndResult,
+        vararg reads: String,
+    ) {
         run() shouldBe expected
-        calls.none { it in setOf("audit", "detach", "archive", "drop") } shouldBe true
+        calls shouldBe listOf("find") + reads.toList()
     }
 
     private val activeHold = LegalHold("H1", "E1", period, "dispute", HoldStatus.ACTIVE)
@@ -115,49 +131,56 @@ class DeleteAtRetentionEndTest {
     @Test
     fun `INV-AC-22963 retention end later than now is refused also with no hold and a closed window`() {
         retentionEnd = now.plusSeconds(60)
-        refused(DeleteAtRetentionEndResult.RETENTION_NOT_ENDED)
+        refused(DeleteAtRetentionEndResult.RETENTION_NOT_ENDED, "retentionEnd")
     }
 
     @Test
     fun `INV-AC-22963 retention end null is refused`() {
         retentionEnd = null
-        refused(DeleteAtRetentionEndResult.RETENTION_NOT_ENDED)
+        refused(DeleteAtRetentionEndResult.RETENTION_NOT_ENDED, "retentionEnd")
     }
 
     @Test
     fun `INV-AC-22963 hold in force is refused also after the window`() {
         hold = activeHold
-        refused(DeleteAtRetentionEndResult.HOLD_IN_FORCE)
+        refused(DeleteAtRetentionEndResult.HOLD_IN_FORCE, "retentionEnd", "holds")
     }
 
     @Test
     fun `INV-AC-22963 no notice record is NOTICE_MISSING`() {
         notice = null
-        refused(DeleteAtRetentionEndResult.NOTICE_MISSING)
+        refused(DeleteAtRetentionEndResult.NOTICE_MISSING, "retentionEnd", "holds", "notice")
     }
 
     @Test
     fun `INV-AC-22963 window open is refused`() {
         notice = NoticeRecord(now.minusSeconds(60), NoticeWindow(1))
-        refused(DeleteAtRetentionEndResult.WINDOW_OPEN)
+        refused(DeleteAtRetentionEndResult.WINDOW_OPEN, "retentionEnd", "holds", "notice")
     }
 
     @Test
     fun `INV-AC-22963 one approval is refused`() {
         approvals = approvals.take(1)
-        refused(DeleteAtRetentionEndResult.APPROVALS_MISSING)
+        refused(DeleteAtRetentionEndResult.APPROVALS_MISSING, "retentionEnd", "holds", "notice", "approvals")
     }
 
     @Test
     fun `INV-AC-22963 the same approver twice is refused`() {
         approvals = listOf(Approval("u1", "retention.delete.request"), Approval("u1", "retention.delete.approve"))
-        refused(DeleteAtRetentionEndResult.APPROVALS_MISSING)
+        refused(DeleteAtRetentionEndResult.APPROVALS_MISSING, "retentionEnd", "holds", "notice", "approvals")
     }
 
     @Test
     fun `INV-AC-22963 integrity refusing is CHAIN_VERIFICATION_FAILED`() {
         integrityOk = false
-        refused(DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED)
+        refused(
+            DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED,
+            "retentionEnd",
+            "holds",
+            "notice",
+            "approvals",
+            "integrity",
+        )
     }
 
     @Test
@@ -169,7 +192,19 @@ class DeleteAtRetentionEndTest {
     @Test
     fun `INV-AC-22963 two distinct approvals delete audit first then detach archive drop with the user ID`() {
         run() shouldBe DeleteAtRetentionEndResult.DELETED
-        calls.filter { it != "find" && it != "holds" } shouldBe listOf("audit", "detach", "archive", "drop")
+        calls shouldBe
+            listOf(
+                "find",
+                "retentionEnd",
+                "holds",
+                "notice",
+                "approvals",
+                "integrity",
+                "audit",
+                "detach",
+                "archive",
+                "drop",
+            )
         auditActor shouldBe "user-7"
     }
 
@@ -179,5 +214,11 @@ class DeleteAtRetentionEndTest {
         calls.clear()
         run() shouldBe DeleteAtRetentionEndResult.ALREADY_DELETED
         calls shouldBe listOf("find")
+    }
+
+    @Test
+    fun `INV-AC-22963 a partition stored as dropped is ALREADY_DELETED and only the registry is read`() {
+        partition = partition?.copy(state = PartitionState.DROPPED)
+        refused(DeleteAtRetentionEndResult.ALREADY_DELETED)
     }
 }
