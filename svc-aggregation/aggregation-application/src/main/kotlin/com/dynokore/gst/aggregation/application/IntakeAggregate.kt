@@ -114,6 +114,27 @@ interface AggregateRevisions {
 
 /** Records a revision that stored no aggregate (zero difference), against the aggregate it was compared with. */
 interface SeenRevisions {
+    /**
+     * The aggregate of the highest revision among those of the key that are not superseded, except [excluding]; this
+     * is the aggregate a zero-difference request over [excluding] was compared with. Null when there is none.
+     */
+    fun comparedWith(
+        entityRef: String,
+        sourceKey: String,
+        excluding: UUID,
+    ): StoredAggregate?
+
+    /**
+     * Zero difference over the untransmitted, not handed-on supplementary [old] (INV-Q-22395 A): marks [old]
+     * superseded by [compared], stores nothing and records [sourceRevision] as seen against [compared], in one
+     * transaction; no other column of [old] changes.
+     */
+    fun supersedeUnchanged(
+        old: StoredAggregate,
+        compared: StoredAggregate,
+        sourceRevision: Long,
+    )
+
     fun recordSeen(
         compared: StoredAggregate,
         sourceRevision: Long,
@@ -224,9 +245,17 @@ class IntakeAggregate(
             } else {
                 AggregateLines.merge(command.lines)
             }
-        // Open design question (coordinator, unanswered): a zero difference over an untransmitted supplementary
-        // aggregate. A supplementary aggregate with no lines is never stored, so nothing is stored here.
-        check(lines.isNotEmpty()) { "a replacement that would leave a supplementary aggregate without lines" }
+        if (lines.isEmpty()) {
+            // Zero difference over a supplementary (INV-Q-22395 A): nothing is stored, the supplementary is
+            // superseded by the aggregate the request was compared with, and that aggregate's receipt is answered.
+            val unchanged = checkNotNull(seen)
+            val compared =
+                checkNotNull(unchanged.comparedWith(command.entityRef, command.sourceKey, current.aggregateId)) {
+                    "a supplementary aggregate without an aggregate it supplements"
+                }
+            unchanged.supersedeUnchanged(current, compared, command.sourceRevision)
+            return IntakeOutcome.Unchanged(compared)
+        }
         val replacement =
             old.copy(
                 periodStart = command.periodStart,

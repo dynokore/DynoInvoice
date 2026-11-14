@@ -46,6 +46,7 @@ class JooqAggregateStore(
                 .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
                 .and(AGGREGATE.SOURCE_REVISION.eq(sourceRevision))
                 .fetchOne()
+                ?.takeUnless { dsl.lostToLowerRevision(tenants.current().value, it, sourceRevision) }
                 ?.let(::stored)
                 ?: seen.aggregateId(entityRef, sourceKey, sourceRevision)?.let { id ->
                     dsl
@@ -99,6 +100,7 @@ class JooqAggregateStore(
                 .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
                 .and(AGGREGATE.ENTITY_REF.eq(entityRef))
                 .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                .and(AGGREGATE.SUPERSEDED_BY.isNull)
                 .orderBy(AGGREGATE.SOURCE_REVISION.desc())
                 .limit(1)
                 .fetchOne()
@@ -254,4 +256,24 @@ class JooqAggregateStore(
         /** Read through the hand-written sequence (INV-Q-7449 A); the names equal those of the migration. */
         val SEQUENCE = DSL.sequence(DSL.name(SCHEMA, SEQUENCE_NAME), SQLDataType.BIGINT)
     }
+}
+
+/**
+ * A row superseded by an aggregate of a lower revision lost it to a zero-difference revision (INV-Q-22395 A): it is no
+ * replay (ING-002), unlike a row that a higher revision replaced. Call inside a transaction.
+ */
+private fun DSLContext.lostToLowerRevision(
+    tenant: UUID,
+    row: AggregateRecord,
+    sourceRevision: Long,
+): Boolean {
+    val by = row.get(AGGREGATE.SUPERSEDED_BY) ?: return false
+    val revision =
+        select(AGGREGATE.SOURCE_REVISION)
+            .from(AGGREGATE)
+            .where(AGGREGATE.TENANT_ID.eq(tenant))
+            .and(AGGREGATE.AGGREGATE_ID.eq(by))
+            .fetchOne()
+            ?.value1()
+    return revision != null && revision < sourceRevision
 }

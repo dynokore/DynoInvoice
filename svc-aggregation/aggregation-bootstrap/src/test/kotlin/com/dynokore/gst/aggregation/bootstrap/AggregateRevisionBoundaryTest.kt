@@ -165,6 +165,75 @@ class AggregateRevisionBoundaryTest : BoundaryFixture() {
         }
 
     @Test
+    fun `INV-REQ-434 zero difference over a supplementary supersedes it by the compared aggregate and stores nothing`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant()
+
+            fun sr(s: String) =
+                """{"internalTaxCode":"SR-STD","amount":"$s"},{"internalTaxCode":"ZR-EXP","amount":"500.00"}"""
+            val one = json(boundary.send(tenant, body(lines = sr("1000.00"))))
+            transmit(tenant)
+            val oneBefore = rowOf(tenant, 1)
+            val two = json(boundary.send(tenant, body(sourceRevision = 2, lines = sr("1200.00"))))
+            lines(tenant, two["aggregateId"].asString()) shouldBe listOf("SR-STD=200.00")
+            val rowSql =
+                "select (to_jsonb(a) - 'superseded_by')::text from aggregation.aggregate a " +
+                    "where tenant_id = ? and source_revision = 2"
+            val twoBefore = query(rowSql, tenant) { it.getString(1) }
+            val countBefore = count(tenant)
+            val three = boundary.send(tenant, body(sourceRevision = 3, lines = sr("1000.00")))
+            // (1)
+            three.status shouldBe 202
+            json(three)["aggregateId"].asString() shouldBe one["aggregateId"].asString()
+            json(three)["documentNumber"].asString() shouldBe one["documentNumber"].asString()
+            // (2)
+            query(
+                "select superseded_by::text from aggregation.aggregate where tenant_id = ? and source_revision = 2",
+                tenant,
+            ) { it.getString(1) } shouldBe listOf(one["aggregateId"].asString())
+            query(rowSql, tenant) { it.getString(1) } shouldBe twoBefore
+            // (3)
+            rowOf(tenant, 1) shouldBe oneBefore
+            // (4)
+            count(tenant) shouldBe countBefore
+            query(
+                "select count(*)::text from aggregation.aggregate a where tenant_id = ? and not exists " +
+                    "(select 1 from aggregation.aggregate_line l where l.aggregate_id = a.aggregate_id)",
+                tenant,
+            ) { it.getString(1) } shouldBe listOf("0")
+            // (5)
+            liveSums(tenant) shouldBe listOf("SR-STD=1000.00", "ZR-EXP=500.00")
+            closeWindows(tenant)
+            boundary
+                .handOn(tenant)
+                .none { handed -> handed.aggregate.lines.any { it.amount == "200.00" } } shouldBe true
+            // (6)
+            val refused = boundary.send(tenant, body(sourceRevision = 2, lines = sr("1200.00")))
+            refused.status shouldBe 409
+            json(refused)["code"].asString() shouldBe "ING-002"
+        }
+
+    @Test
+    fun `INV-REQ-434 a non-zero difference over a supplementary is still stored, zero difference does not swallow it`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant()
+
+            fun lines(
+                s: String,
+                z: String,
+            ) = """{"internalTaxCode":"SR-STD","amount":"$s"},{"internalTaxCode":"ZR-EXP","amount":"$z"}"""
+            boundary.send(tenant, body(lines = lines("1000.00", "500.00")))
+            transmit(tenant)
+            boundary.send(tenant, body(sourceRevision = 2, lines = lines("1200.00", "500.00")))
+            val three = json(boundary.send(tenant, body(sourceRevision = 3, lines = lines("1000.00", "501.00"))))
+            lines(tenant, three["aggregateId"].asString()) shouldBe listOf("ZR-EXP=1.00")
+        }
+
+    @Test
     fun `INV-REQ-434 revision 3 after a superseded revision 2 follows the same rule against the current aggregate`(
         @TempDir dir: Path,
     ): Unit =
@@ -212,12 +281,7 @@ class AggregateRevisionBoundaryTest : BoundaryFixture() {
             three["documentNumber"].asString() shouldBe two["documentNumber"].asString()
             lines(tenant, three["aggregateId"].asString()) shouldBe listOf("SR-STD=500.00")
             rowOf(tenant, 1) shouldBe before
-            query(
-                "select l.internal_tax_code || '=' || sum(l.amount::numeric) from aggregation.aggregate_line l " +
-                    "join aggregation.aggregate a on a.aggregate_id = l.aggregate_id where a.tenant_id = ? " +
-                    "and a.superseded_by is null group by l.internal_tax_code order by 1",
-                tenant,
-            ) { it.getString(1) } shouldBe listOf("SR-STD=1500.00", "ZR-EXP=500.00")
+            liveSums(tenant) shouldBe listOf("SR-STD=1500.00", "ZR-EXP=500.00")
         }
 
     @Test
@@ -241,4 +305,12 @@ class AggregateRevisionBoundaryTest : BoundaryFixture() {
             rowOf(other, 1) shouldBe otherBefore
             count(other) shouldBe listOf("1")
         }
+
+    private fun liveSums(tenant: UUID) =
+        query(
+            "select l.internal_tax_code || '=' || sum(l.amount::numeric) from aggregation.aggregate_line l " +
+                "join aggregation.aggregate a on a.aggregate_id = l.aggregate_id where a.tenant_id = ? " +
+                "and a.superseded_by is null group by l.internal_tax_code order by 1",
+            tenant,
+        ) { it.getString(1) }
 }
