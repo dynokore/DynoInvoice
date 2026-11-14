@@ -5,7 +5,7 @@
 -- cases only: at start, when authority_version_seq is below the mark (a reset or setval backwards), and on bump(), the
 -- store function the restore runbook reaches through the operation of INV-T-22072. It never falls. The table has no
 -- tenant column and no row level security: it is platform data, written only through the SECURITY DEFINER functions
--- below, owned by the NOLOGIN access_sys (PostgreSQL "Writing SECURITY DEFINER Functions Safely"). No DELETE is granted.
+-- below, owned by the NOLOGIN access_sys (PostgreSQL "Writing SECURITY DEFINER Functions Safely"). DELETE on authority_head is granted to access_sys only (the start-time rebase), never to a runtime role.
 SET lock_timeout = '5s';
 
 CREATE TABLE access.authority_incarnation (
@@ -17,11 +17,13 @@ COMMENT ON TABLE access.authority_incarnation IS 'platform-scoped: no tenant dat
 
 GRANT SELECT ON access.authority_incarnation TO access_runtime;
 GRANT SELECT, INSERT, UPDATE ON access.authority_incarnation TO access_sys;
+GRANT DELETE ON access.authority_head TO access_sys;
 GRANT USAGE, SELECT ON SEQUENCE access.authority_version_seq TO access_sys;
 
 -- The start-time rule: the first value on an empty table is p_now; the value rises to max(stored + 1, p_now) only when
--- the sequence is below the mark. A bump rebases the mark and the head on the sequence, so the next start does not bump
--- again and the heartbeat does not keep reporting a version of the old incarnation.
+-- the sequence is below the mark. The start-time rise also rebases the mark and the head row on the sequence value, so
+-- the next start does not rise again and the heartbeat does not report a version of the old incarnation; a sequence
+-- never called (0) deletes the head row (a head of 0 is refused), and the next publish inserts it. bump does not rebase.
 CREATE FUNCTION access.start_authority_incarnation(p_now bigint) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, access, pg_temp AS $$
 DECLARE
@@ -41,6 +43,8 @@ BEGIN
         UPDATE access.authority_incarnation SET incarnation = v_inc, published_high_water = v_seq WHERE singleton;
         IF v_seq >= 1 THEN
             UPDATE access.authority_head SET authority_version = v_seq WHERE singleton;
+        ELSE
+            DELETE FROM access.authority_head WHERE singleton;
         END IF;
     END IF;
     RETURN v_inc;

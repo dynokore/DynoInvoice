@@ -193,13 +193,69 @@ class AuthorityIncarnationDbTest {
         incarnation: Long,
         mark: Long,
         sequence: Long,
+        head: Long? = null,
+        called: Boolean = true,
     ) {
         given(incarnation, mark, sequence)
+        if (!called) sql("select setval('access.authority_version_seq', $sequence, false)")
+        if (head != null) sql("insert into access.authority_head values (true, $head)")
         BoundaryFixture
             .runner(
                 catalogueMatrix = true,
                 tokenProperties = TestSecrets.TOKEN_PROPERTIES + BoundaryFixture.INSTALLATION_ROLES + QUIET,
             ).run { context -> context.startupFailure?.let { throw it } }
+    }
+
+    private fun headRows(): List<Long> =
+        BoundaryFixture.asSuperuser { c ->
+            c.createStatement().use { s ->
+                s.executeQuery("select authority_version from access.authority_head").use {
+                    buildList {
+                        while (it.next()) add(it.getLong(1))
+                    }
+                }
+            }
+        }
+
+    @Test
+    fun `INV-AC-22069 a start-time rise with the sequence at 7 and the mark at 40 rebases the mark and the head to 7`() {
+        bootWith(incarnation = 1_000, mark = 40, sequence = 7, head = 40)
+        assertThat(mark()).isEqualTo(7L)
+        assertThat(headRows()).containsExactly(7L)
+        val raised = incarnation()
+        // a second start with the sequence still at 7 does not rise again
+        BoundaryFixture
+            .runner(
+                catalogueMatrix = true,
+                tokenProperties = TestSecrets.TOKEN_PROPERTIES + BoundaryFixture.INSTALLATION_ROLES + QUIET,
+            ).run { context -> context.startupFailure?.let { throw it } }
+        assertThat(incarnation()).isEqualTo(raised)
+        assertThat(mark()).isEqualTo(7L)
+    }
+
+    @Test
+    fun `INV-AC-22069 a start-time rise with the sequence never called deletes the head and the next publish inserts it`() {
+        // setval(.., 1, false) leaves the sequence never called
+        bootWith(incarnation = 1_000, mark = 40, sequence = 1, head = 40, called = false)
+        assertThat(mark()).isEqualTo(0L)
+        assertThat(headRows()).isEmpty()
+        withContext { c ->
+            assertThat(c.getBean(AuthorityHeadOutbox::class.java).publish()).isFalse()
+            assertThat(heartbeatPayloads()).isEmpty()
+            inTx(c) { c.getBean(AuthorityHeadStore::class.java).advance(1) }
+            assertThat(headRows()).containsExactly(1L)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22069 bump leaves the mark and the head row unchanged`() {
+        withContext { c ->
+            given(incarnation = 1_000, mark = 40, sequence = 7)
+            sql("insert into access.authority_head values (true, 40)")
+            inTx(c) { store(c, 5_000).bump() }
+            assertThat(mark()).isEqualTo(40L)
+            assertThat(headRows()).containsExactly(40L)
+        }
     }
 
     @Test
