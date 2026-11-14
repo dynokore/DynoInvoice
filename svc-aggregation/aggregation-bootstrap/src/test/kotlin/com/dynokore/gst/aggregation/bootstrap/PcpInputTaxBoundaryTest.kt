@@ -55,6 +55,20 @@ class PcpInputTaxBoundaryTest {
         }
 
     @Test
+    fun `INV-AC-1437 a code whose only claim has claimable input tax 0_00 keeps its line`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit
+                .post(
+                    listOf(Txn("Z1", "Z", "9.00", claimable = "0.00"), Txn("S1", "S", "9.00", claimable = "1.00")),
+                    type = "PCP",
+                ).status shouldBe 202
+            kit.close()
+            kit.lines(kit.aggregateIds(creditNote = false).single()) shouldBe listOf("S=1.00", "Z=0.00")
+        }
+
+    @Test
     fun `INV-AC-1579 two claims under entire invoice sum to the whole input tax 4_00 and not 2_40`(
         @TempDir dir: Path,
     ): Unit =
