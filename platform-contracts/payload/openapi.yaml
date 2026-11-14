@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 1.8.0
+  version: 2.0.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -61,6 +61,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 150
       x-sync-edge: ingestion-svc->payload-svc
+      x-flow-context: required
       x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-325, INV-REQ-326, INV-REQ-475, INV-REQ-476, INV-REQ-503]
       x-operation:
@@ -73,6 +74,8 @@ paths:
         repeatKey: >-
           None — a safe query with no persistent state change; a repeat has
           nothing to make safe (INV-REQ-325, API-15 "takes no key").
+      parameters:
+        - $ref: '#/components/parameters/FlowContext'
       requestBody:
         required: true
         content:
@@ -171,6 +174,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->payload-svc
+      x-flow-context: required
       x-error-codes: [PAY-001, PAY-002, PAY-003, PAY-004, PAY-005, PAY-006, PAY-009, PAY-011, PAY-013]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-324, INV-REQ-326, INV-REQ-474, INV-REQ-475, INV-REQ-476, INV-REQ-478, INV-REQ-499, INV-REQ-810]
       x-operation:
@@ -184,6 +188,7 @@ paths:
           (docUuid, version) — byte-identical regeneration; a repeat returns
           the same payload and verdict unchanged (§6.8).
       parameters:
+        - $ref: '#/components/parameters/FlowContext'
         - $ref: '#/components/parameters/DocUuid'
         - $ref: '#/components/parameters/Version'
       requestBody:
@@ -863,6 +868,16 @@ paths:
           $ref: '#/components/responses/Error'
 components:
   parameters:
+    FlowContext:
+      name: X-Flow-Context
+      in: header
+      required: true
+      description: >-
+        The signed compact form of the flow context defined by
+        access/schemas/flow-context.schema.json (INV-Q-9241 B): tenant, entity
+        and originating principal kind, verified by the callee and bound to RLS.
+      schema:
+        type: string
     EntityRef:
       name: entityRef
       in: path

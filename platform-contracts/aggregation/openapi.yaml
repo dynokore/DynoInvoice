@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.7.0
+  version: 2.0.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -56,6 +56,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->aggregation-svc
+      x-flow-context: required
       x-error-codes: [ING-006, ING-018, ING-002, ING-022]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-4.5, FR-4.8, FR-4.9, FR-4.14, FR-10.15, "C-3", "C-8", FR-AE.73]
       x-operation:
@@ -71,6 +72,7 @@ paths:
           token; a repeat of the same triple returns the original aggregate
           and its original number (INV-REQ-434 items 2 and 3, API-15)
       parameters:
+        - $ref: '#/components/parameters/FlowContext'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -397,6 +399,16 @@ paths:
           $ref: '#/components/responses/Error'
 components:
   parameters:
+    FlowContext:
+      name: X-Flow-Context
+      in: header
+      required: true
+      description: >-
+        The signed compact form of the flow context defined by
+        access/schemas/flow-context.schema.json (INV-Q-9241 B): tenant, entity
+        and originating principal kind, verified by the callee and bound to RLS.
+      schema:
+        type: string
     IdempotencyKey:
       name: Idempotency-Key
       in: header
