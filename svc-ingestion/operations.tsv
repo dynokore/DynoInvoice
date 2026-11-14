@@ -7,8 +7,8 @@ operation	requestIssuance	UNASSIGNED
 operation	checkPreIssuance	UNASSIGNED
 operation	recordControlTotals	UNASSIGNED
 operation	configureAdapter	UNASSIGNED
-operation	mapTriggerClass	UNASSIGNED
-operation	waiveTriggerClass	UNASSIGNED
+operation	mapTriggerClass	INV-T-20940
+operation	waiveTriggerClass	INV-T-20940
 operation	getFeedHealth	UNASSIGNED
 operation	replayFeed	UNASSIGNED
 operation	sendTestEvent	UNASSIGNED
