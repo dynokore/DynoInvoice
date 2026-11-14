@@ -130,10 +130,11 @@ class ExceptionConsumerConfiguration {
         @Qualifier("documentReleasedHandler") released: EventHandler,
         @Qualifier("masterDataResolvedHandler") masterData: EventHandler,
         @Qualifier("periodDueDateChangedHandler") dueDate: EventHandler,
+        @Qualifier("periodRecordsChangedHandler") periodRecords: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): ReplayDelivery {
-        val dispatch = replayDispatch(held, released, masterData, dueDate)
+        val dispatch = replayDispatch(held, released, masterData, dueDate, periodRecords)
         val inbox =
             JdbcInboxConsumer(
                 ConsumerSubscription(CONSUMER, ConsoleEvents.DOCUMENT_HELD_TOPIC, SCHEMA),
@@ -203,6 +204,7 @@ internal fun replayDispatch(
     released: EventHandler,
     masterData: EventHandler,
     dueDate: EventHandler,
+    periodRecords: EventHandler,
 ): EventHandler =
     TypeDispatchHandler(
         mapOf(
@@ -210,6 +212,7 @@ internal fun replayDispatch(
             ConsoleEvents.DOCUMENT_RELEASED_TYPE to released,
             ConsoleEvents.MASTER_DATA_RESOLVED_TYPE to masterData,
             ConsoleEvents.PERIOD_DUE_DATE_CHANGED_TYPE to dueDate,
+            ConsoleEvents.PERIOD_RECORDS_CHANGED_TYPE to periodRecords,
         ),
     )
 

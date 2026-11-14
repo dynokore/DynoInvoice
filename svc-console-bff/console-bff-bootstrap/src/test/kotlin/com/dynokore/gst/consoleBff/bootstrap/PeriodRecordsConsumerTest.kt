@@ -4,6 +4,7 @@ import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import com.dynokore.gst.consoleBff.adapters.SignedBindings
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
@@ -20,6 +21,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -207,6 +209,49 @@ class PeriodRecordsConsumerTest {
         results.map { it.applied } shouldBe listOf(0, 0)
         rows(a) shouldBe emptyList()
         calls.get() shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-21079 the catalogue lists the period records type on its topic and no v2 look-alike`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val catalogue = context.getBean(EventCatalogue::class.java)
+        val entry = checkNotNull(catalogue.find(TYPE))
+        entry.topic shouldBe "gst.tenancy.period-records-changed.v1"
+        entry.producers shouldBe setOf("tenancy-svc")
+        entry.contentTopic shouldBe false
+        entry.recordTopic shouldBe false
+        entry.retainedWhileResolvable shouldBe false
+        catalogue.find("com.dynokore.gst.tenancy.PeriodRecordsChanged.v2") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-21079 the replay dispatch reaches the period records handler only`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        (context.getBean("periodRecordsChangedHandler") is EventHandler) shouldBe true
+        val calls = mutableListOf<String>()
+
+        fun fake(name: String) =
+            object : EventHandler {
+                override fun handle(event: Envelope): HandleOutcome {
+                    calls += name
+                    return HandleOutcome.APPLIED
+                }
+            }
+        val dispatch =
+            replayDispatch(fake("held"), fake("released"), fake("masterData"), fake("dueDate"), fake("periodRecords"))
+        val tenant = UUID.randomUUID()
+        dispatch.handle(envelope(tenant, "r1", records("\"2027-01-31\"")))
+        calls shouldBe listOf("periodRecords")
+        dispatch.handle(envelope(tenant, "r2", "{}").copy(type = "com.dynokore.gst.canonical.DocumentHeld.v1"))
+        calls shouldBe listOf("periodRecords", "held")
+        shouldThrow<ContractViolation> {
+            dispatch.handle(
+                envelope(tenant, "r3", "{}").copy(type = "com.dynokore.gst.tenancy.PeriodRecordsChanged.v2"),
+            )
+        }
+        calls.size shouldBe 2
     }
 
     private companion object {
