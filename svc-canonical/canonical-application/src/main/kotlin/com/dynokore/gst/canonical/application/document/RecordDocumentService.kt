@@ -27,6 +27,7 @@ data class RecordDocumentCommand(
     val postingTimestamp: OffsetDateTime? = null,
     val localPostingTimestamp: LocalDateTime? = null,
     val sourceTimeZone: String? = null,
+    val lines: List<RecordLine> = emptyList(),
 )
 
 /** Builds the result text of a recorded document; implemented outside this service. */
@@ -53,19 +54,8 @@ class RecordDocumentService(
         return pipeline.record(key, lookupOf(command)) { docUuid -> builder.build(command, docUuid) }
     }
 
-    private fun lookupOf(command: RecordDocumentCommand): CounterpartyLookup? {
-        val party =
-            when (command.direction) {
-                Direction.SALE -> command.buyer
-                Direction.PURCHASE -> command.supplier
-                null -> null
-            }
-        return party
-            ?.takeIf { it.scheme.isNotBlank() && it.value.isNotBlank() }
-            ?.let { p ->
-                constitutions.constitutionOf(command.tenantId, command.entityRef)?.let { c ->
-                    CounterpartyLookup(command.entityRef, c, p.scheme, p.value, command.transactionDate)
-                }
-            }
-    }
+    private fun lookupOf(command: RecordDocumentCommand): CounterpartyLookup? =
+        CounterpartyLookups.partyOf(command)?.let {
+            CounterpartyLookups.of(command, constitutions.constitutionOf(command.tenantId, command.entityRef))
+        }
 }
