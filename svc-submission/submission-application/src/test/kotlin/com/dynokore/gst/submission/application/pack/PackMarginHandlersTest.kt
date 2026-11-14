@@ -150,7 +150,7 @@ class PackMarginHandlersTest {
 
     @Test
     fun `INV-AC-22373 a type that only starts with the platform type is refused before the reader and the store`() =
-        refused("com.dynokore.gst.platform.RulePackStaged.v1.extra")
+        refused("com.dynokore.gst.platform.RulePackStaged.v10")
 
     private fun refused(type: String) {
         stagedEvents["r"] = PackStagedData("P-CAL", "calendar", "1", RawMargin(5, "DAYS"))
