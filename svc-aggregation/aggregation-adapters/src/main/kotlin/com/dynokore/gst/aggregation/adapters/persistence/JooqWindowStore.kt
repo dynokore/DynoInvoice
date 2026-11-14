@@ -3,7 +3,6 @@ package com.dynokore.gst.aggregation.adapters.persistence
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateTransaction.Companion.AGGREGATE_TRANSACTION
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindow.Companion.AGGREGATE_WINDOW
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindowPart.Companion.AGGREGATE_WINDOW_PART
-import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.ReplacedReceipt.Companion.REPLACED_RECEIPT
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.application.Placement
 import com.dynokore.gst.aggregation.application.WindowRepository
@@ -16,7 +15,6 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Condition
 import org.jooq.DSLContext
-import org.jooq.impl.DSL
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -142,7 +140,7 @@ class JooqWindowStore(
                 .and(AGGREGATE_TRANSACTION.CREDIT_NOTE.eq(false))
                 .and(notReplaced(tenant))
                 .execute()
-            storeLines(tenant, aggregateId)
+            dsl.storeLinesOf(tenant, aggregateId)
             closeWindowIfCovered(window, windowId)
         }
     }
@@ -153,7 +151,9 @@ class JooqWindowStore(
     ): Boolean =
         runner.inTransaction {
             val tenant = tenants.current().value
-            dsl.fetchExists(dsl.selectOne().from(AGGREGATE_TRANSACTION).where(creditNotesOf(window, part, tenant)))
+            dsl.fetchExists(
+                dsl.selectOne().from(AGGREGATE_TRANSACTION).where(creditNoteTransactions(window, part, tenant)),
+            )
         }
 
     /** The credit-note aggregate holds the refunds and returns of the part; its sales sibling is untouched. */
@@ -176,45 +176,11 @@ class JooqWindowStore(
             dsl
                 .update(AGGREGATE_TRANSACTION)
                 .set(AGGREGATE_TRANSACTION.AGGREGATE_ID, aggregateId)
-                .where(creditNotesOf(window, part, tenant))
+                .where(creditNoteTransactions(window, part, tenant))
                 .execute()
-            storeLines(tenant, aggregateId)
+            dsl.storeLinesOf(tenant, aggregateId)
         }
     }
-
-    private fun creditNotesOf(
-        window: OpenWindow,
-        part: WindowPart,
-        tenant: UUID,
-    ): Condition =
-        AGGREGATE_TRANSACTION.TENANT_ID
-            .eq(tenant)
-            .and(AGGREGATE_TRANSACTION.ENTITY_REF.eq(window.entityRef))
-            .and(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF.eq(window.businessUnitRef))
-            .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(window.aggregateType.name))
-            .and(AGGREGATE_TRANSACTION.WINDOW_START.eq(window.window.start))
-            .and(AGGREGATE_TRANSACTION.WINDOW_END.eq(window.window.end))
-            .and(AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(part.start, part.end))
-            .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
-            .and(AGGREGATE_TRANSACTION.CREDIT_NOTE.eq(true))
-            .and(notReplaced(tenant))
-
-    /** A receipt that a full tax invoice replaced is never aggregated (INV-REQ-440). */
-    private fun notReplaced(tenant: UUID): Condition =
-        DSL.notExists(
-            DSL
-                .selectOne()
-                .from(REPLACED_RECEIPT)
-                .where(REPLACED_RECEIPT.TENANT_ID.eq(tenant))
-                .and(REPLACED_RECEIPT.ENTITY_REF.eq(AGGREGATE_TRANSACTION.ENTITY_REF))
-                .and(REPLACED_RECEIPT.RECEIPT_NUMBER.eq(AGGREGATE_TRANSACTION.TRANSACTION_REF))
-                .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(AggregateType.STI.name)),
-        )
-
-    private fun storeLines(
-        tenant: UUID,
-        aggregateId: UUID,
-    ) = dsl.storeLinesOf(tenant, aggregateId)
 
     private fun closeWindowIfCovered(
         window: OpenWindow,

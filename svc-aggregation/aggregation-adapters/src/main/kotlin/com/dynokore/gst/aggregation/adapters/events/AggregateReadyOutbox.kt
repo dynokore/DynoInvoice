@@ -17,8 +17,8 @@ import java.util.UUID
  * The adapter of [AggregateReadyPublisher] (INV-REQ-718, channel `aggregationAggregateReady`): one `AggregateReady`
  * per aggregate handed on, appended to the outbox in the transaction the caller has open. The payload is
  * `aggregate-ready-payload.schema.json` of platform-contracts: `aggregateId`, `entityRef`, `aggregateType`, `window`
- * (the period of the aggregate) and `linesByInternalTaxCode` (the stored lines, in order, one per internal tax code) and, when true, `isCreditNote`
- * (INV-REQ-438) and `isSupplementary` (INV-REQ-439).
+ * (the period of the aggregate) and `linesByInternalTaxCode` (the stored lines, in order, one per internal tax
+ * code) and, when true, `isCreditNote` (INV-REQ-438) and `isSupplementary` (INV-REQ-439).
  */
 class AggregateReadyOutbox(
     private val outbox: OutboxWriter,

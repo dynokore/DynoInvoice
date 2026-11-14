@@ -116,6 +116,7 @@ class ContentKit(
             CorrelationContext.withCorrelation(CorrelationId("3fa85f64-5717-4562-b3fc-2c963f66afa6")) { block() }
         }
 
+    @Suppress("LongParameterList")
     fun post(
         txns: List<Txn>,
         type: String = "POS",

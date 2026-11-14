@@ -2,6 +2,11 @@ package com.dynokore.gst.aggregation.adapters.persistence
 
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateLine.Companion.AGGREGATE_LINE
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateTransaction.Companion.AGGREGATE_TRANSACTION
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.ReplacedReceipt.Companion.REPLACED_RECEIPT
+import com.dynokore.gst.aggregation.application.OpenWindow
+import com.dynokore.gst.aggregation.domain.AggregateType
+import com.dynokore.gst.aggregation.domain.WindowPart
+import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
@@ -39,3 +44,33 @@ internal fun DSLContext.storeLinesOf(
                 .execute()
         }
 }
+
+/** The refunds and returns of [part] of [window] that no aggregate holds yet and that no full tax invoice replaced. */
+internal fun creditNoteTransactions(
+    window: OpenWindow,
+    part: WindowPart,
+    tenant: UUID,
+): Condition =
+    AGGREGATE_TRANSACTION.TENANT_ID
+        .eq(tenant)
+        .and(AGGREGATE_TRANSACTION.ENTITY_REF.eq(window.entityRef))
+        .and(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF.eq(window.businessUnitRef))
+        .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(window.aggregateType.name))
+        .and(AGGREGATE_TRANSACTION.WINDOW_START.eq(window.window.start))
+        .and(AGGREGATE_TRANSACTION.WINDOW_END.eq(window.window.end))
+        .and(AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(part.start, part.end))
+        .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
+        .and(AGGREGATE_TRANSACTION.CREDIT_NOTE.eq(true))
+        .and(notReplaced(tenant))
+
+/** A receipt that a full tax invoice replaced is never aggregated (INV-REQ-440). */
+internal fun notReplaced(tenant: UUID): Condition =
+    DSL.notExists(
+        DSL
+            .selectOne()
+            .from(REPLACED_RECEIPT)
+            .where(REPLACED_RECEIPT.TENANT_ID.eq(tenant))
+            .and(REPLACED_RECEIPT.ENTITY_REF.eq(AGGREGATE_TRANSACTION.ENTITY_REF))
+            .and(REPLACED_RECEIPT.RECEIPT_NUMBER.eq(AGGREGATE_TRANSACTION.TRANSACTION_REF))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(AggregateType.STI.name)),
+    )

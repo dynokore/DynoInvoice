@@ -54,11 +54,11 @@ class DrillDownCursors(
         cursor: String,
         scope: Scope,
     ): DrillDownPosition? {
-        val fields = verified(cursor)?.takeIf { it.size == SIZE && it[0] == VERSION } ?: return null
-        val expires = runCatching { Instant.parse(fields[EXPIRES]) }.getOrNull() ?: return null
-        val bound = fields.subList(1, 1 + SCOPE) == scope.fields()
-        val live = !clock.instant().isAfter(expires)
-        return if (bound && live) DrillDownPosition(fields[UNDERLYING], fields[REF]) else null
+        val fields = verified(cursor)?.takeIf { it.size == SIZE && it[0] == VERSION }
+        val expires = fields?.let { runCatching { Instant.parse(it[EXPIRES]) }.getOrNull() }
+        val bound = fields?.subList(1, 1 + SCOPE) == scope.fields()
+        val live = expires != null && !clock.instant().isAfter(expires)
+        return if (fields != null && bound && live) DrillDownPosition(fields[UNDERLYING], fields[REF]) else null
     }
 
     /** The decoded fields when the tag is the HMAC of the payload, checked before anything in it is read; else null. */
@@ -66,12 +66,12 @@ class DrillDownCursors(
         val parts = cursor.split('.')
         val body = parts.takeIf { it.size == 2 }?.let { decoded(it[0]) }
         val tag = parts.getOrNull(1)?.let { decoded(it) }
-        if (body == null || tag == null || !MessageDigest.isEqual(mac(body), tag)) return null
-        return String(
-            body,
-            Charsets.UTF_8,
-        ).split(SEPARATOR).map { decoded(it)?.toString(Charsets.UTF_8) ?: return null }
+        val genuine = body != null && tag != null && MessageDigest.isEqual(mac(body), tag)
+        val fields = if (genuine) String(checkNotNull(body), Charsets.UTF_8).split(SEPARATOR).map(::text) else null
+        return fields?.takeIf { f -> f.none { it == null } }?.filterNotNull()
     }
+
+    private fun text(field: String): String? = decoded(field)?.toString(Charsets.UTF_8)
 
     private fun decoded(text: String): ByteArray? = runCatching { DECODER.decode(text) }.getOrNull()
 

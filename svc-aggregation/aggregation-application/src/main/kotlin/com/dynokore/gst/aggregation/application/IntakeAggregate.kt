@@ -79,7 +79,7 @@ data class NewAggregate(
 data class StoredAggregate(
     val aggregate: NewAggregate,
     val aggregateId: UUID,
-    /** Null until the aggregate is transmitted; written by the consumer of SubmissionDespatched (INV-T-22476), only read here. */
+    /** Null until the aggregate is transmitted; the consumer of SubmissionDespatched (INV-T-22476) writes it. */
     val transmittedAt: Instant? = null,
     /** Whether AggregateReady was published for the aggregate. */
     val handedOn: Boolean = false,

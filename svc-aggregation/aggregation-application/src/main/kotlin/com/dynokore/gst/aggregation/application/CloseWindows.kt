@@ -45,36 +45,49 @@ class CloseWindows(
             }
             var complete = true
             for (part in parts.filter { it.end <= tick }) {
-                val command =
-                    IntakeCommand(
-                        entityRef = open.entityRef,
-                        businessUnitRef = open.businessUnitRef,
-                        aggregateType = open.aggregateType,
-                        periodStart = part.start,
-                        periodEnd = part.end,
-                        sourceKey = "window:${open.entityRef}:${open.aggregateType}:${part.start}:${part.end}",
-                        sourceRevision = 1,
-                    )
-                val aggregate =
-                    when (val outcome = intake.execute(command)) {
-                        is IntakeOutcome.Created -> outcome.aggregate
-
-                        // made by an earlier run that may have failed before closing or publishing: finish it below
-                        is IntakeOutcome.Replayed -> outcome.aggregate
-
-                        else -> null
-                    }
-                val credit = if (aggregate == null) null else creditNote(open, part)
-                if (aggregate == null || credit == Credit.Refused) {
-                    complete = false
-                } else if (!windows.isPartClosed(open, part)) {
-                    closed += close(open, part, aggregate.aggregateId)
-                    if (credit is Credit.Made) windows.closeCreditNotes(open, part, credit.aggregateId)
-                }
+                if (!closePart(open, part, closed)) complete = false
             }
             if (!complete) held += open
         }
         return CloseResult(closed, held)
+    }
+
+    /**
+     * The sales aggregate and, when the part holds refunds or returns, the credit-note aggregate of [part]; the part
+     * is closed (its change appended to [closed]) once both exist. False when one cannot be made now; a part that an
+     * earlier run closed changes nothing and is complete.
+     */
+    private fun closePart(
+        open: OpenWindow,
+        part: WindowPart,
+        closed: MutableList<WindowChange>,
+    ): Boolean {
+        val command =
+            IntakeCommand(
+                entityRef = open.entityRef,
+                businessUnitRef = open.businessUnitRef,
+                aggregateType = open.aggregateType,
+                periodStart = part.start,
+                periodEnd = part.end,
+                sourceKey = "window:${open.entityRef}:${open.aggregateType}:${part.start}:${part.end}",
+                sourceRevision = 1,
+            )
+        val aggregate =
+            when (val outcome = intake.execute(command)) {
+                is IntakeOutcome.Created -> outcome.aggregate
+
+                // made by an earlier run that may have failed before closing or publishing: finish it below
+                is IntakeOutcome.Replayed -> outcome.aggregate
+
+                else -> null
+            }
+        val credit = if (aggregate == null) null else creditNote(open, part)
+        if (aggregate == null || credit == Credit.Refused) return false
+        if (!windows.isPartClosed(open, part)) {
+            closed += close(open, part, aggregate.aggregateId)
+            if (credit is Credit.Made) windows.closeCreditNotes(open, part, credit.aggregateId)
+        }
+        return true
     }
 
     private sealed interface Credit {
