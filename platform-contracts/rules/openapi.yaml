@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 1.28.0
+  version: 2.0.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -59,6 +59,9 @@ paths:
       x-caller-auth: end-user
       x-timeout: 300
       x-sync-edge: canonical-svc->rules-svc
+      x-flow-context: required
+      parameters:
+        - $ref: '#/components/parameters/FlowContext'
       x-error-codes: [RUL-001, RUL-002, RUL-003, RUL-004, RUL-006, RUL-008, RUL-011, RUL-012]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.1, FR-B.6, FR-B.8, FR-AE.89, FR-T.2]
       x-operation:
@@ -123,6 +126,9 @@ paths:
       x-caller-auth: end-user
       x-timeout: 60
       x-sync-edge: payload-svc->rules-svc
+      x-flow-context: required
+      parameters:
+        - $ref: '#/components/parameters/FlowContext'
       x-error-codes: [RUL-001, RUL-002, RUL-003, RUL-004, RUL-011, RUL-012]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.6, FR-AE.89]
       x-operation:
@@ -1512,6 +1518,16 @@ paths:
           $ref: '#/components/responses/Error'
 components:
   parameters:
+    FlowContext:
+      name: X-Flow-Context
+      in: header
+      required: true
+      description: >-
+        The signed compact form of the flow context defined by
+        access/schemas/flow-context.schema.json (INV-Q-9241 B): tenant, entity
+        and originating principal kind, verified by the callee and bound to RLS.
+      schema:
+        type: string
     IdempotencyKey:
       name: Idempotency-Key
       in: header

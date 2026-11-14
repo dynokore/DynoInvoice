@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 1.15.0
+  version: 2.0.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -97,6 +97,9 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: ingestion-svc->canonical-svc
+      x-flow-context: required
+      parameters:
+        - $ref: '#/components/parameters/FlowContext'
       x-error-codes: [ING-002, ING-005, ING-011, ING-012, ING-016, ING-019, ING-013, ING-017, PER-009, PER-011, ING-024]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-547, INV-REQ-806, INV-REQ-327, INV-REQ-430, INV-REQ-431, INV-REQ-793, INV-REQ-1192, INV-REQ-714, INV-REQ-432, INV-REQ-67, INV-REQ-68, INV-REQ-696]
       x-operation:
@@ -443,6 +446,16 @@ paths:
           $ref: '#/components/responses/Error'
 components:
   parameters:
+    FlowContext:
+      name: X-Flow-Context
+      in: header
+      required: true
+      description: >-
+        The signed compact form of the flow context defined by
+        access/schemas/flow-context.schema.json (INV-Q-9241 B): tenant, entity
+        and originating principal kind, verified by the callee and bound to RLS.
+      schema:
+        type: string
     DocUuid:
       name: docUuid
       in: path
