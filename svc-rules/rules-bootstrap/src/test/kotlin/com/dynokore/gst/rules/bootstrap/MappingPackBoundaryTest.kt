@@ -490,7 +490,9 @@ class MappingPackBoundaryTest(
         )
         fullFlow(label(), "2026-01-01")
         value(TenantId.PLATFORM, "select evaluated_on from rules.pack_currency_state").toString() shouldBe
-            java.time.LocalDate.now(clock).toString()
+            java.time.LocalDate
+                .now(clock)
+                .toString()
     }
 
     @Test
