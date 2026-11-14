@@ -45,6 +45,15 @@ object ConsoleEvents {
     const val PERIOD_RECORDS_CHANGED_TYPE = "com.dynokore.gst.tenancy.PeriodRecordsChanged.v1"
     const val PERIOD_RECORDS_CHANGED_TOPIC = "gst.tenancy.period-records-changed.v1"
 
+    private const val PAYLOAD = "payload-svc"
+    private const val SUBMISSION = "submission-svc"
+
+    const val PAYLOAD_REJECTED_TYPE = "com.dynokore.gst.payload.PayloadRejected.v1"
+    const val PAYLOAD_REJECTED_TOPIC = "gst.payload.payload-rejected.v1"
+
+    const val SUBMISSION_FAILED_TYPE = "com.dynokore.gst.submission.SubmissionFailed.v1"
+    const val SUBMISSION_FAILED_TOPIC = "gst.submission.submission-failed.v1"
+
     val consumed: List<CatalogueEntry> =
         listOf(
             Triple(DOCUMENT_HELD_TYPE, DOCUMENT_HELD_TOPIC, CANONICAL),
@@ -61,5 +70,21 @@ object ConsoleEvents {
                 recordTopic = false,
                 retainedWhileResolvable = false,
             )
-        }
+        } +
+            CatalogueEntry(
+                PAYLOAD_REJECTED_TYPE,
+                PAYLOAD_REJECTED_TOPIC,
+                setOf(PAYLOAD),
+                contentTopic = true,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ) +
+            CatalogueEntry(
+                SUBMISSION_FAILED_TYPE,
+                SUBMISSION_FAILED_TOPIC,
+                setOf(SUBMISSION),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            )
 }

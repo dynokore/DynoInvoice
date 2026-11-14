@@ -228,6 +228,8 @@ class ExceptionConsumersTest {
                 masterData.eventType,
                 "com.dynokore.gst.tenancy.PeriodDueDateChanged.v1",
                 "com.dynokore.gst.tenancy.PeriodRecordsChanged.v1",
+                "com.dynokore.gst.payload.PayloadRejected.v1",
+                "com.dynokore.gst.submission.SubmissionFailed.v1",
             )
     }
 
@@ -256,7 +258,15 @@ class ExceptionConsumersTest {
                 }
             }
         val dispatch =
-            replayDispatch(fake("held"), fake("released"), fake("masterData"), fake("dueDate"), fake("periodRecords"))
+            replayDispatch(
+                fake("held"),
+                fake("released"),
+                fake("masterData"),
+                fake("dueDate"),
+                fake("periodRecords"),
+                fake("submissionFailed"),
+                fake("payloadRejected"),
+            )
         val tenant = UUID.randomUUID()
         dispatch.handle(heldEvent(tenant, "r1"))
         calls shouldBe listOf("held")

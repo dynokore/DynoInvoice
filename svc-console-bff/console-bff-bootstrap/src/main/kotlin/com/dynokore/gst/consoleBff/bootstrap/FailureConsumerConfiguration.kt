@@ -13,10 +13,8 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
-import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
@@ -68,7 +66,17 @@ class FailureConsumerConfiguration {
         @Qualifier("submissionFailedHandler") handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-    ): JdbcInboxConsumer = consumer(subscription, catalogue, reader, scope, handler, rebuildRequired, clock)
+    ): JdbcInboxConsumer =
+        inboxConsumer(
+            subscription,
+            ConsoleEvents.SUBMISSION_FAILED_TYPE,
+            catalogue,
+            reader,
+            scope,
+            handler,
+            rebuildRequired,
+            clock,
+        )
 
     @Bean
     @Suppress("LongParameterList")
@@ -80,24 +88,13 @@ class FailureConsumerConfiguration {
         @Qualifier("payloadRejectedHandler") handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
-    ): JdbcInboxConsumer = consumer(subscription, catalogue, reader, scope, handler, rebuildRequired, clock)
-
-    @Suppress("LongParameterList")
-    private fun consumer(
-        subscription: ConsumerSubscription,
-        catalogue: EventCatalogue,
-        reader: EventLogReader,
-        scope: TenantScope,
-        handler: EventHandler,
-        rebuildRequired: RebuildRequiredSink,
-        clock: Clock,
     ): JdbcInboxConsumer =
-        JdbcInboxConsumer(
+        inboxConsumer(
             subscription,
+            ConsoleEvents.PAYLOAD_REJECTED_TYPE,
             catalogue,
             reader,
             scope,
-            TenancyJooq.dslContext(OutboxSchema.jooqTables(subscription.schema), scope.tenants, scope.transactions),
             handler,
             rebuildRequired,
             clock,
@@ -105,7 +102,7 @@ class FailureConsumerConfiguration {
 
     companion object {
         const val SCHEMA = ExceptionConsumerConfiguration.SCHEMA
-        const val SUBMISSION_FAILED_TOPIC = "gst.submission.submission-failed.v1"
-        const val PAYLOAD_REJECTED_TOPIC = "gst.payload.payload-rejected.v1"
+        const val SUBMISSION_FAILED_TOPIC = ConsoleEvents.SUBMISSION_FAILED_TOPIC
+        const val PAYLOAD_REJECTED_TOPIC = ConsoleEvents.PAYLOAD_REJECTED_TOPIC
     }
 }

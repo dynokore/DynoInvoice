@@ -240,7 +240,15 @@ class PeriodRecordsConsumerTest {
                 }
             }
         val dispatch =
-            replayDispatch(fake("held"), fake("released"), fake("masterData"), fake("dueDate"), fake("periodRecords"))
+            replayDispatch(
+                fake("held"),
+                fake("released"),
+                fake("masterData"),
+                fake("dueDate"),
+                fake("periodRecords"),
+                fake("submissionFailed"),
+                fake("payloadRejected"),
+            )
         val tenant = UUID.randomUUID()
         dispatch.handle(envelope(tenant, "r1", records("\"2027-01-31\"")))
         calls shouldBe listOf("periodRecords")

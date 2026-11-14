@@ -245,7 +245,15 @@ class DueDateConsumerTest {
                 }
             }
         val dispatch =
-            replayDispatch(fake("held"), fake("released"), fake("masterData"), fake("dueDate"), fake("periodRecords"))
+            replayDispatch(
+                fake("held"),
+                fake("released"),
+                fake("masterData"),
+                fake("dueDate"),
+                fake("periodRecords"),
+                fake("submissionFailed"),
+                fake("payloadRejected"),
+            )
         val tenant = UUID.randomUUID()
         dispatch.handle(changed(tenant, "r1"))
         calls shouldBe listOf("dueDate")

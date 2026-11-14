@@ -131,10 +131,13 @@ class ExceptionConsumerConfiguration {
         @Qualifier("masterDataResolvedHandler") masterData: EventHandler,
         @Qualifier("periodDueDateChangedHandler") dueDate: EventHandler,
         @Qualifier("periodRecordsChangedHandler") periodRecords: EventHandler,
+        @Qualifier("submissionFailedHandler") submissionFailed: EventHandler,
+        @Qualifier("payloadRejectedHandler") payloadRejected: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): ReplayDelivery {
-        val dispatch = replayDispatch(held, released, masterData, dueDate, periodRecords)
+        val dispatch =
+            replayDispatch(held, released, masterData, dueDate, periodRecords, submissionFailed, payloadRejected)
         val inbox =
             JdbcInboxConsumer(
                 ConsumerSubscription(CONSUMER, ConsoleEvents.DOCUMENT_HELD_TOPIC, SCHEMA),
@@ -199,12 +202,15 @@ internal fun inboxConsumer(
 }
 
 /** The replay dispatch: each consumed type to its own handler, nothing else. */
+@Suppress("LongParameterList")
 internal fun replayDispatch(
     held: EventHandler,
     released: EventHandler,
     masterData: EventHandler,
     dueDate: EventHandler,
     periodRecords: EventHandler,
+    submissionFailed: EventHandler,
+    payloadRejected: EventHandler,
 ): EventHandler =
     TypeDispatchHandler(
         mapOf(
@@ -213,6 +219,8 @@ internal fun replayDispatch(
             ConsoleEvents.MASTER_DATA_RESOLVED_TYPE to masterData,
             ConsoleEvents.PERIOD_DUE_DATE_CHANGED_TYPE to dueDate,
             ConsoleEvents.PERIOD_RECORDS_CHANGED_TYPE to periodRecords,
+            ConsoleEvents.SUBMISSION_FAILED_TYPE to submissionFailed,
+            ConsoleEvents.PAYLOAD_REJECTED_TYPE to payloadRejected,
         ),
     )
 

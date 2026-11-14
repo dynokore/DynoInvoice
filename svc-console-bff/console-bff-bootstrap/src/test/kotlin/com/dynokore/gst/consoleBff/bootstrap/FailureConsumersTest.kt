@@ -4,6 +4,7 @@ import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import com.dynokore.gst.consoleBff.adapters.SignedBindings
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -25,6 +26,7 @@ import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -74,6 +76,7 @@ class FailureConsumersTest {
                     return real.handle(event)
                 }
             }
+
         private val name = "t21060-" + UUID.randomUUID()
         private val failedReader = ListReader()
         private val rejectedReader = ListReader()
@@ -112,7 +115,6 @@ class FailureConsumersTest {
         type: String,
         doc: UUID,
         data: String,
-        sequence: Long?,
     ) = Envelope(
         id = EventId(id),
         source = "/gst/test-svc",
@@ -123,7 +125,7 @@ class FailureConsumersTest {
         entity = EntityRef("E-001"),
         docUuid = DocUuid(doc),
         transactionDate = null,
-        docSequence = sequence,
+        docSequence = if (doc == d1) 1L else 2L,
         instanceId = "svc-0",
         correlation = CorrelationId("corr-1"),
         causation = CausationId("cause-1"),
@@ -139,7 +141,6 @@ class FailureConsumersTest {
         FAILED,
         d1,
         """{"docUuid":"$d1","version":1,"failureClass":"SUB-REJECTED","retryDisposition":"NONE"}""",
-        1,
     )
 
     private fun rejectedEvent(
@@ -152,7 +153,6 @@ class FailureConsumersTest {
         REJECTED,
         d2,
         """{"docUuid":"$d2","version":1,"docsequence":2,$code"validationTrace":[]}""",
-        2,
     )
 
     /** `code to state` rows of the table, read as the runtime role bound to [tenant]. */
@@ -240,6 +240,70 @@ class FailureConsumersTest {
         rejected(rejectedEvent(a, "ev-r-4"))
         rows(a) shouldBe listOf("PAY-001" to "OPEN", "SUB-REJECTED" to "OPEN")
         rows(b) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21058 the catalogue lists PayloadRejected and SubmissionFailed as topics yaml does`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val catalogue = context.getBean(EventCatalogue::class.java)
+        val rejected = checkNotNull(catalogue.find(REJECTED))
+        rejected.topic shouldBe "gst.payload.payload-rejected.v1"
+        rejected.producers shouldBe setOf("payload-svc")
+        rejected.contentTopic shouldBe true
+        rejected.recordTopic shouldBe false
+        rejected.retainedWhileResolvable shouldBe false
+        val failed = checkNotNull(catalogue.find(FAILED))
+        failed.topic shouldBe "gst.submission.submission-failed.v1"
+        failed.producers shouldBe setOf("submission-svc")
+        failed.contentTopic shouldBe false
+        failed.recordTopic shouldBe false
+        failed.retainedWhileResolvable shouldBe false
+        catalogue.find("com.dynokore.gst.payload.PayloadRejected.v2") shouldBe null
+        catalogue.find("com.dynokore.gst.submission.SubmissionFailed.v2") shouldBe null
+        ConsoleEvents.consumed.map { it.eventType }.take(3) shouldBe
+            listOf(
+                "com.dynokore.gst.canonical.DocumentHeld.v1",
+                "com.dynokore.gst.canonical.DocumentReleased.v1",
+                "com.dynokore.gst.masterdata.MasterDataResolved.v1",
+            )
+    }
+
+    @Test
+    fun `INV-AC-21058 the replay dispatch reaches each failure handler for its own type only`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val calls = mutableListOf<String>()
+
+        fun fake(name: String) =
+            object : EventHandler {
+                override fun handle(event: Envelope): HandleOutcome {
+                    calls += name
+                    return HandleOutcome.APPLIED
+                }
+            }
+        val dispatch =
+            replayDispatch(
+                fake("held"),
+                fake("released"),
+                fake("masterData"),
+                fake("dueDate"),
+                fake("periodRecords"),
+                fake("submissionFailed"),
+                fake("payloadRejected"),
+            )
+        val tenant = UUID.randomUUID()
+        dispatch.handle(failedEvent(tenant, "d1"))
+        calls shouldBe listOf("submissionFailed")
+        dispatch.handle(rejectedEvent(tenant, "d2"))
+        calls shouldBe listOf("submissionFailed", "payloadRejected")
+        listOf(
+            "com.dynokore.gst.payload.PayloadRejected.v2",
+            "com.dynokore.gst.submission.SubmissionFailed.v2",
+        ).forEach {
+            shouldThrow<ContractViolation> { dispatch.handle(envelope(tenant, "d3", it, d1, "{}")) }
+        }
+        calls.size shouldBe 2
     }
 
     private companion object {
