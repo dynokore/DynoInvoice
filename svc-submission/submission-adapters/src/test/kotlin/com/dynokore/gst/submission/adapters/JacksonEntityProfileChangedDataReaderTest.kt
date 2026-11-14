@@ -48,7 +48,8 @@ class JacksonEntityProfileChangedDataReaderTest {
     @Test
     fun `INV-AC-22202 the first matching item is read among several`() {
         val changed =
-            "[{\"attribute\":\"uen\",\"newValue\":\"X\"},{\"attribute\":\"obligationStartDate\",\"newValue\":\"2026-08-01\"}," +
+            "[{\"attribute\":\"uen\",\"newValue\":\"X\"}," +
+                "{\"attribute\":\"obligationStartDate\",\"newValue\":\"2026-08-01\"}," +
                 "{\"attribute\":\"obligationStartDate\",\"newValue\":\"2026-09-01\"}]"
         reader.read(json(changed = changed)).obligationStartDate shouldBe LocalDate.of(2026, 8, 1)
     }

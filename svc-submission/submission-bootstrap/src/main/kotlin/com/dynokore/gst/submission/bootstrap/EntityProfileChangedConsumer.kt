@@ -45,9 +45,9 @@ class EntityProfileChangedConsumer {
         store: JooqObligationStartDateStore,
     ): EntityProfileChangedHandler = EntityProfileChangedHandler(tenants, reader, store)
 
-    @Bean("entityProfileChangedConsumer")
+    @Bean
     @Suppress("LongParameterList")
-    fun inboxConsumer(
+    fun entityProfileChangedInboxConsumer(
         catalogue: EventCatalogue,
         reader: EventLogReader,
         scope: TenantScope,

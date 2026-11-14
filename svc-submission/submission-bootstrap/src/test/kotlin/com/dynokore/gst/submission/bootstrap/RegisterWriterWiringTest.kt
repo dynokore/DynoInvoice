@@ -135,7 +135,7 @@ class RegisterWriterWiringTest {
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
-                "entityProfileChangedConsumer",
+                "entityProfileChangedInboxConsumer",
                 "documentHeldConsumer",
                 "documentReleasedConsumer",
                 "rulePackStagedConsumer",

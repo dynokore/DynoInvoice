@@ -37,9 +37,8 @@ class JacksonEntityProfileChangedDataReader : EntityProfileChangedDataReader {
 
     private fun startDateOf(data: JsonNode): LocalDate? {
         val changed = data.get("changedAttributes")
-        if (changed == null || !changed.isArray) return null
-        val item = changed.firstOrNull { isStartDate(it) } ?: return null
-        return dateOf(item.text("newValue"), "newValue")
+        val item = if (changed != null && changed.isArray) changed.firstOrNull { isStartDate(it) } else null
+        return item?.let { dateOf(it.text("newValue"), "newValue") }
     }
 
     private fun isStartDate(item: JsonNode): Boolean {
