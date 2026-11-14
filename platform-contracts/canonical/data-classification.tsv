@@ -142,3 +142,4 @@ openapi.yaml	ReleasedDocument.docUuid	NONE
 openapi.yaml	ReleasedDocument.holdCode	NONE
 openapi.yaml	ReleasedDocument.releasedBy	IDENTIFYING
 openapi.yaml	ReleasedDocument.releasedAt	NONE
+schemas/canonical-version-created-payload.schema.json	aggregateId	NONE
