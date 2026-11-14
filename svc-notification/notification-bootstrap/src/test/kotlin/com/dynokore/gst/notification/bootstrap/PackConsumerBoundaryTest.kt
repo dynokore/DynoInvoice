@@ -195,7 +195,7 @@ open class PackBoundarySupport {
 
     protected fun raised(state: String = "RAISED") = listOf(state, "PACK_STALENESS", "PACK_NOT_ACTIVATED", WIDE)
 
-    /** Read as the owner: a dead letter of a platform-tenant event is hidden from the runtime role (outbox-and-queue). */
+    /** Read as the owner: the runtime role cannot see the dead letter of a platform-tenant event (outbox-and-queue). */
     protected fun Boundary.deadLetters(): List<String?> =
         NotificationDb.superuser().use { c ->
             c.prepareStatement("select reason from notification.event_dead_letter where consumer = ?").use { st ->
