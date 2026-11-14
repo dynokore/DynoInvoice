@@ -7,7 +7,6 @@ import com.dynokore.gst.consoleBff.application.deferral.UndeferResult
 import com.dynokore.gst.consoleBff.application.deferral.UndeferTarget
 import com.dynokore.gst.consoleBff.contract.api.DeferralsApi
 import com.dynokore.gst.consoleBff.contract.model.DeferDocumentRequest
-import com.dynokore.gst.consoleBff.contract.model.DeferralTarget as WireTarget
 import com.dynokore.gst.consoleBff.domain.deferral.Deferral
 import com.dynokore.gst.consoleBff.domain.deferral.DeferralKind
 import com.dynokore.gst.consoleBff.domain.deferral.DeferralTarget
@@ -21,6 +20,7 @@ import org.springframework.web.context.request.ServletRequestAttributes
 import java.time.ZoneOffset
 import java.util.UUID
 import com.dynokore.gst.consoleBff.contract.model.Deferral as WireDeferral
+import com.dynokore.gst.consoleBff.contract.model.DeferralTarget as WireTarget
 
 /** A refusal carrying its closed problem answer; [DeferralsProblemAdvice] writes it. */
 class DeferralsRefusal(

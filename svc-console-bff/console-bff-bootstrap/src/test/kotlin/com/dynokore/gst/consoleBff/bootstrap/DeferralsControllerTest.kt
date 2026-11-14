@@ -41,7 +41,11 @@ class DeferralsControllerTest {
             entityRef: String,
             deferralId: UUID,
         ): Deferral? {
-            val i = rows.indexOfFirst { it.deferralId == deferralId && it.entityRef == entityRef && it.state == DeferralState.DEFERRED }
+            val i =
+                rows.indexOfFirst {
+                    it.deferralId == deferralId && it.entityRef == entityRef &&
+                        it.state == DeferralState.DEFERRED
+                }
             if (i < 0) return null
             return rows[i].copy(state = DeferralState.UNDONE).also { rows[i] = it }
         }
