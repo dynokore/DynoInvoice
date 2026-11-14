@@ -49,3 +49,4 @@
 ../schemas/period-records-changed-payload.schema.json period-records-changed-*.json
 ../openapi.yaml#/components/schemas/CalendarPackDeltaResponse calendar-pack-delta-response-*.json
 ../schemas/period-due-date-changed-payload.schema.json period-due-date-changed-payload-*.json
+../schemas/entity-profile-changed-payload.schema.json entity-profile-changed-payload-*.json
