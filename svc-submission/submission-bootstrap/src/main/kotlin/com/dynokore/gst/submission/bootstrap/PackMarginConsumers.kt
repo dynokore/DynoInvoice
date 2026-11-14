@@ -54,7 +54,8 @@ class PackMarginConsumers {
         tenants: TenantContext,
         reader: PackStagedDataReader,
         store: PackMarginStore,
-    ): CalendarPackStagedMarginHandler = CalendarPackStagedMarginHandler(tenants, reader, store)
+    ): CalendarPackStagedMarginHandler =
+        CalendarPackStagedMarginHandler(SubmissionEvents.RULE_PACK_STAGED_TYPE, tenants, reader, store)
 
     @Bean
     fun packActivatedHandler(

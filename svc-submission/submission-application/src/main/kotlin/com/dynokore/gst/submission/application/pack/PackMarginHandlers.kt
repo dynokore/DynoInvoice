@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.pack
 
+import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
@@ -11,15 +12,19 @@ private fun outcome(inserted: Boolean): HandleOutcome = if (inserted) HandleOutc
 
 /**
  * Stores the safety margin of a staged calendar pack version once (event-carried state transfer). An absent or
- * invalid margin is stored as no margin (fail closed). Other pack types are ignored. Nothing is caught: a malformed
+ * invalid margin is stored as no margin (fail closed). Other pack types are ignored. An event whose type is not exactly
+ * [expectedType] is refused with a `ContractViolation` before the reader or the store is called (consumers subscribe
+ * by exact type and topic). Nothing is caught: a malformed
  * event is a `ContractViolation` from the reader and a store failure rolls the consumer transaction back.
  */
 class CalendarPackStagedMarginHandler(
+    private val expectedType: String,
     private val tenants: TenantContext,
     private val reader: PackStagedDataReader,
     private val store: PackMarginStore,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
+        if (event.type != expectedType) throw ContractViolation("expected $expectedType, was ${event.type}")
         val data = reader.read(event.dataJson)
         if (data.packType != CALENDAR) return HandleOutcome.IGNORED
         val margin = data.margin?.let { PackMargin.of(it.value, it.unit) }

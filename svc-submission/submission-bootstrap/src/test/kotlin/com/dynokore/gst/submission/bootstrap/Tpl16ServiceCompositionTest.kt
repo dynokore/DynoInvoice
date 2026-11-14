@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
@@ -51,10 +52,7 @@ class Tpl16ServiceCompositionTest {
                 "gst.platform.job-run-recorded.v1"
             platform.getValue("com.dynokore.gst.platform.JobRegistered.v1").topic shouldBe
                 "gst.platform.job-registered.v1"
-            val staged = platform.getValue(SubmissionEvents.RULE_PACK_STAGED_TYPE)
-            staged.topic shouldBe SubmissionEvents.RULE_PACK_STAGED_TOPIC
-            staged.producers shouldBe setOf("rules-svc")
-            staged.retainedWhileResolvable shouldBe true
+            assertStagedEntry(platform)
             platform.values.filter { it.eventType != SubmissionEvents.RULE_PACK_STAGED_TYPE }.forEach {
                 it.producers shouldBe setOf("every service")
                 it.contentTopic shouldBe false
@@ -62,6 +60,13 @@ class Tpl16ServiceCompositionTest {
                 it.retainedWhileResolvable shouldBe false
             }
         }
+    }
+
+    private fun assertStagedEntry(platform: Map<String, CatalogueEntry>) {
+        val staged = platform.getValue(SubmissionEvents.RULE_PACK_STAGED_TYPE)
+        staged.topic shouldBe SubmissionEvents.RULE_PACK_STAGED_TOPIC
+        staged.producers shouldBe setOf("rules-svc")
+        staged.retainedWhileResolvable shouldBe true
     }
 
     @Test

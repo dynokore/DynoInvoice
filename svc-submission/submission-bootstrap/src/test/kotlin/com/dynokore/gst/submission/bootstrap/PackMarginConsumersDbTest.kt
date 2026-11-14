@@ -307,6 +307,18 @@ class PackMarginConsumersDbTest {
     }
 
     @Test
+    fun `INV-AC-22373 the staged handler bean of the context refuses the old rules type`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val t = UUID.randomUUID()
+        val old = "com.dynokore.gst.rules.RulePackStaged.v1"
+        val body = staged("P-CAL", "1", """{"value":5,"unit":"DAYS"}""")
+        val e = shouldThrow<ContractViolation> { asTenant(t) { stagedHandler.handle(envelope(t, old, body)) } }
+        e.message shouldBe "expected $STAGED, was $old"
+        rows(t, "calendar_pack_version") shouldBe emptyList()
+    }
+
+    @Test
     fun `INV-AC-22373 the staged constants are the platform type and topic and no subscription names the old topic`() {
         SubmissionEvents.RULE_PACK_STAGED_TYPE shouldBe "com.dynokore.gst.platform.RulePackStaged.v1"
         SubmissionEvents.RULE_PACK_STAGED_TOPIC shouldBe "gst.platform.rule-pack-staged.v1"

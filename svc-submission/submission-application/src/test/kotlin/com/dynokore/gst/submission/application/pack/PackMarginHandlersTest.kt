@@ -67,10 +67,15 @@ class PackMarginHandlersTest {
     private val stagedEvents = mutableMapOf<String, PackStagedData>()
     private val activatedEvents = mutableMapOf<String, PackActivatedData>()
     private val store = FakeStore()
+    private var readerCalls = 0
     private val staged =
         CalendarPackStagedMarginHandler(
+            STAGED_TYPE,
             tenants,
-            { stagedEvents[it] ?: throw ContractViolation("missing field") },
+            {
+                readerCalls++
+                stagedEvents[it] ?: throw ContractViolation("missing field")
+            },
             store,
         )
     private val activated =
@@ -80,23 +85,25 @@ class PackMarginHandlersTest {
             store,
         )
 
-    private fun envelope(key: String) =
-        Envelope(
-            id = EventId(UUID.randomUUID().toString()),
-            source = "/gst/rules-svc",
-            type = "com.dynokore.gst.platform.RulePackStaged.v1",
-            subject = "pack",
-            time = Instant.parse("2026-11-12T08:00:00Z"),
-            tenant = tenant,
-            entity = EntityRef("E-001"),
-            docUuid = DocUuid(UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6")),
-            transactionDate = LocalDate.parse("2026-11-12"),
-            docSequence = 1,
-            instanceId = "rules-svc-0",
-            correlation = CorrelationId("corr-1"),
-            causation = CausationId("cause-1"),
-            dataJson = key,
-        )
+    private fun envelope(
+        key: String,
+        type: String = STAGED_TYPE,
+    ) = Envelope(
+        id = EventId(UUID.randomUUID().toString()),
+        source = "/gst/rules-svc",
+        type = type,
+        subject = "pack",
+        time = Instant.parse("2026-11-12T08:00:00Z"),
+        tenant = tenant,
+        entity = EntityRef("E-001"),
+        docUuid = DocUuid(UUID.fromString("3fa85f64-5717-4562-b3fc-2c963f66afa6")),
+        transactionDate = LocalDate.parse("2026-11-12"),
+        docSequence = 1,
+        instanceId = "rules-svc-0",
+        correlation = CorrelationId("corr-1"),
+        causation = CausationId("cause-1"),
+        dataJson = key,
+    )
 
     private fun stage(
         key: String,
@@ -122,6 +129,36 @@ class PackMarginHandlersTest {
     }
 
     private fun prefix(version: String) = "stage $tenant P-CAL $version "
+
+    @Test
+    fun `INV-AC-22373 the platform type is handled`() {
+        stage("a", "1", 5, "DAYS") shouldBe HandleOutcome.APPLIED
+        readerCalls shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-22373 the old rules type is refused before the reader and the store`() =
+        refused("com.dynokore.gst.rules.RulePackStaged.v1")
+
+    @Test
+    fun `INV-AC-22373 the look-alike type RulePackStagedX is refused before the reader and the store`() =
+        refused("com.dynokore.gst.platform.RulePackStagedX.v1")
+
+    @Test
+    fun `INV-AC-22373 the lower-case look-alike type is refused before the reader and the store`() =
+        refused("com.dynokore.gst.platform.rulepackstaged.v1")
+
+    @Test
+    fun `INV-AC-22373 a type that only starts with the platform type is refused before the reader and the store`() =
+        refused("com.dynokore.gst.platform.RulePackStaged.v1.extra")
+
+    private fun refused(type: String) {
+        stagedEvents["r"] = PackStagedData("P-CAL", "calendar", "1", RawMargin(5, "DAYS"))
+        val e = shouldThrow<ContractViolation> { staged.handle(envelope("r", type)) }
+        e.message shouldBe "expected $STAGED_TYPE, was $type"
+        readerCalls shouldBe 0
+        store.calls shouldBe emptyList()
+    }
 
     @Test
     fun `INV-AC-20784 staged version 1 stores 5 DAYS once and a second delivery changes nothing`() {
@@ -202,5 +239,9 @@ class PackMarginHandlersTest {
     fun `the value 366 with HOURS is stored`() {
         stage("h", "1", 366, "HOURS") shouldBe HandleOutcome.APPLIED
         store.calls shouldBe listOf("${prefix("1")}PackMargin(366 HOURS)")
+    }
+
+    private companion object {
+        const val STAGED_TYPE = "com.dynokore.gst.platform.RulePackStaged.v1"
     }
 }
