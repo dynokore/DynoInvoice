@@ -59,6 +59,7 @@ dependencies {
     // the test bundles are signed with a throw-away key; the verifier already resolves the same versions
     testImplementation(libs.bouncycastle.bcprov)
     testImplementation(libs.bouncycastle.bcpkix)
+    testImplementation(libs.bytebuddy) // the EgressGuard agent advises the JDK connect methods (INV-REQ-1081)
     // ArchitectureRules, RawSqlPlacement, SqlGuards, MigrationLint (STK-41)
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.platform.outboxAndQueue.api)
@@ -66,7 +67,29 @@ dependencies {
     testRuntimeOnly(libs.junit.platformLauncher)
 }
 
+// INV-REQ-1081: the test-only Java agent of EgressGuard, a small jar of the agent classes of the test source set. The
+// test JVM is started with it (-javaagent); without it every test that installs the guard fails (fail closed).
+val egressAgentJar =
+    tasks.register<Jar>("egressAgentJar") {
+        archiveFileName.set("egress-agent.jar")
+        destinationDirectory.set(layout.buildDirectory.dir("egress-agent"))
+        dependsOn(tasks.named("testClasses"))
+        from(sourceSets.test.get().output.classesDirs) {
+            include("com/dynokore/gst/rules/bootstrap/egress/EgressAgent*.class")
+            include("com/dynokore/gst/rules/bootstrap/egress/AddressAdvice*.class")
+            include("com/dynokore/gst/rules/bootstrap/egress/TargetAdvice*.class")
+        }
+        manifest {
+            attributes(
+                "Premain-Class" to "com.dynokore.gst.rules.bootstrap.egress.EgressAgent",
+                "Can-Retransform-Classes" to "true",
+            )
+        }
+    }
+
 tasks.test {
+    dependsOn(egressAgentJar)
+    jvmArgs("-javaagent:" + layout.buildDirectory.file("egress-agent/egress-agent.jar").get().asFile.absolutePath)
     // ArchitectureTest scans the generated contract layer of rules-contract
     dependsOn(":rules-contract:generateContractServer")
     useJUnitPlatform()

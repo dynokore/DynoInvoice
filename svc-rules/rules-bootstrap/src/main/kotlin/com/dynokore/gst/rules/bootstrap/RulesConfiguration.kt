@@ -535,7 +535,7 @@ class RulesConfiguration {
         emitter: PackEventEmitter,
     ): PackCurrencyStore = JooqPackCurrencyStore(dsl, platform, transactions, emitter)
 
-    /** VP-72, read through `PolicyReplica` at installation scope of the platform tenant; written by `setPolicy` only. */
+    /** VP-72, read through `PolicyReplica` at installation scope of the platform tenant; written by `setPolicy`. */
     @Bean
     fun silenceLimitPort(
         policy: PolicyReplica,
@@ -549,20 +549,24 @@ class RulesConfiguration {
         clock: Clock,
     ): PackCurrencyMonitor = PackCurrencyMonitor(store, limit, clock)
 
-    /** The feed client: polls `rules.pack-feed.url` every `rules.pack-feed.poll-interval` (ISO-8601, default PT1H). */
+    /**
+     * The feed client: polls `rules.pack-feed.url` every `rules.pack-feed.poll-interval` (ISO-8601, default PT1H); with
+     * no URL there is no client (a null bean) and the installation takes bundles by import only.
+     */
     @Bean
-    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(PACK_FEED_URL)
     fun packFeedPoller(
         environment: Environment,
         monitor: PackCurrencyMonitor,
         clock: Clock,
-    ): PackFeedPoller =
-        PackFeedPoller(
-            HttpPackFeedProbe(environment.getRequiredProperty(PACK_FEED_URL)),
-            monitor,
-            clock,
-            Duration.parse(environment.getProperty("rules.pack-feed.poll-interval", "PT1H")),
-        )
+    ): PackFeedPoller? =
+        environment.getProperty(PACK_FEED_URL)?.let { url ->
+            PackFeedPoller(
+                HttpPackFeedProbe(url),
+                monitor,
+                clock,
+                Duration.parse(environment.getProperty("rules.pack-feed.poll-interval", "PT1H")),
+            )
+        }
 
     @Bean
     fun packCurrencyScheduling(
@@ -591,6 +595,7 @@ class RulesConfiguration {
         }
 
     @Bean
+    @Suppress("LongParameterList") // the collaborators of the use case, named once in the composition root (TPL-18)
     fun importRegulatoryPack(
         source: PackSource,
         anchors: TrustAnchorSource,

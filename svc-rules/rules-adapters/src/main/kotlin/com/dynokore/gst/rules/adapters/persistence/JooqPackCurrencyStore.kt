@@ -70,9 +70,9 @@ class JooqPackCurrencyStore(
                 .fetchOne()
                 ?.let {
                     UnactivatedPack(
-                        it[PACK_REGISTRY.PACK_ID]!!,
-                        it[PACK_REGISTRY.PACK_VERSION]!!,
-                        it[PACK_REGISTRY.EFFECTIVE_FROM]!!,
+                        checkNotNull(it[PACK_REGISTRY.PACK_ID]),
+                        checkNotNull(it[PACK_REGISTRY.PACK_VERSION]),
+                        checkNotNull(it[PACK_REGISTRY.EFFECTIVE_FROM]),
                     )
                 }
         }
@@ -108,7 +108,7 @@ class JooqPackCurrencyStore(
                     .set(PACK_CURRENCY_STATE.EVALUATED_ON, day)
                     .where(PACK_CURRENCY_STATE.TENANT_ID.eq(owner))
                     .execute()
-                events.emit(listOf(event(state)), context(day))
+                events.emit(listOf(event(state)), context())
             } else {
                 dsl
                     .update(PACK_CURRENCY_STATE)
@@ -129,7 +129,7 @@ class JooqPackCurrencyStore(
             daysSinceLastReached = state.daysSinceLastReached,
         )
 
-    private fun context(day: LocalDate): EventContext {
+    private fun context(): EventContext {
         val id = UUID.randomUUID().toString()
         return EventContext(
             tenant = TenantId.PLATFORM,

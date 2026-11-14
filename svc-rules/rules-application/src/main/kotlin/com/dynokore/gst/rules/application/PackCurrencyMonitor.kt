@@ -7,7 +7,7 @@ import com.dynokore.gst.rules.domain.pack.UnactivatedPack
 import java.time.Clock
 import java.time.LocalDate
 
-/** What the installation holds of DEP-001: the day the feed was last reached or a bundle last imported, and the tuple. */
+/** What the installation holds of DEP-001: the day the feed was last reached or a bundle imported, and the tuple. */
 data class StoredCurrency(
     val lastReachedOn: LocalDate,
     /** The last published tuple of the condition; null when nothing was published yet. */
@@ -25,7 +25,7 @@ interface PackCurrencyStore {
     /** Records [day] as the last day the feed was reached or a bundle imported (creates the state when absent). */
     fun markReached(day: LocalDate)
 
-    /** Records the evaluation of [day]; when [publish] is true the tuple becomes the published one and the event is queued. */
+    /** Records the evaluation of [day]; with [publish] the tuple becomes the published one and the event is queued. */
     fun record(
         day: LocalDate,
         state: PackCurrencyState,

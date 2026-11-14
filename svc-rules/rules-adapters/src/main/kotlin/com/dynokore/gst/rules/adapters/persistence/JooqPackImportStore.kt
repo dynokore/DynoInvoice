@@ -92,7 +92,7 @@ class JooqPackImportStore(
         try {
             registry.register(pack)
         } catch (e: IllegalArgumentException) {
-            throw ConflictingPackVersionException(e.message ?: "conflicting pack version")
+            throw ConflictingPackVersionException(e.message ?: "conflicting pack version", e)
         }
         if (!known) {
             registerMetadata(pack)
@@ -122,7 +122,7 @@ class JooqPackImportStore(
                     .where(key(packType, version))
                     .fetchOne()
             if (imported != null) {
-                ImportStatus(imported[PACK_IMPORT.STATUS]!!, imported[PACK_IMPORT.FAILURE_CODE])
+                ImportStatus(checkNotNull(imported[PACK_IMPORT.STATUS]), imported[PACK_IMPORT.FAILURE_CODE])
             } else {
                 dsl
                     .select(PACK_REGISTRY.STATUS)
@@ -131,7 +131,7 @@ class JooqPackImportStore(
                     .and(PACK_REGISTRY.PACK_VERSION.eq(version))
                     .and(PACK_REGISTRY.TENANT_ID.eq(owner))
                     .fetchOne()
-                    ?.let { ImportStatus(it[PACK_REGISTRY.STATUS]!!, null) }
+                    ?.let { ImportStatus(checkNotNull(it[PACK_REGISTRY.STATUS]), null) }
             }
         }
 

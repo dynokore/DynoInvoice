@@ -7,6 +7,7 @@ package com.dynokore.gst.rules.domain.pack
  */
 object EngineCompatibility {
     /** True when the pack's [minEngineVersion] is not above the [running] train; false for any unreadable version. */
+    @Suppress("ReturnCount") // one early return per unreadable version, then the first differing segment decides
     fun isCompatible(
         minEngineVersion: String,
         running: String,
@@ -22,10 +23,8 @@ object EngineCompatibility {
         return true
     }
 
-    private fun segments(version: String): List<Long>? {
-        if (!SHAPE.matches(version)) return null
-        return version.split('.').map { it.toLongOrNull() ?: return null }
-    }
+    private fun segments(version: String): List<Long>? =
+        if (SHAPE.matches(version)) version.split('.').map { it.toLong() } else null
 
     private val SHAPE = Regex("[0-9]{1,9}(\\.[0-9]{1,9})*")
 }

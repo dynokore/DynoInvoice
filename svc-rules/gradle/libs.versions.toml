@@ -84,5 +84,7 @@ jsonSchemaValidator = { module = "com.networknt:json-schema-validator", version.
 snakeyaml = { module = "org.yaml:snakeyaml" }
 bouncycastle-bcprov = { module = "org.bouncycastle:bcprov-jdk18on", version = "1.86" }
 bouncycastle-bcpkix = { module = "org.bouncycastle:bcpkix-jdk18on", version = "1.86" }
+# test-only EgressGuard agent (INV-T-4976); already locked for the test classpaths of rules-bootstrap
+bytebuddy = { module = "net.bytebuddy:byte-buddy", version = "1.18.11" }
 slf4j-simple = { module = "org.slf4j:slf4j-simple", version.ref = "slf4jSimple" }
 assertj-core = { module = "org.assertj:assertj-core" }

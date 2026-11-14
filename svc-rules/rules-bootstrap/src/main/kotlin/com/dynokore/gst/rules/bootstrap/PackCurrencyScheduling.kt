@@ -2,6 +2,7 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
 import com.dynokore.gst.rules.application.PackFeedPoller
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Scheduled
 
@@ -22,6 +23,6 @@ class PackCurrencyScheduling(
 
     private companion object {
         const val TICK_MILLIS = 30_000L
-        val log = LoggerFactory.getLogger(PackCurrencyScheduling::class.java)
+        val log: Logger = LoggerFactory.getLogger(PackCurrencyScheduling::class.java)
     }
 }

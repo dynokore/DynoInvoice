@@ -12,6 +12,7 @@ import com.dynokore.platform.serviceruntime.binding.PackSource
 import com.dynokore.platform.serviceruntime.binding.PackSourceRef
 import java.io.ByteArrayInputStream
 import java.security.MessageDigest
+import java.util.HexFormat
 import java.util.zip.ZipInputStream
 
 /** The catalogue codes an import can fail with (INV-REQ-1078; INV-Q-3588). */
@@ -116,6 +117,7 @@ sealed interface ImportRegulatoryPackResult {
  * contents are checked (RUL-005); only then is the pack stored. A refused bundle leaves no artefact, registry or
  * outbox row, only its FAILED import record.
  */
+@Suppress("LongParameterList") // the collaborators of the use case, wired once in the composition root (TPL-18)
 class ImportRegulatoryPack(
     private val source: PackSource,
     private val anchors: TrustAnchorSource,
@@ -145,24 +147,7 @@ class ImportRegulatoryPack(
             }
         store.begin(packType, version, bundleHash, user)
         val verified = verified(bytes, digest, trusted, packType, version)
-        val failure =
-            when {
-                verified == null -> {
-                    ImportFailure.SIGNATURE
-                }
-
-                !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) -> {
-                    ImportFailure.ENGINE
-                }
-
-                validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected -> {
-                    ImportFailure.CONTENTS
-                }
-
-                else -> {
-                    null
-                }
-            }
+        val failure = refusal(verified, running)
         if (failure != null) {
             store.fail(packType, version, failure)
             return ImportRegulatoryPackResult.Failed(failure)
@@ -177,6 +162,20 @@ class ImportRegulatoryPack(
         }
     }
 
+    /** The refusal of the ruled order: signature (DEP-002), then engine range (DEP-003), then contents (RUL-005). */
+    private fun refusal(
+        verified: VerifiedPack?,
+        running: String,
+    ): ImportFailure? =
+        when {
+            verified == null -> ImportFailure.SIGNATURE
+            !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) ->
+                ImportFailure.ENGINE
+            validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected ->
+                ImportFailure.CONTENTS
+            else -> null
+        }
+
     /** The status of an import, for the caller who holds the same permission as the import (reads change nothing). */
     fun status(
         packType: String,
@@ -188,6 +187,7 @@ class ImportRegulatoryPack(
     }
 
     /** The verified pack of exactly the requested identity, or null when step 1 refuses the bundle. */
+    @Suppress("ReturnCount") // one early return per step-1 refusal, in order
     private fun verified(
         bytes: ByteArray,
         digest: String,
@@ -206,7 +206,7 @@ class ImportRegulatoryPack(
     }
 
     private fun sha256Hex(bytes: ByteArray): String =
-        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
     companion object {
         private const val PREFIX = "sha256:"
@@ -231,7 +231,8 @@ sealed interface ImportStatusAnswer {
 /** The registry already holds the pack version with another manifest. */
 class ConflictingPackVersionException(
     message: String,
-) : RuntimeException(message)
+    cause: Throwable? = null,
+) : RuntimeException(message, cause)
 
 /** The four-member artefact of a bundle as the pack feed ships it: a zip with exactly these file names. */
 object PackBundle {
@@ -240,6 +241,19 @@ object PackBundle {
 
     /** The artefact, or null when the bytes are not a zip, a name is not one of the four or repeats, or one is huge. */
     fun read(bytes: ByteArray): PackArtefact? {
+        val members = members(bytes) ?: return null
+        // a missing member is an empty one: the verifier refuses it (an unsigned bundle has no signature.p7s)
+        val empty = ByteArray(0)
+        return PackArtefact(
+            manifest = members["manifest.json"] ?: empty,
+            checksums = members["checksums.json"] ?: empty,
+            signature = members["signature.p7s"] ?: empty,
+            contents = members["contents.json"] ?: empty,
+        )
+    }
+
+    @Suppress("ReturnCount") // one early return per refusal of the zip shape
+    private fun members(bytes: ByteArray): Map<String, ByteArray>? {
         val members = HashMap<String, ByteArray>()
         try {
             ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
@@ -254,13 +268,6 @@ object PackBundle {
         } catch (_: java.io.IOException) {
             return null
         }
-        // a missing member is an empty one: the verifier refuses it (an unsigned bundle has no signature.p7s)
-        val empty = ByteArray(0)
-        return PackArtefact(
-            manifest = members["manifest.json"] ?: empty,
-            checksums = members["checksums.json"] ?: empty,
-            signature = members["signature.p7s"] ?: empty,
-            contents = members["contents.json"] ?: empty,
-        )
+        return members
     }
 }

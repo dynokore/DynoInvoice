@@ -255,6 +255,7 @@ class BoundaryDoubles {
         "rules.pack-feed.url=http://127.0.0.1:1/",
     ],
 )
+@Suppress("LongParameterList") // the beans a boundary test drives, injected by Spring
 class EvaluateDocumentBoundaryTest(
     @Autowired private val scope: BoundaryScope,
     @Autowired private val reader: PackContentsReader,

@@ -14,7 +14,7 @@ import java.time.Duration
  */
 class HttpPackFeedProbe(
     baseUrl: String,
-    private val timeout: Duration = Duration.ofSeconds(5),
+    private val timeout: Duration = DEFAULT_TIMEOUT,
 ) : PackFeedProbe {
     private val uri = URI.create(baseUrl.trimEnd('/') + "/packs")
     private val client = HttpClient.newBuilder().connectTimeout(timeout).build()
@@ -27,11 +27,16 @@ class HttpPackFeedProbe(
                     .timeout(timeout)
                     .GET()
                     .build()
-            client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode() in 200..299
+            client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode() in SUCCESS
         } catch (_: java.io.IOException) {
             false
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             false
         }
+
+    private companion object {
+        val DEFAULT_TIMEOUT: Duration = Duration.ofSeconds(5)
+        val SUCCESS = 200..299
+    }
 }

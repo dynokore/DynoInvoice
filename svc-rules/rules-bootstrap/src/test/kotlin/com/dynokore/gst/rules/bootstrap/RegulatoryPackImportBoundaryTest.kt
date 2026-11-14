@@ -173,7 +173,7 @@ class RegulatoryPackImportBoundaryTest(
     ).toByteArray()
 
     private fun sha(bytes: ByteArray) =
-        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        java.util.HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
     private fun zip(members: Map<String, ByteArray>): ByteArray {
         val out = ByteArrayOutputStream()

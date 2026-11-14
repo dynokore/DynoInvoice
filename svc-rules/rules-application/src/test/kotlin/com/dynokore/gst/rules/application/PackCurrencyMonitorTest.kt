@@ -26,7 +26,7 @@ class PackCurrencyMonitorTest {
 
         override fun instant(): Instant = now.get()
 
-        fun advanceDays(days: Long) = now.updateAndGet { it.plus(Duration.ofDays(days)) }
+        fun advanceDays(days: Long): Instant = now.updateAndGet { it.plus(Duration.ofDays(days)) }
     }
 
     private class FakeStore : PackCurrencyStore {
