@@ -108,7 +108,8 @@ class PeriodSpansBoundaryTest {
         fun sendWeek() {
             val items =
                 days(LocalDate.of(2022, 3, 28), LocalDate.of(2022, 4, 3)).joinToString(",") {
-                    """{"transactionRef":"T-$it","transactionDate":"$it","internalTaxCode":"SR-STD","amount":"10.00","claimableInputTax":"0.70"}"""
+                    """{"transactionRef":"T-$it","transactionDate":"$it","internalTaxCode":"SR-STD",""" +
+                        """"amount":"10.00","claimableInputTax":"0.70"}"""
                 }
             scope.bind(TenantId(tenant), actor) {
                 CorrelationContext.withCorrelation(CorrelationId("3fa85f64-5717-4562-b3fc-2c963f66afa6")) {
