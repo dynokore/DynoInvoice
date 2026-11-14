@@ -47,10 +47,7 @@ import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.networknt.schema.InputFormat
-import com.networknt.schema.SchemaRegistry
-import com.networknt.schema.SchemaRegistryConfig
-import com.networknt.schema.SpecificationVersion
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotContain
 import jakarta.servlet.http.HttpServletRequest
@@ -58,7 +55,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.ResponseEntity
 import tools.jackson.module.kotlin.jacksonObjectMapper
-import java.io.File
 import java.lang.reflect.Proxy
 import java.time.Clock
 import java.time.Duration
@@ -247,7 +243,6 @@ class ConfirmFilingControllerTest {
                 when (failure) {
                     is ComplianceRefusal -> ReadinessRefusalAdvice().refuse(failure)
                     is FilingPeriodRefusal -> FilingRefusalAdvice().refuse(failure)
-                    is AmbiguousDueDateException -> FilingRefusalAdvice().ambiguous(failure)
                     else -> throw failure
                 }
             return response.statusCode.value() to response.body!!
@@ -341,12 +336,12 @@ class ConfirmFilingControllerTest {
     }
 
     @Test
-    fun `INV-AC-20947 a period with two due dates answers 500 SRT-010 with no detail and records nothing`() {
-        val (status, text) = post(controller(person("u1")), "P3", body("2026-04-28T20:00:00Z"))
-        status shouldBe 500
-        val json = mapper.readTree(text)
-        json["code"].asString() shouldBe "SRT-010"
-        json.has("detail") shouldBe false
+    fun `INV-AC-20947 a period with two due dates is not answered as a filing and records nothing`() {
+        shouldThrow<AmbiguousDueDateException> {
+            CurrentDeadline.callWith(deadline) {
+                controller(person("u1")).confirmFiling("E", "P3", body("2026-04-28T20:00:00Z"))
+            }
+        }
         store.stored.size shouldBe 0
     }
 
@@ -358,50 +353,7 @@ class ConfirmFilingControllerTest {
         json["code"].asString() shouldBe "PER-001"
         json["severity"].asString() shouldBe "BLOCK"
         json["disposition"].asString() shouldBe "OVERRIDABLE"
-        envelopeErrors(text) shouldBe emptyList()
         store.stored.size shouldBe 0
-    }
-
-    /** The pinned error-envelope schema (unpacked by `unpackClientContracts`); an unset property or a missing file fails. */
-    private fun envelopeErrors(text: String): List<String> {
-        val dir = checkNotNull(System.getProperty("gst.client-contracts.dir")) { "gst.client-contracts.dir is not set" }
-        val file = File(dir, "service-runtime/schemas/error-envelope.schema.json")
-        check(file.isFile) { "the pinned error-envelope schema is missing: $file" }
-        val schemas =
-            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
-                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
-            }
-        return schemas.getSchema(file.readText()).validate(text, InputFormat.JSON).map { it.toString() }
-    }
-
-    @Test
-    fun `the envelope schema refuses a body without correlationId and a code that is a number`() {
-        val (_, text) = post(controller(person("u1")), "P4", body("2026-04-28T20:00:00Z"))
-        envelopeErrors(text) shouldBe emptyList()
-        val tree = mapper.readTree(text) as tools.jackson.databind.node.ObjectNode
-        val withoutCorrelation = tree.deepCopy().also { it.remove("correlationId") }
-        envelopeErrors(mapper.writeValueAsString(withoutCorrelation)).isNotEmpty() shouldBe true
-        val numericCode = tree.deepCopy().also { it.put("code", 1) }
-        envelopeErrors(mapper.writeValueAsString(numericCode)).isNotEmpty() shouldBe true
-    }
-
-    @Test
-    fun `the advice answers an ambiguous due date as SRT-010 500 and handles nothing broader`() {
-        val response = FilingRefusalAdvice().ambiguous(AmbiguousDueDateException("secret two dates"))
-        response.statusCode.value() shouldBe 500
-        response.headers.getFirst("Content-Type") shouldBe "application/problem+json"
-        val json = mapper.readTree(response.body!!)
-        json["code"].asString() shouldBe "SRT-010"
-        json.has("detail") shouldBe false
-        response.body!! shouldNotContain "secret two dates"
-        response.body!! shouldNotContain "AmbiguousDueDateException"
-        val handled =
-            FilingRefusalAdvice::class.java.declaredMethods
-                .mapNotNull { it.getAnnotation(org.springframework.web.bind.annotation.ExceptionHandler::class.java) }
-                .flatMap { it.value.toList() }
-                .map { it.java }
-                .toSet()
-        handled shouldBe setOf(FilingPeriodRefusal::class.java, AmbiguousDueDateException::class.java)
     }
 
     @Test

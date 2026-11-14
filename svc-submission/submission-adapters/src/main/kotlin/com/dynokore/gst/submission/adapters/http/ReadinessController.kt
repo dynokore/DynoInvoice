@@ -16,12 +16,14 @@ import com.dynokore.gst.submission.contract.model.ConfirmFilingRequest
 import com.dynokore.gst.submission.contract.model.DrainResultDrainedByTierInner
 import com.dynokore.gst.submission.contract.model.DrainResultResidualItemsInner
 import com.dynokore.gst.submission.contract.model.FilingConfirmation
+import com.dynokore.gst.submission.contract.model.FilingConfirmationConflict
 import com.dynokore.gst.submission.contract.model.IrreversibleImpact
 import com.dynokore.gst.submission.contract.model.OutcomeValues
 import com.dynokore.gst.submission.contract.model.ReadinessCheckRecord
 import com.dynokore.gst.submission.contract.model.ReadinessTier
 import com.dynokore.gst.submission.domain.drain.Tier
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.PeriodErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
@@ -71,7 +73,6 @@ class ReadinessRefusalAdvice {
  * (SRT-001, SRT-004, SRT-005).
  */
 @RestController
-@Suppress("LongParameterList") // the composition of the readiness, drain and filing use cases (INV-T-20948)
 open class ReadinessController(
     private val latest: GetLatestReadinessCheck,
     private val http: ObjectProvider<HttpServletRequest>,
@@ -107,10 +108,42 @@ open class ReadinessController(
                 correction = confirmFilingRequest.correction ?: false,
             )
         val result = transactions.inTransaction { confirm.handle(call, deadline()) }
-        if (result !is ConfirmFilingResult.Recorded) throw FilingBinding.refusalOf(result)
-        val portal = confirmFilingRequest.portalReference
-        return ResponseEntity.ok(FilingBinding.confirmation(call, portal, result, businessZone))
+        return when (result) {
+            is ConfirmFilingResult.Recorded -> {
+                ResponseEntity.ok(filingConfirmation(call, confirmFilingRequest, result))
+            }
+
+            is ConfirmFilingResult.Forbidden -> {
+                throw ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            ConfirmFilingResult.NoDueDate -> {
+                throw ComplianceRefusal(ClosedErrorCode.NOT_FOUND)
+            }
+
+            is ConfirmFilingResult.GateRefused -> {
+                throw FilingPeriodRefusal(PeriodErrorCode.PERIOD_NOT_READY)
+            }
+        }
     }
+
+    private fun filingConfirmation(
+        call: ConfirmFilingCall,
+        body: ConfirmFilingRequest,
+        result: ConfirmFilingResult.Recorded,
+    ) = FilingConfirmation(
+        entityRef = call.entityRef,
+        periodRef = call.periodRef,
+        filedAt = FilingBinding.startOfDay(call.filedAt, businessZone),
+        irasAcknowledgementReference = call.acknowledgementRef,
+        confirmedAt = result.confirmedAt.atOffset(ZoneOffset.UTC),
+        portalReference = body.portalReference,
+        governingFiledAt = FilingBinding.startOfDay(result.governingFiledAt, businessZone),
+        conflict =
+            result.conflict?.let {
+                FilingConfirmationConflict(it.code, FilingBinding.startOfDay(it.otherFiledAt, businessZone))
+            },
+    )
 
     /** The tenant and principal of the request: the machine attribute first, else the end user as a person. */
     private fun filingCaller(): Pair<TenantId, Principal> {

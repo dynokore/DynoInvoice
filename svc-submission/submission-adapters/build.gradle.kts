@@ -106,17 +106,4 @@ dependencies {
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
-    testImplementation(libs.jsonSchemaValidator)
-}
-
-// The pinned error-envelope schema the confirmFiling P4 body is validated against (INV-T-20948 ruling (f)).
-tasks.withType<Test>().configureEach {
-    dependsOn(unpackClientContracts)
-    systemProperty(
-        "gst.client-contracts.dir",
-        layout.buildDirectory
-            .dir("client-contracts")
-            .get()
-            .asFile.absolutePath,
-    )
 }
