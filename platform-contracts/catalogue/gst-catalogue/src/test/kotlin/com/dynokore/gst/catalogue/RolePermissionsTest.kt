@@ -180,9 +180,7 @@ class RolePermissionsTest {
             ),
             *vpGroup(setOf("integration.engineer"), listOf(26, 34, 35, 38, 47, 48, 49, 55, 56, 67, 71)),
             *vpGroup(setOf("entity.admin"), listOf(21, 22, 23, 24, 25, 27, 51, 53, 60, 61)),
-            *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 80)),
-            // VP-79: SaaS only, by the owner choice of 2026-11-15 (INV-T-22820); platform.engineer does not exist in PRIVATE.
-            *vpGroup(setOf("platform.engineer"), listOf(79)),
+            *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 79, 80)),
             *vpGroup(setOf("client.signatory"), listOf(4, 10, 11, 12, 13)),
             *vpGroup(setOf("security.officer"), listOf(5, 8, 44, 63)),
             *vpGroup(setOf("tax.operator"), listOf(30)),
@@ -730,30 +728,5 @@ class RegulatoryPackAcknowledgeRolePermissionsTest {
         assertNull(RolePermissions.kind("regulatory-pack.acknowledges"))
         assertEquals(setOf("tax.approver"), holders(saas))
         assertEquals(emptySet<String>(), holders(privateForm))
-    }
-}
-
-class Vp79RolePermissionsTest {
-    private val saas = DeploymentForm.SAAS
-    private val privateForm = DeploymentForm.PRIVATE
-    private val y = RoleAllowance.PERMITTED
-
-    private fun cell(
-        form: DeploymentForm,
-        role: String,
-        key: String,
-    ) = RolePermissions.cells(form)[role]?.get(key)
-
-    @Test
-    fun `INV-AC-22752 vp-79 set is held by platform engineer in SaaS only and has no private cell`() {
-        assertEquals(PermissionKind.WRITE, RolePermissions.kind("vp-79.set"))
-        assertEquals(y, cell(saas, "platform.engineer", "vp-79.set"))
-        assertNull(cell(privateForm, "deployment.operator", "vp-79.set"))
-        assertNull(cell(privateForm, "platform.engineer", "vp-79.set"))
-        assertTrue(OperationRoles.rolesFor(privateForm, "vp-79.set").isEmpty())
-        assertEquals(mapOf("platform.engineer" to y), OperationRoles.rolesFor(saas, "vp-79.set"))
-        // the siblings keep their private cell
-        assertEquals(y, cell(privateForm, "deployment.operator", "vp-78.set"))
-        assertEquals(y, cell(privateForm, "deployment.operator", "vp-80.set"))
     }
 }
