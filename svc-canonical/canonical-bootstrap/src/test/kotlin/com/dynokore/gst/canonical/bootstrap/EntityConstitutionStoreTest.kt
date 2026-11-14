@@ -59,10 +59,12 @@ class EntityConstitutionStoreTest {
         CanonicalDb.superuser().use { connection ->
             connection
                 .prepareStatement(
-                    "select tenant_id::text, entity_ref, constitution, version::text from canonical.entity_constitution " +
+                    "select tenant_id::text, entity_ref, constitution, version::text " +
+                        "from canonical.entity_constitution " +
                         "where tenant_id = any (?::uuid[]) order by tenant_id::text, entity_ref",
                 ).use { statement ->
-                    statement.setArray(1, connection.createArrayOf("uuid", tenants.map { it.toString() }.toTypedArray()))
+                    val ids = tenants.map { it.toString() }.toTypedArray()
+                    statement.setArray(1, connection.createArrayOf("uuid", ids))
                     statement.executeQuery().use { rows ->
                         buildList { while (rows.next()) add((1..4).map { rows.getString(it) }) }
                     }
@@ -121,8 +123,10 @@ class EntityConstitutionStoreTest {
         b.constitutionAs(t2, t1, "ENT-1") shouldBe null
         b.constitutionAs(t2, t2, "ENT-1") shouldBe "PUBLIC_LIMITED"
         // a write for another tenant than the bound one is refused by the policy's WITH CHECK
-        val refused = runCatching { b.scope.bind(TenantId(t2), actor) { b.runner.inTransaction { b.store.apply(fact(t1, "SOLE_PROPRIETOR", 9)) } } }
-        (refused.isFailure) shouldBe true
+        val foreign = fact(t1, "SOLE_PROPRIETOR", 9)
+        val refused =
+            runCatching { b.scope.bind(TenantId(t2), actor) { b.runner.inTransaction { b.store.apply(foreign) } } }
+        refused.isFailure shouldBe true
         rowsOf(t1).single()[3] shouldBe "6"
     }
 
@@ -149,7 +153,8 @@ class EntityConstitutionStoreTest {
         CanonicalDb.superuser().use { connection ->
             connection
                 .prepareStatement(
-                    "select has_table_privilege('canonical_runtime', 'canonical.entity_constitution', 'DELETE')::text, " +
+                    "select has_table_privilege('canonical_runtime', " +
+                        "'canonical.entity_constitution', 'DELETE')::text, " +
                         "has_table_privilege('canonical_runtime', 'canonical.entity_constitution', 'UPDATE')::text",
                 ).use { s ->
                     s.executeQuery().use { r ->
