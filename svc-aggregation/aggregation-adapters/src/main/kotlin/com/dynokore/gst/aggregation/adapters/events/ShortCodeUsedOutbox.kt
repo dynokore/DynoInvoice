@@ -14,7 +14,8 @@ import java.util.UUID
 /**
  * Appends `ShortCodeUsed` (channel `aggregationShortCodeUsed`, INV-Q-11266 A) to the outbox in the transaction the
  * caller has open. The payload is `short-code-used-payload.schema.json`: `code`, `nodeKind`, `nodeRef`, `aggregateId`
- * and `documentNumber`. The emission guard of the outbox refuses a type the catalogue does not list for aggregation-svc.
+ * and `documentNumber`. The emission guard of the outbox refuses a type the catalogue does not list for
+ * aggregation-svc.
  */
 class ShortCodeUsedOutbox(
     private val outbox: OutboxWriter,

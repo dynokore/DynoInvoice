@@ -57,8 +57,8 @@ class OperationsGateTest {
     }
 
     /** Tasks that publish a channel of the contract and are done (INV-T-14464: aggregationAggregateWindowChanged;
-     * INV-T-4979: aggregationAggregateReady). */
-    private val publishedChannelTasks = setOf("INV-T-14464", "INV-T-4979")
+     * INV-T-4979: aggregationAggregateReady; INV-T-11280: aggregationShortCodeUsed). */
+    private val publishedChannelTasks = setOf("INV-T-14464", "INV-T-4979", "INV-T-11280")
 
     @Test
     fun `the real table covers the real contract`() {
