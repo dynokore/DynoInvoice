@@ -10,10 +10,7 @@ import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.listing.SubmissionRow
 import com.dynokore.gst.submission.domain.listing.SubmissionRows
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
-import com.dynokore.gst.submission.domain.reconciliation.DocFact
 import com.dynokore.gst.submission.domain.reconciliation.ReconciliationBucket
-import com.dynokore.gst.submission.domain.reconciliation.SentVersusAcknowledged
-import com.dynokore.gst.submission.domain.reconciliation.VersionFact
 import com.dynokore.gst.submission.domain.register.ListFacts
 import com.dynokore.gst.submission.domain.register.ListFactsPolicy
 import com.dynokore.gst.submission.domain.register.MaskedListFacts
@@ -35,6 +32,7 @@ object ListingActions {
     const val VIEW_STATUS = "submission.view-status"
     const val VIEW_STATUS_MACHINE = "machine.submissions.read"
     const val VIEW_CONTENT = "doc.view.content"
+    const val VIEW_SUMMARY_MACHINE = "machine.status.read"
 }
 
 /** [maxLimit] is supplied by the caller (the HTTP slice passes the contract maximum), never a literal here. */
@@ -237,26 +235,6 @@ class ListSubmissions(
         action: String,
         deadline: Deadline,
     ) = replica.decide(AuthorizationRequest(request.tenant, request.principal, request.entityRef, action), deadline)
-
-    private fun touchesMaskedFact(filter: SubmissionFilter): Boolean =
-        filter.counterparty != null || filter.amountMin != null ||
-            filter.amountMax != null || filter.categoryCode != null
-
-    /**
-     * The reconciliation class of each document (INV-REQ-976 behavior 3): every row of a document shares its class,
-     * so a document with versions ACKNOWLEDGED then REJECTED is SENT_ACKNOWLEDGED in all its rows. No deadline or
-     * clock is carried, so the class never is SENT_NOT_ACKNOWLEDGED and the instant passed is never compared.
-     */
-    private fun documentBuckets(rows: List<SubmissionRow>): Map<SubmissionRow, ReconciliationBucket?> {
-        val byDoc = rows.groupBy { it.docUuid }
-        val classOf =
-            byDoc.mapValues { (docUuid, group) ->
-                val ordered = group.sortedBy { it.version }
-                val versions = ordered.map { VersionFact(it.version, it.state, acknowledgementDeadline = null) }
-                SentVersusAcknowledged.bucketOf(DocFact(docUuid, versions, ordered.last().taxableAmount), Instant.EPOCH)
-            }
-        return rows.associateWith { classOf[it.docUuid] }
-    }
 
     private fun sortText(sort: SortKey): String {
         val name = if (sort.field == SortField.DUE_DATE) "dueDate" else "transactionDate"
