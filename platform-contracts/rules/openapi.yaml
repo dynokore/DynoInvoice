@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 2.0.0
+  version: 2.1.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1776,6 +1776,16 @@ components:
         version:
           type: string
           maxLength: 32
+        packIdentifier:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: >-
+            The rule pack identifier of the applied pack version: the
+            packIdentifier that RulePackStaged and RulePackActivated carry for
+            that pack version, so that a consumer can join the two
+            (INV-REQ-771). Optional so that an older producer and an older
+            consumer validate; a producer that does not know it yet omits it.
       required: [packType, version]
     DraftMappingPackRequest:
       type: object
