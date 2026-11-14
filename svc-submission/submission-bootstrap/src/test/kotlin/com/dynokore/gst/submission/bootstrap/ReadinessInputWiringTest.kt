@@ -21,7 +21,6 @@ class ReadinessInputWiringTest {
             .also { it.isAccessible = true }
             .get(target)
 
-
     @Test
     fun `INV-AC-22208 the context has exactly one ReadinessInputSource and it is the stored one over the jOOQ ports`(
         @TempDir dir: Path,
