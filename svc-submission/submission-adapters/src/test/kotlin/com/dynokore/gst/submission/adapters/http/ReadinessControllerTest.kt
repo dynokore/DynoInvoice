@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.adapters.http
 
+import com.dynokore.gst.submission.adapters.DrainFixture
 import com.dynokore.gst.submission.adapters.SignedBindings
 import com.dynokore.gst.submission.adapters.SubmissionDb
 import com.dynokore.gst.submission.adapters.persistence.JooqReadinessCheckStore
@@ -123,6 +124,8 @@ class ReadinessControllerTest {
             object : ObjectProvider<HttpServletRequest> {
                 override fun getObject(): HttpServletRequest = request
             },
+            DrainFixture().preview(),
+            DrainFixture().drain(),
         )
     }
 

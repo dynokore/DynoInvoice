@@ -1,16 +1,32 @@
 package com.dynokore.gst.submission.adapters.http
 
+import com.dynokore.gst.submission.application.drain.DrainPeriod
+import com.dynokore.gst.submission.application.drain.DrainRequest
+import com.dynokore.gst.submission.application.drain.DrainResult
+import com.dynokore.gst.submission.application.drain.PreviewDrain
+import com.dynokore.gst.submission.application.drain.PreviewResult
+import com.dynokore.gst.submission.application.drain.number
 import com.dynokore.gst.submission.application.readiness.GetLatestReadinessCheck
 import com.dynokore.gst.submission.application.readiness.LatestCheckResult
 import com.dynokore.gst.submission.application.readiness.StoredReadinessCheck
 import com.dynokore.gst.submission.contract.api.ReadinessApi
+import com.dynokore.gst.submission.contract.model.DrainResultDrainedByTierInner
+import com.dynokore.gst.submission.contract.model.DrainResultResidualItemsInner
+import com.dynokore.gst.submission.contract.model.IrreversibleImpact
 import com.dynokore.gst.submission.contract.model.OutcomeValues
 import com.dynokore.gst.submission.contract.model.ReadinessCheckRecord
+import com.dynokore.gst.submission.contract.model.ReadinessTier
+import com.dynokore.gst.submission.domain.drain.Tier
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
+import com.dynokore.platform.serviceruntime.identity.MachineTokenFilter
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
+import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
+import com.dynokore.platform.tenancykernel.TenantId
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
@@ -51,7 +67,97 @@ class ReadinessRefusalAdvice {
 open class ReadinessController(
     private val latest: GetLatestReadinessCheck,
     private val http: ObjectProvider<HttpServletRequest>,
+    private val preview: PreviewDrain,
+    private val drain: DrainPeriod,
 ) : ReadinessApi {
+    /** INV-REQ-1012: the count and total value of the drain; the use case decides the permission (never a role). */
+    override fun previewDrainPeriod(
+        entityRef: String,
+        periodRef: String,
+    ): ResponseEntity<IrreversibleImpact> {
+        val request = drainRequest(entityRef, periodRef)
+        return when (val result = preview.run(request, deadline())) {
+            is PreviewResult.Previewed -> {
+                ResponseEntity.ok(IrreversibleImpact(result.documentCount, result.totalAmount))
+            }
+
+            is PreviewResult.Forbidden -> {
+                throw ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            is PreviewResult.Unavailable -> {
+                throw ComplianceRefusal(ClosedErrorCode.SERVICE_NOT_READY)
+            }
+        }
+    }
+
+    /** INV-REQ-554, INV-REQ-555: the drain of one entity and period for a person or the machine principal. */
+    override fun drainPeriod(
+        entityRef: String,
+        periodRef: String,
+    ): ResponseEntity<com.dynokore.gst.submission.contract.model.DrainResult> {
+        val request = drainRequest(entityRef, periodRef)
+        return when (val result = drain.run(request, deadline())) {
+            is DrainResult.Drained -> ResponseEntity.ok(drained(result))
+            is DrainResult.Forbidden -> throw ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
+            is DrainResult.Unavailable -> throw ComplianceRefusal(ClosedErrorCode.SERVICE_NOT_READY)
+        }
+    }
+
+    private fun deadline() = CurrentDeadline.current() ?: error("no call deadline is bound")
+
+    /** The verified principal of the request: the machine attribute first, else the end user; neither is refused. */
+    private fun drainRequest(
+        entityRef: String,
+        periodRef: String,
+    ): DrainRequest {
+        val request = http.getObject()
+        val machine = request.getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) as? Principal
+        if (machine != null) {
+            val tenant: TenantId =
+                machine.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+            check(machine.kind == PrincipalKind.MACHINE) { "the machine attribute holds a non-machine principal" }
+            return DrainRequest(tenant, machine, entityRef, periodRef)
+        }
+        val caller = caller()
+        val tenant = caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        return DrainRequest(tenant, Principal(caller.actor, PrincipalKind.HUMAN), entityRef, periodRef)
+    }
+
+    private fun tierCode(tier: Tier) =
+        when (tier) {
+            Tier.WINDOW_OPEN -> DrainResultDrainedByTierInner.TierCode.SAFETY_MARGIN
+            Tier.DRAINED_PERIOD -> DrainResultDrainedByTierInner.TierCode.PERIOD_BACKLOG
+            Tier.ROUTINE -> DrainResultDrainedByTierInner.TierCode.ROUTINE
+        }
+
+    private fun drained(result: DrainResult.Drained) =
+        com.dynokore.gst.submission.contract.model.DrainResult(
+            entityRef = result.entityRef,
+            periodRef = result.periodRef,
+            drainedCount = result.drainedCount,
+            remaining = result.remaining.map { ReadinessTier(tier = it.tier.number, blockedCount = it.blockedCount) },
+            completedAt = result.completedAt.atOffset(ZoneOffset.UTC),
+            drainedByTier =
+                Tier.entries.map {
+                    DrainResultDrainedByTierInner(
+                        it.number,
+                        tierCode(it),
+                        result.drainedByTier[it] ?: 0,
+                    )
+                },
+            residualItems =
+                result.residualItems.map {
+                    DrainResultResidualItemsInner(
+                        UUID.fromString(it.docUuid),
+                        it.version,
+                        it.tier.number,
+                        it.reasonCode,
+                    )
+                },
+            checkId = result.checkId,
+        )
+
     override fun getLatestReadinessCheck(
         entityRef: String,
         periodRef: String,

@@ -1,6 +1,6 @@
 kind	id	task
 operation	getReadiness	UNASSIGNED
-operation	drainPeriod	UNASSIGNED
+operation	drainPeriod	INV-T-20853
 operation	listReadinessChecks	UNASSIGNED
 operation	confirmFiling	UNASSIGNED
 operation	listSubmissions	INV-T-16327
