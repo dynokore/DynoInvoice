@@ -195,6 +195,25 @@ class ExceptionQueueDbTest {
     }
 
     @Test
+    fun `INV-AC-21105 the due date joins by tenant, entity and period, never by entity alone`() {
+        val tenantC = UUID.randomUUID()
+        asTenant(tenantC) { c ->
+            JooqExceptionStore(dsl(c)).upsert(
+                listOf(
+                    row(tenantC, 8, "E-001", "2026-Q1", "10:00"),
+                    row(tenantC, 9, "E-001", "2026-Q4", "11:00"),
+                ),
+            )
+            val dues = JooqPeriodDueDateStore(dsl(c))
+            dues.applyIfNewer(tenantC.toString(), PeriodKey("E-001", "2026-Q1"), LocalDate.parse("2026-11-21"), 1)
+            dues.applyIfNewer(tenantC.toString(), PeriodKey("E-001", "2026-Q3"), LocalDate.parse("2026-11-01"), 1)
+        }
+        val rows = drain(tenantC, setOf("E-001"))
+        ids(rows) shouldContainExactly listOf(id(8), id(9))
+        rows.map { it.dueDate?.toString() } shouldContainExactly listOf("2026-11-21", null)
+    }
+
+    @Test
     fun `INV-AC-21105 the statement names due date nulls last, any, left join and exists`() {
         val (select, binds) =
             ConsoleDb.connect(ConsoleDb.RUNTIME, ConsoleDb.RUNTIME_PASSWORD).use { c ->
