@@ -209,7 +209,7 @@ class AuthorityIncarnationDbTest {
     }
 
     @Test
-    fun `INV-AC-22069 the service start with the sequence below the mark raises the incarnation to max(stored+1, now)`() {
+    fun `INV-AC-22069 the service start with the sequence below the mark raises the incarnation`() {
         val before = Instant.now().epochSecond
         bootWith(incarnation = 1_000, mark = 40, sequence = 7)
         assertThat(incarnation()).isBetween(before, Instant.now().epochSecond)
