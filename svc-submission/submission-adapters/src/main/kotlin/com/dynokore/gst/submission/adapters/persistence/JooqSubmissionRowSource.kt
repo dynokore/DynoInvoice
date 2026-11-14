@@ -48,6 +48,7 @@ class JooqSubmissionRowSource(
                         version.SUBMITTED_AT,
                         version.ACKNOWLEDGED_AT,
                         version.ACKNOWLEDGEMENT_ID,
+                        version.ACKNOWLEDGEMENT_DEADLINE,
                         entry.DUE_DATE,
                         entry.DOCUMENT_NUMBER,
                         entry.DOCUMENT_TYPE_CODE,
@@ -108,6 +109,7 @@ class JooqSubmissionRowSource(
                 submittedAt = r.get(version.SUBMITTED_AT)?.toInstant(),
                 acknowledgedAt = ackAt?.toInstant(),
                 acknowledgementId = ackId,
+                acknowledgementDeadline = r.get(version.ACKNOWLEDGEMENT_DEADLINE)?.toInstant(),
             )
         }
     }

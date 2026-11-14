@@ -30,6 +30,7 @@ data class SubmissionRow(
     val submittedAt: Instant?,
     val acknowledgedAt: Instant?,
     val acknowledgementId: String?,
+    val acknowledgementDeadline: Instant? = null,
 ) {
     init {
         require(docUuid.isNotBlank()) { "docUuid must not be blank" }

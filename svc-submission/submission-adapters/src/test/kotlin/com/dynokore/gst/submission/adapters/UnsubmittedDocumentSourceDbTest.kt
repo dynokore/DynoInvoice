@@ -60,13 +60,23 @@ class UnsubmittedDocumentSourceDbTest {
                     "insert into submission.obligation_register_entry " +
                         "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
                         "values (?, ?, ?, ?, ?, ?, ?)",
-                    tenant, doc, entity, "p1", LocalDate.of(2026, 11, 30), inScope, "INVOICE",
+                    tenant,
+                    doc,
+                    entity,
+                    "p1",
+                    LocalDate.of(2026, 11, 30),
+                    inScope,
+                    "INVOICE",
                 )
                 states.forEachIndexed { index, state ->
                     dsl.execute(
                         "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref) " +
                             "values (?, ?, ?, ?, ?)",
-                        tenant, doc, index + 1, state, entity,
+                        tenant,
+                        doc,
+                        index + 1,
+                        state,
+                        entity,
                     )
                 }
             }

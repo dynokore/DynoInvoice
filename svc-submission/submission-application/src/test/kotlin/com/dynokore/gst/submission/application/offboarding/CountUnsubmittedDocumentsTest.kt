@@ -17,7 +17,11 @@ class CountUnsubmittedDocumentsTest {
     @Test
     fun `INV-AC-22870 the source receives exactly the tenant and entity passed in, once`() {
         val calls = mutableListOf<Pair<TenantId, String?>>()
-        val useCase = CountUnsubmittedDocuments({ t, e -> calls += t to e; 3 }, clock)
+        val useCase =
+            CountUnsubmittedDocuments({ t, e ->
+                calls += t to e
+                3
+            }, clock)
         useCase.execute(tenant, "E1")
         calls shouldBe listOf(tenant to "E1")
         calls.clear()

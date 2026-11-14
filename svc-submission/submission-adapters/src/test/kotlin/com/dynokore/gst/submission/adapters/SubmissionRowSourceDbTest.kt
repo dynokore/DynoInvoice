@@ -157,6 +157,19 @@ class SubmissionRowSourceDbTest {
             .execute()
     }
 
+    private fun seedDeadline(
+        tenant: UUID,
+        doc: String,
+        deadline: Instant,
+    ) = asTenant(tenant) {
+        dsl
+            .update(version)
+            .set(version.ACKNOWLEDGEMENT_DEADLINE, deadline.atOffset(ZoneOffset.UTC))
+            .where(version.TENANT_ID.eq(tenant))
+            .and(version.DOC_UUID.eq(doc))
+            .execute()
+    }
+
     private fun assertFactsOf(it: SubmissionRow) {
         it.documentNumber shouldBe "N-d1"
         it.documentTypeCode shouldBe "380"
@@ -288,5 +301,21 @@ class SubmissionRowSourceDbTest {
             Regex("\"tenant_id\" = (cast\\()?\\?").containsMatchIn(it as String) shouldBe true
             it.contains("where") shouldBe true
         }
+    }
+
+    @Test
+    fun `INV-AC-22748 the deadline of a version row is read into the row and a version without one reads null`() {
+        val a = UUID.randomUUID()
+        val s = ids()
+        val e = "e-$s"
+        val p = "p-$s"
+        val deadline = Instant.parse("2026-03-01T10:00:00Z")
+        listOf("with", "without").forEach { seedEntry(a, "$it-$s", e, p) }
+        seedVersion(a, "with-$s", 1, LifecycleState.SENT, Extras(e))
+        seedDeadline(a, "with-$s", deadline)
+        seedVersion(a, "without-$s", 1, LifecycleState.SENT, Extras(e))
+        val rows = read(a, e, p).rows.associateBy { it.docUuid }
+        rows.getValue("with-$s").acknowledgementDeadline shouldBe deadline
+        rows.getValue("without-$s").acknowledgementDeadline shouldBe null
     }
 }

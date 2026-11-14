@@ -136,4 +136,11 @@ class SubmissionRowTest {
         SubmissionKind.entries.map { it.name } shouldBe listOf("TYPE_1A", "TYPE_1B", "TYPE_2", "TYPE_3")
         Direction.entries.map { it.name } shouldBe listOf("SALE", "PURCHASE")
     }
+
+    @Test
+    fun `INV-AC-22748 the acknowledgement deadline defaults to null and keeps a given instant`() {
+        val deadline = Instant.parse("2026-03-01T10:00:00Z")
+        row("a").acknowledgementDeadline shouldBe null
+        row("a").copy(acknowledgementDeadline = deadline).acknowledgementDeadline shouldBe deadline
+    }
 }
