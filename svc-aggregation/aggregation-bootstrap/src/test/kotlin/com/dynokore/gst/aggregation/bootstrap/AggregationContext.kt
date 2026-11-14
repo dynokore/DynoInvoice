@@ -1,8 +1,12 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.AggregationDb
+import org.springframework.boot.WebApplicationType
+import org.springframework.boot.builder.SpringApplicationBuilder
 import org.springframework.boot.test.context.ConfigDataApplicationContextInitializer
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.ConfigurableApplicationContext
+import org.springframework.core.io.DefaultResourceLoader
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -26,24 +30,49 @@ object AggregationContext {
             // the real application.yaml (TPL-16), then the overrides below
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(AggregationApplication::class.java)
-            .withPropertyValues(
-                "spring.datasource.url=jdbc:postgresql://localhost:5432/aggregation",
-                "spring.datasource.username=aggregation_runtime",
-                "service-runtime.workload-identity.audience=aggregation-svc",
-                "gst.service=aggregation-svc",
-                "gst.instance-id=aggregation-svc-0",
-                "service-runtime.pool.profile=minimal",
-                "service-runtime.modules.schema=aggregation",
-                "service-runtime.idempotency.schema=aggregation",
-                "service-runtime.datasource.credential=db/aggregation_runtime",
-                "gst.bindings.secret-store.mount-root=$mountRoot",
-                "gst.bindings.telemetry-export=bundled-otel",
-                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
-            )
+            .withPropertyValues(*overrides(mountRoot))
+
+    private fun overrides(mountRoot: Path): Array<String> =
+        arrayOf(
+            "spring.datasource.url=jdbc:postgresql://localhost:5432/aggregation",
+            "spring.datasource.username=aggregation_runtime",
+            "service-runtime.workload-identity.audience=aggregation-svc",
+            "gst.service=aggregation-svc",
+            "gst.instance-id=aggregation-svc-0",
+            "service-runtime.pool.profile=minimal",
+            "service-runtime.modules.schema=aggregation",
+            "service-runtime.idempotency.schema=aggregation",
+            "service-runtime.datasource.credential=db/aggregation_runtime",
+            "gst.bindings.secret-store.mount-root=$mountRoot",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
+        )
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
     fun online(mountRoot: Path): ApplicationContextRunner {
         secrets(mountRoot)
         return base(mountRoot).withPropertyValues("spring.datasource.url=${AggregationDb.jdbcUrl}")
+    }
+
+    /**
+     * As [online], started by SpringApplication in an embedded servlet container on a free port, for a test that
+     * calls the service over HTTP. The caller closes the context. [loader] is the class loader of the context.
+     */
+    fun startServlet(
+        mountRoot: Path,
+        configurations: List<Class<*>>,
+        properties: Array<String>,
+        loader: ClassLoader,
+    ): ConfigurableApplicationContext {
+        secrets(mountRoot)
+        return SpringApplicationBuilder(AggregationApplication::class.java, *configurations.toTypedArray())
+            .web(WebApplicationType.SERVLET)
+            .resourceLoader(DefaultResourceLoader(loader))
+            .properties(
+                *overrides(mountRoot),
+                "spring.datasource.url=${AggregationDb.jdbcUrl}",
+                "server.port=0",
+                *properties,
+            ).run()
     }
 }
