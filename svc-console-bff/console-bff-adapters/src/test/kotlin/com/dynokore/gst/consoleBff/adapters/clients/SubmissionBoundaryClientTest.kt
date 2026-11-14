@@ -12,6 +12,17 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.mock.env.MockEnvironment
 
+/** The six non-UUID forms of the task: empty, one space, text, lenient-parse text, a digit short, a trailing space. */
+private val BAD_UUIDS =
+    listOf(
+        "",
+        " ",
+        "not-a-uuid",
+        "1-1-1-1-1",
+        "11111111-1111-1111-1111-11111111111",
+        "11111111-1111-1111-1111-111111111111 ",
+    )
+
 /** INV-AC-21307: SubmissionBoundaryClient over the OwningServiceEdge and a stub submission-svc. */
 class SubmissionBoundaryClientTest {
     private val stub = OwnerStub()
@@ -21,15 +32,17 @@ class SubmissionBoundaryClientTest {
     @AfterEach
     fun stop() = stub.stop()
 
-    private fun check(registry: ResilienceRegistry = TestEdges.passThrough) =
-        CurrentEndUserToken.callWith("Bearer u-1") {
-            SubmissionBoundaryClient(
-                TestEdges.builder(),
-                registry,
-                TestEdges.clock,
-                MockEnvironment().withProperty(OwningService.SUBMISSION.urlProperty, stub.url),
-            ).check(listOf(d1, d2))
-        }
+    private fun check(
+        registry: ResilienceRegistry = TestEdges.passThrough,
+        docs: List<String> = listOf(d1, d2),
+    ) = CurrentEndUserToken.callWith("Bearer u-1") {
+        SubmissionBoundaryClient(
+            TestEdges.builder(),
+            registry,
+            TestEdges.clock,
+            MockEnvironment().withProperty(OwningService.SUBMISSION.urlProperty, stub.url),
+        ).check(docs)
+    }
 
     private val ok = """{"checkedCount":2,"submittedCount":1,"submittedMembers":[{"docUuid":"$d2","state":"SENT"}]}"""
 
@@ -116,5 +129,42 @@ class SubmissionBoundaryClientTest {
             check()
             assertEquals(1, stub.seen.size, "status $status")
         }
+    }
+
+    @Test
+    @DisplayName("INV-AC-21307 boundary a non-UUID docUuids member gives Unavailable naming the field, with 0 requests")
+    fun nonUuidNotSent() {
+        stub.answer(200, ok)
+        for (bad in BAD_UUIDS) {
+            val reply = check(docs = listOf(d1, bad, d2))
+            val reason = (reply as OwnerReply.Unavailable).reason
+            assertEquals(true, reason.contains("docUuids"), "field named for '$bad'")
+            assertEquals(false, reason.contains("1-1-1") || reason.contains("not-a-uuid"), "no value in reason")
+            assertEquals(0, stub.seen.size, "requests for '$bad'")
+        }
+    }
+
+    @Test
+    @DisplayName("INV-AC-21307 boundary an upper-case docUuid is sent once, equal ignoring case")
+    fun upperCaseSent() {
+        val up = "4FA85F64-5717-4562-B3FC-2C963F66AFA7"
+        stub.answer(200, ok)
+        check(docs = listOf(up))
+        assertEquals(
+            true,
+            stub.seen
+                .single()
+                .body
+                .contains(up, ignoreCase = true),
+        )
+        stub.answer(200, ok)
+        check()
+        assertEquals(
+            true,
+            stub.seen
+                .single()
+                .body
+                .contains(d1),
+        )
     }
 }

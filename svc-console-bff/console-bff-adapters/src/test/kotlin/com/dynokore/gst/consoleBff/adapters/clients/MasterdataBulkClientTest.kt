@@ -67,6 +67,17 @@ private class BulkStub {
 
 private fun items(array: tools.jackson.databind.JsonNode) = (0 until array.size()).map { array.get(it) }
 
+/** The six non-UUID forms of the task: empty, one space, text, lenient-parse text, a digit short, a trailing space. */
+private val BAD_UUIDS =
+    listOf(
+        "",
+        " ",
+        "not-a-uuid",
+        "1-1-1-1-1",
+        "11111111-1111-1111-1111-11111111111",
+        "11111111-1111-1111-1111-111111111111 ",
+    )
+
 /** INV-AC-21307: MasterdataBulkClient over the OwningServiceEdge and a stub masterdata-svc. */
 class MasterdataBulkClientTest {
     private val stub = BulkStub()
@@ -215,12 +226,58 @@ class MasterdataBulkClientTest {
         }
     }
 
+    private fun reasonOf(reply: OwnerReply<*>): String = (reply as OwnerReply.Unavailable).reason
+
     @Test
-    @DisplayName("INV-AC-21307 bulk a key or docUuid that is no UUID is never sent")
-    fun nonUuidNotSent() {
+    @DisplayName("INV-AC-21307 bulk a non-UUID key gives Unavailable naming the field, with 0 requests")
+    fun nonUuidKeyNotSent() {
         stub.answer(200, """{"resolvedCount":3,"unchangedCount":1}""")
-        assertEquals(true, resolve(cmd = command.copy(idempotencyKey = "k-1")) is OwnerReply.Unavailable)
-        assertEquals(true, resolve(cmd = command.copy(docUuids = listOf("x"))) is OwnerReply.Unavailable)
-        assertEquals(0, stub.seen.size)
+        for (bad in BAD_UUIDS) {
+            val reason = reasonOf(resolve(cmd = command.copy(idempotencyKey = bad)))
+            assertEquals(true, reason.contains("idempotencyKey"), "field named for '$bad'")
+            assertEquals(false, reason.contains("1-1-1") || reason.contains("not-a-uuid"), "no value in reason")
+            assertEquals(0, stub.seen.size, "requests for '$bad'")
+        }
+    }
+
+    @Test
+    @DisplayName("INV-AC-21307 bulk a non-UUID docUuids member gives Unavailable naming the field, with 0 requests")
+    fun nonUuidDocNotSent() {
+        stub.answer(200, """{"resolvedCount":3,"unchangedCount":1}""")
+        for (bad in BAD_UUIDS) {
+            val reason = reasonOf(resolve(cmd = command.copy(docUuids = listOf(d1, bad, d2))))
+            assertEquals(true, reason.contains("docUuids"), "field named for '$bad'")
+            assertEquals(false, reason.contains("1-1-1") || reason.contains("not-a-uuid"), "no value in reason")
+            assertEquals(0, stub.seen.size, "requests for '$bad'")
+        }
+    }
+
+    @Test
+    @DisplayName("INV-AC-21307 bulk an upper-case key and docUuid are sent once, equal ignoring case")
+    fun upperCaseSent() {
+        val upKey = "3FA85F64-5717-4562-B3FC-2C963F66AFA6"
+        val upDoc = "4FA85F64-5717-4562-B3FC-2C963F66AFA7"
+        stub.answer(200, """{"resolvedCount":3,"unchangedCount":1}""")
+        assertEquals(
+            true,
+            resolve(cmd = command.copy(idempotencyKey = upKey, docUuids = listOf(upDoc))) is OwnerReply.Ok,
+        )
+        val sent = stub.seen.single()
+        assertEquals(true, upKey.equals(sent.idempotencyKey, ignoreCase = true))
+        val tree = JsonMapper.builder().build().readTree(sent.body)
+        assertEquals(true, upDoc.equals(items(tree.get("docUuids")).single().stringValue(), ignoreCase = true))
+        stub.answer(200, """{"resolvedCount":3,"unchangedCount":1}""")
+        resolve()
+        assertEquals(key, stub.seen.single().idempotencyKey)
+        assertEquals(
+            d1,
+            items(
+                JsonMapper
+                    .builder()
+                    .build()
+                    .readTree(stub.seen.single().body)
+                    .get("docUuids"),
+            )[0].stringValue(),
+        )
     }
 }

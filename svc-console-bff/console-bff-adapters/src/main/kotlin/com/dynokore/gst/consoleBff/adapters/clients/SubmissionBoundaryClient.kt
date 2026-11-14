@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import tools.jackson.databind.JsonNode
 import java.time.Clock
-import java.util.UUID
 
 private const val HTTP_OK = 200
 
@@ -34,9 +33,9 @@ class SubmissionBoundaryClient(
     private val edge = OwnerEdge(OwningService.SUBMISSION, registry, clock, restClient)
 
     override fun check(docUuids: List<String>): OwnerReply<BoundaryResult> {
-        val ids = docUuids.map { runCatching { UUID.fromString(it) }.getOrNull() }
-        return if (ids.any { it == null }) {
-            OwnerReply.Unavailable("${OwningService.SUBMISSION.edge}: docUuid is not a UUID")
+        val ids = docUuids.map { OwningServiceEdge.strictUuid(it) }
+        return if (ids.contains(null)) {
+            OwnerReply.Unavailable("${OwningService.SUBMISSION.edge}: docUuids holds a member that is not a UUID")
         } else {
             val body = BoundaryCheckRequest(docUuids = ids.filterNotNull())
             edge.call({ transactions.checkSubmissionBoundaryRequestConfig(body) }) { answer ->
