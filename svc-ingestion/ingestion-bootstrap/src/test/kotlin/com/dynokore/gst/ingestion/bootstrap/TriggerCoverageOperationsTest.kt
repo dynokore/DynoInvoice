@@ -94,11 +94,17 @@ class TriggerCoverageOperationsTest {
                 Result.success(asTenant(block))
             } catch (refusal: ApiRefusal) {
                 Result.failure(refusal)
+            } catch (violation: RuntimeException) {
+                // the contract's method validation (Bean Validation) throws before the controller body runs
+                if (violation.javaClass.name != "jakarta.validation.ConstraintViolationException") throw violation
+                Result.failure(violation)
             }
         }
 
         fun refusal(result: Result<*>): Pair<Int, String> {
-            val response = advice.refuse(shouldThrow<ApiRefusal> { result.getOrThrow() })
+            val failure = shouldThrow<RuntimeException> { result.getOrThrow() }
+            val response =
+                if (failure is ApiRefusal) advice.refuse(failure) else advice.refuseConstraintViolation(failure)
             return response.statusCode.value() to response.body.orEmpty()
         }
 
@@ -301,13 +307,23 @@ class TriggerCoverageOperationsTest {
                 ),
             ),
             map(u1, "E-001", "OUTBOUND_DOCUMENT_ISSUED", " "),
-            // adapterRef over 40 characters: the contract Bean Validation throws ConstraintViolationException before
-            // the controller; ApiRefusalAdvice (outside this scope) has no handler for it; reported as a gap.
         ).forEach { result ->
             val (status, body) = refusal(result)
             status shouldBe 400
             body shouldContain "SRT-001"
         }
         state() shouldBe before
+    }
+
+    @Test
+    fun `an adapterRef over 40 characters answers 400 SRT-001 and a 40-character one is stored`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val before = state()
+        val (status, body) = refusal(map(u1, "E-001", "OUTBOUND_DOCUMENT_ISSUED", "A".repeat(41)))
+        status shouldBe 400
+        body shouldContain "SRT-001"
+        state() shouldBe before
+        map(u1, "E-001", "OUTBOUND_DOCUMENT_ISSUED", "A".repeat(40)).getOrThrow().statusCode.value() shouldBe 200
     }
 }

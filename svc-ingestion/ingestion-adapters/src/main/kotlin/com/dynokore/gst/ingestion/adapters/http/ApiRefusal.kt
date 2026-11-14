@@ -3,6 +3,7 @@ package com.dynokore.gst.ingestion.adapters.http
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -22,12 +23,26 @@ class ApiRefusal(
 @RestControllerAdvice
 class ApiRefusalAdvice {
     @ExceptionHandler(ApiRefusal::class)
-    fun refuse(refusal: ApiRefusal): ResponseEntity<String> {
+    fun refuse(refusal: ApiRefusal): ResponseEntity<String> = render(refusal.code, refusal.detail)
+
+    /**
+     * A contract constraint (for example a maximum length) broken before the controller runs: 400 SRT-001 with a fixed
+     * detail; the constraint message, property path and sent value are never echoed (API-22, OWASP ASVS V5, V7).
+     */
+    @ExceptionHandler(ConstraintViolationException::class)
+    fun refuseConstraintViolation(
+        @Suppress("UNUSED_PARAMETER") ex: Exception,
+    ): ResponseEntity<String> = render(ClosedErrorCode.CONTRACT_VIOLATION, "The request does not match the contract.")
+
+    private fun render(
+        code: ClosedErrorCode,
+        detail: String?,
+    ): ResponseEntity<String> {
         val problem =
             Problems.render(
-                refusal.code,
+                code,
                 CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
-                refusal.detail,
+                detail,
             )
         val headers = HttpHeaders()
         problem.headers.forEach { (name, value) -> headers.add(name, value) }

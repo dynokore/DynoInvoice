@@ -3,6 +3,8 @@ package com.dynokore.gst.ingestion.adapters.http
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
+import jakarta.validation.ConstraintViolationException
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpHeaders
 
@@ -28,5 +30,17 @@ class ApiRefusalAdviceTest {
         response.body!! shouldContain "\"code\":\"SRT-004\""
         response.body!! shouldContain "\"status\":403"
         response.body!! shouldContain "correlationId"
+    }
+
+    @Test
+    fun `a ConstraintViolationException answers 400 SRT-001 in the closed envelope`() {
+        val violation = ConstraintViolationException("SECRET-MARKER message at SECRET-MARKER.path", null)
+        val response = advice.refuseConstraintViolation(violation)
+        response.statusCode.value() shouldBe 400
+        response.headers.getFirst(HttpHeaders.CONTENT_TYPE) shouldContain "json"
+        response.body!! shouldContain "\"code\":\"SRT-001\""
+        response.body!! shouldContain "\"status\":400"
+        response.body!! shouldContain "correlationId"
+        response.body!! shouldNotContain "SECRET-MARKER"
     }
 }
