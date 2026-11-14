@@ -1,7 +1,7 @@
 package com.dynokore.gst.submission.adapters.clients
 
-import com.dynokore.gst.submission.adapters.clients.api.BreakGlassApi
-import com.dynokore.gst.submission.adapters.clients.model.BreakGlassActionRequest
+import com.dynokore.gst.submission.adapters.clients.access.api.BreakGlassApi
+import com.dynokore.gst.submission.adapters.clients.access.model.BreakGlassActionRequest
 import com.dynokore.platform.serviceruntime.replica.BreakGlassAction
 import com.dynokore.platform.serviceruntime.replica.BreakGlassActionReporter
 import org.springframework.beans.factory.annotation.Qualifier

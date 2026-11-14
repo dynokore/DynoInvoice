@@ -47,6 +47,9 @@ inv:
     # PolicyReader (a later slice). A positive integer; a missing, zero or negative value fails the start.
     retry-boundary-minutes: 240 # provisional
     job-scheduling.enabled: true # INV-Q-16793 A: fire the registered jobs on their cron; tests set it false (SubmissionContext)
+  transport-client:
+    # The TransportClient adapter (INV-T-22121): no base-url here, the deployment sets it; without it no TransportClient bean exists.
+    read-timeout-ms: 30000 # the x-timeout of submitPayload in the transport contract
   compliance-metrics:
     # The read of getComplianceMetrics (INV-REQ-1069, INV-REQ-1070); numeric thresholds are configuration, never constants of code.
     many-versions-from: 3 # INV-REQ-1070 behaviour 1: documents with three or more versions; per-company default, overridden by configuration
