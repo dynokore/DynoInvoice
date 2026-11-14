@@ -74,7 +74,7 @@ class EntityProfileChangedWiringTest {
         subscription.schema shouldBe "submission"
         val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
         consumers.keys.filter { it.startsWith("entityProfile") } shouldBe listOf("entityProfileChangedInboxConsumer")
-        consumers.keys.size shouldBe 13
+        consumers.keys.size shouldBe 15
         val held = JdbcInboxConsumer::class.java.getDeclaredField("subscription").also { it.isAccessible = true }
         (held.get(consumers.getValue("entityProfileChangedInboxConsumer")) as ConsumerSubscription).topic shouldBe topic
         PeriodRecordsConsumer.subscription().topic shouldBe "gst.tenancy.period-records-changed.v1"

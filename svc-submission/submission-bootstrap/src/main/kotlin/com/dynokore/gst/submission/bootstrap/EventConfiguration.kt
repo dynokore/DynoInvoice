@@ -75,6 +75,9 @@ object SubmissionEvents {
     const val ENTITY_PROFILE_CHANGED_TOPIC = "gst.tenancy.entity-profile-changed.v1"
     const val ENTITY_PROFILE_CHANGED_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
 
+    const val ORGANISATION_STRUCTURE_CHANGED_TOPIC = "gst.tenancy.organisation-structure-changed.v1"
+    const val ORGANISATION_STRUCTURE_CHANGED_TYPE = "com.dynokore.gst.tenancy.OrganisationStructureChanged.v1"
+
     const val FEED_HEALTH_CHANGED_TOPIC = "gst.ingestion.feed-health-changed.v1"
     const val FEED_HEALTH_CHANGED_TYPE = "com.dynokore.gst.ingestion.FeedHealthChanged.v1"
 
@@ -99,7 +102,9 @@ object SubmissionEvents {
      * `PeriodExtended` (producer tenancy-svc, no content topic, INV-REQ-81), `CanonicalVersionCreated` (producer
      * canonical-svc, content topic) and `PeriodDueDateChanged` (producer tenancy-svc, no content topic), the last
      * two feeding the obligation register (INV-REQ-570), and `PeriodRecordsChanged` (producer tenancy-svc, no
-     * content topic, INV-REQ-570), `EntityProfileChanged` (producer tenancy-svc, no content topic, INV-REQ-335),
+     * content topic, INV-REQ-570), `EntityProfileChanged` (producer tenancy-svc, no content topic, INV-REQ-335, also
+     * feeding the entity node table, INV-REQ-978), `OrganisationStructureChanged` (producer tenancy-svc, no content
+     * topic, INV-REQ-978, the entity node table),
      * `FeedHealthChanged` (producer ingestion-svc) and `AggregateWindowChanged` (producer aggregation-svc), no
      * content topic, the last two feeding the completeness rows (INV-REQ-792); submission-svc
      * is only their subscriber.
@@ -144,6 +149,13 @@ object SubmissionEvents {
             CatalogueEntry(
                 ENTITY_PROFILE_CHANGED_TYPE,
                 ENTITY_PROFILE_CHANGED_TOPIC,
+                setOf("tenancy-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                ORGANISATION_STRUCTURE_CHANGED_TYPE,
+                ORGANISATION_STRUCTURE_CHANGED_TOPIC,
                 setOf("tenancy-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,

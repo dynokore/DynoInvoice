@@ -101,6 +101,8 @@ class RegisterWriterWiringTest {
                 dueDateType to dueDateTopic,
                 SubmissionEvents.PERIOD_RECORDS_CHANGED_TYPE to SubmissionEvents.PERIOD_RECORDS_CHANGED_TOPIC,
                 SubmissionEvents.ENTITY_PROFILE_CHANGED_TYPE to SubmissionEvents.ENTITY_PROFILE_CHANGED_TOPIC,
+                SubmissionEvents.ORGANISATION_STRUCTURE_CHANGED_TYPE to
+                    SubmissionEvents.ORGANISATION_STRUCTURE_CHANGED_TOPIC,
                 SubmissionEvents.FEED_HEALTH_CHANGED_TYPE to SubmissionEvents.FEED_HEALTH_CHANGED_TOPIC,
                 SubmissionEvents.AGGREGATE_WINDOW_CHANGED_TYPE to SubmissionEvents.AGGREGATE_WINDOW_CHANGED_TOPIC,
                 "com.dynokore.gst.canonical.DocumentHeld.v1" to "gst.canonical.document-held.v1",
@@ -138,6 +140,8 @@ class RegisterWriterWiringTest {
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
                 "entityProfileChangedInboxConsumer",
+                "organisationStructureChangedConsumer",
+                "entityNodeProfileChangedConsumer",
                 "feedHealthChangedConsumer",
                 "aggregateWindowChangedConsumer",
                 "documentHeldConsumer",

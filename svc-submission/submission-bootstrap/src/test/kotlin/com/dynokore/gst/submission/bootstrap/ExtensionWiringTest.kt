@@ -143,6 +143,8 @@ class ExtensionWiringTest {
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
                 "entityProfileChangedInboxConsumer",
+                "organisationStructureChangedConsumer",
+                "entityNodeProfileChangedConsumer",
                 "feedHealthChangedConsumer",
                 "aggregateWindowChangedConsumer",
                 "documentHeldConsumer",
