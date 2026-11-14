@@ -112,10 +112,9 @@ class MasterDataConsumerTest {
         type: String,
         data: String,
         sequence: Long,
-        source: String,
     ) = Envelope(
         id = EventId(id),
-        source = source,
+        source = "/gst/test-svc",
         type = type,
         subject = "doc-1",
         time = time,
@@ -139,7 +138,6 @@ class MasterDataConsumerTest {
         HELD,
         """{"docUuid":"$d1","docsequence":1,"holdReasons":["MDM-001","MISSING_TIN"],"prescribedPeriodRef":"2026-Q4"}""",
         1,
-        "/gst/canonical-svc",
     )
 
     private fun resolvedEvent(
@@ -152,7 +150,6 @@ class MasterDataConsumerTest {
         RESOLVED,
         """{"partyRef":"P-1","resolvedIdentifiers":{"uen":"201912345A"},"docUuids":$docUuids}""",
         2,
-        "/gst/masterdata-svc",
     )
 
     /** `code to state` rows of the table, read as the runtime role bound to [tenant]. */

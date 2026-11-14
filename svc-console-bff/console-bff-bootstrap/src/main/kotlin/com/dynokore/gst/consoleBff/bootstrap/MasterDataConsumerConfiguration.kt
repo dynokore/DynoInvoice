@@ -21,15 +21,19 @@ import org.springframework.context.annotation.Configuration
 import java.time.Clock
 
 /**
- * The inbox consumer of `MasterDataResolved` (INV-AC-21063): one `JdbcInboxConsumer` over the handler of INV-T-21064 and
- * the store of INV-T-21029, in schema `console_bff`, with the same consumer name as the exception consumers. The store
- * and the rebuild sink are the beans of [ExceptionConsumerConfiguration].
+ * The inbox consumer of `MasterDataResolved` (INV-AC-21063): one `JdbcInboxConsumer` over the handler of INV-T-21064
+ * and the store of INV-T-21029, in schema `console_bff`, with the same consumer name as the exception consumers. The
+ * store and the rebuild sink are the beans of [ExceptionConsumerConfiguration].
  */
 @Configuration(proxyBeanMethods = false)
 class MasterDataConsumerConfiguration {
     @Bean
     fun masterDataResolvedSubscription(): ConsumerSubscription =
-        ConsumerSubscription(ExceptionConsumerConfiguration.CONSUMER, MASTER_DATA_TOPIC, ExceptionConsumerConfiguration.SCHEMA)
+        ConsumerSubscription(
+            ExceptionConsumerConfiguration.CONSUMER,
+            MASTER_DATA_TOPIC,
+            ExceptionConsumerConfiguration.SCHEMA,
+        )
 
     @Bean
     fun masterDataResolvedReader(): MasterDataResolvedReader = JacksonMasterDataResolvedReader()
