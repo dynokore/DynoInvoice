@@ -1,0 +1,8 @@
+{
+  "depCode": "DEP-001",
+  "status": "RAISED",
+  "packIdentifier": "gst-calendar",
+  "packVersion": "2026.2.0",
+  "daysToEffectiveDate": 14,
+  "daysSinceLastReached": 3
+}

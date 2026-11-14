@@ -1,0 +1,20 @@
+{
+  "packIdentifier": "gst-calendar",
+  "packType": "CALENDAR",
+  "version": "2026.2.0",
+  "effectiveFrom": "2026-12-01",
+  "minEngineVersion": "1.0.0",
+  "artefact": {
+    "manifest": {
+      "name": "gst-calendar",
+      "version": "2026.2.0"
+    },
+    "checksums": {
+      "calendar.json": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "signature": "c2lnbmF0dXJl",
+    "contents": {
+      "holidays": []
+    }
+  }
+}

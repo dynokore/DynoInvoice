@@ -1,14 +1,14 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.24.0
+  version: 1.25.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
     rather than redeclaring its own copy, and the platform event class
     (FR-AH.15, AD-27, AD-31) — AuditEntryRecorded, JobRunRecorded,
     PolicyChanged, PackReadinessAcknowledged, ConnectionStatusChanged,
-    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged, OperatorSessionKeysChanged, AuthorityHeadObserved, TenantWideArchiveVolumeMeasured, CertificationMarkRequested, ConnectionCredentialExpiryReminderRequested — whose schema is owned by `service-runtime`
+    EvidenceArtefactRecorded, JobRegistered, PrivacyNoticeDue, AccreditationAlertRaised, BreakGlassAlertRaised, AuthorityChanged, BreakGlassSessionChanged, BreakGlassActionReported, TenantWideEvidenceIntegrityFailed, InstallationStatusChanged, OperatorSessionKeysChanged, AuthorityHeadObserved, TenantWideArchiveVolumeMeasured, CertificationMarkRequested, ConnectionCredentialExpiryReminderRequested, RulePackStaged, PackCurrencyChanged — whose schema is owned by `service-runtime`
     alone rather than by any one producer (STK-61, INV-REQ-1226 b1-b2,
     INV-ADR-285; INV-T-2853/T9's "T11 authors the three platform events
     once under service-runtime/" follow-up, extended by INV-T-2855/T11 to
@@ -108,6 +108,18 @@ channels:
     messages:
       AuthorityHeadObserved:
         $ref: '#/components/messages/AuthorityHeadObserved'
+
+  platformRulePackStaged:
+    address: 'gst.platform.rule-pack-staged.v1'
+    messages:
+      RulePackStaged:
+        $ref: '#/components/messages/RulePackStaged'
+
+  platformPackCurrencyChanged:
+    address: 'gst.platform.pack-currency-changed.v1'
+    messages:
+      PackCurrencyChanged:
+        $ref: '#/components/messages/PackCurrencyChanged'
 
   platformCertificationMarkRequested:
     address: 'gst.platform.certification-mark-requested.v1'
@@ -264,6 +276,22 @@ operations:
       $ref: '#/channels/platformAuthorityHeadObserved'
     messages:
       - $ref: '#/channels/platformAuthorityHeadObserved/messages/AuthorityHeadObserved'
+
+  publishRulePackStaged:
+    action: send
+    description: RulePackStaged — rules-svc publishes a staged signed rule pack (INV-REQ-1226, INV-REQ-815).
+    channel:
+      $ref: '#/channels/platformRulePackStaged'
+    messages:
+      - $ref: '#/channels/platformRulePackStaged/messages/RulePackStaged'
+
+  publishPackCurrencyChanged:
+    action: send
+    description: PackCurrencyChanged — rules-svc publishes a DEP-001 to DEP-003 raised or cleared change (INV-REQ-1226, INV-REQ-815).
+    channel:
+      $ref: '#/channels/platformPackCurrencyChanged'
+    messages:
+      - $ref: '#/channels/platformPackCurrencyChanged/messages/PackCurrencyChanged'
 
   publishCertificationMarkRequested:
     action: send
@@ -526,6 +554,39 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/authority-head-observed-payload.schema.json'
+
+    RulePackStaged:
+      name: com.dynokore.gst.platform.RulePackStaged.v1
+      # INV-REQ-1210, INV-Q-6281: the topic is kept while any pack version it carries is resolvable.
+      x-retained-while-resolvable: true
+      title: RulePackStaged
+      summary: RulePackStaged
+      description: >-
+        A signed rule pack is staged: pack identifier, pack type, version, effective-from, minimum engine
+        version and the signed artefact — manifest, checksums, signature and contents (INV-REQ-815,
+        INV-REQ-1226). Class: platform. Written under the platform tenant with the platform entity: the
+        wire form has no tenantid and no entityref. Emitted by: rules-svc. Consumed by: masterdata-svc, notification-svc, payload-svc, reconciliation-svc, submission-svc, tenancy-svc. Delivery: At-least-once; retained while any pack version it carries
+        can still be resolved (FR-Z.10). Supersedes the domain-class com.dynokore.gst.rules.RulePackStaged.v1,
+        which rules-svc no longer produces.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/rule-pack-staged-payload.schema.json'
+
+    PackCurrencyChanged:
+      name: com.dynokore.gst.platform.PackCurrencyChanged.v1
+      title: PackCurrencyChanged
+      summary: PackCurrencyChanged
+      description: >-
+        A pack-currency condition is raised or cleared: DEP code (DEP-001 to DEP-003), pack and version
+        where known, days to the unactivated pack's effective date, days since the feed was last reached
+        or a bundle last imported (VP-72) (INV-REQ-815, INV-REQ-1226). Class: platform. Written under the
+        platform tenant with the platform entity: the wire form has no tenantid and no entityref.
+        Emitted by: rules-svc. Consumed by: console-bff, notification-svc. Delivery: At-least-once.
+        Supersedes the domain-class com.dynokore.gst.rules.PackCurrencyChanged.v1, which rules-svc no
+        longer produces.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-currency-changed-payload.schema.json'
 
     CertificationMarkRequested:
       name: com.dynokore.gst.platform.CertificationMarkRequested.v1
