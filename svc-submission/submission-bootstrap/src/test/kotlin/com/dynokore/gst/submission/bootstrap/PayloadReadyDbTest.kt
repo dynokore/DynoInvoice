@@ -333,7 +333,7 @@ class PayloadReadyDbTest {
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
-                "entityProfileChangedInboxConsumer",
+                "entityProfileChangedConsumer",
                 "documentHeldConsumer",
                 "documentReleasedConsumer",
                 "rulePackStagedConsumer",

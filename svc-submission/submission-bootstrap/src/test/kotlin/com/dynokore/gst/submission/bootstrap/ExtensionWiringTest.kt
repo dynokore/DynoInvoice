@@ -142,7 +142,7 @@ class ExtensionWiringTest {
                 "canonicalVersionCreatedConsumer",
                 "periodDueDateChangedConsumer",
                 "periodRecordsChangedConsumer",
-                "entityProfileChangedInboxConsumer",
+                "entityProfileChangedConsumer",
                 "documentHeldConsumer",
                 "documentReleasedConsumer",
                 "rulePackStagedConsumer",

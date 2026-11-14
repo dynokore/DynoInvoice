@@ -39,7 +39,7 @@ class EntityProfileChangedWiringTest {
         context: ApplicationContext,
         catalogue: EventCatalogue,
     ): JdbcInboxConsumer =
-        config.entityProfileChangedInboxConsumer(
+        config.inboxConsumer(
             catalogue,
             context.getBean(EventLogReader::class.java),
             context.getBean(TenantScope::class.java),
@@ -73,10 +73,10 @@ class EntityProfileChangedWiringTest {
         subscription.consumer shouldBe "submission-svc"
         subscription.schema shouldBe "submission"
         val consumers = context.getBeansOfType(JdbcInboxConsumer::class.java)
-        consumers.keys.filter { it.startsWith("entityProfile") } shouldBe listOf("entityProfileChangedInboxConsumer")
+        consumers.keys.filter { it.startsWith("entityProfile") } shouldBe listOf("entityProfileChangedConsumer")
         consumers.keys.size shouldBe 11
         val held = JdbcInboxConsumer::class.java.getDeclaredField("subscription").also { it.isAccessible = true }
-        (held.get(consumers.getValue("entityProfileChangedInboxConsumer")) as ConsumerSubscription).topic shouldBe topic
+        (held.get(consumers.getValue("entityProfileChangedConsumer")) as ConsumerSubscription).topic shouldBe topic
         PeriodRecordsConsumer.subscription().topic shouldBe "gst.tenancy.period-records-changed.v1"
         context.getBean("entityProfileChangedHandler").shouldBeInstanceOf<EventHandler>()
         context.getBean(JooqObligationStartDateStore::class.java).shouldBeInstanceOf<ObligationStartDates>()
