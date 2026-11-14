@@ -24,7 +24,7 @@ class PcpInputTaxBoundaryTest {
 
     private fun JsonNode.subtotals() =
         this["subtotalsByTaxCode"].toList().associate {
-            it["internalTaxCode"].asString() to it["amount"].decimalValue()
+            it["internalTaxCode"].asString() to BigDecimal(it["amount"].asString())
         }
 
     private fun ContentKit.tableCounts(): List<String> =
@@ -106,7 +106,7 @@ class PcpInputTaxBoundaryTest {
                         ).single()
                 }
             byCode.mapValues { (_, list) ->
-                list.sumOf { it["claimableInputTax"].decimalValue() }.stripTrailingZeros()
+                list.sumOf { BigDecimal(it["claimableInputTax"].asString()) }.stripTrailingZeros()
             } shouldBe
                 expected.mapValues { it.value.stripTrailingZeros() }
         }

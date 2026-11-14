@@ -139,7 +139,7 @@ class RefusalBoundaryTest {
                 """{"entityRef":"E-001","businessUnitRef":"BU-01","aggregateType":"PCP",
                 |"underlyingRef":"BATCH-1","sourceKey":"K-TX","sourceRevision":$revision,
                 |"transactions":[{"transactionRef":"T-1-$revision","transactionDate":"2022-03-30",
-                |"internalTaxCode":"SR-STD","amount":"10.00"}]}
+                |"internalTaxCode":"SR-STD","amount":"10.00","claimableInputTax":"0.70"}]}
                 """.trimMargin(),
             )
 
