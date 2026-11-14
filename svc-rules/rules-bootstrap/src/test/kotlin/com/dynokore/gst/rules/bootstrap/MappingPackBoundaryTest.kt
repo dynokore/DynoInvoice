@@ -484,7 +484,10 @@ class MappingPackBoundaryTest(
 
     @Test
     fun `DEP-001 is evaluated at the activation of a pack, not only at the daily tick`() {
-        value(TenantId.PLATFORM, "update rules.pack_currency_state set evaluated_on = date '2000-01-01' returning 1")
+        value(
+            TenantId.PLATFORM,
+            "update rules.pack_currency_state set evaluated_on = date '2000-01-01' returning 1",
+        )
         fullFlow(label(), "2026-01-01")
         value(TenantId.PLATFORM, "select evaluated_on from rules.pack_currency_state").toString() shouldBe
             java.time.LocalDate.now(clock).toString()
