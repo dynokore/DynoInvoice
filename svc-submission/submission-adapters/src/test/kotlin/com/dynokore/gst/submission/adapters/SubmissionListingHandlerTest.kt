@@ -6,6 +6,7 @@ import com.dynokore.gst.catalogue.RolePermissions
 import com.dynokore.gst.submission.adapters.http.ComplianceRefusal
 import com.dynokore.gst.submission.adapters.http.ListingQuery
 import com.dynokore.gst.submission.adapters.http.SubmissionListingHandler
+import com.dynokore.gst.submission.adapters.http.SubmissionSummaryController
 import com.dynokore.gst.submission.adapters.http.TransactionsController
 import com.dynokore.gst.submission.adapters.http.TransactionsRefusalAdvice
 import com.dynokore.gst.submission.application.listing.ListSubmissions
@@ -13,6 +14,7 @@ import com.dynokore.gst.submission.application.listing.ListSubmissionsRow
 import com.dynokore.gst.submission.application.listing.ListingActions
 import com.dynokore.gst.submission.application.listing.SourceRead
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
+import com.dynokore.gst.submission.application.listing.SubmissionSummaryQuery
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.RequeueOutcome
@@ -217,6 +219,7 @@ class SubmissionListingHandlerTest {
                     override fun getObject(): HttpServletRequest = request
                 },
                 SubmissionListingHandler(ListSubmissions(replica, source)),
+                SubmissionSummaryController(SubmissionSummaryQuery(replica, source)),
             )
         return Fixture(controller, source)
     }

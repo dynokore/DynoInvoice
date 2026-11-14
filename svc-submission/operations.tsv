@@ -4,7 +4,7 @@ operation	drainPeriod	UNASSIGNED
 operation	listReadinessChecks	UNASSIGNED
 operation	confirmFiling	UNASSIGNED
 operation	listSubmissions	INV-T-16327
-operation	getSubmissionSummary	UNASSIGNED
+operation	getSubmissionSummary	INV-T-22166
 operation	getSubmissionReconciliation	UNASSIGNED
 operation	exportSubmissions	UNASSIGNED
 operation	getTransaction	UNASSIGNED

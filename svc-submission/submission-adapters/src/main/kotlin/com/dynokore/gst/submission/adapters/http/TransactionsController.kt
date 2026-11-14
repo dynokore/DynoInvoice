@@ -13,6 +13,7 @@ import com.dynokore.gst.submission.contract.model.ReplayScopeRequest
 import com.dynokore.gst.submission.contract.model.ReplayScopeResult
 import com.dynokore.gst.submission.contract.model.ReplaySkip
 import com.dynokore.gst.submission.contract.model.SubmissionPage
+import com.dynokore.gst.submission.contract.model.SubmissionSummaryTotals
 import com.dynokore.gst.submission.domain.ordering.InFlight
 import com.dynokore.gst.submission.domain.replay.ReplayCandidate
 import com.dynokore.gst.submission.domain.replay.ReplayScope
@@ -85,7 +86,8 @@ class TransactionsRefusalAdvice {
 /**
  * The submission-list, transaction and replay operations of the submission contract (TPL-08).
  * `replaySubmissionsByScope` (INV-REQ-575) is served here, and `listSubmissions` (INV-REQ-975) through the
- * [SubmissionListingHandler] delegate; the permission is decided by [ReplayBySelection]
+ * [SubmissionListingHandler] delegate, and `getSubmissionSummary` (INV-REQ-977) through the
+ * [SubmissionSummaryController] delegate; the permission is decided by [ReplayBySelection]
  * through `AuthorityReplica.decide`, and this class reads no role name and holds no permission string. Every other
  * operation answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
@@ -97,6 +99,7 @@ open class TransactionsController(
     private val clock: Clock,
     private val requests: ObjectProvider<HttpServletRequest>,
     private val listing: SubmissionListingHandler,
+    private val summary: SubmissionSummaryController,
 ) : TransactionsApi {
     override fun replaySubmissionsByScope(
         entityRef: String,
@@ -155,6 +158,38 @@ open class TransactionsController(
                     limit,
                     cursor,
                 ),
+            ),
+        )
+
+    /** `getSubmissionSummary` (INV-REQ-977): forwarded to [SubmissionSummaryController]. */
+    @Suppress("LongParameterList") // the generated operation signature
+    override fun getSubmissionSummary(
+        entityRef: String,
+        periodRef: String,
+        direction: String?,
+        submissionType: String?,
+        state: String?,
+        categoryCode: String?,
+        counterparty: String?,
+        amountMin: java.math.BigDecimal?,
+        amountMax: java.math.BigDecimal?,
+        acknowledged: Boolean?,
+        bucket: ContractBucket?,
+    ): ResponseEntity<SubmissionSummaryTotals> =
+        ResponseEntity.ok(
+            summary.summarise(
+                machineCaller(),
+                entityRef,
+                periodRef,
+                direction,
+                submissionType,
+                state,
+                categoryCode,
+                counterparty,
+                amountMin,
+                amountMax,
+                acknowledged,
+                bucket,
             ),
         )
 

@@ -34,30 +34,31 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
         OperationsGate.contractChannels(asyncapi).size shouldBe 10
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\n"
+        doneText shouldBe "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\nINV-T-22166\n"
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
         // getComplianceMetrics is implemented by INV-T-12844, replaySubmissionsByScope by INV-T-20589 and
         // replaySubmissions by INV-T-20607, getLatestReadinessCheck by INV-T-21141 and listSubmissions by
-        // INV-T-16327, so they no longer answer 501.
+        // INV-T-16327 and getSubmissionSummary by INV-T-22166, so they no longer answer 501.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) - "getComplianceMetrics" - "replaySubmissionsByScope" -
-            "replaySubmissions" - "getLatestReadinessCheck" - "listSubmissions"
+            "replaySubmissions" - "getLatestReadinessCheck" - "listSubmissions" - "getSubmissionSummary"
     }
 
     @Test
     fun `the real done set names the row of replaySubmissionsByScope and a look-alike key fails`() {
         run(
-            done = "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\n",
+            done = "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\nINV-T-22166\n",
             stubSet =
                 stubs - "replaySubmissionsByScope" - "replaySubmissions" - "getLatestReadinessCheck" -
-                    "listSubmissions",
+                    "listSubmissions" - "getSubmissionSummary",
         ).shouldBeEmpty()
         run(done = "INV-T-20590\n") shouldContain "done-tasks.txt: INV-T-20590 names no row of operations.tsv"
         run(done = "INV-T-205890\n") shouldContain "done-tasks.txt: INV-T-205890 names no row of operations.tsv"
         run(done = "INV-T-163270\n") shouldContain "done-tasks.txt: INV-T-163270 names no row of operations.tsv"
+        run(done = "INV-T-221660\n") shouldContain "done-tasks.txt: INV-T-221660 names no row of operations.tsv"
     }
 
     @Test
