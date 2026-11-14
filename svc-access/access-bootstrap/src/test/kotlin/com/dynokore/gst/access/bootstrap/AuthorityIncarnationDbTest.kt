@@ -188,6 +188,37 @@ class AuthorityIncarnationDbTest {
         }
     }
 
+    /** Seeds the table and the sequence, then boots the whole context: the start step is the bean under test. */
+    private fun bootWith(
+        incarnation: Long,
+        mark: Long,
+        sequence: Long,
+    ) {
+        given(incarnation, mark, sequence)
+        BoundaryFixture
+            .runner(
+                catalogueMatrix = true,
+                tokenProperties = TestSecrets.TOKEN_PROPERTIES + BoundaryFixture.INSTALLATION_ROLES + QUIET,
+            ).run { context -> context.startupFailure?.let { throw it } }
+    }
+
+    @Test
+    fun `INV-AC-22069 the service start with the sequence at or above the mark keeps the incarnation`() {
+        bootWith(incarnation = 1_000, mark = 40, sequence = 40)
+        assertThat(incarnation()).isEqualTo(1_000L)
+    }
+
+    @Test
+    fun `INV-AC-22069 the service start with the sequence below the mark raises the incarnation to max(stored+1, now)`() {
+        val before = Instant.now().epochSecond
+        bootWith(incarnation = 1_000, mark = 40, sequence = 7)
+        assertThat(incarnation()).isBetween(before, Instant.now().epochSecond)
+        // a start that finds a stored value ahead of the clock gives stored + 1
+        val ahead = Instant.now().epochSecond + 100_000
+        bootWith(incarnation = ahead, mark = 40, sequence = 7)
+        assertThat(incarnation()).isEqualTo(ahead + 1)
+    }
+
     @Test
     fun `INV-AC-22069 the heartbeat carries the stored incarnation`() {
         withContext { c ->
