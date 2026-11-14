@@ -4,6 +4,7 @@ import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateLi
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateTransaction.Companion.AGGREGATE_TRANSACTION
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.ReplacedReceipt.Companion.REPLACED_RECEIPT
 import com.dynokore.gst.aggregation.application.OpenWindow
+import com.dynokore.gst.aggregation.application.TaxCodeSubtotal
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.WindowPart
 import org.jooq.Condition
@@ -25,24 +26,42 @@ internal fun DSLContext.storeLinesOf(
         .where(AGGREGATE_LINE.TENANT_ID.eq(tenant))
         .and(AGGREGATE_LINE.AGGREGATE_ID.eq(aggregateId))
         .execute()
-    select(
+    subtotalsOf(tenant, aggregateId)
+        .forEachIndexed { position, row ->
+            insertInto(AGGREGATE_LINE)
+                .set(AGGREGATE_LINE.TENANT_ID, tenant)
+                .set(AGGREGATE_LINE.AGGREGATE_ID, aggregateId)
+                .set(AGGREGATE_LINE.POSITION, position)
+                .set(AGGREGATE_LINE.INTERNAL_TAX_CODE, row.internalTaxCode)
+                .set(AGGREGATE_LINE.AMOUNT, row.amount)
+                .execute()
+        }
+}
+
+/**
+ * The sum per internal tax code of the transactions [aggregateId] holds, in code order: the claimable input tax for a
+ * PCP transaction (INV-REQ-441: the ERP applied the entity's apportionment mode), the amount for any other.
+ */
+internal fun DSLContext.subtotalsOf(
+    tenant: UUID,
+    aggregateId: UUID,
+): List<TaxCodeSubtotal> {
+    val counted =
+        DSL
+            .`when`(
+                AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(AggregateType.PCP.name),
+                AGGREGATE_TRANSACTION.CLAIMABLE_INPUT_TAX,
+            ).otherwise(AGGREGATE_TRANSACTION.AMOUNT)
+    return select(
         AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE,
-        DSL.sum(AGGREGATE_TRANSACTION.AMOUNT.cast(SQLDataType.NUMERIC)).cast(SQLDataType.VARCHAR),
+        DSL.sum(counted.cast(SQLDataType.NUMERIC)).cast(SQLDataType.VARCHAR),
     ).from(AGGREGATE_TRANSACTION)
         .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
         .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.eq(aggregateId))
         .groupBy(AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE)
         .orderBy(AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE)
         .fetch()
-        .forEachIndexed { position, row ->
-            insertInto(AGGREGATE_LINE)
-                .set(AGGREGATE_LINE.TENANT_ID, tenant)
-                .set(AGGREGATE_LINE.AGGREGATE_ID, aggregateId)
-                .set(AGGREGATE_LINE.POSITION, position)
-                .set(AGGREGATE_LINE.INTERNAL_TAX_CODE, checkNotNull(row.value1()))
-                .set(AGGREGATE_LINE.AMOUNT, checkNotNull(row.value2()))
-                .execute()
-        }
+        .map { TaxCodeSubtotal(checkNotNull(it.value1()), checkNotNull(it.value2())) }
 }
 
 /** The refunds and returns of [part] of [window] that no aggregate holds yet and that no full tax invoice replaced. */

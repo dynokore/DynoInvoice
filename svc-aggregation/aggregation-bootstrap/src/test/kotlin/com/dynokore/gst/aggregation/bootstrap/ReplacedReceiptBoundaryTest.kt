@@ -68,6 +68,7 @@ class ReplacedReceiptBoundaryTest {
             problem["code"].asString() shouldBe "ING-014"
             problem["type"].asString().endsWith("/ING-014") shouldBe true
             problem["disposition"].asString() shouldBe "MANUAL"
+            problem["remediationOwner"].asString() shouldBe "Finance"
             kit.rowOf(aggregate) shouldBe before
             kit.lines(aggregate) shouldBe listOf("Z=5.00")
         }

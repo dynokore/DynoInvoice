@@ -102,6 +102,7 @@ class RefusalMappingTest {
                         LocalDate.of(2022, 3, 31),
                         "SR-STD",
                         BigDecimal("10.00"),
+                        claimableInputTax = BigDecimal("0.70"),
                     ),
                 ),
         )

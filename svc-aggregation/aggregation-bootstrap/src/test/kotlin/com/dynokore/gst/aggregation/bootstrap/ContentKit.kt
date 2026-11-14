@@ -50,6 +50,8 @@ data class Txn(
     val code: String,
     val amount: String,
     val date: LocalDate = LocalDate.of(2022, 3, 10),
+    val claimant: String? = null,
+    val claimable: String? = null,
 )
 
 /**
@@ -129,7 +131,9 @@ class ContentKit(
             val items =
                 txns.joinToString(",") {
                     """{"transactionRef":"${it.ref}","transactionDate":"${it.date}",""" +
-                        """"internalTaxCode":"${it.code}","amount":"${it.amount}"}"""
+                        """"internalTaxCode":"${it.code}","amount":"${it.amount}"""" +
+                        it.claimant?.let { c -> ""","claimantReference":"$c"""" }.orEmpty() +
+                        it.claimable?.let { c -> ""","claimableInputTax":"$c"""" }.orEmpty() + "}"
                 }
             val flag = creditNote?.let { ""","isCreditNote":$it""" }.orEmpty()
             mvc

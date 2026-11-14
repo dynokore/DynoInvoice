@@ -88,19 +88,43 @@ class DrillDownBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-22472 the drill-down items carry the claimant reference stored with the transaction and no name`(
+    fun `INV-AC-22472 the claimant reference posted on items is returned by the drill-down and no name is kept`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { kit ->
-            val (a, _) = kit.seed()
-            kit.update(
-                "update aggregation.aggregate_transaction set claimant_reference = 'CLM-0042' " +
-                    "where tenant_id = '${kit.tenant}' and transaction_ref = 'T2'",
-            )
+            kit
+                .post(
+                    listOf(
+                        Txn("C1", "S", "5.00", claimant = "CLM-0042", claimable = "1.00"),
+                        Txn("C2", "S", "6.00", claimant = "CLM-0043", claimable = "2.00"),
+                    ),
+                    type = "PCP",
+                ).status shouldBe 202
+            kit.close()
+            val a = kit.aggregateIds(creditNote = false).single()
             val items = kit.json(kit.drill(a))["items"].toList()
-            items.first { it["transactionRef"].asString() == "T2" }["claimantReference"].asString() shouldBe "CLM-0042"
+            items.associate { it["transactionRef"].asString() to it["claimantReference"].asString() } shouldBe
+                mapOf("C1" to "CLM-0042", "C2" to "CLM-0043")
             items.forEach { item ->
                 item.propertyNames().toList().none { it.contains("name", ignoreCase = true) } shouldBe true
             }
+        }
+
+    @Test
+    fun `INV-AC-1916 the retained detail of an expense batch holds claimant references only`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit
+                .post(listOf(Txn("C9", "S", "5.00", claimant = "CLM-0099", claimable = "5.00")), type = "PCP")
+                .status shouldBe 202
+            kit.rows(
+                "select claimant_reference from aggregation.aggregate_transaction where tenant_id = ? " +
+                    "and transaction_ref = 'C9'",
+            ) shouldBe listOf("CLM-0099")
+            kit.rows(
+                "select column_name from information_schema.columns where table_schema = 'aggregation' " +
+                    "and table_name = 'aggregate_transaction' and column_name ilike '%name%' and ? is not null",
+            ) shouldBe emptyList()
         }
 }

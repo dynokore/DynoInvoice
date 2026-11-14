@@ -45,6 +45,7 @@ class JooqDrillDownReader(
                 underlyingCount = dsl.fetchCount(AGGREGATE_TRANSACTION, held),
                 isCreditNote = checkNotNull(aggregate.value1()),
                 isSupplementary = checkNotNull(aggregate.value2()),
+                subtotalsByTaxCode = dsl.subtotalsOf(tenant, aggregateId),
                 items = items,
                 next = items.lastOrNull()?.takeIf { rows.size > limit }?.let { position(it) },
             )
@@ -70,7 +71,13 @@ class JooqDrillDownReader(
                 underlying.gt(it.underlyingRef).or(underlying.eq(it.underlyingRef).and(reference.gt(it.transactionRef)))
             } ?: DSL.noCondition()
         return dsl
-            .select(underlying, reference, AGGREGATE_TRANSACTION.AMOUNT, AGGREGATE_TRANSACTION.CLAIMANT_REFERENCE)
+            .select(
+                underlying,
+                reference,
+                AGGREGATE_TRANSACTION.AMOUNT,
+                AGGREGATE_TRANSACTION.CLAIMANT_REFERENCE,
+                AGGREGATE_TRANSACTION.CLAIMABLE_INPUT_TAX,
+            )
             .from(AGGREGATE_TRANSACTION)
             .where(held)
             .and(later)
@@ -83,6 +90,7 @@ class JooqDrillDownReader(
                     transactionRef = checkNotNull(it.value2()),
                     amount = checkNotNull(it.value3()),
                     claimantReference = it.value4(),
+                    claimableInputTax = it.value5(),
                 )
             }
     }

@@ -9,7 +9,8 @@ alter table aggregation.aggregate
 alter table aggregation.aggregate_transaction
     add column credit_note boolean not null default false,
     add column underlying_ref text not null default '',
-    add column claimant_reference text;
+    add column claimant_reference text,
+    add column claimable_input_tax text;
 
 -- The credit-note aggregate of a closed window part sits beside the sales aggregate the part row names.
 alter table aggregation.aggregate_window_part

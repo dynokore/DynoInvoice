@@ -12,6 +12,7 @@ import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
 import com.dynokore.gst.aggregation.domain.AggregateLine
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
+import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
@@ -118,6 +119,16 @@ open class IntakeController(
     @Suppress("UNCHECKED_CAST")
     protected fun <T : Any> problem(code: IngestionErrorCode): ResponseEntity<T> {
         val rendered = Problems.renderIngestion(code, correlationId())
+        return ResponseEntity
+            .status(rendered.status)
+            .headers { headers -> rendered.headers.forEach { (name, value) -> headers.set(name, value) } }
+            .body(rendered.body) as ResponseEntity<T>
+    }
+
+    /** The 400 of SRT-001 (API-20) for a request that breaks the contract; nothing is stored. */
+    @Suppress("UNCHECKED_CAST")
+    protected fun <T : Any> refusedContract(detail: String): ResponseEntity<T> {
+        val rendered = Problems.render(ClosedErrorCode.CONTRACT_VIOLATION, correlationId(), detail)
         return ResponseEntity
             .status(rendered.status)
             .headers { headers -> rendered.headers.forEach { (name, value) -> headers.set(name, value) } }

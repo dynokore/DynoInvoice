@@ -4,6 +4,7 @@ import com.dynokore.gst.aggregation.application.DrillDownPage
 import com.dynokore.gst.aggregation.application.DrillDownPosition
 import com.dynokore.gst.aggregation.application.GetAggregateDrillDown
 import com.dynokore.gst.aggregation.contract.api.DrillDownApi
+import com.dynokore.gst.aggregation.contract.model.AggregationReceiptSubtotalsByTaxCodeInner
 import com.dynokore.gst.aggregation.contract.model.UnderlyingTransactionPage
 import com.dynokore.gst.aggregation.contract.model.UnderlyingTransactionPageItemsInner
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
@@ -69,7 +70,12 @@ open class DrillDownController(
                     transactionRef = it.transactionRef,
                     amount = BigDecimal(it.amount),
                     claimantReference = it.claimantReference,
+                    claimableInputTax = it.claimableInputTax?.let(::BigDecimal),
                 )
+            },
+        subtotalsByTaxCode =
+            page.subtotalsByTaxCode.map {
+                AggregationReceiptSubtotalsByTaxCodeInner(it.internalTaxCode, BigDecimal(it.amount))
             },
         underlyingCount = page.underlyingCount,
         isCreditNote = page.isCreditNote,

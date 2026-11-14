@@ -16,15 +16,13 @@ import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsReques
 import com.dynokore.gst.aggregation.contract.model.ReplacedReceiptRequest
 import com.dynokore.gst.aggregation.contract.model.ReplacedReceiptResult
 import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
+import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
 import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
-import com.dynokore.platform.serviceruntime.http.Problems
-import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
-import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 /**
@@ -47,6 +45,9 @@ open class TransactionIntakeController(
     ): ResponseEntity<AggregationTransactionsReceipt> {
         val request = aggregationTransactionsRequest
         val type = (AggregateIntakeCheck.check(request.aggregateType.name) as IntakeVerdict.Accepted).type
+        if (request.transactions.any { (it.claimableInputTax != null) != (type == AggregateType.PCP) }) {
+            return refusedContract("claimableInputTax is required for PCP items and absent for POS and STI items")
+        }
         val outcome =
             IntakeTransactions(cadences, windows, transactions.scoped(request.businessUnitRef, type))
                 .execute(
@@ -65,6 +66,8 @@ open class TransactionIntakeController(
                                     amount = it.amount.toPlainString(),
                                     underlyingRef = request.underlyingRef,
                                     isCreditNote = request.isCreditNote == true,
+                                    claimantReference = it.claimantReference,
+                                    claimableInputTax = it.claimableInputTax?.toPlainString(),
                                 )
                             },
                     ),
@@ -96,33 +99,10 @@ open class TransactionIntakeController(
             when (outcome) {
                 is ReplacedReceiptOutcome.Excluded -> ReplacedReceiptResult.Outcome.EXCLUDED
                 is ReplacedReceiptOutcome.NotAggregated -> ReplacedReceiptResult.Outcome.NOT_AGGREGATED
-                is ReplacedReceiptOutcome.AlreadyTransmitted -> return alreadyTransmitted()
+                is ReplacedReceiptOutcome.AlreadyTransmitted ->
+                    return problem(IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION)
             }
         return ResponseEntity.ok(ReplacedReceiptResult(request.entityRef, request.receiptNumber, result))
-    }
-
-    /**
-     * The 409 of ING-014 (error-codes.yaml: BLOCK, MANUAL, owner Finance). `IngestionErrorCode` of service-runtime has
-     * no ING-014 entry yet, so the envelope of Problems (API-20) is written here with the same members until it has.
-     */
-    @Suppress("UNCHECKED_CAST")
-    private fun alreadyTransmitted(): ResponseEntity<ReplacedReceiptResult> {
-        val correlation = CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
-        val body =
-            ObjectMapper().createObjectNode().also {
-                it.put("type", Problems.typeOf(ING_014))
-                it.put("title", "Replaced receipt already transmitted")
-                it.put("status", HttpStatus.CONFLICT.value())
-                it.put("correlationId", correlation)
-                it.put("code", ING_014)
-                it.put("severity", "BLOCK")
-                it.put("disposition", "MANUAL")
-                it.put("remediationOwner", "Finance")
-            }
-        return ResponseEntity
-            .status(HttpStatus.CONFLICT)
-            .header("Content-Type", "application/problem+json")
-            .body(body.toString()) as ResponseEntity<ReplacedReceiptResult>
     }
 
     /**
@@ -133,9 +113,5 @@ open class TransactionIntakeController(
     private fun receiptState(placed: List<PlacedTransaction>): AggregationTransactionsReceipt.WindowState {
         val state = placed.map { it.placement.state }.maxByOrNull(WindowState::ordinal) ?: WindowState.OPEN
         return AggregationTransactionsReceipt.WindowState.valueOf(state.name)
-    }
-
-    private companion object {
-        const val ING_014 = "ING-014"
     }
 }

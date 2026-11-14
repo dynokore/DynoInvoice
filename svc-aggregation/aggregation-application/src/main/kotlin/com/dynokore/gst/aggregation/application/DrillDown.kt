@@ -8,6 +8,13 @@ data class RetainedTransaction(
     val transactionRef: String,
     val amount: String,
     val claimantReference: String? = null,
+    val claimableInputTax: String? = null,
+)
+
+/** The subtotal of one internal tax code: the claimable input tax for a PCP aggregate, the amount otherwise. */
+data class TaxCodeSubtotal(
+    val internalTaxCode: String,
+    val amount: String,
 )
 
 /** The position after which a page starts: the sort key of the last item of the page before. */
@@ -22,6 +29,7 @@ data class DrillDownPage(
     val underlyingCount: Int,
     val isCreditNote: Boolean,
     val isSupplementary: Boolean,
+    val subtotalsByTaxCode: List<TaxCodeSubtotal>,
     val items: List<RetainedTransaction>,
     /** The position of the last item when more items follow; null on the last page. */
     val next: DrillDownPosition?,

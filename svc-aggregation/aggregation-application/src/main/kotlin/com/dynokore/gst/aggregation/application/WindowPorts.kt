@@ -126,6 +126,10 @@ data class DatedTransaction(
     val underlyingRef: String = "",
     /** A refund or return: its aggregate is a credit-note aggregate (INV-REQ-438). */
     val isCreditNote: Boolean = false,
+    /** The reference of an expense claimant, never a name (INV-REQ-884). */
+    val claimantReference: String? = null,
+    /** PCP only: the claimable input tax as the ERP stated it, summed per internal tax code (INV-REQ-441). */
+    val claimableInputTax: String? = null,
 )
 
 data class PlacedTransaction(
