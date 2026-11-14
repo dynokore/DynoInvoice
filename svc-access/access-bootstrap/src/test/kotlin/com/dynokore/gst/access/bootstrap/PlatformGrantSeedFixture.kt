@@ -270,10 +270,12 @@ object PlatformGrantSeedFixture {
         // resolve_signed_link_tenant: INV-T-4940, probed in SignedLinkVerifyTest (unknown and look-alike refs)
         // replay_authority_tenants: INV-T-9061, probed in ReplayAuthorityTenantsTest (INV-AC-9051 the gate cases)
         // advance_authority_head: INV-T-9060, probed in AuthorityHeadDbTest (the SECURITY DEFINER catalogue case)
+        // start_authority_incarnation, bump_authority_incarnation, record_authority_high_water: INV-T-9261, probed in AuthorityIncarnationDbTest
         val definers =
             "select proname from pg_proc where pronamespace = 'access'::regnamespace and prosecdef " +
                 "and proname not in ('resolve_invitation_tenant', 'resolve_signed_link_tenant', " +
-                "'replay_authority_tenants', 'advance_authority_head') order by 1"
+                "'replay_authority_tenants', 'advance_authority_head', 'start_authority_incarnation', " +
+                "'bump_authority_incarnation', 'record_authority_high_water') order by 1"
         if (strings(c, definers) != connect(BASE).use { strings(it, definers) }) found += "a definer function was added"
         return found
     }

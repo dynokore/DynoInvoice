@@ -30,6 +30,9 @@ class JooqAuthorityHeadStore(
         require(version >= 1) { "an authority version is 1 or more, not $version" }
         val advance = DSL.function(DSL.name(ACCESS_SCHEMA, FUNCTION), SQLDataType.BIGINT, DSL.`val`(version))
         dsl.select(advance).fetchOne()
+        // the high-water mark of the incarnation rule (INV-T-9261) moves with the head, in the same transaction
+        val mark = DSL.function(DSL.name(ACCESS_SCHEMA, MARK_FUNCTION), SQLDataType.BIGINT, DSL.`val`(version))
+        dsl.select(mark).fetchOne()
     }
 
     override fun current(): Long? =
@@ -41,6 +44,7 @@ class JooqAuthorityHeadStore(
 
     companion object {
         const val FUNCTION = "advance_authority_head"
+        const val MARK_FUNCTION = "record_authority_high_water"
         private val TABLE = DSL.table(DSL.name(ACCESS_SCHEMA, "authority_head"))
         private val SINGLETON = DSL.field(DSL.name("singleton"), SQLDataType.BOOLEAN)
         private val VERSION = DSL.field(DSL.name("authority_version"), SQLDataType.BIGINT)

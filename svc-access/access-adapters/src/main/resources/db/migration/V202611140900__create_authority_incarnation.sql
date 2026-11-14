@@ -63,10 +63,13 @@ BEGIN
 END
 $$;
 
--- The high-water mark is written by the function every publish already calls (INV-T-9060), in the same statement
--- sequence and transaction. A publish before any start (not a running service) takes the database clock as the first value.
-CREATE OR REPLACE FUNCTION access.advance_authority_head(p_version bigint) RETURNS SETOF bigint
+-- The high-water mark: the highest authorityVersion published. JooqAuthorityHeadStore.advance calls it right after
+-- advance_authority_head, in the same transaction, so the mark moves with the event it describes and never falls. A
+-- publish before any start (not a running service) takes the database clock as the first incarnation.
+CREATE FUNCTION access.record_authority_high_water(p_version bigint) RETURNS bigint
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, access, pg_temp AS $$
+DECLARE
+    v_mark bigint;
 BEGIN
     IF p_version IS NULL OR p_version < 1 THEN
         RAISE EXCEPTION 'authority version must be at least 1' USING ERRCODE = '22023';
@@ -74,20 +77,20 @@ BEGIN
     INSERT INTO access.authority_incarnation AS i (singleton, incarnation, published_high_water)
     VALUES (true, floor(extract(epoch FROM clock_timestamp()))::bigint, p_version)
     ON CONFLICT (singleton) DO UPDATE
-        SET published_high_water = GREATEST(i.published_high_water, excluded.published_high_water);
-    RETURN QUERY
-    INSERT INTO access.authority_head AS h (singleton, authority_version) VALUES (true, p_version)
-    ON CONFLICT (singleton) DO UPDATE
-        SET authority_version = GREATEST(h.authority_version, excluded.authority_version)
-    RETURNING h.authority_version;
+        SET published_high_water = GREATEST(i.published_high_water, excluded.published_high_water)
+    RETURNING i.published_high_water INTO v_mark;
+    RETURN v_mark;
 END
 $$;
 
 GRANT CREATE ON SCHEMA access TO access_sys;
 ALTER FUNCTION access.start_authority_incarnation(bigint) OWNER TO access_sys;
 ALTER FUNCTION access.bump_authority_incarnation(bigint) OWNER TO access_sys;
+ALTER FUNCTION access.record_authority_high_water(bigint) OWNER TO access_sys;
 REVOKE CREATE ON SCHEMA access FROM access_sys;
 REVOKE ALL ON FUNCTION access.start_authority_incarnation(bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION access.bump_authority_incarnation(bigint) FROM PUBLIC;
+REVOKE ALL ON FUNCTION access.record_authority_high_water(bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION access.start_authority_incarnation(bigint) TO access_runtime;
 GRANT EXECUTE ON FUNCTION access.bump_authority_incarnation(bigint) TO access_runtime;
+GRANT EXECUTE ON FUNCTION access.record_authority_high_water(bigint) TO access_runtime;
