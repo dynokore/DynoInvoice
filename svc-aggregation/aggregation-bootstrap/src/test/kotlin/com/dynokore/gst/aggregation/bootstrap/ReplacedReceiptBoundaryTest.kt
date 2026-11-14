@@ -124,4 +124,68 @@ class ReplacedReceiptBoundaryTest {
             val aggregate = kit.aggregateIds(creditNote = false).single()
             kit.lines(aggregate) shouldBe emptyList()
         }
+
+    private fun ContentKit.recorded(
+        entity: String,
+        receipt: String,
+    ) = rows(
+        "select outcome from aggregation.replaced_receipt where tenant_id = ? and entity_ref = '$entity' " +
+            "and receipt_number = '$receipt'",
+    )
+
+    @Test
+    fun `INV-AC-458 a repeat call answers the first outcome and the table holds one row`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit.post(listOf(Txn("R-1", "S", "10.00")), type = "STI").status shouldBe 202
+            kit.close()
+            kit.outcome("E-001", "R-404").second["outcome"].asString() shouldBe "NOT_AGGREGATED"
+            // the receipt arrives after the first call; the recorded outcome is still answered
+            kit.post(listOf(Txn("R-404", "S", "3.00")), type = "STI").status shouldBe 202
+            kit.outcome("E-001", "R-404").second["outcome"].asString() shouldBe "NOT_AGGREGATED"
+            kit.outcome("E-001", "R-1").second["outcome"].asString() shouldBe "EXCLUDED"
+            kit.outcome("E-001", "R-1").second["outcome"].asString() shouldBe "EXCLUDED"
+            kit.recorded("E-001", "R-1") shouldBe listOf("EXCLUDED")
+            kit.recorded("E-001", "R-404") shouldBe listOf("NOT_AGGREGATED")
+        }
+
+    @Test
+    fun `INV-AC-458 an aggregate emptied by exclusions keeps its row, has no line and is not handed on`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit.post(listOf(Txn("R-1", "S", "10.00"), Txn("R-2", "Z", "5.00")), type = "STI").status shouldBe 202
+            kit.close()
+            val aggregate = kit.aggregateIds(creditNote = false).single()
+            kit.outcome("E-001", "R-1").first shouldBe 200
+            kit.outcome("E-001", "R-2").first shouldBe 200
+            kit.aggregateIds(creditNote = false) shouldBe listOf(aggregate)
+            kit.lines(aggregate) shouldBe emptyList()
+            kit.handOn() shouldBe emptyList()
+            kit.ready() shouldBe emptyList()
+            kit.rows(
+                "select (handed_on_at is null)::text from aggregation.aggregate where tenant_id = ? " +
+                    "and aggregate_id = '$aggregate'",
+            ) shouldBe listOf("true")
+        }
+
+    @Test
+    fun `INV-AC-458 the 409 is recorded nowhere and a repeat answers 409 again`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit.post(listOf(Txn("R-2", "Z", "5.00")), type = "STI").status shouldBe 202
+            kit.close()
+            val aggregate = kit.aggregateIds(creditNote = false).single()
+            kit.update(
+                "update aggregation.aggregate set transmitted_at = now() where tenant_id = '${kit.tenant}' " +
+                    "and aggregate_id = '$aggregate'",
+            )
+            kit.outcome("E-001", "R-2").first shouldBe 409
+            kit.recorded("E-001", "R-2") shouldBe emptyList()
+            kit.outcome("E-001", "R-2").first shouldBe 409
+            kit.rows("select count(*)::text from aggregation.replaced_receipt where tenant_id = ?") shouldBe listOf("0")
+            kit.lines(aggregate) shouldBe listOf("Z=5.00")
+        }
 }
