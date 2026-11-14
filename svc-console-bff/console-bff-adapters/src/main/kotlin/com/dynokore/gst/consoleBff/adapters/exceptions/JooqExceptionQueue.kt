@@ -12,8 +12,6 @@ import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.Select
-import org.jooq.conf.RenderOptionalKeyword
-import org.jooq.conf.Settings
 import org.jooq.impl.DSL
 import java.time.ZoneOffset
 import java.util.UUID
@@ -26,15 +24,8 @@ import java.util.UUID
  * NIST SP 800-53 AC-3). It reads stored rows only and writes nothing.
  */
 class JooqExceptionQueue(
-    dsl: DSLContext,
+    private val dsl: DSLContext,
 ) : ExceptionQueue {
-    // The statement text reads `left join`, not jOOQ's default `left outer join` (the task fixes the text).
-    private val dsl: DSLContext =
-        DSL.using(
-            dsl.configuration().derive(
-                (dsl.settings().clone() as Settings).withRenderOptionalOuterKeyword(RenderOptionalKeyword.OFF),
-            ),
-        )
     private val e = EXCEPTION.`as`("e")
     private val d = PERIOD_DUE_DATE.`as`("d")
     private val f = DEFERRAL.`as`("f")
@@ -54,6 +45,7 @@ class JooqExceptionQueue(
             .map { it.toQueued() }
     }
 
+    @Suppress("LongParameterList", "SpreadOperator") // one argument per filter; jOOQ's any() takes a vararg
     internal fun statement(
         tenant: UUID,
         entityRefs: Set<String>,
@@ -73,7 +65,7 @@ class JooqExceptionQueue(
             .and(d.PERIOD_REF.eq(e.PERIOD_REF))
             .and(e.PERIOD_REF.ne(""))
             .where(e.TENANT_ID.eq(tenant))
-            .and(DSL.condition("{0} = any({1}::text[])", e.ENTITY_REF, DSL.`val`(entityRefs.toTypedArray())))
+            .and(e.ENTITY_REF.eq(DSL.any(*entityRefs.toTypedArray())))
             .and(if (state == null) DSL.noCondition() else e.STATE.eq(state.name))
             .and(if (deferred) DSL.exists(covered) else DSL.notExists(covered))
             .and(if (after == null) DSL.noCondition() else seek(after))
@@ -132,5 +124,6 @@ class JooqExceptionQueue(
             get(d.DUE_DATE),
         )
 
-    private fun <T : Any> Record.req(field: org.jooq.Field<T?>): T = checkNotNull(get(field)) { "${field.name} is null" }
+    private fun <T : Any> Record.req(field: org.jooq.Field<T?>): T =
+        checkNotNull(get(field)) { "${field.name} is null" }
 }
