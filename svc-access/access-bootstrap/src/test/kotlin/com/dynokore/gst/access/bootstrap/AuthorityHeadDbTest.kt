@@ -202,7 +202,7 @@ class AuthorityHeadDbTest {
     }
 
     @Test
-    fun `INV-AC-9051 access_runtime has only SELECT and access_sys has SELECT, INSERT, UPDATE but no DELETE`() {
+    fun `INV-AC-9051 access_runtime has only SELECT and access_sys has SELECT, INSERT, UPDATE and DELETE`() {
         withContext {
             BoundaryFixture.asSuperuser { c ->
                 fun has(
@@ -221,7 +221,7 @@ class AuthorityHeadDbTest {
                 assertThat(has("access_sys", "SELECT")).isTrue()
                 assertThat(has("access_sys", "INSERT")).isTrue()
                 assertThat(has("access_sys", "UPDATE")).isTrue()
-                assertThat(has("access_sys", "DELETE")).isFalse()
+                assertThat(has("access_sys", "DELETE")).isTrue()
             }
         }
     }

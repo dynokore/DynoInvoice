@@ -218,7 +218,7 @@ class AuthorityIncarnationDbTest {
         }
 
     @Test
-    fun `INV-AC-22069 a start-time rise with the sequence at 7 and the mark at 40 rebases the mark and the head to 7`() {
+    fun `INV-AC-22069 a start-time rise with the sequence at 7 and mark 40 rebases the mark and the head to 7`() {
         bootWith(incarnation = 1_000, mark = 40, sequence = 7, head = 40)
         assertThat(mark()).isEqualTo(7L)
         assertThat(headRows()).containsExactly(7L)
@@ -234,7 +234,7 @@ class AuthorityIncarnationDbTest {
     }
 
     @Test
-    fun `INV-AC-22069 a start-time rise with the sequence never called deletes the head and the next publish inserts it`() {
+    fun `INV-AC-22069 a start-time rise on a never-called sequence deletes the head, the next publish inserts it`() {
         // setval(.., 1, false) leaves the sequence never called
         bootWith(incarnation = 1_000, mark = 40, sequence = 1, head = 40, called = false)
         assertThat(mark()).isEqualTo(0L)
