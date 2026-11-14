@@ -76,6 +76,44 @@ class ScopePackHandlersTest {
     )
 
     @Test
+    fun `INV-AC-22372 the platform type is handled and the constants carry the platform names`() {
+        val store = Memory()
+        assertThat(RulePackStagedHandler(store, mapper).handle(staged("SCOPE"))).isEqualTo(HandleOutcome.APPLIED)
+        assertThat(ConsumedRatePackEvents.RULE_PACK_STAGED).isEqualTo("com.dynokore.gst.platform.RulePackStaged.v1")
+        assertThat(ConsumedRatePackEvents.RULE_PACK_STAGED_TOPIC).isEqualTo("gst.platform.rule-pack-staged.v1")
+        assertThat(ConsumedRatePackEvents.RULE_PACK_ACTIVATED).isEqualTo("com.dynokore.gst.rules.RulePackActivated.v1")
+        assertThat(ConsumedRatePackEvents.RULE_PACK_ACTIVATED_TOPIC).isEqualTo("gst.rules.rule-pack-activated.v1")
+    }
+
+    @Test
+    fun `INV-AC-22372 the old rules-namespace type and the look-alike type are refused`() {
+        val handler = RulePackStagedHandler(Memory(), mapper)
+        val data = """{"packIdentifier":"sg-scope","packType":"SCOPE","version":"1"}"""
+        listOf("com.dynokore.gst.rules.RulePackStaged.v1", "com.dynokore.gst.platform.RulePackStagedX.v1").forEach {
+            assertThatThrownBy { handler.handle(envelope(it, data)) }
+                .describedAs(it)
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessage("unexpected $it")
+        }
+    }
+
+    @Test
+    fun `INV-AC-22372 the subscription map has no old staged key or topic`() {
+        assertThat(
+            ConsumedRatePackEvents.SUBSCRIPTIONS.entries
+                .map { it.key to it.value }
+                .toSet(),
+        ).isEqualTo(
+            setOf(
+                "com.dynokore.gst.platform.RulePackStaged.v1" to "gst.platform.rule-pack-staged.v1",
+                "com.dynokore.gst.rules.RulePackActivated.v1" to "gst.rules.rule-pack-activated.v1",
+            ),
+        )
+        assertThat(ConsumedRatePackEvents.SUBSCRIPTIONS).doesNotContainKey("com.dynokore.gst.rules.RulePackStaged.v1")
+        assertThat(ConsumedRatePackEvents.SUBSCRIPTIONS.values).doesNotContain("gst.rules.rule-pack-staged.v1")
+    }
+
+    @Test
     fun `a SCOPE pack keeps its approved sources and a replay leaves one row`() {
         val store = Memory()
         val handler = RulePackStagedHandler(store, mapper)

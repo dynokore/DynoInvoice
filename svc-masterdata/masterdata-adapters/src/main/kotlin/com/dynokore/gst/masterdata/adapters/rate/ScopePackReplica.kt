@@ -11,8 +11,8 @@ import java.time.LocalDate
 
 /** The events and topics masterdata-svc consumes for the approved rate sources (INV-REQ-504, INV-REQ-506). */
 object ConsumedRatePackEvents {
-    const val RULE_PACK_STAGED = "com.dynokore.gst.rules.RulePackStaged.v1"
-    const val RULE_PACK_STAGED_TOPIC = "gst.rules.rule-pack-staged.v1"
+    const val RULE_PACK_STAGED = "com.dynokore.gst.platform.RulePackStaged.v1"
+    const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
     const val RULE_PACK_ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
     const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
 
