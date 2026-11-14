@@ -34,7 +34,6 @@ open class IntakeController(
     private val intake: IntakeAggregate,
 ) : IntakeApi {
     override fun intakeAggregationBatch(
-        xFlowContext: String,
         idempotencyKey: UUID,
         aggregationBatchRequest: AggregationBatchRequest,
     ): ResponseEntity<AggregationReceipt> {

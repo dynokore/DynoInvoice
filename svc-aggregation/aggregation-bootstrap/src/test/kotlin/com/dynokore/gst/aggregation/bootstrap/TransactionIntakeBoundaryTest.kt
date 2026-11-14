@@ -102,7 +102,7 @@ class TransactionIntakeBoundaryTest {
                     val items =
                         dates.joinToString(",") {
                             """{"transactionRef":"T-$it-$revision","transactionDate":"$it",""" +
-                                """"internalTaxCode":"SR-STD","amount":"10.00","claimableInputTax":"0.70"}"""
+                                """"internalTaxCode":"SR-STD","amount":"10.00","claimableInputTax":"10.00"}"""
                         }
                     mvc
                         .perform(

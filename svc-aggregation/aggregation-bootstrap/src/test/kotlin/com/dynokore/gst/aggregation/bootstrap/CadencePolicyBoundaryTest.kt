@@ -118,7 +118,6 @@ class CadencePolicyBoundaryTest {
                         post("/internal/v1/aggregation/batches")
                             .contentType(MediaType.APPLICATION_JSON)
                             .header("Idempotency-Key", UUID.randomUUID().toString())
-                            .header("X-Flow-Context", "test-flow-context")
                             .content(
                                 """{"entityRef":"E-001","businessUnitRef":"BU-01","aggregateType":"POS",
                                 |"periodStart":"$periodEnd","periodEnd":"$periodEnd","underlyingRef":"BATCH-1",

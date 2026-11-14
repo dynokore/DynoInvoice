@@ -147,7 +147,12 @@ class CallerChecks(
 
         // Operations a task has built (operations.tsv); the others answer 501.
         private val IMPLEMENTED =
-            setOf("POST /internal/v1/aggregation/batches", "POST /internal/v1/aggregation/transactions")
+            setOf(
+                "POST /internal/v1/aggregation/batches",
+                "POST /internal/v1/aggregation/transactions",
+                "POST /internal/v1/aggregation/replaced-receipts",
+                "GET /internal/v1/aggregation/underlying-transactions",
+            )
         private const val NOT_IMPLEMENTED = 501
         const val TOKEN = "X-Workload-Token"
         const val AUTH = "Authorization"

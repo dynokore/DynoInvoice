@@ -115,7 +115,6 @@ class ShortCodeUsedBoundaryTest {
                         post("/internal/v1/aggregation/batches")
                             .contentType(MediaType.APPLICATION_JSON)
                             .header("Idempotency-Key", UUID.randomUUID().toString())
-                            .header("X-Flow-Context", "test-flow-context")
                             .content(content),
                     ).andReturn()
                     .response

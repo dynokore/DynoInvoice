@@ -188,7 +188,7 @@ class RefusalMappingTest {
                 sourceKey = "K-RM",
                 sourceRevision = 1,
             )
-        val refused = controller.intakeAggregationBatch("flow-context", UUID.randomUUID(), request)
+        val refused = controller.intakeAggregationBatch(UUID.randomUUID(), request)
         refused.statusCode.value() shouldBe 422
         code(refused.body) shouldBe "ING-018"
     }
