@@ -97,7 +97,13 @@ class FeedHealthChangedOutboxTest {
         var checked = 0
         FeedControl.entries.forEach { control ->
             FeedHealthState.entries.forEach { state ->
-                val text = publish(control, state, 7).appended.single().first.single().dataJson
+                val text =
+                    publish(control, state, 7)
+                        .appended
+                        .single()
+                        .first
+                        .single()
+                        .dataJson
                 schema.validate(mapper.readTree(text)).map { it.toString() } shouldBe emptyList()
                 val node = mapper.readTree(text)
                 // the schema leaves stateVersion optional; the producer always sends it
