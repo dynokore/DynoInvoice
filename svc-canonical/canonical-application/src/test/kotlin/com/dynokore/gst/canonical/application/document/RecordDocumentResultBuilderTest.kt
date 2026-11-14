@@ -7,6 +7,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.util.UUID
 
@@ -27,7 +28,7 @@ class RecordDocumentResultBuilderTest {
             direction = Direction.SALE,
             supplier = PartyIdentifier("UEN", "S"),
             buyer = PartyIdentifier("UEN", "B"),
-            documentFunction = "INVOICE",
+            invoiceBacked = true,
         )
 
     private class Calls(
@@ -164,5 +165,21 @@ class RecordDocumentResultBuilderTest {
         electionReads shouldBe emptyList()
         built(purchase)
         electionReads shouldBe listOf("E1")
+    }
+
+    @Test
+    fun `INV-AC-21412 an absent direction is a SALE and no election is read`() {
+        built(c1.copy(direction = null))["transactionDate"] shouldBe "2026-03-20"
+        electionReads shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21412 a zoneless posting is read in the source zone and a bad zone id is refused SRT-001`() {
+        val local = LocalDateTime.parse("2026-03-31T23:30:00")
+        val zoneless = purchase.copy(postingTimestamp = null, localPostingTimestamp = local)
+        built(zoneless)["transactionDate"] shouldBe "2026-03-31"
+        built(zoneless.copy(sourceTimeZone = "UTC"))["transactionDate"] shouldBe "2026-04-01"
+        val bad = zoneless.copy(sourceTimeZone = "Not/AZone")
+        shouldThrow<RecordRefused> { builder.build(bad, d1) }.code shouldBe "SRT-001"
     }
 }

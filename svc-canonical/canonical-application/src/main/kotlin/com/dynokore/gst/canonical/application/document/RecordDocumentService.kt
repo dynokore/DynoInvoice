@@ -23,11 +23,10 @@ data class RecordDocumentCommand(
     val direction: Direction?,
     val supplier: PartyIdentifier,
     val buyer: PartyIdentifier,
-    val documentFunction: String? = null,
+    val invoiceBacked: Boolean,
     val postingTimestamp: OffsetDateTime? = null,
     val localPostingTimestamp: LocalDateTime? = null,
     val sourceTimeZone: String? = null,
-    val invoiceBacked: Boolean = true,
 )
 
 /** Builds the result text of a recorded document; implemented outside this service. */

@@ -12,6 +12,7 @@ import com.dynokore.gst.canonical.domain.derivation.DerivationGate
 import com.dynokore.gst.canonical.domain.derivation.DerivationStep
 import com.dynokore.gst.canonical.domain.derivation.GateDecision
 import com.dynokore.gst.canonical.domain.derivation.StepOutcome
+import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
@@ -124,8 +125,9 @@ class RecordDocumentResultBuilder(
         }
 
     private fun datingInput(command: RecordDocumentCommand): DatingInput {
+        // The contract: an absent direction means SALE.
         val direction =
-            when (checkNotNull(command.direction) { "direction is required to date a document" }) {
+            when (command.direction ?: DocumentDirection.SALE) {
                 DocumentDirection.SALE -> DatingDirection.SALE
                 DocumentDirection.PURCHASE -> DatingDirection.PURCHASE
             }
@@ -138,9 +140,19 @@ class RecordDocumentResultBuilder(
         val posting =
             command.postingTimestamp?.let { PostingMoment.Zoned(it) }
                 ?: command.localPostingTimestamp?.let { PostingMoment.Zoneless(it) }
-        val zone: ZoneId = command.sourceTimeZone?.let { ZoneId.of(it) } ?: SINGAPORE
+        val zone = zoneOf(command)
         return DatingInput(direction, command.invoiceBacked, command.transactionDate, posting, zone, election)
     }
+
+    /** The source zone of a zoneless posting: Singapore when absent; an id that is no zone is refused (SRT-001). */
+    private fun zoneOf(command: RecordDocumentCommand): ZoneId =
+        command.sourceTimeZone?.let {
+            try {
+                ZoneId.of(it)
+            } catch (_: DateTimeException) {
+                throw RecordRefused(DatingDecision.PostingTimestampRequired.refusalCode)
+            }
+        } ?: SINGAPORE
 
     private companion object {
         const val PROVISIONAL_VERDICT = "SUBMITTABLE"

@@ -105,6 +105,7 @@ class RecordDocumentServiceTest {
         direction,
         PartyIdentifier("UEN", "SUP-1"),
         buyer,
+        true,
     )
 
     private val key = SourceKey(t1, "S1", "K1", 2)
