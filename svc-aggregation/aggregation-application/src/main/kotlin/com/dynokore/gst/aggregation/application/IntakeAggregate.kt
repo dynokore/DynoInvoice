@@ -224,6 +224,9 @@ class IntakeAggregate(
             } else {
                 AggregateLines.merge(command.lines)
             }
+        // Open design question (coordinator, unanswered): a zero difference over an untransmitted supplementary
+        // aggregate. A supplementary aggregate with no lines is never stored, so nothing is stored here.
+        check(lines.isNotEmpty()) { "a replacement that would leave a supplementary aggregate without lines" }
         val replacement =
             old.copy(
                 periodStart = command.periodStart,

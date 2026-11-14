@@ -489,6 +489,38 @@ class AggregateHandOffBoundaryTest {
         }
 
     @Test
+    fun `INV-REQ-434 revision 3 replaces an untransmitted supplementary aggregate and stores only the difference`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant()
+
+            fun sr(s: String) =
+                """{"internalTaxCode":"SR-STD","amount":"$s"},{"internalTaxCode":"ZR-EXP","amount":"500.00"}"""
+            boundary.send(tenant, body(lines = sr("1000.00"))).status shouldBe 202
+            transmit(tenant)
+            val before = rowOf(tenant, 1)
+            val two = json(boundary.send(tenant, body(sourceRevision = 2, lines = sr("1200.00"))))
+            lines(tenant, two["aggregateId"].asString()) shouldBe listOf("SR-STD=200.00")
+            val three =
+                json(
+                    boundary.send(tenant, body(sourceRevision = 3, lines = sr("1500.00"))).also {
+                        it.status shouldBe
+                            202
+                    },
+                )
+            three["documentNumber"].asString() shouldBe two["documentNumber"].asString()
+            lines(tenant, three["aggregateId"].asString()) shouldBe listOf("SR-STD=500.00")
+            rowOf(tenant, 1) shouldBe before
+            query(
+                "select l.internal_tax_code || '=' || sum(l.amount::numeric) from aggregation.aggregate_line l " +
+                    "join aggregation.aggregate a on a.aggregate_id = l.aggregate_id where a.tenant_id = ? " +
+                    "and a.superseded_by is null group by l.internal_tax_code order by 1",
+                tenant,
+            ) { it.getString(1) } shouldBe listOf("SR-STD=1500.00", "ZR-EXP=500.00")
+        }
+
+    @Test
     fun `INV-REQ-434 another tenant's or another entity's aggregate with the same sourceKey is never touched`(
         @TempDir dir: Path,
     ): Unit =
