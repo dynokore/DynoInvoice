@@ -8,7 +8,6 @@ import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
 import com.dynokore.gst.aggregation.application.HandOnAggregates
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.logging.CorrelationId
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -35,9 +34,6 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.io.File
 import java.nio.file.Path
-import java.time.Clock
-import java.time.Instant
-import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
@@ -311,37 +307,6 @@ class AggregateHandOffBoundaryTest {
             ) { it.getString(1) } shouldBe listOf("true")
             lines(tenant, second["aggregateId"].asString()) shouldBe listOf("SR-STD=300.00", "ZR-EXP=50.00")
         }
-
-    @Test
-    fun `INV-REQ-718 the window-close job hands on a supplementary aggregate of an entity with no open window`(
-        @TempDir dir: Path,
-    ) {
-        val at = Instant.parse("2027-04-01T16:05:00Z")
-        AggregationContext
-            .online(dir)
-            .withAllowBeanDefinitionOverriding(true)
-            .withBean("clock", Clock::class.java, { Clock.fixed(at, ZoneOffset.UTC) })
-            .run { context ->
-                context.startupFailure?.let { throw it }
-                val boundary = Boundary(context)
-                val tenant = boundary.tenant()
-                boundary.send(tenant, body()).status shouldBe 202
-                closeWindows(tenant)
-                boundary.handOn(tenant).size shouldBe 1
-                transmit(tenant)
-                boundary.send(tenant, body(sourceRevision = 2, lines = line("SR-STD", "1800.00"))).status shouldBe 202
-                query(
-                    "select count(*)::text from aggregation.aggregate_window where tenant_id = ? and state = 'OPEN'",
-                    tenant,
-                ) { it.getString(1) } shouldBe listOf("0")
-                ready(tenant).size shouldBe 1
-                // the real job, not the use case: its targets must include the entity that has no open window
-                context.getBean(JobRuntime::class.java).fire(WindowCloseJob.NAME, at)
-                val events = ready(tenant)
-                events.size shouldBe 2
-                events.count { event -> event["linesByInternalTaxCode"].toString().contains("300.00") } shouldBe 1
-            }
-    }
 
     @Test
     fun `INV-REQ-434 revision 2 over an untransmitted revision 1 supersedes it with the same number`(

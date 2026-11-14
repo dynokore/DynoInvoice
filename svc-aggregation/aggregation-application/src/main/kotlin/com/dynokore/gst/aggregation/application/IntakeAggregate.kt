@@ -168,7 +168,6 @@ sealed interface IntakeOutcome {
  * (entityRef, sourceKey, sourceRevision); a replay returns the stored aggregate and reads neither the short codes nor
  * the sequence, so the number never changes (INV-REQ-436 item 3).
  */
-@Suppress("LongParameterList")
 class IntakeAggregate(
     private val shortCodes: ShortCodes,
     private val repository: AggregateRepository,
