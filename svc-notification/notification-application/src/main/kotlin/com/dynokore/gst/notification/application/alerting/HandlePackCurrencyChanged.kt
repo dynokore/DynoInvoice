@@ -86,7 +86,7 @@ class HandlePackCurrencyChanged(
         }
     }
 
-    private fun read(payload: Map<String, Any?>): PackCurrency {
+    fun read(payload: Map<String, Any?>): PackCurrency {
         val depCode = payload["depCode"] as? String
         if (depCode.isNullOrBlank()) throw ContractViolation("depCode is required")
         val status =
