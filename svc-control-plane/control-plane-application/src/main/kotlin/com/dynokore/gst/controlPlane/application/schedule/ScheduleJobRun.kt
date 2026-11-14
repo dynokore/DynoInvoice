@@ -7,23 +7,26 @@ package com.dynokore.gst.controlPlane.application.schedule
  * opening failure is rethrown and the closing failure is attached as suppressed.
  */
 object ScheduleJobRun {
-    /** Returns the number of `openTenant` and `closeTenant` calls made. */
+    /**
+     * The steps are `OpenDueTenants::runOnce` and `CloseDueTenants::runOnce`.
+     * Returns the number of `openTenant` and `closeTenant` calls made.
+     */
     @Suppress("TooGenericExceptionCaught")
     fun run(
-        opening: OpenDueTenants,
-        closing: CloseDueTenants,
+        opening: (Int) -> Int,
+        closing: (Int) -> Int,
         batchSize: Int,
     ): Int {
         var opened = 0
         var openingFailure: Throwable? = null
         try {
-            opened = opening.runOnce(batchSize)
+            opened = opening(batchSize)
         } catch (e: Exception) {
             openingFailure = e
         }
         val closed =
             try {
-                closing.runOnce(batchSize)
+                closing(batchSize)
             } catch (e: Exception) {
                 openingFailure?.addSuppressed(e) ?: throw e
                 0

@@ -171,27 +171,58 @@ class CloseDueTenantsTest {
     }
 
     @Test
+    fun `INV-AC-8102 probe the closing step runs after the opening step in the same run`() {
+        val order = ArrayList<String>()
+        var closeCalls = 0
+        ScheduleJobRun.run({
+            order += "open"
+            1
+        }, {
+            closeCalls++
+            order += "close"
+            1
+        }, 10)
+        order shouldBe listOf("open", "close")
+        closeCalls shouldBe 1
+    }
+
+    @Test
     fun `INV-AC-8102 probe an opener that throws does not keep a due schedule from being closed and the failure is rethrown`() {
-        val a = schedule("TEN-1", "SCH-1", opened = false)
-        val b = schedule("TEN-2", "SCH-2")
-        val opening =
-            OpenDueTenants(
-                object : TenantScheduleRepository by repository {
-                    override fun dueForOpening(
-                        now: Instant,
-                        limit: Int,
-                    ) = listOf(a)
-                },
-                { _, _ -> error("openTenant down") },
-                { _, _, _ -> },
-                object : TransactionRunner {
-                    override fun <T> inTransaction(block: () -> T): T = block()
-                },
-                clock,
-            )
-        val thrown = runCatching { ScheduleJobRun.run(opening, step, 10) }.exceptionOrNull()
-        thrown?.message shouldBe "openTenant down"
-        calls.map { it.scheduleRef } shouldBe listOf("SCH-2")
-        rows.getValue(b).state shouldBe ScheduleState.EXECUTED
+        val marker = IllegalStateException("openTenant down")
+        var closeCalls = 0
+        val thrown =
+            runCatching {
+                ScheduleJobRun.run({ throw marker }, {
+                    closeCalls++
+                    0
+                }, 10)
+            }.exceptionOrNull()
+        (thrown === marker) shouldBe true
+        closeCalls shouldBe 1
+        thrown!!.suppressed.toList() shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-8102 probe when both steps throw the opening failure is rethrown with the closing failure suppressed`() {
+        val openingMarker = IllegalStateException("openTenant down")
+        val closingMarker = IllegalStateException("closeTenant down")
+        var openCalls = 0
+        var closeCalls = 0
+        val thrown =
+            runCatching {
+                ScheduleJobRun.run({
+                    openCalls++
+                    throw openingMarker
+                }, {
+                    closeCalls++
+                    throw closingMarker
+                }, 10)
+            }.exceptionOrNull()
+        (thrown === openingMarker) shouldBe true
+        val suppressed = thrown!!.suppressed.toList()
+        suppressed.size shouldBe 1
+        (suppressed.single() === closingMarker) shouldBe true
+        openCalls shouldBe 1
+        closeCalls shouldBe 1
     }
 }
