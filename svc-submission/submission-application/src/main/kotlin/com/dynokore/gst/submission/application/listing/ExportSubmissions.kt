@@ -43,7 +43,8 @@ sealed interface ExportSubmissionsResult {
  * The CSV export of the submission list (INV-REQ-978, INV-AC-16330). An export carries content facts, so both
  * `submission.view-status` and `doc.view.content` are decided per request through [AuthorityReplica.decide]; a caller
  * without either is refused and neither the source nor the GSTN lookup is called (fail closed); an entity with no
- * stored GSTN gets [ExportSubmissionsResult.GstnUnavailable] and nothing is read. The rows come once from the [SubmissionRowSource], the
+ * stored GSTN gets [ExportSubmissionsResult.GstnUnavailable] and nothing is read. The rows come once from the
+ * [SubmissionRowSource], the
  * one [SubmissionFilter.select] applies the filter, and the table, the CSV and the three header values all come from
  * those rows, so they tie back to the summary. generated-by is the acting user ID of the [Principal], never a role
  * (INV-Q-10647, INV-Q-10027).

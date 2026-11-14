@@ -203,17 +203,36 @@ class ExportSubmissionsTest {
     }
 
     @Test
-    fun `INV-AC-16330 a caller without doc view content is refused and the source is not called`() {
-        val source = RecordingSource(rows)
-        export(source, principal = statusOnly) shouldBe ExportSubmissionsResult.Forbidden
-        source.calls shouldBe 0
+    fun `INV-AC-16330 the header GSTN equals the stored GSTN of the entity`() {
+        val csv = csvOf(export(RecordingSource(rows), gstns = CountingGstns("M12345678X")))
+        csv.csv.split("\r\n")[1].split(",")[1] shouldBe "M12345678X"
     }
 
     @Test
-    fun `INV-AC-16330 a caller without any grant is refused and the source is not called`() {
+    fun `INV-AC-16330 a caller without doc view content is Forbidden and the source and GSTN lookup are not called`() {
         val source = RecordingSource(rows)
-        export(source, principal = Principal("stranger", PrincipalKind.HUMAN)) shouldBe
-            ExportSubmissionsResult.Forbidden
+        val gstns = CountingGstns("M00000000X")
+        export(source, principal = statusOnly, gstns = gstns) shouldBe ExportSubmissionsResult.Forbidden
         source.calls shouldBe 0
+        gstns.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16330 a caller without submission view status is Forbidden and nothing is called`() {
+        val source = RecordingSource(rows)
+        val gstns = CountingGstns("M00000000X")
+        val stranger = Principal("stranger", PrincipalKind.HUMAN)
+        export(source, principal = stranger, gstns = gstns) shouldBe ExportSubmissionsResult.Forbidden
+        source.calls shouldBe 0
+        gstns.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16330 a null or blank GSTN gives GstnUnavailable and the source is not called`() {
+        listOf(null, "", "   ").forEach { stored ->
+            val source = RecordingSource(rows)
+            export(source, gstns = CountingGstns(stored)) shouldBe ExportSubmissionsResult.GstnUnavailable
+            source.calls shouldBe 0
+        }
     }
 }
