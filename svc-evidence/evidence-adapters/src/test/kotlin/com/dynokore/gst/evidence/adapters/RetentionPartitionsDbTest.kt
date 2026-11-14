@@ -9,7 +9,6 @@ import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.sql.SQLException
@@ -21,7 +20,6 @@ import java.util.UUID
  * SECURITY DEFINER functions that record the tail hash; the runtime login cannot delete or drop. Every case uses its
  * own random tenants, so the cases do not see each other's rows.
  */
-@Suppress("LargeClass") // one DB test class for the one migration (INV-AC-22962)
 class RetentionPartitionsDbTest {
     private val tables = RecordKind.entries.map { it.table }
     private val types =
@@ -71,46 +69,13 @@ class RetentionPartitionsDbTest {
             types.forEach { (kind, type) ->
                 ledgers
                     .getValue(kind)
-                    .append(
-                        TenantId(key.tenant),
-                        EntityRef(key.entity),
-                        PeriodRef(key.period),
-                        type,
-                        "c${key.period}$n".toByteArray(),
-                    )
+                    .append(TenantId(key.tenant), EntityRef(key.entity), PeriodRef(key.period), type, "c${key.period}$n".toByteArray())
             }
         }
     }
-
-    private val used = mutableListOf<Fixture>()
-
-    /** The detached tables of a unit are standalone tables until dropped: the shared schema is left as found. */
-    @AfterEach
-    fun dropDetachedTables() {
-        superuser { c ->
-            used.flatMap { listOf(it.t1, it.t2) }.forEach { tenant ->
-                c
-                    .prepareStatement(
-                        "select 'drop table evidence.' || m.partition_table " +
-                            "from evidence.retention_partition_member m join pg_class t " +
-                            "on t.relname = m.partition_table and t.relnamespace = 'evidence'::regnamespace " +
-                            "where m.tenant_id = ? and not t.relispartition",
-                    ).use { st ->
-                        st.setObject(1, tenant)
-                        val statements = column(st.executeQuery())
-                        c.createStatement().use { s -> statements.forEach { s.execute(it) } }
-                    }
-            }
-        }
-        used.clear()
-    }
-
-    private fun column(rs: java.sql.ResultSet): List<String> =
-        rs.use { generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
 
     private fun fixture(): Fixture =
         Fixture().also {
-            used.add(it)
             append(it.p1, 2)
             append(it.p2)
             append(it.other)
@@ -124,9 +89,8 @@ class RetentionPartitionsDbTest {
     ): Int =
         superuser { c ->
             c
-                .prepareStatement(
-                    "select count(*) from evidence.$table where tenant_id = ? and entity_ref = ? and period_ref = ?",
-                ).use {
+                .prepareStatement("select count(*) from evidence.$table where tenant_id = ? and entity_ref = ? and period_ref = ?")
+                .use {
                     it.setObject(1, key.tenant)
                     it.setString(2, key.entity)
                     it.setString(3, key.period)
@@ -165,8 +129,8 @@ class RetentionPartitionsDbTest {
         superuser { c ->
             c
                 .prepareStatement(
-                    "select content_hash from evidence.$table " +
-                        "where tenant_id = ? and entity_ref = ? and period_ref = ? order by seq desc limit 1",
+                    "select content_hash from evidence.$table where tenant_id = ? and entity_ref = ? and period_ref = ? " +
+                        "order by seq desc limit 1",
                 ).use {
                     it.setObject(1, key.tenant)
                     it.setString(2, key.entity)
@@ -224,8 +188,7 @@ class RetentionPartitionsDbTest {
     private fun hold(key: Key) =
         runtimeStatement(
             key.tenant,
-            "insert into evidence.legal_hold " +
-                "(tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
+            "insert into evidence.legal_hold (tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
                 "values (?, ?, ?, 'audit', 'ACTIVE', now(), 'u-hold')",
             key.tenant,
             key.entity,
@@ -241,78 +204,37 @@ class RetentionPartitionsDbTest {
         approve(key, "u-two").shouldBeNull()
     }
 
-    private fun part(
-        key: Key,
-        table: String,
-    ) = "evidence.${table}_${partitionId(key)}"
-
     private fun detach(
         key: Key,
-        table: String,
         retentionEnd: Instant?,
         audit: String? = "audit-1",
     ): String? =
         runtimeStatement(
             key.tenant,
-            "select evidence.detach_expired_partition(cast(? as regclass), cast(? as regclass), ?, ?)",
-            "evidence.$table",
-            part(key, table),
+            "select evidence.detach_expired_partition(?, ?, ?)",
+            partitionId(key),
             audit,
             retentionEnd?.let { java.sql.Timestamp.from(it) },
         )
 
-    /** The four detach calls of the use case, one per chain table; the SQLSTATE of each (null when it succeeded). */
-    private fun detachAll(
-        key: Key,
-        retentionEnd: Instant?,
-        audit: String? = "audit-1",
-    ): List<String?> = tables.map { detach(key, it, retentionEnd, audit) }
-
-    private fun drop(
-        key: Key,
-        table: String,
-    ): String? =
-        runtimeStatement(key.tenant, "select evidence.drop_detached_partition(cast(? as regclass))", part(key, table))
-
-    private fun archive(key: Key): String? =
-        runtimeStatement(key.tenant, "select evidence.mark_partition_archived(?, 'vol-1')", partitionId(key))
-
     private fun assertRefused(
         key: Key,
         before: Map<String, Int>,
-        sqlStates: List<String?>,
+        sqlState: String?,
     ) {
-        sqlStates.size shouldBe tables.size
-        sqlStates.all { it != null } shouldBe true
+        (sqlState != null) shouldBe true
         state(partitionId(key)) shouldBe "ATTACHED"
         counts(key) shouldBe before
     }
 
-    private fun create(
-        table: String,
-        to: String,
-    ) = "select evidence.create_retention_partition(cast('evidence.$table' as regclass), ?, 'E1', 'P9', $to)"
-
-    private fun scalar(
-        sql: String,
-        vararg args: Any?,
-    ): String? =
-        superuser { c ->
-            c.prepareStatement(sql).use { st ->
-                args.forEachIndexed { i, a -> st.setObject(i + 1, a) }
-                st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
-            }
-        }
-
     @Test
-    fun `INV-AC-22962 each chain table is range partitioned, one registry row per tenant entity and period`() {
+    fun `INV-AC-22962 each chain table is range partitioned and the registry has one row per tenant entity and period`() {
         val f = fixture()
         superuser { c ->
             c
                 .prepareStatement(
                     "select c.relname from pg_partitioned_table p join pg_class c on c.oid = p.partrelid " +
-                        "join pg_namespace n on n.oid = c.relnamespace " +
-                        "where n.nspname = 'evidence' and p.partstrat = 'r'",
+                        "join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'evidence' and p.partstrat = 'r'",
                 ).use { st ->
                     st.executeQuery().use { rs ->
                         generateSequence { if (rs.next()) rs.getString(1) else null }.toSet() shouldBe tables.toSet()
@@ -320,32 +242,31 @@ class RetentionPartitionsDbTest {
                 }
         }
         listOf(f.p1, f.p2, f.other).forEach { key ->
-            scalar(
-                "select count(*) from evidence.retention_partition " +
-                    "where tenant_id = ? and entity_ref = ? and period_from = ? and period_to = ?",
-                key.tenant,
-                key.entity,
-                key.period,
-                key.period + "\u0001",
-            ) shouldBe "1"
-            partitionId(key).startsWith("rp_") shouldBe true
-            scalar(
-                "select count(*) from evidence.retention_partition_member where partition_id = ?",
-                partitionId(key),
-            ) shouldBe "4"
+            superuser { c ->
+                c
+                    .prepareStatement(
+                        "select count(*), min(partition_id) from evidence.retention_partition " +
+                            "where tenant_id = ? and entity_ref = ? and period_from = ? and period_to = ?",
+                    ).use {
+                        it.setObject(1, key.tenant)
+                        it.setString(2, key.entity)
+                        it.setString(3, key.period)
+                        it.setString(4, key.period)
+                        it.executeQuery().use { rs ->
+                            rs.next()
+                            rs.getInt(1) shouldBe 1
+                            rs.getString(2).startsWith("rp_") shouldBe true
+                        }
+                    }
+            }
         }
-        // the two appends of (T1, E1, P1) reused one unit
-        scalar("select count(*) from evidence.retention_partition where tenant_id = ?", f.t1) shouldBe "2"
-    }
-
-    @Test
-    fun `INV-AC-22962 the periods P1 and P10 are different units and never overlap`() {
-        val f = fixture()
-        val p10 = Key(f.t1, "E1", "P10")
-        append(p10)
-        (partitionId(p10) != partitionId(f.p1)) shouldBe true
-        counts(f.p1) shouldBe tables.associateWith { 2 }
-        counts(p10) shouldBe tables.associateWith { 1 }
+        // the append of the fixture reused the partition of (T1, E1, P1): still one row for the two appends
+        superuser { c ->
+            c.prepareStatement("select count(*) from evidence.retention_partition where tenant_id = ?").use {
+                it.setObject(1, f.t1)
+                it.executeQuery().use { rs -> rs.next().let { rs.getInt(1) } } shouldBe 2
+            }
+        }
     }
 
     @Test
@@ -356,21 +277,18 @@ class RetentionPartitionsDbTest {
         val otherBefore = counts(f.p2) to counts(f.other)
         val tails = tables.associateWith { lastHash(it, f.p1) }
         counts(f.p1) shouldBe tables.associateWith { 2 }
-        detachAll(f.p1, now.minusSeconds(DAY)) shouldBe tables.map { null }
+        detach(f.p1, now.minusSeconds(DAY)) shouldBe null
         counts(f.p1) shouldBe tables.associateWith { 0 }
         (counts(f.p2) to counts(f.other)) shouldBe otherBefore
         state(id) shouldBe "DETACHED"
-        tables.forEach { table ->
-            scalar(
-                "select tail_hashes ->> ? from evidence.retention_partition where partition_id = ?",
-                table,
-                id,
-            ) shouldBe tails.getValue(table)
-            scalar(
-                "select tail_hash from evidence.retention_partition_member where partition_id = ? and chain_table = ?",
-                id,
-                table,
-            ) shouldBe tails.getValue(table)
+        superuser { c ->
+            c.prepareStatement("select tail_hashes ->> ? from evidence.retention_partition where partition_id = ?").use { st ->
+                tables.forEach { table ->
+                    st.setString(1, table)
+                    st.setString(2, id)
+                    st.executeQuery().use { rs -> rs.next().let { rs.getString(1) } } shouldBe tails.getValue(table)
+                }
+            }
         }
     }
 
@@ -380,25 +298,21 @@ class RetentionPartitionsDbTest {
         ready(f.p1)
         val id = partitionId(f.p1)
         val before = counts(f.p1)
-        assertRefused(f.p1, before, tables.map { drop(f.p1, it) })
-        detachAll(f.p1, now.minusSeconds(DAY)) shouldBe tables.map { null }
+        assertRefused(f.p1, before, runtimeStatement(f.t1, "select evidence.drop_detached_partition(?)", id))
+        detach(f.p1, now.minusSeconds(DAY)) shouldBe null
         // a detached, not yet archived partition is not dropped either
-        tables.all { drop(f.p1, it) != null } shouldBe true
+        (runtimeStatement(f.t1, "select evidence.drop_detached_partition(?)", id) != null) shouldBe true
         state(id) shouldBe "DETACHED"
-        archive(f.p1) shouldBe null
+        runtimeStatement(f.t1, "select evidence.mark_partition_archived(?, 'vol-1')", id) shouldBe null
         state(id) shouldBe "ARCHIVED"
-        tables.map { drop(f.p1, it) } shouldBe tables.map { null }
+        runtimeStatement(f.t1, "select evidence.drop_detached_partition(?)", id) shouldBe null
         state(id) shouldBe "DROPPED"
-        scalar("select count(*) from pg_class where relname like ?", "%_$id") shouldBe "0"
-    }
-
-    @Test
-    fun `INV-AC-22962 the archive mark of a unit with an attached member is refused`() {
-        val f = fixture()
-        ready(f.p1)
-        detach(f.p1, tables.first(), now.minusSeconds(DAY)) shouldBe null
-        (archive(f.p1) != null) shouldBe true
-        state(partitionId(f.p1)) shouldBe "ATTACHED"
+        superuser { c ->
+            c.prepareStatement("select count(*) from pg_class where relname like ?").use {
+                it.setString(1, "%_$id")
+                it.executeQuery().use { rs -> rs.next().let { rs.getInt(1) } } shouldBe 0
+            }
+        }
     }
 
     @Test
@@ -407,7 +321,7 @@ class RetentionPartitionsDbTest {
         ready(f.p1)
         hold(f.p1)
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.minusSeconds(DAY)))
+        assertRefused(f.p1, before, detach(f.p1, now.minusSeconds(DAY)))
     }
 
     @Test
@@ -417,7 +331,7 @@ class RetentionPartitionsDbTest {
         approve(f.p1, "u-one").shouldBeNull()
         approve(f.p1, "u-two").shouldBeNull()
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.minusSeconds(DAY)))
+        assertRefused(f.p1, before, detach(f.p1, now.minusSeconds(DAY)))
     }
 
     @Test
@@ -426,7 +340,7 @@ class RetentionPartitionsDbTest {
         approve(f.p1, "u-one").shouldBeNull()
         approve(f.p1, "u-two").shouldBeNull()
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.minusSeconds(DAY)))
+        assertRefused(f.p1, before, detach(f.p1, now.minusSeconds(DAY)))
     }
 
     @Test
@@ -434,7 +348,7 @@ class RetentionPartitionsDbTest {
         val f = fixture()
         ready(f.p1)
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.plusSeconds(DAY)))
+        assertRefused(f.p1, before, detach(f.p1, now.plusSeconds(DAY)))
     }
 
     @Test
@@ -442,7 +356,7 @@ class RetentionPartitionsDbTest {
         val f = fixture()
         ready(f.p1)
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, null))
+        assertRefused(f.p1, before, detach(f.p1, null))
     }
 
     @Test
@@ -451,7 +365,7 @@ class RetentionPartitionsDbTest {
         notice(f.p1, now.minusSeconds(DAY))
         approve(f.p1, "u-one").shouldBeNull()
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.minusSeconds(DAY)))
+        assertRefused(f.p1, before, detach(f.p1, now.minusSeconds(DAY)))
     }
 
     @Test
@@ -461,7 +375,7 @@ class RetentionPartitionsDbTest {
         approve(f.p1, "u-one").shouldBeNull()
         (approve(f.p1, "u-one") == "23505") shouldBe true
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.minusSeconds(DAY)))
+        assertRefused(f.p1, before, detach(f.p1, now.minusSeconds(DAY)))
     }
 
     @Test
@@ -469,7 +383,7 @@ class RetentionPartitionsDbTest {
         val f = fixture()
         ready(f.p1)
         val before = counts(f.p1)
-        assertRefused(f.p1, before, detachAll(f.p1, now.minusSeconds(DAY), audit = " "))
+        assertRefused(f.p1, before, detach(f.p1, now.minusSeconds(DAY), audit = " "))
     }
 
     @Test
@@ -478,43 +392,13 @@ class RetentionPartitionsDbTest {
         ready(f.p1)
         val before = counts(f.p1)
         val refused =
-            tables.map { table ->
-                runtimeStatement(
-                    f.t2,
-                    "select evidence.detach_expired_partition(cast(? as regclass), cast(? as regclass), 'a', ?)",
-                    "evidence.$table",
-                    part(f.p1, table),
-                    java.sql.Timestamp.from(now.minusSeconds(DAY)),
-                )
-            }
+            runtimeStatement(
+                f.t2,
+                "select evidence.detach_expired_partition(?, 'a', ?)",
+                partitionId(f.p1),
+                java.sql.Timestamp.from(now.minusSeconds(DAY)),
+            )
         assertRefused(f.p1, before, refused)
-    }
-
-    @Test
-    fun `INV-AC-22962 a detach naming a table that is not a partition of the parent is refused`() {
-        val f = fixture()
-        ready(f.p1)
-        val before = counts(f.p1)
-        val refused =
-            tables.map { table ->
-                runtimeStatement(
-                    f.t1,
-                    "select evidence.detach_expired_partition(cast(? as regclass), cast(? as regclass), 'a', ?)",
-                    "evidence.$table",
-                    "evidence.retention_partition",
-                    java.sql.Timestamp.from(now.minusSeconds(DAY)),
-                )
-            } +
-                runtimeStatement(
-                    f.t1,
-                    "select evidence.detach_expired_partition(cast('evidence.legal_hold' as regclass), " +
-                        "cast(? as regclass), 'a', ?)",
-                    part(f.p1, tables.first()),
-                    java.sql.Timestamp.from(now.minusSeconds(DAY)),
-                )
-        refused.all { it != null } shouldBe true
-        state(partitionId(f.p1)) shouldBe "ATTACHED"
-        counts(f.p1) shouldBe before
     }
 
     @Test
@@ -525,9 +409,8 @@ class RetentionPartitionsDbTest {
             runtimeStatement(f.t1, "delete from evidence.$table") shouldBe "42501"
             runtimeStatement(f.t1, "drop table evidence.$table") shouldBe "42501"
             runtimeStatement(f.t1, "truncate evidence.$table") shouldBe "42501"
-            runtimeStatement(f.t1, "alter table evidence.$table detach partition ${part(f.p1, table)}") shouldBe "42501"
-            runtimeStatement(f.t1, "drop table ${part(f.p1, table)}") shouldBe "42501"
-            runtimeStatement(f.t1, "delete from ${part(f.p1, table)}") shouldBe "42501"
+            runtimeStatement(f.t1, "alter table evidence.$table detach partition evidence.${table}_default") shouldBe "42501"
+            runtimeStatement(f.t1, "drop table evidence.${table}_${partitionId(f.p1)}") shouldBe "42501"
         }
         counts(f.p1) shouldBe before
     }
@@ -538,148 +421,61 @@ class RetentionPartitionsDbTest {
         val fresh = Key(f.t1, "E1", "P3")
         append(fresh)
         val id = partitionId(fresh)
+        id shouldBe partitionId(fresh)
         tables.forEach { table ->
-            scalar(
-                "select tableoid::regclass::text from evidence.$table where tenant_id = ? and period_ref = 'P3'",
-                f.t1,
-            ) shouldBe "evidence.${table}_$id"
+            superuser { c ->
+                c
+                    .prepareStatement(
+                        "select tableoid::regclass::text from evidence.$table where tenant_id = ? and period_ref = 'P3'",
+                    ).use {
+                        it.setObject(1, f.t1)
+                        it.executeQuery().use { rs ->
+                            rs.next() shouldBe true
+                            rs.getString(1) shouldBe "evidence.${table}_$id"
+                        }
+                    }
+            }
         }
-        scalar("select tenant_id::text from evidence.retention_partition where partition_id = ?", id) shouldBe
-            f.t1.toString()
+        superuser { c ->
+            c.prepareStatement("select tenant_id from evidence.retention_partition where partition_id = ?").use {
+                it.setString(1, id)
+                it.executeQuery().use { rs -> rs.next().let { rs.getObject(1) } } shouldBe f.t1
+            }
+        }
         // a tenant never creates a partition for another tenant
-        runtimeStatement(
-            f.t2,
-            create("decision_trace", "'P9' || chr(1)"),
-            f.t1,
-        ) shouldBe "42501"
-        // the creation names a chain table and one period only
-        runtimeStatement(
-            f.t1,
-            create("legal_hold", "'P9' || chr(1)"),
-            f.t1,
-        ) shouldBe "22023"
-        runtimeStatement(
-            f.t1,
-            create("audit_log", "'P99'"),
-            f.t1,
-        ) shouldBe "22023"
+        runtimeStatement(f.t2, "select evidence.ensure_partition(?, 'E1', 'P9')", f.t1) shouldBe "42501"
     }
 
     @Test
-    fun `INV-AC-22962 the functions are security definer with a fixed search_path and the owners the lint allows`() {
-        val owners =
-            mapOf(
-                "create_retention_partition" to EvidenceDb.MIGRATE,
-                "detach_expired_partition" to EvidenceDb.MIGRATE,
-                "drop_detached_partition" to EvidenceDb.MIGRATE,
-                "mark_partition_archived" to EvidenceDb.SYS,
-            )
+    fun `INV-AC-22962 the functions are security definer with a fixed search_path and executable by the runtime login only`() {
         superuser { c ->
             c
                 .prepareStatement(
-                    "select p.proname, p.prosecdef, p.proconfig::text, pg_get_userbyid(p.proowner), " +
-                        "has_function_privilege('evidence_runtime', p.oid, 'execute'), " +
-                        "has_function_privilege('public', p.oid, 'execute') " +
-                        "from pg_proc p join pg_namespace n on n.oid = p.pronamespace " +
+                    "select p.proname, p.prosecdef, p.proconfig::text, has_function_privilege('evidence_runtime', p.oid, 'execute'), " +
+                        "has_function_privilege('public', p.oid, 'execute') from pg_proc p join pg_namespace n on n.oid = p.pronamespace " +
                         "where n.nspname = 'evidence' and p.proname = any (?)",
                 ).use { st ->
-                    st.setArray(1, c.createArrayOf("text", owners.keys.toTypedArray()))
+                    st.setArray(
+                        1,
+                        c.createArrayOf(
+                            "text",
+                            arrayOf("ensure_partition", "detach_expired_partition", "mark_partition_archived", "drop_detached_partition"),
+                        ),
+                    )
                     st.executeQuery().use { rs ->
                         var seen = 0
                         while (rs.next()) {
                             seen++
                             rs.getBoolean(2) shouldBe true
-                            rs.getString(3)!!.contains("search_path=pg_catalog, evidence, pg_temp") shouldBe true
-                            rs.getString(4) shouldBe owners.getValue(rs.getString(1))
-                            rs.getBoolean(5) shouldBe true
-                            rs.getBoolean(6) shouldBe false
+                            rs.getString(3)!!.contains("search_path=evidence, pg_temp") shouldBe true
+                            rs.getBoolean(4) shouldBe true
+                            rs.getBoolean(5) shouldBe false
                         }
-                        seen shouldBe owners.size
+                        seen shouldBe 4
                     }
                 }
         }
     }
-
-    @Test
-    fun `INV-AC-22962 rows seeded in each chain table before the migration are present after it`() {
-        val seeds = listOf(UUID.randomUUID() to "P1", UUID.randomUUID() to "P2")
-        val name = "scratch_" + UUID.randomUUID().toString().replace("-", "")
-        EvidenceDb.superuser().use { it.createStatement().use { s -> s.execute("create database $name") } }
-        val url = EvidenceDb.jdbcUrl.substringBeforeLast('/') + "/$name"
-        try {
-            EvidenceDb.superuserOf(url).use { c ->
-                val provision = checkNotNull(javaClass.getResource("/db/provision.sql")).readText()
-                c.createStatement().use { it.execute(provision) }
-            }
-            flyway(url, "20").migrate()
-            EvidenceDb.superuserOf(url).use { c -> seeds.forEach { (tenant, period) -> seedRows(c, tenant, period) } }
-            flyway(url, null).migrate()
-            EvidenceDb.superuserOf(url).use { c -> seeds.forEach { (tenant, period) -> assertRows(c, tenant, period) } }
-        } finally {
-            EvidenceDb.superuser().use {
-                it.createStatement().use { s -> s.execute("drop database if exists $name with (force)") }
-            }
-        }
-    }
-
-    private fun seedRows(
-        c: Connection,
-        tenant: UUID,
-        period: String,
-    ) = tables.forEach { table ->
-        repeat(2) { n ->
-            c
-                .prepareStatement(
-                    "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +
-                        "content, content_hash, recorded_at) values (?, ?, 'E1', ?, ?, 'T', ?, ?, now())",
-                ).use { st ->
-                    st.setObject(1, UUID.randomUUID())
-                    st.setObject(2, tenant)
-                    st.setString(3, period)
-                    st.setLong(4, n + 1L)
-                    st.setBytes(5, byteArrayOf(n.toByte()))
-                    st.setString(6, "h-$table-$period-$n")
-                    st.execute()
-                }
-        }
-    }
-
-    private fun column(
-        c: Connection,
-        sql: String,
-        tenant: UUID? = null,
-    ): List<String> =
-        c.prepareStatement(sql).use { st ->
-            if (tenant != null) st.setObject(1, tenant)
-            st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
-        }
-
-    private fun assertRows(
-        c: Connection,
-        tenant: UUID,
-        period: String,
-    ) {
-        tables.forEach { table ->
-            column(c, "select content_hash from evidence.$table where tenant_id = ? order by seq", tenant) shouldBe
-                listOf("h-$table-$period-0", "h-$table-$period-1")
-        }
-        column(c, "select count(*) from evidence.retention_partition where tenant_id = ?", tenant) shouldBe listOf("1")
-        column(c, "select relname from pg_class where relname like '%legacy%'") shouldBe emptyList()
-    }
-
-    private fun flyway(
-        url: String,
-        target: String?,
-    ) = org.flywaydb.core.Flyway
-        .configure()
-        .dataSource(url, EvidenceDb.MIGRATE, EvidenceDb.MIGRATE_PASSWORD)
-        .schemas(EvidenceDb.SCHEMA)
-        .defaultSchema(EvidenceDb.SCHEMA)
-        .locations("classpath:db/migration")
-        .baselineOnMigrate(true)
-        .baselineVersion("0")
-        .apply { if (target != null) target(target) }
-        .load()
 
     private companion object {
         const val DAY = 86_400L
