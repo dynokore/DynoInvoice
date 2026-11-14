@@ -48,45 +48,47 @@ class ExportTenantEvidence(
             ?.let { Outcome.Failed("no source for ${it.joinToString(", ") { c -> c.name }}") }
 
     private fun integrityRefusal(job: ExportJob): Outcome.Failed? =
-        if (guarded { integrity.allowsExport(job.tenant) }.getOrElse { return Outcome.Failed(named(it)) }) {
-            null
-        } else {
-            Outcome.Failed("chain integrity does not allow the export (DEP-007)")
+        try {
+            if (port { integrity.allowsExport(job.tenant) }) null else Outcome.Failed("chain integrity does not allow the export (DEP-007)")
+        } catch (stop: Stop) {
+            Outcome.Failed(stop.reason)
         }
 
-    private fun build(job: ExportJob): Outcome {
-        val candidates = mutableListOf<PackageCandidate>()
-        for (contentClass in PackageContentClass.entries) {
-            val source = sources.source(contentClass) ?: return Outcome.Failed("no source for ${contentClass.name}")
-            candidates += guarded { source.candidates(job.tenant) }.getOrElse { return Outcome.Failed(named(it)) }
+    private fun build(job: ExportJob): Outcome =
+        try {
+            val assembled = assemble(job, candidates(job))
+            val verification = verify(assembled.files)
+            if (verification is PackageVerification.Invalid) {
+                val codes = verification.problems.take(PROBLEMS_SHOWN).joinToString(", ") { it.code.name }
+                throw Stop("package invalid: $codes")
+            }
+            val manifestRef = port { store.store(job.tenant, job.offboardingRef, assembled.files) }
+            Outcome.Stored(manifestRef, assembled.included)
+        } catch (stop: Stop) {
+            Outcome.Failed(stop.reason)
         }
-        val assembled =
-            when (
-                val result =
-                    AuditPackAssembler.assemble(
-                        PackageScope.WholeTenant(job.tenant),
-                        candidates,
-                        clock.instant(),
-                    )
-            ) {
-                is AssemblyResult.Refused -> return Outcome.Failed(
-                    "assembly refused: ${result.reason} ${result.itemName}",
-                )
 
-                is AssemblyResult.Assembled -> result
-            }
-        val verification = verify(assembled.files)
-        if (verification is PackageVerification.Invalid) {
-            return Outcome.Failed(
-                "package invalid: ${verification.problems.take(PROBLEMS_SHOWN).joinToString(", ") { it.code.name }}",
-            )
+    private fun candidates(job: ExportJob): List<PackageCandidate> =
+        PackageContentClass.entries.flatMap { contentClass ->
+            val source = sources.source(contentClass) ?: throw Stop("no source for ${contentClass.name}")
+            port { source.candidates(job.tenant) }
         }
-        val manifestRef =
-            guarded { store.store(job.tenant, job.offboardingRef, assembled.files) }.getOrElse {
-                return Outcome.Failed(named(it))
-            }
-        return Outcome.Stored(manifestRef, assembled.included)
-    }
+
+    private fun assemble(
+        job: ExportJob,
+        candidates: List<PackageCandidate>,
+    ): AssemblyResult.Assembled =
+        when (val result = AuditPackAssembler.assemble(PackageScope.WholeTenant(job.tenant), candidates, clock.instant())) {
+            is AssemblyResult.Refused -> throw Stop("assembly refused: ${result.reason} ${result.itemName}")
+            is AssemblyResult.Assembled -> result
+        }
+
+    /** Calls a port; any exception stops the export with the exception class name only. */
+    private fun <T> port(block: () -> T): T = guarded(block).getOrElse { throw Stop(named(it)) }
+
+    private class Stop(
+        val reason: String,
+    ) : RuntimeException(reason)
 
     private fun verify(files: PackageFiles): PackageVerification =
         PackageVerifier.verify(
