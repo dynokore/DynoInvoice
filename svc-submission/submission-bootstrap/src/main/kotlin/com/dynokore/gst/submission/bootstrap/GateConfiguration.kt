@@ -31,7 +31,8 @@ import java.time.Duration
  * TPL-18 wiring of the filing-gate override (INV-Q-10691 A, INV-Q-17042 A): the production adapters of the ports of
  * `submission-application` and the three use cases. The beans of `OverrideStore`, `LatestChecks`, `OverrideAuthority`
  * and `ReadinessCheckReader` are main's (`OverrideConfiguration`, `FilingConfiguration`,
- * `LatestCheckConfiguration`). The permission is decided per request by `AuthorityReplica.decide` (INV-Q-10027); the mode VP-14 is read from the policy replica at the request time.
+ * `LatestCheckConfiguration`). The permission is decided per request by `AuthorityReplica.decide` (INV-Q-10027);
+ * the mode VP-14 is read from the policy replica at the request time.
  */
 @Configuration(proxyBeanMethods = false)
 class GateConfiguration {

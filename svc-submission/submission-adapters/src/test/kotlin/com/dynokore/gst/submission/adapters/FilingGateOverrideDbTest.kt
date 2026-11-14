@@ -32,7 +32,7 @@ import java.util.UUID
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 
-/** the unique index of `submission.filing_override`, the audit table and the instants against the real database (INV-T-10714). */
+/** The one-per-check index, the audit table and the instants against the real database (INV-T-10714). */
 class FilingGateOverrideDbTest {
     private val created = mutableListOf<UUID>()
     private val connections = mutableListOf<Connection>()
@@ -122,14 +122,6 @@ class FilingGateOverrideDbTest {
                 periodRef: String,
             ) = setOf("chk-1")
         }
-
-    private fun insertSql(
-        tenant: UUID,
-        entity: String,
-        period: String,
-        check: String,
-    ) = "insert into submission.filing_override (tenant_id, id, entity_ref, period_ref, check_id, reason, status, " +
-        "requested_by) values ('$tenant', '${UUID.randomUUID()}', '$entity', '$period', '$check', 'r', 'PENDING', 'A1')"
 
     @Test
     fun `a second row for one key fails on the one-per-check index and look-alikes insert`() {
@@ -345,8 +337,8 @@ class FilingGateOverrideDbTest {
                     st.execute("create table submission.probe_audit ($without)")
                     assertThrows<Exception> {
                         st.execute(
-                            "insert into submission.probe_audit (tenant_id, entity_ref, period_ref, check_id, action, " +
-                                "actor_user_id, first_approver_user_id) values " +
+                            "insert into submission.probe_audit (tenant_id, entity_ref, period_ref, check_id, " +
+                                "action, actor_user_id, first_approver_user_id) values " +
                                 "('${s.tenant}', 'E1', 'P1', 'c', 'APPROVED', 'A2', 'A1')",
                         )
                     }

@@ -51,6 +51,7 @@ import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServletRequest
+import org.jooq.exception.DataAccessException
 import org.postgresql.util.PSQLException
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
@@ -105,7 +106,7 @@ class FilingGateOverrides(
  * (SRT-001, SRT-004, SRT-005).
  */
 @RestController
-@Suppress("LongParameterList") // the composition of the readiness, drain and filing use cases (INV-T-20948)
+@Suppress("LongParameterList", "TooManyFunctions") // readiness, drain, filing and override operations
 open class ReadinessController(
     private val latest: GetLatestReadinessCheck,
     private val http: ObjectProvider<HttpServletRequest>,
@@ -170,7 +171,7 @@ open class ReadinessController(
                         filingGateOverrideRequest.reason,
                     )
                 }
-            } catch (e: RuntimeException) {
+            } catch (e: DataAccessException) {
                 if (!isRepeatKey(e)) throw e
                 transactions.inTransaction { recorded(entityRef, periodRef, checkId) }
             }
