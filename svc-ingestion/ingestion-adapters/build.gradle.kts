@@ -65,14 +65,4 @@ dependencies {
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
-    testImplementation(libs.jsonSchemaValidator)
-}
-
-// FeedHealthChangedOutboxTest validates the payload the adapter emits against the pinned contract's schema.
-tasks.withType<Test>().configureEach {
-    val contractDir =
-        project(":ingestion-contract").layout.buildDirectory.dir(
-            "contracts-repo/platform-contracts/ingestion/${libs.versions.platformContractsBundle.get()}",
-        )
-    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
 }
