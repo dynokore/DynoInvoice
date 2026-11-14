@@ -1,0 +1,19 @@
+{
+  "aggregateId": "AGG-E-001-POS-BU-01-20260320-1",
+  "entityRef": "E-001",
+  "aggregateType": "POS",
+  "window": {
+    "from": "2026-03-20",
+    "to": "2026-03-20"
+  },
+  "linesByInternalTaxCode": [
+    {
+      "internalTaxCode": "SR-STD",
+      "amount": "1500.00"
+    }
+  ],
+  "underlyingRef": [
+    "BATCH-9001"
+  ],
+  "isCreditNote": true
+}

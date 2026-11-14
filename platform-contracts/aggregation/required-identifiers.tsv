@@ -35,3 +35,10 @@ transactionDate	property	openapi.yaml	INV-REQ-435
 acceptedCount	property	openapi.yaml	INV-REQ-435
 # INV-T-22188. stateVersion, the optional producer-owned counter of the AggregateWindowChanged payload (INV-REQ-792).
 stateVersion	property	schemas/aggregate-window-changed-payload.schema.json	INV-REQ-792
+# INV-T-22305. excludeReplacedReceipt (INV-REQ-440) and the credit-note and supplementary flags of the AggregateReady payload (INV-REQ-438, INV-REQ-439).
+excludeReplacedReceipt	operation	openapi.yaml	INV-REQ-440
+excludeReplacedReceipt.ING-014	operation_error_code	openapi.yaml	INV-REQ-440
+receiptNumber	property	openapi.yaml	INV-REQ-440
+outcome	property	openapi.yaml	INV-REQ-440
+isCreditNote	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-438
+isSupplementary	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-439

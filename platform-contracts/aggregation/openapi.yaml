@@ -253,6 +253,79 @@ paths:
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/aggregation/replaced-receipts:
+    post:
+      operationId: excludeReplacedReceipt
+      summary: Exclude an STI receipt replaced by a full tax invoice from aggregation, by receipt number
+      description: >-
+        When a full tax invoice replaces an STI receipt, ingestion-svc hands
+        the receipt number (the invoice's `replacesReceiptNumber`) to
+        aggregation-svc, which excludes the receipt from any aggregate not
+        yet transmitted (INV-REQ-440, FR-AE.54). `200` carries the outcome:
+        `EXCLUDED`, or `NOT_AGGREGATED` when the receipt is in no aggregate.
+        If the receipt's aggregate was already transmitted, the call is
+        refused with `409` and ING-014 so the full invoice is flagged for
+        review (BLOCK, MANUAL). The exclusion is permanent. A repeat of the
+        same (entityRef, receiptNumber) returns the original outcome.
+      tags: [intake]
+      x-principal: ingest
+      x-caller-auth: end-user
+      x-timeout: 2000
+      x-sync-edge: ingestion-svc->aggregation-svc
+      x-error-codes: [ING-014]
+      x-requirements: [INV-REQ-440, FR-AE.54]
+      x-operation:
+        role: ingest
+        scope: entity
+        precondition: >-
+          entityRef and receiptNumber are present; the receipt number is the
+          one carried in replacesReceiptNumber on the full tax invoice.
+        reversibility: IRREVERSIBLE
+        repeatKey: >-
+          (entityRef, receiptNumber), within the tenant from the token; a
+          repeat returns the original outcome
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplacedReceiptRequest'
+            examples:
+              default:
+                value:
+                  entityRef: "E-001"
+                  receiptNumber: "STI-2026-0001"
+      responses:
+        '200':
+          description: The receipt is excluded, or was in no aggregate.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReplacedReceiptResult'
+              examples:
+                default:
+                  value: { entityRef: "E-001", receiptNumber: "STI-2026-0001", outcome: "EXCLUDED" }
+        '409':
+          description: ING-014 - the receipt's aggregate was already transmitted; the full invoice is flagged for review and nothing is changed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "https://errors.invoice.internal/ING-014"
+                    title: "Replaced receipt already transmitted"
+                    status: 409
+                    code: "ING-014"
+                    severity: "BLOCK"
+                    disposition: "MANUAL"
+                    remediationOwner: "Integration"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
   /internal/v1/aggregation/underlying-transactions:
     get:
       operationId: getAggregateDrillDown
@@ -359,6 +432,9 @@ components:
           type: string
           maxLength: 100
           description: Reference of the expense claimant, never a name; names stay in the source expense system (INV-REQ-884).
+        isCreditNote:
+          type: boolean
+          description: True for a credit-note aggregate, document type 381; absent means false (INV-REQ-438).
         sourceKey:
           type: string
           minLength: 1
@@ -369,6 +445,27 @@ components:
           minimum: 1
           description: Revision of the source record under sourceKey; a lower revision than the recorded one is refused with ING-002 (INV-REQ-434).
       required: [entityRef, businessUnitRef, aggregateType, periodStart, periodEnd, underlyingRef, linesByInternalTaxCode, sourceKey, sourceRevision]
+    ReplacedReceiptRequest:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        receiptNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: Number of the STI receipt the full tax invoice replaces (replacesReceiptNumber, INV-REQ-440).
+      required: [entityRef, receiptNumber]
+    ReplacedReceiptResult:
+      type: object
+      properties:
+        entityRef: { type: string, maxLength: 40 }
+        receiptNumber: { type: string, minLength: 1, maxLength: 64 }
+        outcome:
+          type: string
+          enum: [EXCLUDED, NOT_AGGREGATED]
+          x-extensible-enum: true
+          description: EXCLUDED - removed from a not yet transmitted aggregate; NOT_AGGREGATED - the receipt is in no aggregate (INV-REQ-440).
+      required: [entityRef, receiptNumber, outcome]
     AggregationReceipt:
       type: object
       properties:
@@ -439,6 +536,9 @@ components:
           type: string
           maxLength: 256
           description: Reference to the batch that delivered the underlying transactions (FR-4.9).
+        isCreditNote:
+          type: boolean
+          description: True for a credit-note aggregate, document type 381; absent means false (INV-REQ-438).
         sourceKey:
           type: string
           minLength: 1

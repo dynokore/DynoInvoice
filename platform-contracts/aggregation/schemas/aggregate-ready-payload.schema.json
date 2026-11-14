@@ -62,6 +62,14 @@
         "additionalProperties": true
       }
     },
+    "isCreditNote": {
+      "type": "boolean",
+      "description": "True for a credit-note aggregate, document type 381; absent means false (INV-REQ-438)."
+    },
+    "isSupplementary": {
+      "type": "boolean",
+      "description": "True for a supplementary aggregate; absent means false (INV-REQ-439)."
+    },
     "underlyingRef": {
       "type": "array",
       "description": "References to the underlying records this aggregate was built from.",

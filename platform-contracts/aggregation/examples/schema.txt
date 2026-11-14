@@ -5,3 +5,6 @@
 ../openapi.yaml#/components/schemas/AggregationTransactionsRequest aggregation-transactions-request-*.json
 ../openapi.yaml#/components/schemas/AggregationTransactionsReceipt aggregation-transactions-receipt-*.json
 ../schemas/aggregate-window-changed-payload.schema.json aggregate-window-changed-payload-*.json
+../schemas/aggregate-ready-payload.schema.json aggregate-ready-payload-*.json
+../openapi.yaml#/components/schemas/ReplacedReceiptRequest aggregation-replaced-receipt-request-*.json
+../openapi.yaml#/components/schemas/ReplacedReceiptResult aggregation-replaced-receipt-result-*.json

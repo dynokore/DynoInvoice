@@ -1,0 +1,23 @@
+{
+  "entityRef": "E-001",
+  "businessUnitRef": "BU-01",
+  "aggregateType": "POS",
+  "underlyingRef": "BATCH-9002",
+  "sourceKey": "POS-FEED-0002",
+  "sourceRevision": 1,
+  "transactions": [
+    {
+      "transactionRef": "TXN-0001",
+      "transactionDate": "2026-03-31",
+      "internalTaxCode": "SR-STD",
+      "amount": "100.00"
+    },
+    {
+      "transactionRef": "TXN-0002",
+      "transactionDate": "2026-04-01",
+      "internalTaxCode": "SR-STD",
+      "amount": "100.00"
+    }
+  ],
+  "isCreditNote": "true"
+}
