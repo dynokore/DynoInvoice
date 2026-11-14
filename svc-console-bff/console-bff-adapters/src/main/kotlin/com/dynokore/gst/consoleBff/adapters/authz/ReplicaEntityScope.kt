@@ -28,31 +28,17 @@ class ReplicaEntityScope(
         tenantId: String,
         principalId: String,
     ): Set<String> {
-        val route = CatalogueReadPermissions.ENTRIES.firstOrNull { it.operationId == OPERATION }
-        val key = route?.let { permissions.keyFor(it.method, it.pathTemplate) }
-        return if (key == null) {
-            emptySet()
-        } else {
-            runCatching { allowedEntities(tenantId, principalId, key) }.getOrDefault(emptySet())
-        }
-    }
-
-    private fun allowedEntities(
-        tenantId: String,
-        principalId: String,
-        key: String,
-    ): Set<String> {
-        val tenant = TenantId.of(tenantId)
-        val principal = Principal(principalId, PrincipalKind.HUMAN)
-        return replica
-            .heldEntities(tenant, principalId)
-            .filterTo(mutableSetOf()) { entity ->
-                replica
-                    .decide(
-                        AuthorizationRequest(tenant, principal, entity, key),
-                        Deadline.after(budget, clock),
-                    ).allowed
-            }
+        val route = CatalogueReadPermissions.ENTRIES.firstOrNull { it.operationId == OPERATION } ?: return emptySet()
+        val key = permissions.keyFor(route.method, route.pathTemplate) ?: return emptySet()
+        return runCatching {
+            val tenant = TenantId.of(tenantId)
+            val principal = Principal(principalId, PrincipalKind.HUMAN)
+            replica
+                .heldEntities(tenant, principalId)
+                .filterTo(mutableSetOf()) { entity ->
+                    replica.decide(AuthorizationRequest(tenant, principal, entity, key), Deadline.after(budget, clock)).allowed
+                }
+        }.getOrDefault(emptySet())
     }
 
     private companion object {

@@ -29,7 +29,6 @@ class ExceptionQueueDbTest {
 
     private fun id(suffix: Int) = UUID.fromString("00000000-0000-0000-0000-00000000000$suffix")
 
-    @Suppress("LongParameterList") // a fixture row names each stored column it varies
     private fun row(
         tenant: UUID,
         n: Int,
@@ -48,7 +47,7 @@ class ExceptionQueueDbTest {
         remediationOwner = owner,
         disposition = "FIX",
         state = state,
-        raisedAt = Instant.parse("2026-11-10T$raisedAt:00Z"),
+        raisedAt = Instant.parse("2026-11-10T${raisedAt}:00Z"),
         periodRef = period,
         docsequence = n.toLong(),
     )
@@ -145,12 +144,7 @@ class ExceptionQueueDbTest {
 
     private fun count(sql: String): Long =
         ConsoleDb.superuser().use { c ->
-            c.createStatement().use { s ->
-                s.executeQuery(sql).use { rs ->
-                    rs.next()
-                    rs.getLong(1)
-                }
-            }
+            c.createStatement().use { s -> s.executeQuery(sql).use { rs -> rs.next(); rs.getLong(1) } }
         }
 
     private companion object {
@@ -203,8 +197,8 @@ class ExceptionQueueDbTest {
                     .getSQL()
             }
         sql shouldContain "nulls last"
-        sql shouldContain Regex("= any ?\\(")
-        sql shouldContain Regex("left (outer )?join")
+        sql shouldContain "= any("
+        sql shouldContain "left join"
         sql shouldContain "exists"
     }
 
