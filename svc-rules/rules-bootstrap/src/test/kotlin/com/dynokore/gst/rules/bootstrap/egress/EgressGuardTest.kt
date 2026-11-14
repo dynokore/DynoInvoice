@@ -93,7 +93,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `INV-AC-22534 a non-blocking SocketChannel registered with a Selector connecting to 192_0_2_1 port 9 is recorded`() {
+    fun `INV-AC-22534 a non-blocking SocketChannel with a Selector to 192_0_2_1 port 9 is recorded`() {
         EgressGuard.install().use { guard ->
             nonBlockingChannel(UNROUTABLE)
             guard.recorded() shouldContain unroutable
@@ -154,7 +154,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `INV-AC-22534 a host entry with a port admits only that port, a host entry of another address admits nothing else`() {
+    fun `INV-AC-22534 a host entry with a port admits only that port and no other address`() {
         val entry = EgressGuard.Allowed(UNROUTABLE, DB_PORT)
         entry.admits(Destination(UNROUTABLE, DB_PORT)) shouldBe true
         entry.admits(Destination(UNROUTABLE, DB_PORT + 1)) shouldBe false
