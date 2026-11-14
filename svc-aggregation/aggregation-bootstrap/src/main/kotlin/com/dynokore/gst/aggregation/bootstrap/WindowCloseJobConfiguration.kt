@@ -1,6 +1,7 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.events.WindowChangedOutbox
+import com.dynokore.gst.aggregation.adapters.persistence.JooqWindowStateVersions
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CloseWindows
 import com.dynokore.gst.aggregation.application.IntakeAggregate
@@ -27,6 +28,7 @@ import com.dynokore.platform.serviceruntime.jobs.JobSchedule
 import com.dynokore.platform.serviceruntime.jobs.JobTarget
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
@@ -77,7 +79,9 @@ class WindowCloseJobConfiguration {
     fun windowChangePublisher(
         outbox: OutboxWriter,
         tenants: TenantContext,
-    ): WindowChangePublisher = WindowChangedOutbox(outbox, tenants)
+        dsl: DSLContext,
+        runner: TransactionRunner,
+    ): WindowChangePublisher = WindowChangedOutbox(outbox, tenants, JooqWindowStateVersions(dsl, runner))
 
     @Bean
     fun openWindowEntities(

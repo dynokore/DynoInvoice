@@ -1,6 +1,7 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.events.WindowChangedOutbox
+import com.dynokore.gst.aggregation.adapters.events.WindowStateVersions
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.application.WindowChange
 import com.dynokore.gst.aggregation.domain.AggregateType
@@ -62,7 +63,13 @@ class WindowChangedEventBoundaryTest {
                 block: () -> T,
             ): T = block()
         }
-    private val publisher = WindowChangedOutbox(outbox, tenants)
+    private val asked = mutableListOf<List<Any>>()
+    private val versions =
+        WindowStateVersions { t, entity, period, from, to ->
+            asked += listOf(t, entity, period, from, to)
+            asked.size.toLong()
+        }
+    private val publisher = WindowChangedOutbox(outbox, tenants, versions)
     private val window =
         OpenWindow(
             "E-001",
@@ -94,7 +101,7 @@ class WindowChangedEventBoundaryTest {
         publisher.changed(WindowChange(window, part, WindowState.CLOSED, aggregateId))
         val body = payload()
         body.propertyNames().toList().sorted() shouldBe
-            listOf("aggregateId", "entityRef", "prescribedPeriod", "state", "window")
+            listOf("aggregateId", "entityRef", "prescribedPeriod", "state", "stateVersion", "window")
         body["entityRef"].asString() shouldBe "E-001"
         body["prescribedPeriod"].asString() shouldBe "2022-Q1"
         body["window"]["from"].asString() shouldBe "2022-03-28"
@@ -111,6 +118,26 @@ class WindowChangedEventBoundaryTest {
         payload()["state"].asString() shouldBe "LATE"
         payload().has("aggregateId") shouldBe false
         schemaErrors(payload()).shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-22211 a CLOSED payload carries stateVersion 1 and validates against the pinned schema`() {
+        publisher.changed(WindowChange(window, part, WindowState.CLOSED, UUID.randomUUID()))
+        payload()["stateVersion"].asLong() shouldBe 1L
+        schemaErrors(payload()).shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-22211 a LATE payload carries stateVersion too`() {
+        publisher.changed(WindowChange(window, part, WindowState.LATE, null))
+        payload()["stateVersion"].asLong() shouldBe 1L
+        schemaErrors(payload()).shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-22211 the counter is asked with the tenant of the context and the period and bounds of the part`() {
+        publisher.changed(WindowChange(window, part, WindowState.CLOSED, UUID.randomUUID()))
+        asked shouldBe listOf(listOf(tenant, "E-001", "2022-Q1", part.start, part.end))
     }
 
     @Test

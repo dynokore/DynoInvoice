@@ -11,19 +11,37 @@ import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.tenancykernel.TenantContext
+import com.dynokore.platform.tenancykernel.TenantId
 import tools.jackson.databind.ObjectMapper
+import java.time.LocalDate
 import java.util.UUID
+
+/**
+ * The producer-owned counter of `AggregateWindowChanged` (`stateVersion`): starts at 1 for a key of tenant, entity,
+ * prescribed period and window part and rises by one per call, in the transaction that is open.
+ */
+fun interface WindowStateVersions {
+    fun next(
+        tenant: TenantId,
+        entityRef: String,
+        periodRef: String,
+        from: LocalDate,
+        to: LocalDate,
+    ): Long
+}
 
 /**
  * The adapter of [WindowChangePublisher] (INV-REQ-413 item 2, channel `aggregationAggregateWindowChanged`): one
  * `AggregateWindowChanged` per part that moves to CLOSED or LATE, appended to the outbox in the transaction the caller
  * has open, which is the one of the close. The payload is `aggregate-window-changed-payload.schema.json` of
  * platform-contracts: `entityRef`, `prescribedPeriod` (the `periodRef` of the span), `window.from`, `window.to`,
- * `state` and, for CLOSED, `aggregateId`. A state OPEN is not a change of an existing window and is refused.
+ * `state`, `stateVersion` (the counter of [WindowStateVersions]) and, for CLOSED, `aggregateId`. A state OPEN is not
+ * a change of an existing window and is refused.
  */
 class WindowChangedOutbox(
     private val outbox: OutboxWriter,
     private val tenants: TenantContext,
+    private val versions: WindowStateVersions,
     private val mapper: ObjectMapper = ObjectMapper(),
 ) : WindowChangePublisher {
     override fun changed(change: WindowChange) {
@@ -33,6 +51,14 @@ class WindowChangedOutbox(
         val closed = change.state == WindowState.CLOSED
         val aggregateId = change.aggregateId
         require(!closed || aggregateId != null) { "a CLOSED part carries its aggregate id" }
+        val stateVersion =
+            versions.next(
+                tenants.current(),
+                change.window.entityRef,
+                change.part.periodRef,
+                change.part.start,
+                change.part.end,
+            )
         val payload =
             mapper.createObjectNode().also { node ->
                 node.put("entityRef", change.window.entityRef)
@@ -42,6 +68,7 @@ class WindowChangedOutbox(
                     it.put("to", change.part.end.toString())
                 }
                 node.put("state", change.state.name)
+                node.put("stateVersion", stateVersion)
                 if (closed) node.put("aggregateId", aggregateId.toString())
             }
         outbox.append(
