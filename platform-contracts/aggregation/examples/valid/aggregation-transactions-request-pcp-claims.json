@@ -1,0 +1,26 @@
+{
+  "entityRef": "E-001",
+  "businessUnitRef": "BU-01",
+  "aggregateType": "PCP",
+  "underlyingRef": "BATCH-9003",
+  "sourceKey": "FEED-0003",
+  "sourceRevision": 1,
+  "transactions": [
+    {
+      "transactionRef": "CLM-0001",
+      "transactionDate": "2026-03-31",
+      "internalTaxCode": "SR-STD",
+      "amount": "109.00",
+      "claimantReference": "CLM-0042",
+      "claimableInputTax": "9.00"
+    },
+    {
+      "transactionRef": "CLM-0002",
+      "transactionDate": "2026-03-31",
+      "internalTaxCode": "SR-STD",
+      "amount": "109.00",
+      "claimantReference": "CLM-0043",
+      "claimableInputTax": "4.50"
+    }
+  ]
+}

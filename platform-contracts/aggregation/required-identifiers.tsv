@@ -42,3 +42,5 @@ receiptNumber	property	openapi.yaml	INV-REQ-440
 outcome	property	openapi.yaml	INV-REQ-440
 isCreditNote	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-438
 isSupplementary	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-439
+# INV-T-22524: claimable input tax on the aggregation transaction items
+claimableInputTax	property	openapi.yaml	INV-REQ-441

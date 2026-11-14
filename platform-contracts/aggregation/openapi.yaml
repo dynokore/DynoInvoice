@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -49,7 +49,8 @@ paths:
         and STI exclusion by receipt number, then hands the closed aggregate
         to canonical-svc for recording (AD-22) and emits `AggregateReady`. An
         `aggregateType` other than POS, STI or PCP is refused with `422` and
-        ING-006 (INV-REQ-410).
+        ING-006 (INV-REQ-410). For aggregateType PCP the `amount` of a line is
+        the claimable input tax of that internal tax code (INV-REQ-441).
       tags: [intake]
       x-principal: ingest
       x-caller-auth: end-user
@@ -162,7 +163,10 @@ paths:
         or PCP is refused with `422` and ING-006; a repeat of the same
         (entityRef, sourceKey, sourceRevision) returns the original receipt
         and a lower sourceRevision is refused with `409` and ING-002
-        (INV-REQ-434).
+        (INV-REQ-434). A request is refused with `400` and SRT-001, and
+        nothing is stored, when an item of an aggregateType PCP request has no
+        `claimableInputTax`, or when an item of a POS or STI request has one
+        (INV-REQ-441).
       tags: [intake]
       x-principal: ingest
       x-caller-auth: end-user
@@ -322,7 +326,7 @@ paths:
                     code: "ING-014"
                     severity: "BLOCK"
                     disposition: "MANUAL"
-                    remediationOwner: "Integration"
+                    remediationOwner: "Finance"
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
@@ -426,7 +430,7 @@ components:
                 type: string
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
-                description: Money as a decimal string (API-12).
+                description: Money as a decimal string (API-12). For aggregateType PCP the amount of a line is the claimable input tax of that internal tax code (INV-REQ-441).
             required: [internalTaxCode, amount]
         claimantReference:
           type: string
@@ -559,7 +563,7 @@ components:
               transactionRef:
                 type: string
                 maxLength: 256
-                description: The reference of one underlying transaction, unique within the aggregate.
+                description: The reference of one underlying transaction, unique within the aggregate. For an STI aggregate it is the receipt number of the simplified tax invoice, the value `excludeReplacedReceipt` matches within the entity (INV-REQ-440).
               transactionDate:
                 type: string
                 format: date
@@ -570,6 +574,15 @@ components:
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12).
+              claimantReference:
+                type: string
+                maxLength: 100
+                description: The reference of the expense claimant, never a name; names stay in the source expense system (INV-REQ-884).
+              claimableInputTax:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: For a PCP aggregate the claimable input tax of the claim as the ERP stated it under the entity's elected apportionment mode (INV-REQ-370), which aggregation-svc sums per internal tax code into the aggregate (INV-REQ-441). Required for aggregateType PCP and absent for POS and STI; a PCP item without it, and a POS or STI item with it, is refused with 400 SRT-001 and nothing is stored.
             required: [transactionRef, transactionDate, internalTaxCode, amount]
       required: [entityRef, businessUnitRef, aggregateType, underlyingRef, sourceKey, sourceRevision, transactions]
     AggregationTransactionsReceipt:
@@ -629,12 +642,17 @@ components:
               transactionRef:
                 type: string
                 maxLength: 256
-                description: The reference of one retained underlying transaction, unique within the aggregate; the tie-breaker of the page order.
+                description: The reference of one retained underlying transaction, unique within the aggregate; the tie-breaker of the page order. For an STI aggregate it is the receipt number of the simplified tax invoice, the value `excludeReplacedReceipt` matches within the entity (INV-REQ-440).
               amount:
                 type: string
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12).
+              claimableInputTax:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: For a PCP aggregate the claimable input tax of the claim as the ERP stated it under the entity's elected apportionment mode (INV-REQ-370), summed per internal tax code into the aggregate (INV-REQ-441).
             required: [underlyingRef, amount, transactionRef]
         nextCursor:
           type: string

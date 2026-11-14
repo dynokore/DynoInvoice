@@ -1,0 +1,1 @@
+{"aggregateId":"AGG-4472","underlyingCount":1,"subtotalsByTaxCode":[{"internalTaxCode":"SR-STD","amount":"9.00"}],"items":[{"underlyingRef":"BATCH-9003","claimantReference":"CLM-0042","transactionRef":"CLM-0001","amount":"109.00","claimableInputTax":"9.00"}]}
