@@ -112,17 +112,11 @@ class TransportHttpClient(
         val acknowledgement = outcome.acknowledgement
         val reasons = outcome.reasons.orEmpty()
         return when {
-            outcome.outcome == TransportOutcome.Outcome.ACCEPTED && acknowledgement != null -> {
+            outcome.outcome == TransportOutcome.Outcome.ACCEPTED && acknowledgement != null ->
                 TransportResult.Accepted(acknowledgement.reference, acknowledgement.receivedAt.toInstant(), bytes)
-            }
-
-            outcome.outcome == TransportOutcome.Outcome.REJECTED && reasons.isNotEmpty() -> {
+            outcome.outcome == TransportOutcome.Outcome.REJECTED && reasons.isNotEmpty() ->
                 TransportResult.Rejected(reasons.map { RejectionReason(it.code, it.field, it.message) }, bytes)
-            }
-
-            else -> {
-                transient(bytes)
-            }
+            else -> transient(bytes)
         }
     }
 

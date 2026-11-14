@@ -129,8 +129,7 @@ class TransportHttpClientTest {
 
     @Test
     fun `INV-AC-22120 202 ACCEPTED with an acknowledgement gives Accepted with reference, time and bytes`() {
-        val body =
-            outcome("ACCEPTED", ""","acknowledgement":{"reference":"ACK-9","receivedAt":"2026-11-14T01:02:03Z"}""")
+        val body = outcome("ACCEPTED", ""","acknowledgement":{"reference":"ACK-9","receivedAt":"2026-11-14T01:02:03Z"}""")
         answer(202, body)
         val result = submit().shouldBeInstanceOf<TransportResult.Accepted>()
         result.acknowledgementId shouldBe "ACK-9"
@@ -171,10 +170,7 @@ class TransportHttpClientTest {
 
     @Test
     fun `INV-AC-22120 202 with an outcome value outside the enum gives TransientFailure`() {
-        answer(
-            202,
-            outcome("SOMETHING_NEW", ""","acknowledgement":{"reference":"A","receivedAt":"2026-11-14T01:02:03Z"}"""),
-        )
+        answer(202, outcome("SOMETHING_NEW", ""","acknowledgement":{"reference":"A","receivedAt":"2026-11-14T01:02:03Z"}"""))
         transient(submit())
     }
 
@@ -232,10 +228,7 @@ class TransportHttpClientTest {
 
     @Test
     fun `INV-AC-22120 200 with a valid ACCEPTED body gives TransientFailure`() {
-        answer(
-            200,
-            outcome("ACCEPTED", ""","acknowledgement":{"reference":"ACK-9","receivedAt":"2026-11-14T01:02:03Z"}"""),
-        )
+        answer(200, outcome("ACCEPTED", ""","acknowledgement":{"reference":"ACK-9","receivedAt":"2026-11-14T01:02:03Z"}"""))
         transient(submit())
     }
 
