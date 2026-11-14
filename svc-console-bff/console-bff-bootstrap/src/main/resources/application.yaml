@@ -27,6 +27,8 @@ console:
     per-principal: 300
     per-tenant: 3000
     ready-replicas: 1
+  exceptions:
+    max-limit: 500 # the `maximum` of the getExceptions limit parameter in the pinned contract
 management:
   server.port: 8081 # API-33: health, metrics and diagnostics only on the management port, no token
   endpoints.web:

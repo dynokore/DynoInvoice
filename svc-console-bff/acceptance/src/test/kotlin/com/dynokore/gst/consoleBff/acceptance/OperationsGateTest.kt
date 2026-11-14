@@ -1,10 +1,10 @@
 package com.dynokore.gst.consoleBff.acceptance
 
+import com.dynokore.gst.consoleBff.bootstrap.ExceptionsController
 import com.dynokore.gst.consoleBff.contract.api.ConfigurationApi
 import com.dynokore.gst.consoleBff.contract.api.DeferralsApi
 import com.dynokore.gst.consoleBff.contract.api.DocumentsApi
 import com.dynokore.gst.consoleBff.contract.api.EvidenceApi
-import com.dynokore.gst.consoleBff.contract.api.ExceptionsApi
 import com.dynokore.gst.consoleBff.contract.api.PortfolioApi
 import com.dynokore.gst.consoleBff.contract.api.PrivacyApi
 import com.dynokore.gst.consoleBff.contract.api.ProfilesApi
@@ -32,7 +32,7 @@ class OperationsGateTest {
                 DeferralsApi::class.java,
                 DocumentsApi::class.java,
                 EvidenceApi::class.java,
-                ExceptionsApi::class.java,
+                ExceptionsController::class.java,
                 PortfolioApi::class.java,
                 PrivacyApi::class.java,
                 ProfilesApi::class.java,
@@ -40,6 +40,8 @@ class OperationsGateTest {
                 WorkspacesApi::class.java,
             ),
         )
+
+    private fun doneLines() = doneText.orEmpty().lines().filter { it.isNotBlank() }
 
     private fun run(
         table: String = tsv,
@@ -53,7 +55,7 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 17
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        doneLines() shouldBe listOf("INV-T-21108")
     }
 
     @Test
@@ -81,15 +83,50 @@ class OperationsGateTest {
             own.size shouldBe 1
             own.single()[2] shouldBe "UNASSIGNED"
         }
-        stubs.size shouldBe 17
-        stubs shouldBe ids
+        stubs.size shouldBe 16
+        stubs shouldBe ids - "getExceptions"
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        doneLines() shouldBe listOf("INV-T-21108")
     }
 
     @Test
     fun `INV-AC-14437 every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+        stubs shouldBe OperationsGate.contractOperations(openapi) - "getExceptions"
+    }
+
+    @Test
+    fun `INV-AC-21107 the gate counts getExceptions as implemented, owned by this task`() {
+        run(done = doneText).shouldBeEmpty()
+        val row = tsv.lines().single { it.startsWith("operation\tgetExceptions\t") }
+        row shouldBe "operation\tgetExceptions\tINV-T-21108"
+        doneLines() shouldBe listOf("INV-T-21108")
+        ("getExceptions" in stubs) shouldBe false
+        stubs shouldBe OperationsGate.contractOperations(openapi) - "getExceptions"
+    }
+
+    @Test
+    fun `INV-AC-21107 the pinned openapi maximum of the limit equals the configured max-limit`() {
+        val spec = openapi.lines()
+        val start = spec.indexOfFirst { it.trim() == "operationId: getExceptions" }
+        val limit = spec.drop(start).indexOfFirst { it.trim() == "name: limit" }
+        val maximum =
+            spec
+                .drop(start + limit)
+                .first { it.trim().startsWith("maximum:") }
+                .substringAfter("maximum:")
+                .trim()
+                .toInt()
+        val yaml =
+            File(System.getProperty("gst.root.dir"), "console-bff-bootstrap/src/main/resources/application.yaml")
+                .readLines()
+        val configured =
+            yaml
+                .first { it.trim().startsWith("max-limit:") }
+                .substringAfter("max-limit:")
+                .substringBefore("#")
+                .trim()
+                .toInt()
+        configured shouldBe maximum
     }
 
     @Test
@@ -113,11 +150,11 @@ class OperationsGateTest {
 
     @Test
     fun `INV-AC-14437 a listed operation marked done with a 501 stub fails`() {
-        val table = tsv.replaceFirst("getExceptions\tUNASSIGNED", "getExceptions\tINV-T-9999")
+        val table = tsv.replaceFirst("getExceptionDecisionTrace\tUNASSIGNED", "getExceptionDecisionTrace\tINV-T-9999")
         run(table = table).shouldBeEmpty()
         run(table = table, done = "INV-T-9999\n") shouldContain
-            "operation getExceptions: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getExceptions").shouldBeEmpty()
+            "operation getExceptionDecisionTrace: task INV-T-9999 is done but the operation still answers 501"
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getExceptionDecisionTrace").shouldBeEmpty()
     }
 
     @Test
@@ -133,7 +170,7 @@ class OperationsGateTest {
         run(done = null) shouldContain "done-tasks.txt: the file is missing"
         run(done = "TBD\n") shouldContain "done-tasks.txt: 'TBD' is not exactly an INV-T key"
         run(done = "inv-t-5968\n") shouldContain "done-tasks.txt: 'inv-t-5968' is not exactly an INV-T key"
-        val table = tsv.replaceFirst("getExceptions\tUNASSIGNED", "getExceptions\tINV-T-14438")
+        val table = tsv.replaceFirst("getExceptionDecisionTrace\tUNASSIGNED", "getExceptionDecisionTrace\tINV-T-14438")
         run(table = table, done = "INV-T-144380\n") shouldContain
             "done-tasks.txt: INV-T-144380 names no row of operations.tsv"
         run(table = table, done = "INV-T-14438 \n").shouldNotBeEmpty()
@@ -141,7 +178,7 @@ class OperationsGateTest {
 
     @Test
     fun `INV-AC-14437 a listed key whose operation is implemented passes`() {
-        val table = tsv.replaceFirst("getExceptions\tUNASSIGNED", "getExceptions\tINV-T-14438")
-        run(table = table, done = "INV-T-14438\n", stubSet = stubs - "getExceptions").shouldBeEmpty()
+        val table = tsv.replaceFirst("getExceptionDecisionTrace\tUNASSIGNED", "getExceptionDecisionTrace\tINV-T-14438")
+        run(table = table, done = "INV-T-14438\n", stubSet = stubs - "getExceptionDecisionTrace").shouldBeEmpty()
     }
 }

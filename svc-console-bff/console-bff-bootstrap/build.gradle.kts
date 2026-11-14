@@ -10,6 +10,7 @@ dependencies {
     implementation(platform(libs.springBoot.dependencies))
     implementation(platform(libs.jackson.bom))
     implementation(project(":console-bff-adapters"))
+    implementation(project(":console-bff-contract"))
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.configResolver.impl)
