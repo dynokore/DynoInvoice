@@ -42,7 +42,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
 /** Shared fixture of the aggregation boundary tests: the real controller over the online context. */
-abstract class BoundaryFixture {
+open class BoundaryFixture {
     protected val mapper = ObjectMapper()
     protected val actor = "user:handoff-test"
 
