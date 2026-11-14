@@ -24,12 +24,14 @@ class ReadinessInputWiringTest {
     @Test
     fun `INV-AC-22208 the context has exactly one ReadinessInputSource and it is the stored one over the jOOQ ports`(
         @TempDir dir: Path,
-    ) = SubmissionContext.offline(dir).run { context ->
-        val beans = context.getBeansOfType(ReadinessInputSource::class.java)
-        beans.keys.toList() shouldBe listOf("readinessInputSource")
-        val source = beans.getValue("readinessInputSource")
-        source.shouldBeInstanceOf<StoredReadinessInputSource>()
-        field(source, "startDates").shouldBeInstanceOf<JooqObligationStartDateStore>()
-        field(source, "rows").shouldBeInstanceOf<JooqCompletenessRows>()
+    ) {
+        SubmissionContext.offline(dir).run { context ->
+            val beans = context.getBeansOfType(ReadinessInputSource::class.java)
+            beans.keys.toList() shouldBe listOf("readinessInputSource")
+            val source = beans.getValue("readinessInputSource")
+            source.shouldBeInstanceOf<StoredReadinessInputSource>()
+            field(source, "startDates").shouldBeInstanceOf<JooqObligationStartDateStore>()
+            field(source, "rows").shouldBeInstanceOf<JooqCompletenessRows>()
+        }
     }
 }
