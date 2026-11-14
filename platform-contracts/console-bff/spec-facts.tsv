@@ -1,0 +1,5 @@
+file	pointer	relation	value	requirement
+openapi.yaml	/components/schemas/Exception/properties/disposition/type	equals	"string"	INV-REQ-940
+openapi.yaml	/components/schemas/Exception/properties/disposition/x-extensible-enum	equals	["AUTO_RELEASE","AUTO_RETRY","MANUAL","OVERRIDABLE","TERMINAL"]	INV-REQ-940
+openapi.yaml	/components/schemas/Exception/properties/disposition/enum	absent	-	INV-REQ-940
+openapi.yaml	/components/schemas/Exception/required	contains	"disposition"	INV-REQ-940

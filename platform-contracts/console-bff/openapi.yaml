@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -1404,13 +1404,14 @@ components:
             the queue by (`code`, `remediationOwner`) (INV-REQ-1184).
         disposition:
           type: string
-          enum: [AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL]
-          x-extensible-enum: true
+          x-extensible-enum: [AUTO_RELEASE, AUTO_RETRY, MANUAL, OVERRIDABLE, TERMINAL]
           description: >-
             The base disposition of the code in the error catalogue. A client
             renders an override control only when the value equals
             OVERRIDABLE and renders none for any other or unknown value
-            (INV-REQ-1023).
+            (INV-REQ-1023). The five listed members are the known ones; a
+            consumer carries any other value unchanged, and the empty string
+            means that the stored row holds no disposition.
         deferralId:
           type: string
           format: uuid
