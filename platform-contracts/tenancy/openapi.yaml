@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 1.38.0
+  version: 2.0.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -2547,6 +2547,7 @@ paths:
       x-error-codes:
       - TNC-001
       x-sync-edge: control-plane-svc->tenancy-svc
+      x-flow-context: required
       x-operation:
         role: control-plane-svc
         scope: platform
@@ -2554,6 +2555,7 @@ paths:
         reversibility: COMPENSABLE
         repeatKey: contractReference — a repeat returns the original tenant; offboard to reverse
       parameters:
+      - $ref: '#/components/parameters/FlowContext'
       - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
@@ -3035,6 +3037,7 @@ paths:
       x-principal: filing-workflow
       x-caller-auth: service-job
       x-sync-edge: control-plane-svc->tenancy-svc
+      x-flow-context: required
       x-timeout: 2000
       x-requirements:
       - FR-G.10
@@ -3051,6 +3054,7 @@ paths:
         reversibility: IRREVERSIBLE
         repeatKey: (tenantRef)
       parameters:
+      - $ref: '#/components/parameters/FlowContext'
       - name: tenantRef
         in: path
         required: true
@@ -3438,6 +3442,16 @@ paths:
           $ref: '#/components/responses/Error'
 components:
   parameters:
+    FlowContext:
+      name: X-Flow-Context
+      in: header
+      required: true
+      description: >-
+        The signed compact form of the flow context defined by
+        access/schemas/flow-context.schema.json (INV-Q-9241 B): tenant, entity
+        and originating principal kind, verified by the callee and bound to RLS.
+      schema:
+        type: string
     IdempotencyKey:
       name: Idempotency-Key
       in: header

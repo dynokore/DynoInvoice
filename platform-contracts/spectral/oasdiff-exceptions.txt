@@ -97,3 +97,9 @@ POST /internal/v1/rules/pre-issuance-drafts/evaluations added the new required `
 POST /internal/v1/payload/pre-issuance-checks added the new required `header` request parameter `x-flow-context`
 POST /internal/v1/payload/documents/{docUuid}/versions/{version}/validate added the new required `header` request parameter `x-flow-context`
 POST /internal/v1/aggregation/batches added the new required `header` request parameter `x-flow-context`
+# INV-T-17622 (breakdown tooling/split9256-gap.md; question located at the body of INV-T-17620, heading oasdiff-breaking-gate / new-required-request-parameter; precedent INV-Q-3569):
+# createTenant and closeTenant (tenancy) carry the required header X-Flow-Context (INV-Q-9241 B).
+# Permitted within v1 because no train is published (platform-release manifest/trains/ holds only its README) and the callees have not adopted the header.
+# After the first published train a new required request parameter is breaking (API-03).
+POST /internal/v1/tenancy/tenants added the new required `header` request parameter `x-flow-context`
+POST /internal/v1/tenancy/tenants/{tenantRef}/close added the new required `header` request parameter `x-flow-context`
