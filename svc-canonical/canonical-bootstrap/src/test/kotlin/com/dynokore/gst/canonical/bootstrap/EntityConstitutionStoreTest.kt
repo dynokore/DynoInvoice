@@ -6,6 +6,7 @@ import com.dynokore.gst.canonical.adapters.persistence.JooqEntityConstitutions
 import com.dynokore.gst.canonical.application.entity.EntityConstitutionFact
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
@@ -26,6 +27,7 @@ class EntityConstitutionStoreTest {
         context: ApplicationContext,
     ) {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
+        val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val store = JooqEntityConstitutions(context.getBean(DSLContext::class.java))
     }
 
@@ -44,13 +46,13 @@ class EntityConstitutionStoreTest {
     ) = EntityConstitutionFact(tenant, entity, constitution, version)
 
     private fun Boundary.applyAs(fact: EntityConstitutionFact) =
-        scope.bind(TenantId(fact.tenantId), actor) { store.apply(fact) }
+        scope.bind(TenantId(fact.tenantId), actor) { runner.inTransaction { store.apply(fact) } }
 
     private fun Boundary.constitutionAs(
         session: UUID,
         tenant: UUID,
         entity: String,
-    ): String? = scope.bind(TenantId(session), actor) { store.constitutionOf(tenant, entity) }
+    ): String? = scope.bind(TenantId(session), actor) { runner.inTransaction { store.constitutionOf(tenant, entity) } }
 
     /** Every row of the two tenants, read by the owner (no row security) so a stray row would show. */
     private fun rowsOf(vararg tenants: UUID): List<List<String?>> =
@@ -119,7 +121,7 @@ class EntityConstitutionStoreTest {
         b.constitutionAs(t2, t1, "ENT-1") shouldBe null
         b.constitutionAs(t2, t2, "ENT-1") shouldBe "PUBLIC_LIMITED"
         // a write for another tenant than the bound one is refused by the policy's WITH CHECK
-        val refused = runCatching { b.scope.bind(TenantId(t2), actor) { b.store.apply(fact(t1, "SOLE_PROPRIETOR", 9)) } }
+        val refused = runCatching { b.scope.bind(TenantId(t2), actor) { b.runner.inTransaction { b.store.apply(fact(t1, "SOLE_PROPRIETOR", 9)) } } }
         (refused.isFailure) shouldBe true
         rowsOf(t1).single()[3] shouldBe "6"
     }
