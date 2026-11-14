@@ -38,7 +38,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 private const val IMPORT_PERMISSION = "regulatory-pack.import-verify"
-private const val TRAIN_ENGINE = "2.0.0"
 
 private val HOLIDAYS = listOf("2027-01-01", "2027-02-06", "2027-04-02", "2027-05-01", "2027-12-25")
 

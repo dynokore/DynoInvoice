@@ -80,19 +80,19 @@ internal object CalendarPackChecks {
 
     private fun descendingRefusal(thresholds: JsonNode?): String? =
         keys(thresholds).firstNotNullOfOrNull { key ->
-            val list = thresholds?.get(key)
-            val days =
-                if (list != null &&
-                    list.isArray
-                ) {
-                    list.toList().map { if (it.isIntegralNumber) it.asLong() else null }
-                } else {
+            val list = thresholds?.get(key)?.takeIf { it.isArray }?.toList()
+            when {
+                list == null || list.any { !it.isIntegralNumber } -> {
+                    "alertThresholds.$key must be a list of integers"
+                }
+
+                list.map { it.asLong() }.zipWithNext().any { (a, b) -> b >= a } -> {
+                    "alertThresholds.$key is not strictly descending"
+                }
+
+                else -> {
                     null
                 }
-            when {
-                days == null || days.any { it == null } -> "alertThresholds.$key must be a list of integers"
-                days.zipWithNext().any { (a, b) -> b!! >= a!! } -> "alertThresholds.$key is not strictly descending"
-                else -> null
             }
         }
 
@@ -152,17 +152,23 @@ internal object CalendarPackChecks {
                 ?.toList()
                 .orEmpty()
         val keyed = rows.mapIndexed { index, row -> index to keyOf(row) }
-        classRefusal(rows)?.let { return it }
-        for (entry in entries) {
-            val count = keyed.count { it.second == entry }
-            if (count == 0) return "entrySources has no row for entry $entry"
-            if (count > 1) return "entrySources has $count rows for entry $entry"
-        }
         val held = entries.toSet()
-        return keyed.firstOrNull { it.second !in held }?.let { (index, key) ->
-            "entrySources[$index] names an entry the contents do not hold: ${key ?: "unreadable row"}"
-        }
+        return classRefusal(rows)
+            ?: entries.firstNotNullOfOrNull { entry -> countRefusal(entry, keyed.count { it.second == entry }) }
+            ?: keyed.firstOrNull { it.second !in held }?.let { (index, key) ->
+                "entrySources[$index] names an entry the contents do not hold: ${key ?: "unreadable row"}"
+            }
     }
+
+    private fun countRefusal(
+        entry: Key,
+        count: Int,
+    ): String? =
+        when (count) {
+            0 -> "entrySources has no row for entry $entry"
+            1 -> null
+            else -> "entrySources has $count rows for entry $entry"
+        }
 
     /** A row without a class or citation is refused; an unclassified entry is never read as PRIMARY (INV-AC-1727). */
     private fun classRefusal(rows: List<JsonNode>): String? =
@@ -199,17 +205,27 @@ internal object CalendarPackChecks {
 
 /** The rendition wording of a scenario pack: an item without a source class refuses the pack (INV-Q-6556). */
 internal object ScenarioRenditionChecks {
-    fun refusal(root: ContentsNode): String? {
-        val entries = root.optionalArray("renditionWording", 0, Int.MAX_VALUE) ?: return null
-        entries.forEachIndexed { i, entry ->
-            val items = entry.optionalArray("requiredWording", 0, Int.MAX_VALUE).orEmpty()
-            items.forEachIndexed { j, item ->
-                if (!item.has("sourceClass")) {
-                    return "renditionWording[$i].requiredWording[$j].sourceClass is required"
+    fun refusal(root: ContentsNode): String? =
+        root
+            .optionalArray("renditionWording", 0, Int.MAX_VALUE)
+            .orEmpty()
+            .withIndex()
+            .firstNotNullOfOrNull { (i, entry) -> entryRefusal(i, entry) }
+
+    private fun entryRefusal(
+        i: Int,
+        entry: ContentsNode,
+    ): String? =
+        entry
+            .optionalArray("requiredWording", 0, Int.MAX_VALUE)
+            .orEmpty()
+            .withIndex()
+            .firstNotNullOfOrNull { (j, item) ->
+                if (item.has("sourceClass")) {
+                    item.text("sourceClass", oneOf = SOURCE_CLASSES)
+                    null
+                } else {
+                    "renditionWording[$i].requiredWording[$j].sourceClass is required"
                 }
-                item.text("sourceClass", oneOf = SOURCE_CLASSES)
             }
-        }
-        return null
-    }
 }

@@ -33,7 +33,7 @@ class PackContentsChecksTest {
             """{"windows":$windows,"finalReturnForm":"F8","dueRules":{"F5":{"monthsAfterEnd":1,"endOfMonth":true,""" +
                 """"daysAfterEnd":0}},"weekend":["SATURDAY","SUNDAY"],"holidays":[$quoted],""" +
                 """"pinnedRule":"NEXT_WORKING_DAY","alertThresholds":$thresholds""" +
-                (margin?.let { ""","safetyMargin":$it""" } ?: "") +
+                margin?.let { ""","safetyMargin":$it""" }.orEmpty() +
                 ""","entrySources":[${rows.joinToString(",")}]}"""
         ).toByteArray()
     }
