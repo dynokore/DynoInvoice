@@ -103,7 +103,7 @@ class SilenceLimitPolicyBoundaryTest(
         val scope = if (level == "TENANT") """"scopeRef":"$tenant",""" else ""
         val body =
             """{"scopeLevel":"$level",$scope"selected":[{"option":"$option"}],""" +
-                """"effectiveDate":"${LocalDate.now()}","reason":"INV-T-4976 limit case"}"""
+                """"effectiveDate":"${LocalDate.now(clock)}","reason":"INV-T-4976 limit case"}"""
         return HttpClient.newHttpClient().send(
             HttpRequest
                 .newBuilder(URI("http://localhost:$port/internal/v1/policies/VP-72"))

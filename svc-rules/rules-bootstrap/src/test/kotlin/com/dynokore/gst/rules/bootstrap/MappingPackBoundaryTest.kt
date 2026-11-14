@@ -473,6 +473,7 @@ class MappingPackBoundaryTest(
     @Autowired private val tenants: TenantContext,
     @Autowired private val tx: TransactionRunner,
     @Autowired private val db: org.jooq.DSLContext,
+    @Autowired private val clock: java.time.Clock,
 ) : MappingPackSupport(port) {
     private var counter = 0
 
@@ -480,6 +481,14 @@ class MappingPackBoundaryTest(
     fun resetProbe() = MappingPortProbe.reset()
 
     private fun label() = "2026.${++counter}-${UUID.randomUUID().toString().take(6)}"
+
+    @Test
+    fun `DEP-001 is evaluated at the activation of a pack, not only at the daily tick`() {
+        value(TenantId.PLATFORM, "update rules.pack_currency_state set evaluated_on = date '2000-01-01' returning 1")
+        fullFlow(label(), "2026-01-01")
+        value(TenantId.PLATFORM, "select evaluated_on from rules.pack_currency_state").toString() shouldBe
+            java.time.LocalDate.now(clock).toString()
+    }
 
     @Test
     fun `INV-AC-1652 a version signed off by another user is activated and its approval record is exported`() {

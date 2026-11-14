@@ -16,6 +16,7 @@ import com.dynokore.gst.rules.application.AcceptEntryCommand
 import com.dynokore.gst.rules.application.ActivateCommand
 import com.dynokore.gst.rules.application.ActivePacksOutcome
 import com.dynokore.gst.rules.application.ApproveRegulatoryPack
+import com.dynokore.gst.rules.application.PackCurrencyMonitor
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DraftCommand
 import com.dynokore.gst.rules.application.ImportRegulatoryPack
@@ -57,6 +58,7 @@ import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -93,6 +95,7 @@ open class PacksController(
     private val dryRuns: DryRunCalls,
     private val approvals: ApproveRegulatoryPack,
     private val importer: ImportRegulatoryPack,
+    private val currency: PackCurrencyMonitor,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -342,6 +345,17 @@ open class PacksController(
     override fun activateMappingPack(
         packId: String,
         idempotencyKey: UUID,
+        activateMappingPackRequest: ActivateMappingPackRequest,
+    ): ResponseEntity<MappingPack> {
+        val answer = activated(packId, activateMappingPackRequest)
+        // DEP-001 clears at activation (INV-REQ-1080): evaluated after the commit, under its own platform binding.
+        runCatching { currency.packActivated() }
+            .onFailure { LoggerFactory.getLogger(PacksController::class.java).warn("DEP-001 evaluation failed", it) }
+        return answer
+    }
+
+    private fun activated(
+        packId: String,
         activateMappingPackRequest: ActivateMappingPackRequest,
     ): ResponseEntity<MappingPack> =
         transactions.inTransaction {
