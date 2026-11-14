@@ -146,7 +146,7 @@ class OwningServiceEdgeTest {
         } finally {
             server.stop(0)
         }
-        assertEquals(listOf("GET /probe/PAYLOAD", "GET /probe/SUBMISSION"), seen.toList())
+        assertEquals(listOf("GET /probe/PAYLOAD", "GET /probe/SUBMISSION", "GET /probe/MASTERDATA"), seen.toList())
     }
 
     private class Recording : ResilienceRegistry {
@@ -196,5 +196,24 @@ class OwningServiceEdgeTest {
             )
         assertEquals(RequestMethod.POST, submission.method)
         assertEquals("/internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides", submission.path)
+    }
+
+    @Test
+    @DisplayName("INV-AC-21307 the edge console-bff->masterdata-svc has the property, the name and the timeout 2000 ms")
+    fun masterdataEdge() {
+        assertEquals("console-bff->masterdata-svc", OwningService.MASTERDATA.edge)
+        assertEquals("console.masterdata-svc-url", OwningService.MASTERDATA.urlProperty)
+        assertEquals(Duration.ofMillis(TIMEOUT_MS), OwningService.MASTERDATA.timeout)
+    }
+
+    @Test
+    @DisplayName("INV-AC-21307 the masterdata base URL refuses a blank value and a placeholder-prefixed value")
+    fun masterdataBaseUrlRefused() {
+        val s = OwningService.MASTERDATA
+        assertThrows(IllegalStateException::class.java) { OwningServiceEdge.baseUrl(MockEnvironment(), s) }
+        for (bad in listOf("", " ", placeholder, placeholder + "/x")) {
+            assertThrows(IllegalArgumentException::class.java) { OwningServiceEdge.baseUrl(env(s.urlProperty, bad), s) }
+        }
+        assertEquals("http://h:1", OwningServiceEdge.baseUrl(env(s.urlProperty, "http://h:1"), s))
     }
 }

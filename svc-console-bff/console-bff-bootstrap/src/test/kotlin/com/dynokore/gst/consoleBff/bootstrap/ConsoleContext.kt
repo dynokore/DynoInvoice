@@ -29,6 +29,7 @@ object ConsoleContext {
             "console.canonical-svc-url=http://localhost:8082", // CanonicalEdgeClient requires its base URL (TPL-16)
             "console.payload-svc-url=http://localhost:8083", // PayloadOverrideClient base URL (TPL-16)
             "console.submission-svc-url=http://localhost:8084", // SubmissionOverrideClient base URL (TPL-16)
+            "console.masterdata-svc-url=http://localhost:8085", // MasterdataBulkClient base URL (TPL-16)
             *extra,
         )
     }
