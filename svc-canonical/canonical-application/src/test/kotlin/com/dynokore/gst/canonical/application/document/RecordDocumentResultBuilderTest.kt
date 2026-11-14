@@ -37,6 +37,7 @@ class RecordDocumentResultBuilderTest {
     )
 
     private val electionReads = mutableListOf<String>()
+    private val electionDates = mutableListOf<LocalDate>()
     private val scopeCalls = mutableListOf<Calls>()
     private val maps = mutableListOf<Map<String, Any?>>()
     private var rulesUp = true
@@ -50,8 +51,9 @@ class RecordDocumentResultBuilderTest {
                     else -> emptyList()
                 }
             },
-            elections = { _, e, _ ->
+            elections = { _, e, on ->
                 electionReads += e
+                electionDates += on
                 if (e == "E1") DateBasis.POSTING_DATE else null
             },
             scope = { _, p, d ->
@@ -118,6 +120,15 @@ class RecordDocumentResultBuilderTest {
         checkReason(reasons(m).single())
         m["transactionDate"] shouldBe "2026-03-20"
         m["prescribedPeriodRef"] shouldBe ""
+        scopeCalls shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21412 election date is the request transactionDate and not the posting date`() {
+        built(purchase)
+        electionDates.size shouldBe 1
+        electionDates.single() shouldBe LocalDate.of(2026, 3, 20)
+        (electionDates.single() == LocalDate.of(2026, 4, 1)) shouldBe false
     }
 
     @Test
