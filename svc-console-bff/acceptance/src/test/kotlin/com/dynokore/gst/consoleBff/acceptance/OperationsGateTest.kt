@@ -3,6 +3,7 @@ package com.dynokore.gst.consoleBff.acceptance
 import com.dynokore.gst.consoleBff.bootstrap.DeferralsController
 import com.dynokore.gst.consoleBff.bootstrap.ExceptionsController
 import com.dynokore.gst.consoleBff.contract.api.ConfigurationApi
+import com.dynokore.gst.consoleBff.contract.api.DeferralsApi
 import com.dynokore.gst.consoleBff.contract.api.DocumentsApi
 import com.dynokore.gst.consoleBff.contract.api.EvidenceApi
 import com.dynokore.gst.consoleBff.contract.api.PortfolioApi
@@ -25,21 +26,21 @@ class OperationsGateTest {
     private val tsv = File(System.getProperty("gst.root.dir"), "operations.tsv").readText()
 
     /** Operations answering 501 (OperationsStubs): what each generated server interface method does. */
-    private val stubs: Set<String> =
-        OperationsStubs.stubs(
-            listOf(
-                ConfigurationApi::class.java,
-                DeferralsController::class.java,
-                DocumentsApi::class.java,
-                EvidenceApi::class.java,
-                ExceptionsController::class.java,
-                PortfolioApi::class.java,
-                PrivacyApi::class.java,
-                ProfilesApi::class.java,
-                SupportApi::class.java,
-                WorkspacesApi::class.java,
-            ),
+    private val stubSources: List<Class<*>> =
+        listOf(
+            ConfigurationApi::class.java,
+            DeferralsController::class.java,
+            DocumentsApi::class.java,
+            EvidenceApi::class.java,
+            ExceptionsController::class.java,
+            PortfolioApi::class.java,
+            PrivacyApi::class.java,
+            ProfilesApi::class.java,
+            SupportApi::class.java,
+            WorkspacesApi::class.java,
         )
+
+    private val stubs: Set<String> = OperationsStubs.stubs(stubSources)
 
     private val implemented = setOf("getExceptions", "deferDocument", "undeferDocument")
 
@@ -113,6 +114,14 @@ class OperationsGateTest {
         }
         doneLines() shouldContain "INV-T-21165"
         stubs shouldBe OperationsGate.contractOperations(openapi) - implemented
+    }
+
+    @Test
+    fun `INV-AC-21164 the stub source list names DeferralsController, which alone removes both stubs`() {
+        (DeferralsController::class.java in stubSources) shouldBe true
+        (DeferralsApi::class.java in stubSources) shouldBe false
+        OperationsStubs.stubs(listOf(DeferralsApi::class.java)) shouldBe setOf("deferDocument", "undeferDocument")
+        OperationsStubs.stubs(listOf(DeferralsController::class.java)).shouldBeEmpty()
     }
 
     @Test
