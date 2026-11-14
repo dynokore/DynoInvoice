@@ -54,6 +54,7 @@ class RolePermissionsTest {
                 ),
                 Req("regulatory-pack.import-verify", PermissionKind.WRITE, "tax.approver", y, listOf(privateForm)),
                 Req("regulatory-pack.arm", PermissionKind.WRITE, "tax.approver", y, listOf(privateForm)),
+                Req("regulatory-pack.arm", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
                 Req("regulatory-pack.activate", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
                 Req("retention.delete.request", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
                 Req("retention.delete.request", PermissionKind.WRITE, "deployment.operator", y, listOf(privateForm)),
@@ -636,32 +637,6 @@ class RolePermissionsTest {
                 .forEach { assertEquals(PermissionKind.READ, RolePermissions.kind(it), it) }
         }
     }
-
-    @Test
-    fun `whole-job run is held by the platform engineer in SaaS and not by the integration engineer`() {
-        assertEquals(y, cell(saas, "platform.engineer", "job.operate-whole-job"))
-        assertNull(cell(saas, "integration.engineer", "job.operate-whole-job"))
-        assertNull(cell(saas, "platform.engineer", "job.operate"))
-    }
-
-    @Test
-    fun `private form gives the client signatory only WITHIN_SCOPE cells`() {
-        val cells = RolePermissions.cells(privateForm).getValue("client.signatory")
-        assertTrue(cells.isNotEmpty())
-        cells.values.forEach { assertEquals(RoleAllowance.WITHIN_SCOPE, it) }
-    }
-
-    @Test
-    fun `INV-AC-18809 migration-cutover keys have their kinds and holders in both forms`() {
-        assertEquals(PermissionKind.WRITE, RolePermissions.kind("migration-cutover.record"))
-        assertEquals(PermissionKind.READ, RolePermissions.kind("migration-cutover.view"))
-        val view = setOf("entity.admin", "tenant.admin", "tax.approver")
-        both.forEach { f ->
-            val h = { k: String -> RolePermissions.cells(f).filter { (_, p) -> p[k] == y }.keys }
-            assertEquals(setOf("entity.admin"), h("migration-cutover.record"))
-            assertEquals(view, h("migration-cutover.view"))
-        }
-    }
 }
 
 /** INV-T-19765: the four tenant-schedule keys, asserted through the library API only (own class: LargeClass limit). */
@@ -740,5 +715,57 @@ class Vp79RolePermissionsTest {
         // the siblings keep their private cell
         assertEquals(y, cell(privateForm, "deployment.operator", "vp-78.set"))
         assertEquals(y, cell(privateForm, "deployment.operator", "vp-80.set"))
+    }
+}
+
+/** INV-T-22924: the arm key cells and API-only tests moved verbatim from RolePermissionsTest (LargeClass limit). */
+class RegulatoryPackArmRolePermissionsTest {
+    private val saas = DeploymentForm.SAAS
+    private val privateForm = DeploymentForm.PRIVATE
+    private val both = listOf(saas, privateForm)
+    private val y = RoleAllowance.PERMITTED
+
+    private fun cell(
+        form: DeploymentForm,
+        role: String,
+        key: String,
+    ) = RolePermissions.cells(form)[role]?.get(key)
+
+    @Test
+    fun `INV-AC-22923 regulatory-pack arm is held by platform engineer in SAAS and tax approver in PRIVATE only`() {
+        val arm = "regulatory-pack.arm"
+        assertEquals(y, cell(saas, "platform.engineer", arm))
+        assertEquals(y, cell(privateForm, "tax.approver", arm))
+        // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+        assertNull(cell(privateForm, "platform.engineer", arm))
+        assertNull(cell(saas, "tax.approver", arm))
+        assertNull(cell(privateForm, "deployment.operator", arm))
+        assertNull(RolePermissions.kind("regulatory-pack.arms"))
+    }
+
+    @Test
+    fun `whole-job run is held by the platform engineer in SaaS and not by the integration engineer`() {
+        assertEquals(y, cell(saas, "platform.engineer", "job.operate-whole-job"))
+        assertNull(cell(saas, "integration.engineer", "job.operate-whole-job"))
+        assertNull(cell(saas, "platform.engineer", "job.operate"))
+    }
+
+    @Test
+    fun `private form gives the client signatory only WITHIN_SCOPE cells`() {
+        val cells = RolePermissions.cells(privateForm).getValue("client.signatory")
+        assertTrue(cells.isNotEmpty())
+        cells.values.forEach { assertEquals(RoleAllowance.WITHIN_SCOPE, it) }
+    }
+
+    @Test
+    fun `INV-AC-18809 migration-cutover keys have their kinds and holders in both forms`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("migration-cutover.record"))
+        assertEquals(PermissionKind.READ, RolePermissions.kind("migration-cutover.view"))
+        val view = setOf("entity.admin", "tenant.admin", "tax.approver")
+        both.forEach { f ->
+            val h = { k: String -> RolePermissions.cells(f).filter { (_, p) -> p[k] == y }.keys }
+            assertEquals(setOf("entity.admin"), h("migration-cutover.record"))
+            assertEquals(view, h("migration-cutover.view"))
+        }
     }
 }
