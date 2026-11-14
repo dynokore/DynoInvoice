@@ -36,6 +36,7 @@ class EntityNodeChangedHandler(
         val version = data.structureVersion
         val kept = data.kind == EntityNode.KIND_ENTITY || data.kind == EntityNode.KIND_GROUP
         return if (version != null && kept) {
+            if (data.gstn != null && data.gstn.isBlank()) throw ContractViolation("gstn is blank")
             val node = EntityNode(data.nodeRef, data.kind, data.parentRef, data.gstn, version)
             if (nodes.record(tenants.current(), node)) HandleOutcome.APPLIED else HandleOutcome.IGNORED
         } else {

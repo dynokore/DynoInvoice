@@ -142,13 +142,17 @@ class EntityNodeChangedHandlerTest {
     }
 
     @Test
-    fun `INV-AC-22282 a blank own GSTN is never returned`() {
-        // The node type refuses a blank GSTN, so a blank one is a ContractViolation-class input, not a value.
+    fun `INV-AC-22282 a blank GSTN is refused by EntityNode and a null one is accepted`() {
         shouldThrow<IllegalArgumentException> { EntityNode("E", "ENTITY", "P", " ", 1) }
-        val noParentGstn = EntityNode("E", "ENTITY", "P", null, 1)
-        store.record(tenant, noParentGstn)
-        store.record(tenant, EntityNode("P", "GROUP", null, null, 1))
-        lookup.gstnOf(tenant, "E") shouldBe null
+        shouldThrow<IllegalArgumentException> { EntityNode("E", "ENTITY", "P", "", 1) }
+        EntityNode("E", "ENTITY", "P", null, 1).gstn shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-22282 a blank GSTN in the event data is a ContractViolation and stores nothing`() {
+        shouldThrow<ContractViolation> { deliver(gstn = " ") }
+        shouldThrow<ContractViolation> { deliver(gstn = "") }
+        store.rows.isEmpty() shouldBe true
     }
 
     @Test

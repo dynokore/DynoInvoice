@@ -49,7 +49,10 @@ fun interface EntityGstns {
     ): String?
 }
 
-/** Own GSTN of an ENTITY node, else the GSTN of its parent GROUP, else null (INV-NOTE-2 section 5.1). */
+/**
+ * Own GSTN of an ENTITY node, else the GSTN of its parent GROUP, else null (INV-NOTE-2 section 5.1).
+ * EntityNode.init guarantees no stored GSTN is blank, so the lookup tests none.
+ */
 class StoredEntityGstns(
     private val nodes: EntityNodes,
 ) : EntityGstns {
@@ -58,7 +61,7 @@ class StoredEntityGstns(
         entityRef: String,
     ): String? {
         val node = nodes.find(tenant, entityRef)?.takeIf { it.kind == EntityNode.KIND_ENTITY } ?: return null
-        return node.gstn?.takeIf { it.isNotBlank() } ?: parentGroupGstn(tenant, node.parentRef)
+        return node.gstn ?: parentGroupGstn(tenant, node.parentRef)
     }
 
     private fun parentGroupGstn(
@@ -69,5 +72,4 @@ class StoredEntityGstns(
             ?.let { nodes.find(tenant, it) }
             ?.takeIf { it.kind == EntityNode.KIND_GROUP }
             ?.gstn
-            ?.takeIf { it.isNotBlank() }
 }
