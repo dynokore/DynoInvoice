@@ -48,11 +48,16 @@ open class IntakeController(
                 is IntakeOutcome.Replayed -> outcome.aggregate
                 is IntakeOutcome.Replaced -> outcome.aggregate
                 is IntakeOutcome.Supplemented -> outcome.aggregate
-                is IntakeOutcome.Unchanged -> outcome.aggregate
                 else -> null
             }
         if (stored != null) return accepted(stored)
         return when (outcome) {
+            // Open gap (reported with INV-T-4979): what a higher revision does to an aggregate already handed on but
+            // not transmitted is not decided; nothing is stored and the request fails loudly.
+            is IntakeOutcome.ReplacementAfterHandOn -> {
+                error("replacement of the handed-on aggregate ${outcome.aggregateId} is not decided")
+            }
+
             is IntakeOutcome.SourceRevisionLower -> {
                 problem<AggregationReceipt>(IngestionErrorCode.SOURCE_REVISION_LOWER)
             }

@@ -92,21 +92,11 @@ interface AggregateRevisions {
         sourceKey: String,
     ): StoredAggregate?
 
-    /**
-     * The lines of every aggregate of the entity and source key that is not superseded (originals and supplementaries),
-     * except the aggregate [excluding]; credit-note aggregates are not part of the sum.
-     */
-    fun recordedLines(
+    /** The lines of every transmitted aggregate of the entity and source key, those of supplementaries included. */
+    fun transmittedLines(
         entityRef: String,
         sourceKey: String,
-        excluding: UUID? = null,
     ): List<AggregateLine>
-
-    /** Records the revision as seen against [compared] when no aggregate is stored for it (zero difference). */
-    fun recordSeen(
-        compared: StoredAggregate,
-        sourceRevision: Long,
-    )
 
     /**
      * Stores [replacement] and marks [old] superseded by it in one transaction; the row of [old] is not deleted.
@@ -151,9 +141,12 @@ sealed interface IntakeOutcome {
         val aggregate: StoredAggregate,
     ) : IntakeOutcome
 
-    /** A higher revision whose per-code difference is zero: nothing is stored, [aggregate] is the one compared. */
-    data class Unchanged(
-        val aggregate: StoredAggregate,
+    /**
+     * The aggregate to replace has not been transmitted but AggregateReady was published for it. Not decided (open
+     * gap): nothing is stored.
+     */
+    data class ReplacementAfterHandOn(
+        val aggregateId: UUID,
     ) : IntakeOutcome
 
     data class NumberNotBuildable(
@@ -191,17 +184,17 @@ class IntakeAggregate(
         }
 
     /**
-     * Higher revision over a recorded aggregate (INV-REQ-434 item 4). Neither transmitted nor handed on: the new
-     * revision replaces it and keeps its number. Otherwise it is never amended; a supplementary aggregate with the next
-     * sequence and a new number carries the per-code difference to the aggregates of the key that are not superseded;
-     * a zero difference stores nothing and answers the aggregate compared.
+     * Higher revision over a recorded aggregate (INV-REQ-434 item 4). Not transmitted: the new revision replaces it
+     * and keeps its number. Transmitted: never amended; a supplementary aggregate with the next sequence and a new
+     * number carries the per-code difference to everything transmitted for the key.
      */
     private fun revise(
         command: IntakeCommand,
         current: StoredAggregate,
     ): IntakeOutcome =
         when {
-            current.transmittedAt != null || current.handedOn -> supplement(command, current)
+            current.transmittedAt != null -> supplement(command)
+            current.handedOn -> IntakeOutcome.ReplacementAfterHandOn(current.aggregateId)
             else -> replace(command, current)
         }
 
@@ -213,10 +206,7 @@ class IntakeAggregate(
         val old = current.aggregate
         val lines =
             if (old.isSupplementary) {
-                AggregateLines.difference(
-                    command.lines,
-                    store.recordedLines(command.entityRef, command.sourceKey, current.aggregateId),
-                )
+                AggregateLines.difference(command.lines, store.transmittedLines(command.entityRef, command.sourceKey))
             } else {
                 AggregateLines.merge(command.lines)
             }
@@ -234,17 +224,10 @@ class IntakeAggregate(
         }
     }
 
-    private fun supplement(
-        command: IntakeCommand,
-        current: StoredAggregate,
-    ): IntakeOutcome {
+    private fun supplement(command: IntakeCommand): IntakeOutcome {
         val store = checkNotNull(revisions)
         val difference =
-            AggregateLines.difference(command.lines, store.recordedLines(command.entityRef, command.sourceKey))
-        if (difference.isEmpty()) {
-            store.recordSeen(current, command.sourceRevision)
-            return IntakeOutcome.Unchanged(current)
-        }
+            AggregateLines.difference(command.lines, store.transmittedLines(command.entityRef, command.sourceKey))
         return when (val made = create(command.copy(lines = difference), supplementary = true)) {
             is IntakeOutcome.Created -> IntakeOutcome.Supplemented(made.aggregate)
             else -> made
