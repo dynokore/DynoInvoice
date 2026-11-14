@@ -56,8 +56,8 @@ sealed interface ConfirmFilingResult {
 /**
  * Confirms a filing (INV-REQ-917). Order: permission (one decision point, `AuthorityReplica.decide`, for every caller
  * kind), due date, gate, append; a refusal appends nothing. Reads no clock: `confirmedAt` is the `recordedAt` the store
- * stamped on the stored fact equal to the request, so a repeat answers the first call's value. More than one due date is
- * a corrupt-state invariant violation: [AmbiguousDueDateException] propagates out of [handle] after the permission
+ * stamped on the stored fact equal to the request, so a repeat answers the first call's value. More than one due
+ * date is a corrupt-state invariant violation: [AmbiguousDueDateException] propagates out of [handle] after the permission
  * decision and before any gate read or append; only no date is [ConfirmFilingResult.NoDueDate]. The gate mode is read
  * at the filing's own calendar date, its transaction date (INV-REQ-1351).
  */
