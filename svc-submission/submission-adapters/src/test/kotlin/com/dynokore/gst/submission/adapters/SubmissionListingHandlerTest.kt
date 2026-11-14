@@ -97,7 +97,7 @@ class SubmissionListingHandlerTest {
         }
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // test helper mirrors the generated operation signature
     private fun row(
         doc: String,
         version: Int,
@@ -228,7 +228,7 @@ class SubmissionListingHandlerTest {
 
     private fun both() = fixture(machine(), replica())
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // test helper mirrors the generated operation signature
     private fun call(
         f: Fixture,
         entityRef: String = entity,
@@ -267,7 +267,7 @@ class SubmissionListingHandlerTest {
         return response.statusCode.value() to code
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList") // test helper mirrors the generated operation signature
     private fun refusedCall(
         f: Fixture,
         entityRef: String = entity,
