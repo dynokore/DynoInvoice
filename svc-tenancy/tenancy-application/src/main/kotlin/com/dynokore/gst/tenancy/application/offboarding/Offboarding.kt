@@ -153,6 +153,7 @@ class OffboardTenant(
     private val authority: ActionAuthority,
     private val tenants: TenantContext,
     private val tenantStore: TenantStore,
+    private val expiry: OffboardingExpiry? = null,
 ) {
     private val confirmation = SecondConfirmation(authority)
 
@@ -267,7 +268,12 @@ class OffboardTenant(
                 OffboardOutcome.Conflict(OffboardingCodes.CUSTODY_HOLDER, "a retention custody holder must be named")
             }
 
-            store.blocking(request.scope, request.entityRef) != null -> {
+            expiry
+                ?.expireOverdue(
+                    request.scope,
+                    request.entityRef,
+                ).let { store.blocking(request.scope, request.entityRef) } !=
+                null -> {
                 OffboardOutcome.Conflict(OffboardingCodes.RECORD_EXISTS, "an offboarding record already exists")
             }
 
