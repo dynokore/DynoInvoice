@@ -18,6 +18,8 @@ import com.dynokore.gst.rules.application.ActivePacksOutcome
 import com.dynokore.gst.rules.application.ApproveRegulatoryPack
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DraftCommand
+import com.dynokore.gst.rules.application.ImportRegulatoryPack
+import com.dynokore.gst.rules.application.ImportStatusAnswer
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
 import com.dynokore.gst.rules.application.MapTaxCodeCommand
 import com.dynokore.gst.rules.application.MappingPackAuthoring
@@ -34,6 +36,7 @@ import com.dynokore.gst.rules.contract.model.DraftMappingPackRequest
 import com.dynokore.gst.rules.contract.model.DryRunRequest
 import com.dynokore.gst.rules.contract.model.DryRunResult
 import com.dynokore.gst.rules.contract.model.ImportMappingSpreadsheetRequest
+import com.dynokore.gst.rules.contract.model.ImportRegulatoryPackRequest
 import com.dynokore.gst.rules.contract.model.MapTaxCodeRequest
 import com.dynokore.gst.rules.contract.model.MappingEntry
 import com.dynokore.gst.rules.contract.model.MappingEntryPage
@@ -89,6 +92,7 @@ open class PacksController(
     private val clock: Clock,
     private val dryRuns: DryRunCalls,
     private val approvals: ApproveRegulatoryPack,
+    private val importer: ImportRegulatoryPack,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -300,6 +304,33 @@ open class PacksController(
         // No transaction here: the store binds the platform tenant and opens its own, one for each call.
         RegulatoryPackApprovalMapping.refusalOf(approvals.execute(packType, version, actor()))?.let { throw it }
         return ResponseEntity.ok(RegulatoryPackApprovalMapping.approved(packType, version))
+    }
+
+    /**
+     * Import steps 1 to 3 of a signed bundle (INV-T-4976; INV-REQ-1078): 201 with the staged pack, or the error of the
+     * failing step (DEP-002, DEP-003, RUL-005). The import finishes inside the request, so the 202 of the contract is
+     * not produced here. No transaction is opened here: the store opens its own, and a failed import keeps its record.
+     */
+    override fun importRegulatoryPack(
+        idempotencyKey: UUID,
+        importRegulatoryPackRequest: ImportRegulatoryPackRequest,
+    ): ResponseEntity<RegulatoryPack> {
+        val request = importRegulatoryPackRequest
+        val result = importer.execute(request.packType, request.version, request.bundleHash, actor())
+        RegulatoryPackImportMapping.refusalOf(result)?.let { throw it }
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+            RegulatoryPack(packType = request.packType, version = request.version, status = RegulatoryPack.Status.STAGED),
+        )
+    }
+
+    /** The status of an import: IMPORTING, STAGED, FAILED with its code, or the registry status of an earlier pack. */
+    override fun getRegulatoryPack(
+        packType: String,
+        version: String,
+    ): ResponseEntity<RegulatoryPack> {
+        val answer = importer.status(packType, version, actor())
+        RegulatoryPackImportMapping.refusalOf(answer)?.let { throw it }
+        return ResponseEntity.ok(RegulatoryPackImportMapping.packOf(packType, version, (answer as ImportStatusAnswer.Found).status))
     }
 
     override fun activateMappingPack(

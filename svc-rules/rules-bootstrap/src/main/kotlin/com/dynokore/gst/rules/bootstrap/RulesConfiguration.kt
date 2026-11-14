@@ -1,6 +1,24 @@
 package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
+import com.dynokore.gst.rules.adapters.clients.HttpPackFeedProbe
+import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
+import com.dynokore.gst.rules.adapters.packs.DirectoryPackSource
+import com.dynokore.gst.rules.adapters.persistence.JooqPackCurrencyStore
+import com.dynokore.gst.rules.adapters.persistence.JooqPackImportStore
+import com.dynokore.gst.rules.adapters.scope.PolicySilenceLimit
+import com.dynokore.gst.rules.application.ImportPermissionPort
+import com.dynokore.gst.rules.application.ImportRegulatoryPack
+import com.dynokore.gst.rules.application.PackBundleNotFoundException
+import com.dynokore.gst.rules.application.PackCurrencyMonitor
+import com.dynokore.gst.rules.application.PackFeedPoller
+import com.dynokore.gst.rules.application.PackCurrencyStore
+import com.dynokore.gst.rules.application.PackImportStore
+import com.dynokore.gst.rules.application.RunningEngine
+import com.dynokore.gst.rules.application.SilenceLimitPort
+import com.dynokore.gst.rules.application.TrustAnchorSource
+import com.dynokore.platform.rulepackkernel.PackContentValidator
+import com.dynokore.platform.serviceruntime.binding.PackSource
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
 import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
 import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
@@ -131,6 +149,7 @@ import java.util.concurrent.TimeUnit
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
+@org.springframework.scheduling.annotation.EnableScheduling
 // one bean method per wired port; the composition root is the single place (TPL-18)
 @Suppress("TooManyFunctions", "LargeClass")
 class RulesConfiguration {
@@ -482,7 +501,109 @@ class RulesConfiguration {
         permission: ApprovalPermissionPort,
     ): ApproveRegulatoryPack = ApproveRegulatoryPack(store, permission)
 
+    // ---- the signed pack import and DEP-001 pack currency (INV-T-4976; INV-REQ-1078, INV-REQ-2468) ----
+
+    /** The mounted read-only directory of the bundles; without the property no bundle is found (fail closed). */
+    @Bean
+    @ConditionalOnMissingBean(PackSource::class)
+    fun packSource(environment: Environment): PackSource =
+        environment.getProperty(PACK_SOURCE_DIRECTORY)?.takeIf { it.isNotBlank() }?.let {
+            DirectoryPackSource(java.nio.file.Path.of(it))
+        } ?: PackSource { throw PackBundleNotFoundException(it.value) }
+
+    @Bean
+    @ConditionalOnMissingBean(TrustAnchorSource::class)
+    fun trustAnchorSource(): TrustAnchorSource = ClasspathTrustAnchors()
+
+    @Bean
+    fun packImportStore(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+        registry: PersistedPackRegistry,
+        emitter: PackEventEmitter,
+    ): PackImportStore = JooqPackImportStore(dsl, platform, transactions, registry, emitter)
+
+    @Bean
+    fun packCurrencyStore(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+        emitter: PackEventEmitter,
+    ): PackCurrencyStore = JooqPackCurrencyStore(dsl, platform, transactions, emitter)
+
+    /** VP-72, read through `PolicyReplica` at installation scope of the platform tenant; written by `setPolicy` only. */
+    @Bean
+    fun silenceLimitPort(
+        policy: PolicyReplica,
+        clock: Clock,
+    ): SilenceLimitPort = PolicySilenceLimit(policy, clock)
+
+    @Bean
+    fun packCurrencyMonitor(
+        store: PackCurrencyStore,
+        limit: SilenceLimitPort,
+        clock: Clock,
+    ): PackCurrencyMonitor = PackCurrencyMonitor(store, limit, clock)
+
+    /** The feed client: polls `rules.pack-feed.url` every `rules.pack-feed.poll-interval` (ISO-8601, default PT1H). */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(PACK_FEED_URL)
+    fun packFeedPoller(
+        environment: Environment,
+        monitor: PackCurrencyMonitor,
+        clock: Clock,
+    ): PackFeedPoller =
+        PackFeedPoller(
+            HttpPackFeedProbe(environment.getRequiredProperty(PACK_FEED_URL)),
+            monitor,
+            clock,
+            Duration.parse(environment.getProperty("rules.pack-feed.poll-interval", "PT1H")),
+        )
+
+    @Bean
+    fun packCurrencyScheduling(
+        poller: ObjectProvider<PackFeedPoller>,
+        monitor: PackCurrencyMonitor,
+    ): PackCurrencyScheduling = PackCurrencyScheduling(poller.ifAvailable, monitor)
+
+    /**
+     * The scoped permission `regulatory-pack.import-verify`, decided by `AuthorityReplica.decideTenant` for the
+     * caller's tenant (INV-Q-10027): never a role name. A decision not answered from the local replica is 503 SRT-013.
+     */
+    @Bean
+    fun importPermissionPort(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): ImportPermissionPort =
+        ImportPermissionPort { user ->
+            val decision =
+                replica.ifAvailable?.decideTenant(
+                    tenants.current(),
+                    Principal(user, PrincipalKind.HUMAN),
+                    REGULATORY_PACK_IMPORT_VERIFY,
+                ) ?: throw unavailable("the permission decision is not available")
+            if (decision.source != DecisionSource.LOCAL) throw unavailable("the permission decision is not available")
+            decision.allowed
+        }
+
+    @Bean
+    fun importRegulatoryPack(
+        source: PackSource,
+        anchors: TrustAnchorSource,
+        verifier: PackVerifier,
+        validator: PackContentValidator,
+        engine: EngineVersion,
+        permission: ImportPermissionPort,
+        store: PackImportStore,
+        currency: PackCurrencyMonitor,
+    ): ImportRegulatoryPack =
+        ImportRegulatoryPack(source, anchors, verifier, validator, RunningEngine(engine::current), permission, store, currency)
+
     private companion object {
+        const val PACK_FEED_URL = "rules.pack-feed.url"
+        const val PACK_SOURCE_DIRECTORY = "rules.pack-source.directory"
+        const val REGULATORY_PACK_IMPORT_VERIFY = "regulatory-pack.import-verify"
         const val REGULATORY_PACK_APPROVE = "regulatory-pack.approve"
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
         const val ACCESS_URL_PROPERTY = "rules.access-svc-url"

@@ -124,6 +124,7 @@ class ImportRegulatoryPack(
     private val engine: RunningEngine,
     private val permission: ImportPermissionPort,
     private val store: PackImportStore,
+    private val currency: PackCurrencyMonitor,
 ) {
     @Suppress("ReturnCount") // one early return per refusal, in the ruled order
     fun execute(
@@ -159,11 +160,22 @@ class ImportRegulatoryPack(
         }
         return try {
             store.stage(checkNotNull(verified), user)
+            currency.bundleImported()
             ImportRegulatoryPackResult.Staged
         } catch (_: ConflictingPackVersionException) {
             store.fail(packType, version, ImportFailure.SIGNATURE)
             ImportRegulatoryPackResult.Conflict
         }
+    }
+
+    /** The status of an import, for the caller who holds the same permission as the import (reads change nothing). */
+    fun status(
+        packType: String,
+        version: String,
+        user: String,
+    ): ImportStatusAnswer {
+        if (!permission.mayImport(user)) return ImportStatusAnswer.Denied
+        return store.status(packType, version)?.let { ImportStatusAnswer.Found(it) } ?: ImportStatusAnswer.NotFound
     }
 
     /** The verified pack of exactly the requested identity, or null when step 1 refuses the bundle. */
@@ -195,6 +207,16 @@ class ImportRegulatoryPack(
         fun digestOf(bundleHash: String): String? =
             bundleHash.takeIf { it.startsWith(PREFIX) }?.removePrefix(PREFIX)?.takeIf { HEX.matches(it) }
     }
+}
+
+sealed interface ImportStatusAnswer {
+    data class Found(
+        val status: ImportStatus,
+    ) : ImportStatusAnswer
+
+    data object NotFound : ImportStatusAnswer
+
+    data object Denied : ImportStatusAnswer
 }
 
 /** The registry already holds the pack version with another manifest. */
