@@ -1,0 +1,94 @@
+package com.dynokore.gst.evidence.application.export
+
+import com.dynokore.platform.evidencestore.exportpackage.PackageCandidate
+import com.dynokore.platform.evidencestore.exportpackage.PackageContentClass
+import com.dynokore.platform.evidencestore.exportpackage.PackageFiles
+import com.dynokore.platform.tenancykernel.TenantId
+
+/** The state of a whole-tenant export job (INV-REQ-877): it starts REQUESTED and ends READY or FAILED. */
+enum class ExportState { REQUESTED, READY, FAILED }
+
+/** What one export asks for: the tenant and the offboarding it belongs to. */
+data class ExportRequest(
+    val tenant: TenantId,
+    val offboardingRef: String,
+)
+
+/** One export job. [manifestRef], [itemCount] and [contents] are set only in READY; [failureReason] only in FAILED. */
+data class ExportJob(
+    val tenant: TenantId,
+    val offboardingRef: String,
+    val exportRef: String,
+    val state: ExportState,
+    val manifestRef: String? = null,
+    val itemCount: Int? = null,
+    val contents: List<String> = emptyList(),
+    val failureReason: String? = null,
+)
+
+/** The candidates of one content class for a tenant. Reads only; it never writes. */
+fun interface ExportClassSource {
+    fun candidates(tenant: TenantId): List<PackageCandidate>
+}
+
+/**
+ * The source of each content class. A class with no entry, or a null entry, is unbound: the export does not
+ * complete without a source for all six classes (INV-REQ-877).
+ */
+class ExportClassSources(
+    private val sources: Map<PackageContentClass, ExportClassSource?>,
+) {
+    fun source(contentClass: PackageContentClass): ExportClassSource? = sources[contentClass]
+}
+
+/** The export jobs of the caller's tenant transaction. */
+interface ExportJobs {
+    /** The job of the offboarding, or null when none is registered. */
+    fun find(
+        tenant: TenantId,
+        offboardingRef: String,
+    ): ExportJob?
+
+    /** Registers a REQUESTED job and returns it; idempotent per offboarding. */
+    fun register(request: ExportRequest): ExportJob
+
+    fun markReady(
+        job: ExportJob,
+        manifestRef: String,
+        itemCount: Int,
+        contents: List<String>,
+    ): ExportJob
+
+    fun markFailed(
+        job: ExportJob,
+        reason: String,
+    ): ExportJob
+}
+
+/** Stores a verified package and returns its manifest reference. */
+fun interface ExportPackageStore {
+    fun store(
+        tenant: TenantId,
+        offboardingRef: String,
+        files: PackageFiles,
+    ): String
+}
+
+/** The chain integrity gate of DEP-007: false refuses the export. */
+fun interface ExportChainIntegrity {
+    fun allowsExport(tenant: TenantId): Boolean
+}
+
+/** The outcome of one export, published once per request. */
+data class ExportResult(
+    val tenantRef: String,
+    val offboardingRef: String,
+    val exportRef: String,
+    val state: ExportState,
+    val contents: List<String>,
+    val failureReason: String?,
+)
+
+fun interface ExportResultPublisher {
+    fun publish(result: ExportResult)
+}
