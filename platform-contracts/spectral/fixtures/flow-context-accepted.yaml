@@ -1,0 +1,26 @@
+# Fixture for self-test-flow-context-rule.sh (accepted): the marked operation carries x-sync-edge,
+# and an operation with x-sync-edge and no marker stays quiet. Every other rule is satisfied.
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/fixture/marked:
+    get:
+      operationId: markedOp
+      x-principal: ingest
+      x-caller-auth: end-user
+      x-error-codes: []
+      x-requirements: []
+      x-timeout: 500
+      x-sync-edge: console-bff->ingestion-svc
+      x-flow-context: true
+      responses: {"200": {description: ok}}
+  /internal/v1/fixture/unmarked:
+    get:
+      operationId: unmarkedOp
+      x-principal: ingest
+      x-caller-auth: end-user
+      x-error-codes: []
+      x-requirements: []
+      x-timeout: 500
+      x-sync-edge: console-bff->ingestion-svc
+      responses: {"200": {description: ok}}

@@ -1,0 +1,15 @@
+# Fixture for self-test-flow-context-rule.sh (refused): the operation carries x-flow-context and no
+# x-sync-edge. Every other rule is satisfied, so the rule's code is the only hit.
+openapi: 3.1.0
+info: {title: fixture, version: 1.0.0}
+paths:
+  /internal/v1/fixture/marked:
+    get:
+      operationId: markedOp
+      x-principal: ingest
+      x-caller-auth: end-user
+      x-error-codes: []
+      x-requirements: []
+      x-timeout: 500
+      x-flow-context: true
+      responses: {"200": {description: ok}}

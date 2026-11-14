@@ -382,6 +382,7 @@ spectral-rule-self-tests:
     - gst_check envelope-rule-self-test sh spectral/self-test-message-envelope-rule.sh
     - gst_check money-rule-self-test sh spectral/self-test-money-rule.sh
     - gst_check pagination-rule-self-test sh spectral/self-test-pagination-rule.sh
+    - gst_check flow-context-rule-self-test sh spectral/self-test-flow-context-rule.sh
     - gst_checks_done
 
 catalogue-verify:

@@ -15,8 +15,9 @@ extends:
   - spectral:oas
   - spectral:asyncapi
 # INV-T-8456: functions/oneCallee.js compares the elements of an x-sync-edge sequence.
+# INV-T-17619: functions/flowContextNeedsSyncEdge.js refuses x-flow-context without x-sync-edge.
 functionsDir: ./functions
-functions: [oneCallee]
+functions: [oneCallee, flowContextNeedsSyncEdge]
 rules:
   # --- API-01: contract-first, one directory per service ----------------------
   # Enforced by repository layout and CODEOWNERS, not lintable per-document.
@@ -192,6 +193,17 @@ rules:
                   pattern: "^(?!any->)[a-z][a-z0-9-]*->[a-z][a-z0-9-]*-(svc|bff)$"
       - field: x-sync-edge
         function: oneCallee
+
+  # INV-T-17619 (slice 1 of INV-T-9256; owner answer INV-Q-9241 B): a system-flow operation carries
+  # x-flow-context only together with x-sync-edge. Self-test: self-test-flow-context-rule.sh.
+  inv-flow-context-needs-sync-edge:
+    description: INV-Q-9241 B — an operation that carries x-flow-context must also carry x-sync-edge.
+    message: "{{error}}"
+    given: "$.paths[*][get,post,put,delete,patch]"
+    severity: error
+    formats: ["oas3_1"]
+    then:
+      function: flowContextNeedsSyncEdge
 
   # --- FR-AC.1 / FR-AC.19: the per-operation extension -------------------------
   # A state-changing or third-party-transmitting operation (FR-AC.1's own
