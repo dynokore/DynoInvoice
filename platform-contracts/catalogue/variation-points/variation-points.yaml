@@ -2242,7 +2242,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1315, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-55
   requirement: INV-REQ-1316
-  revision: 41a1b253-6d30-4ec7-8824-a6f3eeada9f9
+  revision: 2e506c0b-7f5e-4094-8725-4d75c63507b8
   title: "Aggregation windows are POS and STI daily and PCP monthly by default, or weekly, never spanning a prescribed period"
   class: PARAMETER
   class_modifiers: []
@@ -2465,7 +2465,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1321; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-61
   requirement: INV-REQ-1322
-  revision: 87647d25-a742-4c12-af52-0c1d99c59960
+  revision: 3bd8c398-276d-469c-a741-1ba01ae825a5
   title: "Every trigger class is covered by this System by default; covering named classes by another solution is looser and needs entity.admin acknowledgement and evidence"
   class: CONTROL
   class_modifiers: []
@@ -2965,7 +2965,7 @@ variation_points:
         refused: "activating the connection (INV-AC-2543), not the election"
 - id: VP-72
   requirement: INV-REQ-2468
-  revision: 6bfed7bc-91c3-4d5b-a598-9ef02de2829a
+  revision: b240186f-8a20-419e-bd1e-df2b41c02043
   title: "DEP-001 is raised when the control-plane feed has been unreachable, or no bundle imported, for 7 days by default, up to 30 days for an air-gapped installation"
   class: PARAMETER
   class_modifiers: []
@@ -3308,7 +3308,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2761; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-79
   requirement: INV-REQ-3210
-  revision: ca0d1dee-6e8b-4d1b-b791-0134a5df4d98
+  revision: 11876e62-3b42-45ec-a2f7-5ef09e9292ed
   title: "The platform maximum grace window for reviewing a regulatory pack delta is 14 days by default, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -3321,7 +3321,7 @@ variation_points:
   options:
     - "14 days"
     - "another number of days, at least 1"
-  bounds: "At least 1 day; Keel states no upper figure. Bounds VP-57 (INV-REQ-1318). The grace window always ends at the pack's effective date whatever this value (INV-REQ-858). Private form: arming by tax.approver is fixed (INV-REQ-990; INV-REQ-858 b4); the grace window and the activation that proceeds at its end are SaaS-only (INV-REQ-2586 b2); shown read-only on SCR-41.8 in the private form (INV-Q-3218)"
+  bounds: "At least 1 day; Keel states no upper figure. Bounds VP-57 (INV-REQ-1318). The grace window always ends at the pack's effective date whatever this value (INV-REQ-858). Private form: arming by tax.approver is fixed (INV-REQ-990; INV-REQ-858 b4); the grace window and the activation that proceeds at its end are SaaS-only (INV-REQ-2586 b2); shown read-only on SCR-41.8 in the private form (INV-Q-3218); no role sets VP-79 in the private form (owner choice, chat 2026-11-15, option A of the question on the private cell of vp-79.set)"
   status: planned
   status_note: null
   governs:
