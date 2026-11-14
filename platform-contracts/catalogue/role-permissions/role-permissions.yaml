@@ -502,6 +502,7 @@ permissions:
     row: "Arm a regulatory pack"
     cells:
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
   - key: regulatory-pack.author
     kind: WRITE
     row: "Author a regulatory pack"

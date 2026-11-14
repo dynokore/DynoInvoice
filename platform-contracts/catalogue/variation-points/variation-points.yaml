@@ -2242,7 +2242,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1315, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-55
   requirement: INV-REQ-1316
-  revision: 2e506c0b-7f5e-4094-8725-4d75c63507b8
+  revision: 41a1b253-6d30-4ec7-8824-a6f3eeada9f9
   title: "Aggregation windows are POS and STI daily and PCP monthly by default, or weekly, never spanning a prescribed period"
   class: PARAMETER
   class_modifiers: []
@@ -2465,7 +2465,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1321; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-61
   requirement: INV-REQ-1322
-  revision: 3bd8c398-276d-469c-a741-1ba01ae825a5
+  revision: 87647d25-a742-4c12-af52-0c1d99c59960
   title: "Every trigger class is covered by this System by default; covering named classes by another solution is looser and needs entity.admin acknowledgement and evidence"
   class: CONTROL
   class_modifiers: []
@@ -2965,7 +2965,7 @@ variation_points:
         refused: "activating the connection (INV-AC-2543), not the election"
 - id: VP-72
   requirement: INV-REQ-2468
-  revision: b240186f-8a20-419e-bd1e-df2b41c02043
+  revision: 6bfed7bc-91c3-4d5b-a598-9ef02de2829a
   title: "DEP-001 is raised when the control-plane feed has been unreachable, or no bundle imported, for 7 days by default, up to 30 days for an air-gapped installation"
   class: PARAMETER
   class_modifiers: []

@@ -100,6 +100,24 @@ class RolePermissionsCheckerTest {
     }
 
     @Test
+    fun `probe 7a a removed platform engineer SAAS cell on arm is reported missing`() {
+        val table = withPermission("regulatory-pack.arm") { p -> p.copy(cells = p.cells.filter { it.role != "platform.engineer" }) }
+        assertReported(table, "role platform.engineer key regulatory-pack.arm form SAAS", "missing")
+    }
+
+    @Test
+    fun `probe 7b a platform engineer PRIVATE cell on arm is reported extra`() {
+        val table = withPermission("regulatory-pack.arm") { it.copy(cells = it.cells + CellRow("platform.engineer", DeploymentForm.PRIVATE, RoleAllowance.PERMITTED)) }
+        assertReported(table, "role platform.engineer key regulatory-pack.arm form PRIVATE", "extra")
+    }
+
+    @Test
+    fun `probe 7c a tax approver SAAS cell on arm is reported extra`() {
+        val table = withPermission("regulatory-pack.arm") { it.copy(cells = it.cells + CellRow("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED)) }
+        assertReported(table, "role tax.approver key regulatory-pack.arm form SAAS", "extra")
+    }
+
+    @Test
     fun `probe 8 an auditor cell on user manage is reported`() {
         val table = withPermission("user.manage") { it.copy(cells = it.cells + CellRow("auditor", DeploymentForm.SAAS, RoleAllowance.PERMITTED)) }
         assertReported(table, "role auditor key user.manage form SAAS", "WRITE")

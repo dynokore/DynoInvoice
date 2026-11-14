@@ -296,7 +296,8 @@ object RolePermissionsChecker {
             "support-bundle.export" to Required(PermissionKind.READ, cells(permitted, privateForm, "deployment.operator")),
             "regulatory-pack.import-verify" to
                 Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator", "tax.approver")),
-            "regulatory-pack.arm" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "tax.approver")),
+            "regulatory-pack.arm" to
+                Required(PermissionKind.WRITE, cells(permitted, privateForm, "tax.approver") + cells(permitted, saasForm, "platform.engineer")),
             "regulatory-pack.author" to Required(PermissionKind.WRITE, cells(permitted, both, "regulatory.author")),
             "regulatory-pack.approve" to Required(PermissionKind.WRITE, cells(permitted, both, "regulatory.approver")),
             "regulatory-pack.activate" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer")),

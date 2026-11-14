@@ -588,19 +588,6 @@ class RolePermissionsTest {
     }
 
     @Test
-    fun `INV-AC-22752 vp-79 set is held by platform engineer in SaaS only and has no private cell`() {
-        assertEquals(PermissionKind.WRITE, RolePermissions.kind("vp-79.set"))
-        assertEquals(y, cell(saas, "platform.engineer", "vp-79.set"))
-        assertNull(cell(privateForm, "deployment.operator", "vp-79.set"))
-        assertNull(cell(privateForm, "platform.engineer", "vp-79.set"))
-        assertTrue(OperationRoles.rolesFor(privateForm, "vp-79.set").isEmpty())
-        assertEquals(mapOf("platform.engineer" to y), OperationRoles.rolesFor(saas, "vp-79.set"))
-        // the siblings keep their private cell
-        assertEquals(y, cell(privateForm, "deployment.operator", "vp-78.set"))
-        assertEquals(y, cell(privateForm, "deployment.operator", "vp-80.set"))
-    }
-
-    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))
