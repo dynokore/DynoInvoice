@@ -49,7 +49,14 @@ class ExportTenantEvidence(
 
     private fun integrityRefusal(job: ExportJob): Outcome.Failed? =
         try {
-            if (port { integrity.allowsExport(job.tenant) }) null else Outcome.Failed("chain integrity does not allow the export (DEP-007)")
+            if (port {
+                    integrity.allowsExport(job.tenant)
+                }
+            ) {
+                null
+            } else {
+                Outcome.Failed("chain integrity does not allow the export (DEP-007)")
+            }
         } catch (stop: Stop) {
             Outcome.Failed(stop.reason)
         }
@@ -78,7 +85,14 @@ class ExportTenantEvidence(
         job: ExportJob,
         candidates: List<PackageCandidate>,
     ): AssemblyResult.Assembled =
-        when (val result = AuditPackAssembler.assemble(PackageScope.WholeTenant(job.tenant), candidates, clock.instant())) {
+        when (
+            val result =
+                AuditPackAssembler.assemble(
+                    PackageScope.WholeTenant(job.tenant),
+                    candidates,
+                    clock.instant(),
+                )
+        ) {
             is AssemblyResult.Refused -> throw Stop("assembly refused: ${result.reason} ${result.itemName}")
             is AssemblyResult.Assembled -> result
         }
