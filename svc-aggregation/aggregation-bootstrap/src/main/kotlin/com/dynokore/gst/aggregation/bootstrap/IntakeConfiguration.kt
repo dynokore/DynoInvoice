@@ -2,6 +2,7 @@ package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.persistence.JooqAggregateStore
 import com.dynokore.gst.aggregation.adapters.persistence.JooqHandOffStore
+import com.dynokore.gst.aggregation.adapters.persistence.JooqSeenRevisions
 import com.dynokore.gst.aggregation.adapters.replica.StructureCodeLookup
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.AggregateRevisions
@@ -9,6 +10,7 @@ import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.HandOffRepository
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
+import com.dynokore.gst.aggregation.application.SeenRevisions
 import com.dynokore.gst.aggregation.application.ShortCodes
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
@@ -27,6 +29,13 @@ class IntakeConfiguration {
         runner: TransactionRunner,
         tenants: TenantContext,
     ): JooqAggregateStore = JooqAggregateStore(dsl, runner, tenants)
+
+    @Bean
+    fun seenRevisions(
+        dsl: DSLContext,
+        runner: TransactionRunner,
+        tenants: TenantContext,
+    ): SeenRevisions = JooqSeenRevisions(dsl, tenants, runner)
 
     @Bean
     fun handOffRepository(
@@ -51,5 +60,6 @@ class IntakeConfiguration {
         cadences: CadenceSource,
         periods: PeriodBoundarySource,
         revisions: AggregateRevisions,
-    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences, periods, revisions)
+        seen: SeenRevisions,
+    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences, periods, revisions, seen)
 }

@@ -8,6 +8,7 @@ import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
 import com.dynokore.gst.aggregation.application.HandOnAggregates
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.jobs.JobRuntime
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.serviceruntime.logging.CorrelationId
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -34,6 +35,9 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.io.File
 import java.nio.file.Path
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
@@ -302,11 +306,42 @@ class AggregateHandOffBoundaryTest {
             (second["aggregateId"].asString() == first["aggregateId"].asString()) shouldBe false
             second["sequence"].asLong() shouldBe first["sequence"].asLong() + 1
             query(
-                "select is_supplementary::text from aggregation.aggregate where tenant_id = ? and source_revision = 2",
+                "select supplementary::text from aggregation.aggregate where tenant_id = ? and source_revision = 2",
                 tenant,
             ) { it.getString(1) } shouldBe listOf("true")
             lines(tenant, second["aggregateId"].asString()) shouldBe listOf("SR-STD=300.00", "ZR-EXP=50.00")
         }
+
+    @Test
+    fun `INV-REQ-718 the window-close job hands on a supplementary aggregate of an entity with no open window`(
+        @TempDir dir: Path,
+    ) {
+        val at = Instant.parse("2027-04-01T16:05:00Z")
+        AggregationContext
+            .online(dir)
+            .withAllowBeanDefinitionOverriding(true)
+            .withBean("clock", Clock::class.java, { Clock.fixed(at, ZoneOffset.UTC) })
+            .run { context ->
+                context.startupFailure?.let { throw it }
+                val boundary = Boundary(context)
+                val tenant = boundary.tenant()
+                boundary.send(tenant, body()).status shouldBe 202
+                closeWindows(tenant)
+                boundary.handOn(tenant).size shouldBe 1
+                transmit(tenant)
+                boundary.send(tenant, body(sourceRevision = 2, lines = line("SR-STD", "1800.00"))).status shouldBe 202
+                query(
+                    "select count(*)::text from aggregation.aggregate_window where tenant_id = ? and state = 'OPEN'",
+                    tenant,
+                ) { it.getString(1) } shouldBe listOf("0")
+                ready(tenant).size shouldBe 1
+                // the real job, not the use case: its targets must include the entity that has no open window
+                context.getBean(JobRuntime::class.java).fire(WindowCloseJob.NAME, at)
+                val events = ready(tenant)
+                events.size shouldBe 2
+                events.count { event -> event["linesByInternalTaxCode"].toString().contains("300.00") } shouldBe 1
+            }
+    }
 
     @Test
     fun `INV-REQ-434 revision 2 over an untransmitted revision 1 supersedes it with the same number`(
@@ -365,6 +400,68 @@ class AggregateHandOffBoundaryTest {
                 )
             two["sequence"].asLong() + 1 shouldBe three["sequence"].asLong()
             lines(tenant, three["aggregateId"].asString()) shouldBe listOf("SR-STD=50.00")
+        }
+
+    @Test
+    fun `INV-REQ-434 revision 2 over a handed-on untransmitted revision 1 leaves it unchanged and adds a supplementary`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant()
+            val one = json(boundary.send(tenant, body()).also { it.status shouldBe 202 })
+            closeWindows(tenant)
+            boundary.handOn(tenant).size shouldBe 1
+            val before = rowOf(tenant, 1)
+            val two =
+                json(
+                    boundary
+                        .send(
+                            tenant,
+                            body(sourceRevision = 2, lines = """{"internalTaxCode":"SR-STD","amount":"1600.00"}"""),
+                        ).also { it.status shouldBe 202 },
+                )
+            rowOf(tenant, 1) shouldBe before
+            (two["documentNumber"].asString() == one["documentNumber"].asString()) shouldBe false
+            two["sequence"].asLong() shouldBe one["sequence"].asLong() + 1
+            lines(tenant, two["aggregateId"].asString()) shouldBe listOf("SR-STD=100.00")
+            // revision 3 replaces the untransmitted, not handed-on supplementary; its lines are the difference to the
+            // original that remains, and the number of the supplementary is kept
+            val three =
+                json(
+                    boundary
+                        .send(
+                            tenant,
+                            body(sourceRevision = 3, lines = """{"internalTaxCode":"SR-STD","amount":"1650.00"}"""),
+                        ).also { it.status shouldBe 202 },
+                )
+            three["documentNumber"].asString() shouldBe two["documentNumber"].asString()
+            lines(tenant, three["aggregateId"].asString()) shouldBe listOf("SR-STD=150.00")
+            rowOf(tenant, 1) shouldBe before
+        }
+
+    @Test
+    fun `INV-REQ-434 a zero difference stores nothing, answers the compared receipt and records the revision`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant()
+            val one = json(boundary.send(tenant, body()).also { it.status shouldBe 202 })
+            transmit(tenant)
+            val before = rowOf(tenant, 1)
+            val same = boundary.send(tenant, body(sourceRevision = 3))
+            same.status shouldBe 202
+            val receipt = json(same)
+            receipt["aggregateId"].asString() shouldBe one["aggregateId"].asString()
+            receipt["documentNumber"].asString() shouldBe one["documentNumber"].asString()
+            count(tenant) shouldBe listOf("1")
+            rowOf(tenant, 1) shouldBe before
+            // a replay of revision 3 answers the same receipt and a revision below the recorded one is refused
+            json(boundary.send(tenant, body(sourceRevision = 3))).get("aggregateId").asString() shouldBe
+                one["aggregateId"].asString()
+            val refused = boundary.send(tenant, body(sourceRevision = 2, lines = line("SR-STD", "1.00")))
+            refused.status shouldBe 409
+            json(refused).get("code").asString() shouldBe "ING-002"
+            count(tenant) shouldBe listOf("1")
         }
 
     @Test

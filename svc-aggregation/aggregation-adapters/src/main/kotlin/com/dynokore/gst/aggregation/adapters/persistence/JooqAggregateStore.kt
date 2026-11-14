@@ -31,6 +31,8 @@ class JooqAggregateStore(
     private val tenants: TenantContext,
 ) : AggregateRepository,
     AggregateRevisions {
+    private val seen = JooqSeenRevisions(dsl, tenants, runner)
+
     override fun findByIntakeKey(
         entityRef: String,
         sourceKey: String,
@@ -45,6 +47,14 @@ class JooqAggregateStore(
                 .and(AGGREGATE.SOURCE_REVISION.eq(sourceRevision))
                 .fetchOne()
                 ?.let(::stored)
+                ?: seen.aggregateId(entityRef, sourceKey, sourceRevision)?.let { id ->
+                    dsl
+                        .selectFrom(AGGREGATE)
+                        .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
+                        .and(AGGREGATE.AGGREGATE_ID.eq(id))
+                        .fetchOne()
+                        ?.let(::stored)
+                }
         }
 
     override fun highestRevision(
@@ -52,14 +62,17 @@ class JooqAggregateStore(
         sourceKey: String,
     ): Long? =
         runner.inTransaction {
-            dsl
-                .select(DSL.max(AGGREGATE.SOURCE_REVISION))
-                .from(AGGREGATE)
-                .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
-                .and(AGGREGATE.ENTITY_REF.eq(entityRef))
-                .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
-                .fetchOne()
-                ?.value1()
+            val tenant = tenants.current().value
+            val stored =
+                dsl
+                    .select(DSL.max(AGGREGATE.SOURCE_REVISION))
+                    .from(AGGREGATE)
+                    .where(AGGREGATE.TENANT_ID.eq(tenant))
+                    .and(AGGREGATE.ENTITY_REF.eq(entityRef))
+                    .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                    .fetchOne()
+                    ?.value1()
+            listOfNotNull(stored, seen.highest(entityRef, sourceKey)).maxOrNull()
         }
 
     override fun nextSequence(): Long =
@@ -92,9 +105,10 @@ class JooqAggregateStore(
                 ?.let(::stored)
         }
 
-    override fun transmittedLines(
+    override fun recordedLines(
         entityRef: String,
         sourceKey: String,
+        excluding: UUID?,
     ): List<AggregateLine> =
         runner.inTransaction {
             val tenant = tenants.current().value
@@ -107,8 +121,8 @@ class JooqAggregateStore(
                 .and(AGGREGATE.TENANT_ID.eq(tenant))
                 .and(AGGREGATE.ENTITY_REF.eq(entityRef))
                 .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
-                .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
                 .and(AGGREGATE.SUPERSEDED_BY.isNull)
+                .and(excluding?.let { AGGREGATE.AGGREGATE_ID.ne(it) } ?: DSL.noCondition())
                 .orderBy(AGGREGATE.SOURCE_REVISION, AGGREGATE_LINE.POSITION)
                 .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
         }
