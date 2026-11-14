@@ -197,9 +197,14 @@ class PeriodRecordsConsumerTest {
         @TempDir dir: Path,
     ) = run(dir) {
         val a = UUID.randomUUID()
-        deliver(envelope(a, "ev-pr-3", records("\"not-a-date\"")))
-        rows(a) shouldBe emptyList()
-        deliver(envelope(a, "ev-pr-4", records("null")))
+        val results =
+            deliver(
+                envelope(a, "ev-pr-3", records("\"not-a-date\"")),
+                envelope(a, "ev-pr-4", records("null")),
+            )
+        results.map { it.deadLettered } shouldBe listOf(1, 1)
+        results.map { it.total } shouldBe listOf(1, 1)
+        results.map { it.applied } shouldBe listOf(0, 0)
         rows(a) shouldBe emptyList()
         calls.get() shouldBe 2
     }
