@@ -13,7 +13,8 @@ import org.jooq.exception.DataAccessException
 /**
  * [DrainBacklog] over the version rows of one tenant in state QUEUED whose document still has an unclaimed work-queue
  * item, INV-REQ-554 and INV-AC-20847. The unclaimed items are read through the platform library
- * ([PendingPartitionReader]); the partition key of a submission queue item is the document's Doc UUID (SubmissionQueue),
+ * ([PendingPartitionReader]); the partition key of a submission queue item is the document's Doc UUID
+ * (SubmissionQueue),
  * so a version is listed only when its Doc UUID is a pending partition. This adapter names neither the queue table nor
  * its columns. The entity is the version row's, the period is that of the register entry of the same document, and the
  * queuing time is `queued_at` of the version row. The tenant is in every predicate as well as the row level security.
@@ -43,7 +44,7 @@ class JooqDrainBacklog(
         return dsl
             .select(version.DOC_UUID, version.VERSION, version.ENTITY_REF, version.QUEUED_AT, entry.PERIOD_REF)
             .from(version)
-            .join(entry)
+            .leftJoin(entry)
             .on(entry.DOC_UUID.eq(version.DOC_UUID))
             .and(entry.TENANT_ID.eq(version.TENANT_ID))
             .where(version.TENANT_ID.eq(tenant.value))
@@ -55,7 +56,7 @@ class JooqDrainBacklog(
                     docUuid = checkNotNull(row.get(version.DOC_UUID)),
                     version = checkNotNull(row.get(version.VERSION)),
                     entityRef = checkNotNull(row.get(version.ENTITY_REF)),
-                    periodRef = checkNotNull(row.get(entry.PERIOD_REF)),
+                    periodRef = row.get(entry.PERIOD_REF) ?: error("queued version without register entry"),
                     queuedAt = checkNotNull(row.get(version.QUEUED_AT)).toInstant(),
                 )
             }.sortedWith(compareBy({ it.queuedAt }, { it.docUuid }, { it.version }))
