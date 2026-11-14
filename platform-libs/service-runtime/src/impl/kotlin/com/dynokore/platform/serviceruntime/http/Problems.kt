@@ -219,15 +219,17 @@ object Problems {
     }
 
     /**
-     * The ING refusal [code] as a complete response (INV-Q-8797 A): status 422, the headers of [renderTenancy] and
-     * the API-20 envelope with the catalogue disposition TERMINAL, with [detail] as a client error carries it (API-22).
+     * The ING refusal [code] as a complete response (INV-Q-8797 A): the code's own status, the headers of
+     * [renderTenancy] and the API-20 envelope with the code's catalogue disposition, with [detail] as a client error
+     * carries it (API-22).
      */
     fun renderIngestion(
         code: IngestionErrorCode,
         correlationId: String,
         detail: String? = null,
     ): ProblemResponse {
-        val response = coded(code.httpStatus, code.title, detail, correlationId, code.code, "TERMINAL", code.owner.text)
+        val response =
+            coded(code.httpStatus, code.title, detail, correlationId, code.code, code.disposition, code.owner.text)
         return ProblemResponse(response.status, mapOf(CONTENT_TYPE_HEADER to CONTENT_TYPE), response.body)
     }
 

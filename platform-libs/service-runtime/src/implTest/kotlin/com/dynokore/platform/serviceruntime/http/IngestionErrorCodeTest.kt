@@ -47,8 +47,8 @@ class IngestionErrorCodeTest {
     @Test
     fun `the snapshot holds exactly one ING-006 row and the enum exactly one entry`() {
         rows.size shouldBe 1
-        IngestionErrorCode.entries.size shouldBe 4
-        IngestionErrorCode.Owner.entries.size shouldBe 1
+        IngestionErrorCode.entries.size shouldBe 5
+        IngestionErrorCode.Owner.entries.size shouldBe 2
     }
 
     @Test
@@ -83,8 +83,9 @@ class IngestionErrorCodeTest {
     }
 
     @Test
-    fun `the entries are ING-006, ING-002, ING-022 and ING-018 in this order`() {
-        IngestionErrorCode.entries.map { it.code } shouldBe listOf("ING-006", "ING-002", "ING-022", "ING-018")
+    fun `the entries are ING-006, ING-002, ING-022, ING-018 and ING-014 in this order`() {
+        IngestionErrorCode.entries.map { it.code } shouldBe
+            listOf("ING-006", "ING-002", "ING-022", "ING-018", "ING-014")
     }
 
     @Test
@@ -116,6 +117,36 @@ class IngestionErrorCodeTest {
     @Test
     fun `INV-AC-20108 renderIngestion gives a 422 envelope for ING-018 that validates`() {
         assertRendered(IngestionErrorCode.CROSSES_PERIOD_BOUNDARY, "ING-018", 422)
+    }
+
+    @Test
+    fun `INV-AC-22523 the snapshot holds exactly one ING-014 row`() {
+        rowsOf("ING-014").size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-22523 ING-014 is the row's code, title and owner with the declared 409`() {
+        assertEntry(IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION, "ING-014", 409)
+        IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION.owner shouldBe IngestionErrorCode.Owner.FINANCE
+    }
+
+    @Test
+    fun `INV-AC-22523 renderIngestion gives a 409 envelope for ING-014 with remediationOwner Finance that validates`() {
+        val entry = IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION
+        assertRendered(entry, "ING-014", 409)
+        val body = mapper.readTree(Problems.renderIngestion(entry, "corr-1").body)
+        body.get("remediationOwner").asString() shouldBe "Finance"
+        body.get("disposition").asString() shouldBe "MANUAL"
+        entry.disposition shouldBe rowsOf("ING-014").single().disposition
+        entry.disposition shouldBe "MANUAL"
+    }
+
+    @Test
+    fun `INV-AC-22523 the disposition of each of the other four entries equals its row's TERMINAL`() {
+        IngestionErrorCode.entries.filter { it != IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION }.forEach {
+            it.disposition shouldBe rowsOf(it.code).single().disposition
+            it.disposition shouldBe "TERMINAL"
+        }
     }
 
     private fun assertEntry(

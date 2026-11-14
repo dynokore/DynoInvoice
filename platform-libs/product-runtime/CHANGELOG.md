@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.20.1] - 2026-11-14
+### Changed
+- Version step only: depends on `service-runtime` 13.20.0 (ING-014 entry of `IngestionErrorCode`; INV-T-22525); no code change.
+
 ## [2.20.0] - 2026-11-14
 ### Added
 - `PlatformEventCatalogue` gains `RULE_PACK_STAGED` (`gst.platform.rule-pack-staged.v1`) and `PACK_CURRENCY_CHANGED` (`gst.platform.pack-currency-changed.v1`) in `ALL`; depends on `outbox-and-queue` 6.24.0 (see the answered design question raised at the body of INV-T-4976 (option A; tooling `gap4976e-gap.md`), INV-AC-22362, INV-T-22365).
