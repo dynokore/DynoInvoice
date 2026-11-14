@@ -3,7 +3,7 @@ package com.dynokore.gst.rules.bootstrap.egress
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Test-side fixture of svc-rules (INV-REQ-1081, INV-AC-2077): while installed it records every connection attempt of
+ * Test-side fixture of svc-rules (INV-REQ-1081, INV-AC-22534): while installed it records every connection attempt of
  * the test JVM made through `java.net.Socket` and NIO `SocketChannel` (the test-only Java agent sees them before the
  * connect proceeds). A destination is a violation when it is not equal to an allowlisted entry; nothing is matched by
  * prefix or pattern. Fail closed: with the agent not loaded [install] fails, so no test that installs the guard can

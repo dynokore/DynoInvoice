@@ -74,7 +74,7 @@ class EgressGuardTest {
         }
 
     @Test
-    fun `a Socket connect to 192_0_2_1 port 9 is recorded and is a violation`() {
+    fun `INV-AC-22534 a Socket connect to 192_0_2_1 port 9 is recorded and is a violation`() {
         EgressGuard.install().use { guard ->
             socket(UNROUTABLE, DISCARD_PORT)
             guard.recorded() shouldContain unroutable
@@ -84,7 +84,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `a blocking SocketChannel connect to 192_0_2_1 port 9 is recorded`() {
+    fun `INV-AC-22534 a blocking SocketChannel connect to 192_0_2_1 port 9 is recorded`() {
         EgressGuard.install().use { guard ->
             blockingChannel(UNROUTABLE)
             guard.recorded() shouldContain unroutable
@@ -93,7 +93,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `a non-blocking SocketChannel registered with a Selector connecting to 192_0_2_1 port 9 is recorded`() {
+    fun `INV-AC-22534 a non-blocking SocketChannel registered with a Selector connecting to 192_0_2_1 port 9 is recorded`() {
         EgressGuard.install().use { guard ->
             nonBlockingChannel(UNROUTABLE)
             guard.recorded() shouldContain unroutable
@@ -101,7 +101,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `an HttpClient request to 192_0_2_1 port 9 is recorded`() {
+    fun `INV-AC-22534 an HttpClient request to 192_0_2_1 port 9 is recorded`() {
         EgressGuard.install().use { guard ->
             httpClient(UNROUTABLE)
             guard.recorded() shouldContain unroutable
@@ -109,7 +109,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `an HttpURLConnection to 192_0_2_1 port 9 is recorded`() {
+    fun `INV-AC-22534 an HttpURLConnection to 192_0_2_1 port 9 is recorded`() {
         EgressGuard.install().use { guard ->
             attempt {
                 val connection = URI("http://$UNROUTABLE:$DISCARD_PORT/").toURL().openConnection() as HttpURLConnection
@@ -121,7 +121,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `127_0_0_2 a look-alike of the loopback entry is recorded and is a violation`() {
+    fun `INV-AC-22534 127_0_0_2 a look-alike of the loopback entry is recorded and is a violation`() {
         EgressGuard.install().use { guard ->
             socket("127.0.0.2", DISCARD_PORT)
             guard.recorded() shouldContain Destination("127.0.0.2", DISCARD_PORT)
@@ -130,7 +130,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `the allowlisted database connection is not flagged`() {
+    fun `INV-AC-22534 the allowlisted database connection is not flagged`() {
         val db = InetAddress.getByName(PostgresRules.pg.host).hostAddress
         val port = PostgresRules.pg.getMappedPort(DB_PORT)
         EgressGuard.install(EgressGuard.Allowed(db, port)).use { guard ->
@@ -142,7 +142,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `the allowlisted database host on another port is recorded and is a violation`() {
+    fun `INV-AC-22534 the allowlisted database host on another port is recorded and is a violation`() {
         val db = InetAddress.getByName(PostgresRules.pg.host).hostAddress
         val port = PostgresRules.pg.getMappedPort(DB_PORT)
         val other = Destination(db, port + 1)
@@ -154,7 +154,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `a host entry with a port admits only that port, a host entry of another address admits nothing else`() {
+    fun `INV-AC-22534 a host entry with a port admits only that port, a host entry of another address admits nothing else`() {
         val entry = EgressGuard.Allowed(UNROUTABLE, DB_PORT)
         entry.admits(Destination(UNROUTABLE, DB_PORT)) shouldBe true
         entry.admits(Destination(UNROUTABLE, DB_PORT + 1)) shouldBe false
@@ -165,7 +165,7 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `after the guard is removed a connect to 192_0_2_1 port 9 is not recorded`() {
+    fun `INV-AC-22534 after the guard is removed a connect to 192_0_2_1 port 9 is not recorded`() {
         val guard = EgressGuard.install()
         guard.close()
         val before = guard.recorded()
@@ -175,14 +175,14 @@ class EgressGuardTest {
     }
 
     @Test
-    fun `a second guard cannot be installed while one is installed`() {
+    fun `INV-AC-22534 a second guard cannot be installed while one is installed`() {
         EgressGuard.install().use {
             assertThrows(IllegalStateException::class.java) { EgressGuard.install() }
         }
     }
 
     @Test
-    fun `without the agent the guard fails closed`() {
+    fun `INV-AC-22534 without the agent the guard fails closed`() {
         val marker = System.getProperties()[EgressRecorder.AGENT_KEY]
         try {
             System.getProperties().remove(EgressRecorder.AGENT_KEY)

@@ -18,7 +18,7 @@ private const val INSTALLATION_FACT = """{"distinctTaxApprover":true,"recordedAt
 private const val DOC = "0d000000-0000-4000-8000-0000000000a1"
 
 /**
- * INV-REQ-1081, INV-AC-2077: in a private deployment (`gst.form=private`) a candidate pack cannot be approved before
+ * INV-REQ-1081, INV-AC-22534: in a private deployment (`gst.form=private`) a candidate pack cannot be approved before
  * its local dry-run delta exists, the delta run makes no outbound connection (the [EgressGuard] sees every `Socket` and
  * `SocketChannel` connect of the test JVM and only the loopback address and the test database are allowlisted), and
  * after the delta the approval is accepted. The pack here is a mapping pack of the dry-run operation of INV-T-4974; the
@@ -56,7 +56,7 @@ class PackDeltaEgressBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-2077 arming is refused before the delta, the delta run has no egress, then approval passes`() {
+    fun `INV-AC-22534 arming is refused before the delta, the delta run has no egress, then approval passes`() {
         samples.serve("2026-Q3", listOf(item(DOC, "2026-Q3")))
         val packId = candidate()
 
