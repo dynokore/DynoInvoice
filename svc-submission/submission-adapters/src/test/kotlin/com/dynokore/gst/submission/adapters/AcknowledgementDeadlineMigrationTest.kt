@@ -40,7 +40,7 @@ class AcknowledgementDeadlineMigrationTest {
     }
 
     private fun migrationSql(): String =
-        checkNotNull(javaClass.getResourceAsStream("/db/migration/V202611181200__acknowledgement_deadline.sql")) {
+        checkNotNull(javaClass.getResourceAsStream("/db/migration/V202611181300__acknowledgement_deadline.sql")) {
             "migration resource missing"
         }.use { String(it.readBytes(), Charsets.UTF_8) }
 
