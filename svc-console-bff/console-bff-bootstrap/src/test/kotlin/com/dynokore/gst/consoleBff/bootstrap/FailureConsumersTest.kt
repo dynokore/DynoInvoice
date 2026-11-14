@@ -74,7 +74,6 @@ class FailureConsumersTest {
                     return real.handle(event)
                 }
             }
-
         private val name = "t21060-" + UUID.randomUUID()
         private val failedReader = ListReader()
         private val rejectedReader = ListReader()
@@ -113,6 +112,7 @@ class FailureConsumersTest {
         type: String,
         doc: UUID,
         data: String,
+        sequence: Long?,
     ) = Envelope(
         id = EventId(id),
         source = "/gst/test-svc",
@@ -123,7 +123,7 @@ class FailureConsumersTest {
         entity = EntityRef("E-001"),
         docUuid = DocUuid(doc),
         transactionDate = null,
-        docSequence = if (doc == d1) 1L else 2L,
+        docSequence = sequence,
         instanceId = "svc-0",
         correlation = CorrelationId("corr-1"),
         causation = CausationId("cause-1"),
@@ -139,6 +139,7 @@ class FailureConsumersTest {
         FAILED,
         d1,
         """{"docUuid":"$d1","version":1,"failureClass":"SUB-REJECTED","retryDisposition":"NONE"}""",
+        1,
     )
 
     private fun rejectedEvent(
@@ -151,6 +152,7 @@ class FailureConsumersTest {
         REJECTED,
         d2,
         """{"docUuid":"$d2","version":1,"docsequence":2,$code"validationTrace":[]}""",
+        2,
     )
 
     /** `code to state` rows of the table, read as the runtime role bound to [tenant]. */
