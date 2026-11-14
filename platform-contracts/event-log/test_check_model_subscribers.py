@@ -61,6 +61,10 @@ def base():
     ev.append({"id": "AuthorityHeadObserved", "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
     tp.append(_topic(OLD_AHO, "AuthorityHeadObserved", ["a-svc"], ["b-svc"]))
     tp.append(_topic(NEW_AHO, "AuthorityHeadObserved", ["a-svc"], ["b-svc"]))
+    for n, slug in (("RulePackStaged", "rule-pack-staged"), ("PackCurrencyChanged", "pack-currency-changed")):
+        ev.append({"id": n, "producers": ["a-svc"], "consumers": ["b-svc"], "feeds_runtime_replicas": False})
+        tp.append(_topic(f"gst.platform.{slug}.v1", n, ["a-svc"], ["b-svc"]))
+        tp.append(_topic(f"gst.rules.{slug}.v1", n, ["a-svc"], ["b-svc"]))
     return ev, tp
 
 
@@ -95,7 +99,10 @@ class Case(unittest.TestCase):
 class TestConstants(unittest.TestCase):
     def test_exemption_constants_are_exact(self):
         self.assertEqual(chk.MODEL_ONLY, {"ReplayRequested", "ReplayCompleted"})
-        self.assertEqual(chk.EXEMPT_TOPICS, {"gst.access.authority-changed.v1"})
+        self.assertEqual(
+            chk.EXEMPT_TOPICS,
+            {"gst.access.authority-changed.v1", "gst.rules.rule-pack-staged.v1", "gst.rules.pack-currency-changed.v1"},
+        )
         self.assertEqual(chk.EXEMPT_TYPES, set())
         self.assertEqual(chk.NON_EVENT_SERVICES, {"console-web"})
 
@@ -157,6 +164,28 @@ class TestCheck(Case):
         self.topics = [t for t in self.topics if t["topic"] != "gst.access.authority-changed.v1"]
         _, out = self.run_check()
         self.assertEqual(out[1:], ["exemption gst.access.authority-changed.v1 is stale"])
+
+    def test_rules_exempt_topics_pass_rule_1(self):
+        # INV-Q-22384 C: each event id is carried by one gst.platform.* topic and one exempt gst.rules.* topic
+        code, out = self.run_check()
+        self.assertEqual((code, out[1:]), (0, []))
+
+    def test_rules_exempt_topic_deleted_is_stale(self):
+        for name in ("gst.rules.rule-pack-staged.v1", "gst.rules.pack-currency-changed.v1"):
+            with self.subTest(name=name):
+                ev, tp = base()
+                self.events, self.topics = ev, [t for t in tp if t["topic"] != name]
+                _, out = self.run_check()
+                self.assertEqual(out[1:], [f"exemption {name} is stale"])
+
+    def test_rules_exempt_lookalikes_still_fail_rule_1(self):
+        for slug, eid in (("rule-pack-staged", "RulePackStaged"), ("pack-currency-changed", "PackCurrencyChanged")):
+            with self.subTest(slug=slug):
+                ev, tp = base()
+                tp.append(_topic(f"gst.rules.{slug}.v2", eid, ["a-svc"], ["b-svc"]))
+                self.events, self.topics = ev, tp
+                _, out = self.run_check()
+                self.assertTrue(any("more than one topic carries the event type" in x and f"gst.rules.{slug}.v2" in x for x in out), out)
 
     def test_exempt_topic_is_not_checked(self):
         # present, subscriber-less and carrying a modelled type: no finding, and the type has one non-exempt topic
@@ -583,8 +612,12 @@ class TestAddressRule(unittest.TestCase):
             (NEW_OSK, "com.dynokore.gst.platform.OperatorSessionKeysChanged.v1"),
             (OLD_AHO, "com.dynokore.gst.access.AuthorityHeadObserved.v1"),
             (NEW_AHO, "com.dynokore.gst.platform.AuthorityHeadObserved.v1"),
+            ("gst.rules.rule-pack-staged.v1", "com.dynokore.gst.rules.RulePackStaged.v1"),
+            ("gst.platform.rule-pack-staged.v1", "com.dynokore.gst.platform.RulePackStaged.v1"),
+            ("gst.rules.pack-currency-changed.v1", "com.dynokore.gst.rules.PackCurrencyChanged.v1"),
+            ("gst.platform.pack-currency-changed.v1", "com.dynokore.gst.platform.PackCurrencyChanged.v1"),
         ]
-        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged", "OperatorSessionKeysChanged", "AuthorityHeadObserved"])
+        code, out = self.run_topics(pairs, extra_events=sorted(chk.MODEL_ONLY) + ["InstallationStatusChanged", "OperatorSessionKeysChanged", "AuthorityHeadObserved", "RulePackStaged", "PackCurrencyChanged"])
         self.assertEqual(code, 0, out)
         self.assertEqual([l for l in out if "address differs" in l or "is malformed" in l], [])
 

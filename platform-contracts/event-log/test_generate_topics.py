@@ -482,7 +482,7 @@ class RetainedWhileResolvableTest(unittest.TestCase):
         derived = gen.derive_all(topics)
         text = (_HERE / "topics.yaml").read_text()
         self.assertEqual(gen.validate_retained_topics(text, topics, derived), [])
-        expected = {"gst.rules.rule-pack-staged.v1", "gst.rules.replay-notification.v1",
+        expected = {"gst.rules.rule-pack-staged.v1", "gst.platform.rule-pack-staged.v1", "gst.rules.replay-notification.v1",
                     "gst.rules.replay-payload.v1", "gst.rules.replay-reconciliation.v1",
                     "gst.rules.replay-tenancy.v1", "gst.rules.replay-masterdata.v1",
                     "gst.rules.replay-submission.v1"}

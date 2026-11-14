@@ -32,7 +32,13 @@ import yaml
 
 # Exemptions are exact and shrink-only; the unit test asserts them by equality.
 MODEL_ONLY = frozenset({"ReplayRequested", "ReplayCompleted"})
-EXEMPT_TOPICS = frozenset({"gst.access.authority-changed.v1"})
+# gst.rules.rule-pack-staged.v1 and gst.rules.pack-currency-changed.v1: the old domain topics stay beside their
+# gst.platform.* replacements (owner answer INV-Q-22384 C, INV-T-22364); exact names, shrink-only.
+EXEMPT_TOPICS = frozenset({
+    "gst.access.authority-changed.v1",
+    "gst.rules.rule-pack-staged.v1",
+    "gst.rules.pack-currency-changed.v1",
+})
 EXEMPT_TYPES: frozenset[str] = frozenset()
 # Old topic kept beside its replacement during a deprecation window (INV-Q-16626 A, expand-contract). Exact
 # names, old topic to replacement; shrink-only: the pair is deleted with its old topic, and a pair whose old
