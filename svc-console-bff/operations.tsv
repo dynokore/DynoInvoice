@@ -10,8 +10,8 @@ operation	getPortfolio	UNASSIGNED
 operation	getExceptionDecisionTrace	UNASSIGNED
 operation	getOverridePreview	UNASSIGNED
 operation	promoteConfiguration	UNASSIGNED
-operation	deferDocument	UNASSIGNED
-operation	undeferDocument	UNASSIGNED
+operation	deferDocument	INV-T-21165
+operation	undeferDocument	INV-T-21165
 operation	searchDocuments	UNASSIGNED
 operation	compareDocumentVersions	UNASSIGNED
 operation	previewConfigurationPromotion	UNASSIGNED

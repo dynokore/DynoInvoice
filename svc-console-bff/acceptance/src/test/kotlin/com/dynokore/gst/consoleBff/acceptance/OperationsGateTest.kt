@@ -1,8 +1,8 @@
 package com.dynokore.gst.consoleBff.acceptance
 
+import com.dynokore.gst.consoleBff.bootstrap.DeferralsController
 import com.dynokore.gst.consoleBff.bootstrap.ExceptionsController
 import com.dynokore.gst.consoleBff.contract.api.ConfigurationApi
-import com.dynokore.gst.consoleBff.contract.api.DeferralsApi
 import com.dynokore.gst.consoleBff.contract.api.DocumentsApi
 import com.dynokore.gst.consoleBff.contract.api.EvidenceApi
 import com.dynokore.gst.consoleBff.contract.api.PortfolioApi
@@ -29,7 +29,7 @@ class OperationsGateTest {
         OperationsStubs.stubs(
             listOf(
                 ConfigurationApi::class.java,
-                DeferralsApi::class.java,
+                DeferralsController::class.java,
                 DocumentsApi::class.java,
                 EvidenceApi::class.java,
                 ExceptionsController::class.java,
@@ -40,6 +40,8 @@ class OperationsGateTest {
                 WorkspacesApi::class.java,
             ),
         )
+
+    private val implemented = setOf("getExceptions", "deferDocument", "undeferDocument")
 
     private fun doneLines() = doneText.orEmpty().lines().filter { it.isNotBlank() }
 
@@ -55,11 +57,11 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 17
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
         run(done = doneText).shouldBeEmpty()
-        doneLines() shouldBe listOf("INV-T-21108")
+        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165")
     }
 
     @Test
-    fun `INV-AC-21120 seventeen operations, ten added rows UNASSIGNED, stubs equal the contract`() {
+    fun `INV-AC-21120 seventeen operations, eight added rows UNASSIGNED, stubs equal the contract`() {
         val ids = OperationsGate.contractOperations(openapi)
         ids.size shouldBe 17
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
@@ -71,8 +73,6 @@ class OperationsGateTest {
                 "getExceptionDecisionTrace",
                 "getOverridePreview",
                 "promoteConfiguration",
-                "deferDocument",
-                "undeferDocument",
                 "searchDocuments",
                 "compareDocumentVersions",
                 "previewConfigurationPromotion",
@@ -83,15 +83,15 @@ class OperationsGateTest {
             own.size shouldBe 1
             own.single()[2] shouldBe "UNASSIGNED"
         }
-        stubs.size shouldBe 16
-        stubs shouldBe ids - "getExceptions"
+        stubs.size shouldBe 14
+        stubs shouldBe ids - implemented
         run(done = doneText).shouldBeEmpty()
-        doneLines() shouldBe listOf("INV-T-21108")
+        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165")
     }
 
     @Test
     fun `INV-AC-14437 every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi) - "getExceptions"
+        stubs shouldBe OperationsGate.contractOperations(openapi) - implemented
     }
 
     @Test
@@ -99,9 +99,20 @@ class OperationsGateTest {
         run(done = doneText).shouldBeEmpty()
         val row = tsv.lines().single { it.startsWith("operation\tgetExceptions\t") }
         row shouldBe "operation\tgetExceptions\tINV-T-21108"
-        doneLines() shouldBe listOf("INV-T-21108")
+        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165")
         ("getExceptions" in stubs) shouldBe false
-        stubs shouldBe OperationsGate.contractOperations(openapi) - "getExceptions"
+        stubs shouldBe OperationsGate.contractOperations(openapi) - implemented
+    }
+
+    @Test
+    fun `INV-AC-21164 the gate counts deferDocument and undeferDocument as implemented, owned by this task`() {
+        run(done = doneText).shouldBeEmpty()
+        for (id in listOf("deferDocument", "undeferDocument")) {
+            tsv.lines().single { it.startsWith("operation\t$id\t") } shouldBe "operation\t$id\tINV-T-21165"
+            (id in stubs) shouldBe false
+        }
+        doneLines() shouldContain "INV-T-21165"
+        stubs shouldBe OperationsGate.contractOperations(openapi) - implemented
     }
 
     @Test
