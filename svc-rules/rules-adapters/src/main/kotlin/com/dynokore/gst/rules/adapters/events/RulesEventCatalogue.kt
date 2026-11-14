@@ -5,8 +5,8 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 
 /**
  * The event types catalogued for rules (platform-contracts event-log/topics.yaml; rules asyncapi.yaml), with the
- * topic of each (the channel address). `RulePackStaged` and `PackCurrencyChanged` are platform events (INV-T-4976 design
- * question option A): platform tenant, no entity. The emission guard of outbox-and-queue refuses any other type
+ * topic of each (the channel address). `RulePackStaged` and `PackCurrencyChanged` are platform events (INV-T-4976
+ * design question option A): platform tenant, no entity. The emission guard of outbox-and-queue refuses any other type
  * (EmissionNotPermitted, INV-AC-1869): there is no second path out of the service.
  */
 object RulesEventCatalogue {
