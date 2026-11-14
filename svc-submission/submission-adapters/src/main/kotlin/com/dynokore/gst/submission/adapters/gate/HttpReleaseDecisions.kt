@@ -1,6 +1,6 @@
 package com.dynokore.gst.submission.adapters.gate
 
-import com.dynokore.gst.submission.adapters.clients.api.SeparationOfDutyApi
+import com.dynokore.gst.submission.adapters.clients.access.api.SeparationOfDutyApi
 import com.dynokore.gst.submission.application.gate.ReleaseDecisions
 import com.dynokore.gst.submission.domain.gate.ReleaseOutcome
 import org.springframework.http.ResponseEntity
