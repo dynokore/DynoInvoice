@@ -1,11 +1,14 @@
 package com.dynokore.gst.aggregation.adapters.persistence
 
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.Aggregate.Companion.AGGREGATE
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateLine.Companion.AGGREGATE_LINE
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.records.AggregateRecord
 import com.dynokore.gst.aggregation.application.AggregateRepository
+import com.dynokore.gst.aggregation.application.AggregateRevisions
 import com.dynokore.gst.aggregation.application.DuplicateIntakeKey
 import com.dynokore.gst.aggregation.application.NewAggregate
 import com.dynokore.gst.aggregation.application.StoredAggregate
+import com.dynokore.gst.aggregation.domain.AggregateLine
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -26,7 +29,8 @@ class JooqAggregateStore(
     private val dsl: DSLContext,
     private val runner: TransactionRunner,
     private val tenants: TenantContext,
-) : AggregateRepository {
+) : AggregateRepository,
+    AggregateRevisions {
     override fun findByIntakeKey(
         entityRef: String,
         sourceKey: String,
@@ -64,29 +68,7 @@ class JooqAggregateStore(
     override fun store(aggregate: NewAggregate): StoredAggregate {
         val id = UUID.randomUUID()
         try {
-            runner.inTransaction {
-                dsl
-                    .insertInto(AGGREGATE)
-                    .set(AGGREGATE.AGGREGATE_ID, id)
-                    .set(AGGREGATE.TENANT_ID, tenants.current().value)
-                    .set(AGGREGATE.ENTITY_REF, aggregate.entityRef)
-                    .set(AGGREGATE.BUSINESS_UNIT_REF, aggregate.businessUnitRef)
-                    .set(AGGREGATE.AGGREGATE_TYPE, aggregate.aggregateType.name)
-                    .set(AGGREGATE.PERIOD_START, aggregate.periodStart)
-                    .set(AGGREGATE.PERIOD_END, aggregate.periodEnd)
-                    .set(AGGREGATE.SEQUENCE, aggregate.sequence)
-                    .set(AGGREGATE.SOURCE_KEY, aggregate.sourceKey)
-                    .set(AGGREGATE.SOURCE_REVISION, aggregate.sourceRevision)
-                    .set(AGGREGATE.ENTITY_CODE, aggregate.entityCode)
-                    .set(AGGREGATE.BUSINESS_UNIT_CODE, aggregate.businessUnitCode)
-                    .set(AGGREGATE.DOCUMENT_NUMBER, aggregate.documentNumber)
-                    .set(AGGREGATE.ISSUE_DATE, aggregate.issueDate)
-                    .set(AGGREGATE.TRANSACTION_DATE, aggregate.transactionDate)
-                    .set(AGGREGATE.WINDOW_START, aggregate.windowStart)
-                    .set(AGGREGATE.WINDOW_END, aggregate.windowEnd)
-                    .set(AGGREGATE.WINDOW_STATE, aggregate.windowState?.name)
-                    .execute()
-            }
+            runner.inTransaction { insert(id, aggregate) }
         } catch (failure: DataAccessException) {
             if (isIntakeKeyViolation(failure)) throw DuplicateIntakeKey()
             throw failure
@@ -94,7 +76,111 @@ class JooqAggregateStore(
         return StoredAggregate(aggregate, id)
     }
 
-    private fun stored(row: AggregateRecord): StoredAggregate =
+    override fun current(
+        entityRef: String,
+        sourceKey: String,
+    ): StoredAggregate? =
+        runner.inTransaction {
+            dsl
+                .selectFrom(AGGREGATE)
+                .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
+                .and(AGGREGATE.ENTITY_REF.eq(entityRef))
+                .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                .orderBy(AGGREGATE.SOURCE_REVISION.desc())
+                .limit(1)
+                .fetchOne()
+                ?.let(::stored)
+        }
+
+    override fun transmittedLines(
+        entityRef: String,
+        sourceKey: String,
+    ): List<AggregateLine> =
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            dsl
+                .select(AGGREGATE_LINE.INTERNAL_TAX_CODE, AGGREGATE_LINE.AMOUNT)
+                .from(AGGREGATE_LINE)
+                .join(AGGREGATE)
+                .on(AGGREGATE.AGGREGATE_ID.eq(AGGREGATE_LINE.AGGREGATE_ID))
+                .where(AGGREGATE_LINE.TENANT_ID.eq(tenant))
+                .and(AGGREGATE.TENANT_ID.eq(tenant))
+                .and(AGGREGATE.ENTITY_REF.eq(entityRef))
+                .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
+                .and(AGGREGATE.SUPERSEDED_BY.isNull)
+                .orderBy(AGGREGATE.SOURCE_REVISION, AGGREGATE_LINE.POSITION)
+                .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
+        }
+
+    override fun replace(
+        old: StoredAggregate,
+        replacement: NewAggregate,
+    ): StoredAggregate {
+        val id = UUID.randomUUID()
+        try {
+            runner.inTransaction {
+                // the old row is marked first: the number is unique among aggregates not superseded
+                val marked =
+                    dsl
+                        .update(AGGREGATE)
+                        .set(AGGREGATE.SUPERSEDED_BY, id)
+                        .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
+                        .and(AGGREGATE.AGGREGATE_ID.eq(old.aggregateId))
+                        .and(AGGREGATE.SUPERSEDED_BY.isNull)
+                        .and(AGGREGATE.TRANSMITTED_AT.isNull)
+                        .and(AGGREGATE.HANDED_ON_AT.isNull)
+                        .execute()
+                check(marked == 1) { "the aggregate to replace changed state during the intake" }
+                insert(id, replacement)
+            }
+        } catch (failure: DataAccessException) {
+            if (isIntakeKeyViolation(failure)) throw DuplicateIntakeKey()
+            throw failure
+        }
+        return StoredAggregate(replacement, id)
+    }
+
+    private fun insert(
+        id: UUID,
+        aggregate: NewAggregate,
+    ) {
+        val tenant = tenants.current().value
+        dsl
+            .insertInto(AGGREGATE)
+            .set(AGGREGATE.AGGREGATE_ID, id)
+            .set(AGGREGATE.TENANT_ID, tenant)
+            .set(AGGREGATE.ENTITY_REF, aggregate.entityRef)
+            .set(AGGREGATE.BUSINESS_UNIT_REF, aggregate.businessUnitRef)
+            .set(AGGREGATE.AGGREGATE_TYPE, aggregate.aggregateType.name)
+            .set(AGGREGATE.PERIOD_START, aggregate.periodStart)
+            .set(AGGREGATE.PERIOD_END, aggregate.periodEnd)
+            .set(AGGREGATE.SEQUENCE, aggregate.sequence)
+            .set(AGGREGATE.SOURCE_KEY, aggregate.sourceKey)
+            .set(AGGREGATE.SOURCE_REVISION, aggregate.sourceRevision)
+            .set(AGGREGATE.ENTITY_CODE, aggregate.entityCode)
+            .set(AGGREGATE.BUSINESS_UNIT_CODE, aggregate.businessUnitCode)
+            .set(AGGREGATE.DOCUMENT_NUMBER, aggregate.documentNumber)
+            .set(AGGREGATE.ISSUE_DATE, aggregate.issueDate)
+            .set(AGGREGATE.TRANSACTION_DATE, aggregate.transactionDate)
+            .set(AGGREGATE.WINDOW_START, aggregate.windowStart)
+            .set(AGGREGATE.WINDOW_END, aggregate.windowEnd)
+            .set(AGGREGATE.WINDOW_STATE, aggregate.windowState?.name)
+            .set(AGGREGATE.SUPPLEMENTARY, aggregate.isSupplementary)
+            .execute()
+        aggregate.lines.forEachIndexed { position, line ->
+            dsl
+                .insertInto(AGGREGATE_LINE)
+                .set(AGGREGATE_LINE.TENANT_ID, tenant)
+                .set(AGGREGATE_LINE.AGGREGATE_ID, id)
+                .set(AGGREGATE_LINE.POSITION, position)
+                .set(AGGREGATE_LINE.INTERNAL_TAX_CODE, line.internalTaxCode)
+                .set(AGGREGATE_LINE.AMOUNT, line.amount)
+                .execute()
+        }
+    }
+
+    internal fun stored(row: AggregateRecord): StoredAggregate =
         StoredAggregate(
             NewAggregate(
                 entityRef = row.required(AGGREGATE.ENTITY_REF),
@@ -113,9 +199,22 @@ class JooqAggregateStore(
                 windowStart = row.get(AGGREGATE.WINDOW_START),
                 windowEnd = row.get(AGGREGATE.WINDOW_END),
                 windowState = row.get(AGGREGATE.WINDOW_STATE)?.let(WindowState::valueOf),
+                lines = linesOf(row.required(AGGREGATE.AGGREGATE_ID)),
+                isSupplementary = row.required(AGGREGATE.SUPPLEMENTARY),
             ),
             row.required(AGGREGATE.AGGREGATE_ID),
+            row.get(AGGREGATE.TRANSMITTED_AT)?.toInstant(),
+            row.get(AGGREGATE.HANDED_ON_AT) != null,
         )
+
+    private fun linesOf(aggregateId: UUID): List<AggregateLine> =
+        dsl
+            .select(AGGREGATE_LINE.INTERNAL_TAX_CODE, AGGREGATE_LINE.AMOUNT)
+            .from(AGGREGATE_LINE)
+            .where(AGGREGATE_LINE.TENANT_ID.eq(tenants.current().value))
+            .and(AGGREGATE_LINE.AGGREGATE_ID.eq(aggregateId))
+            .orderBy(AGGREGATE_LINE.POSITION)
+            .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
 
     private fun <T : Any> AggregateRecord.required(field: Field<T?>): T =
         checkNotNull(get(field)) { "${field.name} is not null in the table" }

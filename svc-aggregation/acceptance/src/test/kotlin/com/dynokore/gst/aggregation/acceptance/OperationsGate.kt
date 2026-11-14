@@ -176,4 +176,27 @@ object OperationsGate {
             .forEach { findings += "channel $it: in the contract, missing from operations.tsv" }
         return findings
     }
+
+    /**
+     * A task of `done-tasks.txt` that owns a channel row must have published it: the channel's address, read from the
+     * contract, is a topic of an event the service catalogues ([publishedTopics]). Deny by default: a done key over an
+     * unpublished channel is a finding naming the row.
+     */
+    fun publishedChannelFindings(
+        tsv: String,
+        asyncapi: String,
+        doneFile: String?,
+        publishedTopics: Set<String>,
+    ): List<String> {
+        val (doneTasks, _) = parseDone(doneFile)
+        val channels = (Yaml().load<Map<String, Any?>>(asyncapi)["channels"] as? Map<*, *>).orEmpty()
+        return parse(tsv)
+            .filter { it.kind == "channel" && it.task in doneTasks }
+            .mapNotNull { row ->
+                val address = ((channels[row.id] as? Map<*, *>)?.get("address")) as? String
+                "channel ${row.id}: task ${row.task} is done but the channel is not published".takeIf {
+                    address == null || address !in publishedTopics
+                }
+            }
+    }
 }

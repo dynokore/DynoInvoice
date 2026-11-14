@@ -2,6 +2,7 @@ package com.dynokore.gst.aggregation.acceptance
 
 import com.dynokore.gst.aggregation.adapters.http.DrillDownController
 import com.dynokore.gst.aggregation.adapters.http.IntakeController
+import com.dynokore.gst.aggregation.bootstrap.AggregationEvents
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -55,8 +56,9 @@ class OperationsGateTest {
         return operationRows(table).filter { it[2] in lines }.map { it[1] }.toSet()
     }
 
-    /** Tasks that publish a channel of the contract and are done (INV-T-14464: aggregationAggregateWindowChanged). */
-    private val publishedChannelTasks = setOf("INV-T-14464")
+    /** Tasks that publish a channel of the contract and are done (INV-T-14464: aggregationAggregateWindowChanged;
+     * INV-T-4979: aggregationAggregateReady). */
+    private val publishedChannelTasks = setOf("INV-T-14464", "INV-T-4979")
 
     @Test
     fun `the real table covers the real contract`() {
@@ -256,5 +258,29 @@ class OperationsGateTest {
     fun `the header line is not read as a row`() {
         expectedDone("operation\tid\ttask\tstate\n", emptySet()) shouldBe emptySet()
         expectedImplemented("operation\tid\ttask\tstate\n", "task\n") shouldBe emptySet()
+    }
+
+    private val published = AggregationEvents.topicByType.values.toSet()
+
+    @Test
+    fun `the done channels of the real table are published`() {
+        OperationsGate.publishedChannelFindings(tsv, asyncapi, doneText, published).shouldBeEmpty()
+    }
+
+    @Test
+    fun `a done key over a channel that is not published fails naming the row`() {
+        val unpublished = published - "gst.aggregation.aggregate-ready.v1"
+        OperationsGate.publishedChannelFindings(tsv, asyncapi, doneText, unpublished).single() stringContain
+            "channel aggregationAggregateReady: task INV-T-4979 is done but the channel is not published"
+        OperationsGate.publishedChannelFindings(tsv, asyncapi, "INV-T-4979\n", emptySet()).single() stringContain
+            "aggregationAggregateReady"
+    }
+
+    @Test
+    fun `the look-alike key INV-T-49790 in the done file fails the gate`() {
+        run(done = doneText.orEmpty() + "INV-T-49790\n") shouldContain
+            "done-tasks.txt: INV-T-49790 names no row of operations.tsv"
+        // the look-alike is not the owner of the channel, so it publishes nothing for it
+        OperationsGate.publishedChannelFindings(tsv, asyncapi, "INV-T-49790\n", emptySet()).shouldBeEmpty()
     }
 }

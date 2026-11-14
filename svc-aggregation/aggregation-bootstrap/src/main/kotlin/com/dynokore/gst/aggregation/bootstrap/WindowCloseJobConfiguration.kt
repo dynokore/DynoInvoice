@@ -1,9 +1,13 @@
 package com.dynokore.gst.aggregation.bootstrap
 
+import com.dynokore.gst.aggregation.adapters.events.AggregateReadyOutbox
 import com.dynokore.gst.aggregation.adapters.events.WindowChangedOutbox
 import com.dynokore.gst.aggregation.adapters.persistence.JooqWindowStateVersions
+import com.dynokore.gst.aggregation.application.AggregateReadyPublisher
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CloseWindows
+import com.dynokore.gst.aggregation.application.HandOffRepository
+import com.dynokore.gst.aggregation.application.HandOnAggregates
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
@@ -84,6 +88,18 @@ class WindowCloseJobConfiguration {
     ): WindowChangePublisher = WindowChangedOutbox(outbox, tenants, JooqWindowStateVersions(dsl, runner))
 
     @Bean
+    fun aggregateReadyPublisher(
+        outbox: OutboxWriter,
+        tenants: TenantContext,
+    ): AggregateReadyPublisher = AggregateReadyOutbox(outbox, tenants)
+
+    @Bean
+    fun handOnAggregates(
+        repository: HandOffRepository,
+        publisher: AggregateReadyPublisher,
+    ): HandOnAggregates = HandOnAggregates(repository, publisher)
+
+    @Bean
     fun openWindowEntities(
         scope: TenantScope,
         dsl: DSLContext,
@@ -100,6 +116,7 @@ class WindowCloseJobConfiguration {
         shortCodes: ShortCodes,
         aggregates: AggregateRepository,
         publisher: WindowChangePublisher,
+        handOn: HandOnAggregates,
     ): WindowCloseJob =
         WindowCloseJob(jobs, entities) { context ->
             val tenant = context.target.tenant
@@ -115,6 +132,8 @@ class WindowCloseJobConfiguration {
                         IntakeAggregate(shortCodes, aggregates),
                         publisher,
                     ).execute(date)
+                    // the aggregates of closed windows go to submission in the same transaction as their close
+                    handOn.execute(entity)
                 }
             }
         }

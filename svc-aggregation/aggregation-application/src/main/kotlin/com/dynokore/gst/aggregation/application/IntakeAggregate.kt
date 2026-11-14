@@ -1,9 +1,12 @@
 package com.dynokore.gst.aggregation.application
 
+import com.dynokore.gst.aggregation.domain.AggregateLine
+import com.dynokore.gst.aggregation.domain.AggregateLines
 import com.dynokore.gst.aggregation.domain.AggregateNumber
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.NumberingResult
 import com.dynokore.gst.aggregation.domain.WindowState
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
@@ -45,6 +48,7 @@ data class IntakeCommand(
     val periodEnd: LocalDate,
     val sourceKey: String,
     val sourceRevision: Long,
+    val lines: List<AggregateLine> = emptyList(),
 )
 
 data class NewAggregate(
@@ -64,12 +68,45 @@ data class NewAggregate(
     val windowStart: LocalDate? = null,
     val windowEnd: LocalDate? = null,
     val windowState: WindowState? = null,
+    val lines: List<AggregateLine> = emptyList(),
+    val isSupplementary: Boolean = false,
 )
 
 data class StoredAggregate(
     val aggregate: NewAggregate,
     val aggregateId: UUID,
+    /** Null until the aggregate is transmitted; written in production by INV-T-4980, only read here. */
+    val transmittedAt: Instant? = null,
+    /** Whether AggregateReady was published for the aggregate. */
+    val handedOn: Boolean = false,
 )
+
+/**
+ * The revision side of the aggregate store (INV-REQ-434 item 4), kept apart from [AggregateRepository] so the intake
+ * of a first revision needs none of it.
+ */
+interface AggregateRevisions {
+    /** The aggregate of the highest revision recorded for the entity and source key (never one that is superseded). */
+    fun current(
+        entityRef: String,
+        sourceKey: String,
+    ): StoredAggregate?
+
+    /** The lines of every transmitted aggregate of the entity and source key, those of supplementaries included. */
+    fun transmittedLines(
+        entityRef: String,
+        sourceKey: String,
+    ): List<AggregateLine>
+
+    /**
+     * Stores [replacement] and marks [old] superseded by it in one transaction; the row of [old] is not deleted.
+     * @throws DuplicateIntakeKey when the triple of [replacement] is already stored.
+     */
+    fun replace(
+        old: StoredAggregate,
+        replacement: NewAggregate,
+    ): StoredAggregate
+}
 
 /** A short code that is null or does not match `^[A-Z0-9]{1,10}$` makes the number unbuildable. */
 enum class NotBuildableReason {
@@ -93,6 +130,25 @@ sealed interface IntakeOutcome {
     /** The window [periodStart, periodEnd] is not inside one prescribed period (ING-018); nothing is stored. */
     data object CrossesPeriodBoundary : IntakeOutcome
 
+    /** A higher revision replaced an aggregate that was not transmitted; the number is the replaced one's. */
+    data class Replaced(
+        val aggregate: StoredAggregate,
+        val replacedId: UUID,
+    ) : IntakeOutcome
+
+    /** A higher revision over a transmitted aggregate: a supplementary aggregate carries the difference. */
+    data class Supplemented(
+        val aggregate: StoredAggregate,
+    ) : IntakeOutcome
+
+    /**
+     * The aggregate to replace has not been transmitted but AggregateReady was published for it. Not decided (open
+     * gap): nothing is stored.
+     */
+    data class ReplacementAfterHandOn(
+        val aggregateId: UUID,
+    ) : IntakeOutcome
+
     data class NumberNotBuildable(
         val reason: NotBuildableReason,
     ) : IntakeOutcome
@@ -109,13 +165,78 @@ class IntakeAggregate(
     private val windows: WindowRepository? = null,
     private val cadences: CadenceSource? = null,
     private val periods: PeriodBoundarySource? = null,
+    private val revisions: AggregateRevisions? = null,
 ) {
     init {
         require((windows == null) == (cadences == null)) { "windows and cadences are set together or not at all" }
     }
 
     fun execute(command: IntakeCommand): IntakeOutcome =
-        alreadyKnown(command) ?: if (crossesBoundary(command)) IntakeOutcome.CrossesPeriodBoundary else create(command)
+        alreadyKnown(command) ?: when {
+            crossesBoundary(command) -> {
+                IntakeOutcome.CrossesPeriodBoundary
+            }
+
+            else -> {
+                revisions?.current(command.entityRef, command.sourceKey)?.let { revise(command, it) }
+                    ?: create(command)
+            }
+        }
+
+    /**
+     * Higher revision over a recorded aggregate (INV-REQ-434 item 4). Not transmitted: the new revision replaces it
+     * and keeps its number. Transmitted: never amended; a supplementary aggregate with the next sequence and a new
+     * number carries the per-code difference to everything transmitted for the key.
+     */
+    private fun revise(
+        command: IntakeCommand,
+        current: StoredAggregate,
+    ): IntakeOutcome =
+        when {
+            current.transmittedAt != null -> supplement(command)
+            current.handedOn -> IntakeOutcome.ReplacementAfterHandOn(current.aggregateId)
+            else -> replace(command, current)
+        }
+
+    private fun replace(
+        command: IntakeCommand,
+        current: StoredAggregate,
+    ): IntakeOutcome {
+        val store = checkNotNull(revisions)
+        val old = current.aggregate
+        val lines =
+            if (old.isSupplementary) {
+                AggregateLines.difference(command.lines, store.transmittedLines(command.entityRef, command.sourceKey))
+            } else {
+                AggregateLines.merge(command.lines)
+            }
+        val replacement =
+            old.copy(
+                periodStart = command.periodStart,
+                periodEnd = command.periodEnd,
+                sourceRevision = command.sourceRevision,
+                lines = lines,
+            )
+        return try {
+            IntakeOutcome.Replaced(store.replace(current, replacement), current.aggregateId)
+        } catch (_: DuplicateIntakeKey) {
+            IntakeOutcome.Replayed(winner(command))
+        }
+    }
+
+    private fun supplement(command: IntakeCommand): IntakeOutcome {
+        val store = checkNotNull(revisions)
+        val difference =
+            AggregateLines.difference(command.lines, store.transmittedLines(command.entityRef, command.sourceKey))
+        return when (val made = create(command.copy(lines = difference), supplementary = true)) {
+            is IntakeOutcome.Created -> IntakeOutcome.Supplemented(made.aggregate)
+            else -> made
+        }
+    }
+
+    private fun winner(command: IntakeCommand): StoredAggregate =
+        repository.findByIntakeKey(command.entityRef, command.sourceKey, command.sourceRevision)
+            ?: error("a duplicate intake key without a stored aggregate")
 
     /**
      * ING-018 (INV-REQ-435): with a source, known spans must hold both dates in one and the same span; a date in no
@@ -141,13 +262,16 @@ class IntakeAggregate(
     }
 
     /** Step 3: both codes are read, the entity code is judged first. */
-    private fun create(command: IntakeCommand): IntakeOutcome {
+    private fun create(
+        command: IntakeCommand,
+        supplementary: Boolean = false,
+    ): IntakeOutcome {
         val entityCode = validCode(shortCodes.entityCode(command.entityRef))
         val businessUnitCode = validCode(shortCodes.businessUnitCode(command.businessUnitRef))
         return when {
             entityCode == null -> IntakeOutcome.NumberNotBuildable(NotBuildableReason.ENTITY_CODE)
             businessUnitCode == null -> IntakeOutcome.NumberNotBuildable(NotBuildableReason.BUSINESS_UNIT_CODE)
-            else -> number(command, entityCode, businessUnitCode)
+            else -> number(command, entityCode, businessUnitCode, supplementary)
         }
     }
 
@@ -156,6 +280,7 @@ class IntakeAggregate(
         command: IntakeCommand,
         entityCode: String,
         businessUnitCode: String,
+        supplementary: Boolean,
     ): IntakeOutcome {
         val sequence = repository.nextSequence()
         val number =
@@ -182,14 +307,13 @@ class IntakeAggregate(
                 windowStart = placement?.window?.start,
                 windowEnd = placement?.window?.end,
                 windowState = placement?.state,
+                lines = if (supplementary) command.lines else AggregateLines.merge(command.lines),
+                isSupplementary = supplementary,
             )
         return try {
             IntakeOutcome.Created(repository.store(new))
         } catch (_: DuplicateIntakeKey) {
-            val winner =
-                repository.findByIntakeKey(command.entityRef, command.sourceKey, command.sourceRevision)
-                    ?: error("a duplicate intake key without a stored aggregate")
-            IntakeOutcome.Replayed(winner)
+            IntakeOutcome.Replayed(winner(command))
         }
     }
 

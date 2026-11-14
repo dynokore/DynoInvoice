@@ -10,6 +10,7 @@ import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.CloseResult
 import com.dynokore.gst.aggregation.application.CloseWindows
+import com.dynokore.gst.aggregation.application.HandOnAggregates
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.PeriodSpans
@@ -59,6 +60,7 @@ class TransactionIntakeBoundaryTest {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val tenant: UUID = UUID.randomUUID()
         val windows: WindowRepository = context.getBean(WindowRepository::class.java)
+        private val handOn = context.getBean(HandOnAggregates::class.java)
         private val intake =
             IntakeAggregate(context.getBean(ShortCodes::class.java), context.getBean(AggregateRepository::class.java))
         val mvc: MockMvc =
@@ -115,6 +117,9 @@ class TransactionIntakeBoundaryTest {
                         .response
                 }
             }
+
+        fun handOn(): Int =
+            scope.bind(TenantId(tenant), actor) { scope.transactions.inTransaction { handOn.execute("E-001") } }.size
 
         fun close(
             periods: PeriodBoundarySource,
@@ -224,6 +229,26 @@ class TransactionIntakeBoundaryTest {
             boundary.close(twoQuarters, LocalDate.of(2022, 4, 11)).closed.size shouldBe 1
             aggregates(boundary.tenant).single() shouldBe
                 "2022-04-04..2022-04-10 " + days(LocalDate.of(2022, 4, 4), LocalDate.of(2022, 4, 10)).joinToString(",")
+        }
+
+    @Test
+    fun `INV-REQ-718 the aggregate of a closed window part holds one summed line per code and is handed on`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir, Cadence.WEEKLY) { boundary ->
+            boundary.send(days(LocalDate.of(2022, 4, 4), LocalDate.of(2022, 4, 10)))
+            boundary.close(twoQuarters, LocalDate.of(2022, 4, 11)).closed.size shouldBe 1
+            rows(
+                "select internal_tax_code || '=' || amount from aggregation.aggregate_line where tenant_id = ?",
+                boundary.tenant,
+            ).single() shouldBe "SR-STD=70.00"
+            boundary.handOn() shouldBe 1
+            boundary.handOn() shouldBe 0
+            rows(
+                "select data->'linesByInternalTaxCode'->0->>'amount' from aggregation.outbox where tenant_id = ? " +
+                    "and type like '%AggregateReady%'",
+                boundary.tenant,
+            ).single() shouldBe "70.00"
         }
 
     @Test

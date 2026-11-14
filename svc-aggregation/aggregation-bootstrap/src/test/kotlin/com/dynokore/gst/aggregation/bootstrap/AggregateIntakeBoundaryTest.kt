@@ -217,7 +217,7 @@ class AggregateIntakeBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-453 a higher revision and another sourceKey are new aggregates`(
+    fun `INV-AC-453 a higher revision replaces the number it held and another sourceKey is a new aggregate`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
@@ -228,7 +228,9 @@ class AggregateIntakeBoundaryTest {
                     response.status shouldBe 202
                     json(response).get("documentNumber").asString()
                 }
-            numbers.toSet().size shouldBe 3
+            // revision 2 replaces the untransmitted revision 1 and keeps its number (INV-T-4979, INV-REQ-434 item 4)
+            numbers[1] shouldBe numbers[0]
+            numbers.toSet().size shouldBe 2
             aggregates(tenant) shouldBe 3
         }
 

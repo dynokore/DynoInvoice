@@ -1,9 +1,12 @@
 package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.persistence.JooqAggregateStore
+import com.dynokore.gst.aggregation.adapters.persistence.JooqHandOffStore
 import com.dynokore.gst.aggregation.adapters.replica.StructureCodeLookup
 import com.dynokore.gst.aggregation.application.AggregateRepository
+import com.dynokore.gst.aggregation.application.AggregateRevisions
 import com.dynokore.gst.aggregation.application.CadenceSource
+import com.dynokore.gst.aggregation.application.HandOffRepository
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.ShortCodes
@@ -23,7 +26,15 @@ class IntakeConfiguration {
         dsl: DSLContext,
         runner: TransactionRunner,
         tenants: TenantContext,
-    ): AggregateRepository = JooqAggregateStore(dsl, runner, tenants)
+    ): JooqAggregateStore = JooqAggregateStore(dsl, runner, tenants)
+
+    @Bean
+    fun handOffRepository(
+        dsl: DSLContext,
+        runner: TransactionRunner,
+        tenants: TenantContext,
+        store: JooqAggregateStore,
+    ): HandOffRepository = JooqHandOffStore(dsl, runner, tenants, store)
 
     @Bean
     fun shortCodes(
@@ -32,11 +43,13 @@ class IntakeConfiguration {
     ): ShortCodes = StructureCodeLookup(structure, tenants)
 
     @Bean
+    @Suppress("LongParameterList")
     fun intakeAggregate(
         shortCodes: ShortCodes,
         repository: AggregateRepository,
         windows: WindowRepository,
         cadences: CadenceSource,
         periods: PeriodBoundarySource,
-    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences, periods)
+        revisions: AggregateRevisions,
+    ): IntakeAggregate = IntakeAggregate(shortCodes, repository, windows, cadences, periods, revisions)
 }
