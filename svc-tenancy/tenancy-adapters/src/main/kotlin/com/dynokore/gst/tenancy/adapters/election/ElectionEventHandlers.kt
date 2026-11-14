@@ -17,8 +17,8 @@ import java.time.LocalDate
 object ConsumedElectionEvents {
     const val ACCESS_POINT_ROUTE_CHANGED = "com.dynokore.gst.transport.AccessPointRouteChanged.v1"
     const val ACCESS_POINT_ROUTE_CHANGED_TOPIC = "gst.transport.access-point-route-changed.v1"
-    const val RULE_PACK_STAGED = "com.dynokore.gst.rules.RulePackStaged.v1"
-    const val RULE_PACK_STAGED_TOPIC = "gst.rules.rule-pack-staged.v1"
+    const val RULE_PACK_STAGED = "com.dynokore.gst.platform.RulePackStaged.v1"
+    const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
     const val RULE_PACK_ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
     const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
 

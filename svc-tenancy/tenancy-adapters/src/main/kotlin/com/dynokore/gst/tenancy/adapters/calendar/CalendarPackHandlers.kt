@@ -57,7 +57,7 @@ class CalendarPackStagedHandler(
     }
 
     companion object {
-        const val STAGED = "com.dynokore.gst.rules.RulePackStaged.v1"
+        const val STAGED = "com.dynokore.gst.platform.RulePackStaged.v1"
     }
 }
 

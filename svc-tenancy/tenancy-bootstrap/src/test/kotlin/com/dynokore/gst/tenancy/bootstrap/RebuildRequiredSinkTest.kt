@@ -51,7 +51,7 @@ class RebuildRequiredSinkTest {
     }
 
     private val incident =
-        RebuildRequiredIncident("tenancy-svc-rule-pack-staged", "gst.rules.rule-pack-staged.v1", 5, 9, Instant.now())
+        RebuildRequiredIncident("tenancy-svc-rule-pack-staged", "gst.platform.rule-pack-staged.v1", 5, 9, Instant.now())
 
     @Test
     fun `the bound sink logs the topic and the reason at ERROR and does nothing else`() {
@@ -63,7 +63,7 @@ class RebuildRequiredSinkTest {
                 assertThat(logged).hasSize(1)
                 assertThat(logged.single().level).isEqualTo(Level.ERROR)
                 assertThat(logged.single().formattedMessage)
-                    .contains("gst.rules.rule-pack-staged.v1")
+                    .contains("gst.platform.rule-pack-staged.v1")
                     .contains("next offset 5")
                     .contains("purge watermark 9")
             }

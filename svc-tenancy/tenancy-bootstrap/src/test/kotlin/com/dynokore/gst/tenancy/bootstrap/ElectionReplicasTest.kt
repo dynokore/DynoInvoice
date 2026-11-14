@@ -1,18 +1,26 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackDecoder
+import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackStagedHandler
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
+import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
 import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.events.TenancyEventCatalogue
+import com.dynokore.gst.tenancy.application.election.ScopePackStore
+import com.dynokore.gst.tenancy.application.period.CalendarPackReplica
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
 import com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest
 import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.FactAnswer
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import tools.jackson.databind.json.JsonMapper
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.UUID
 
 /** The route replica and the scope pack replica, fed through the handlers of the inbox consumers. */
 class ElectionReplicasTest {
@@ -203,6 +211,88 @@ class ElectionReplicasTest {
         }
     }
 
+    // ---- RulePackStaged is accepted only as the platform type (INV-AC-22371) --------------------------------------
+
+    private fun stagedHandlers(env: ProfileEnv): Map<String, EventHandler> {
+        val mapper = JsonMapper.builder().build()
+        return mapOf(
+            "election" to RulePackStagedHandler(env.context.getBean(ScopePackStore::class.java), mapper),
+            "calendar" to
+                CalendarPackStagedHandler(
+                    env.context.getBean(CalendarPackReplica::class.java),
+                    mapper,
+                    env.context.getBean(CalendarPackDecoder::class.java),
+                ),
+        )
+    }
+
+    private fun refusal(
+        handler: EventHandler,
+        type: String,
+    ): String? =
+        runCatching {
+            handler.handle(testEnvelope(type, TenantId(UUID.fromString("00000000-0000-0000-0000-000000000001")), "{}"))
+        }.exceptionOrNull()
+            ?.message
+
+    @Test
+    fun `INV-AC-22371 the staged constants and the subscription equal the platform names`() {
+        assertThat(ConsumedElectionEvents.RULE_PACK_STAGED).isEqualTo("com.dynokore.gst.platform.RulePackStaged.v1")
+        assertThat(ConsumedElectionEvents.RULE_PACK_STAGED_TOPIC).isEqualTo("gst.platform.rule-pack-staged.v1")
+        assertThat(CalendarPackStagedHandler.STAGED).isEqualTo("com.dynokore.gst.platform.RulePackStaged.v1")
+        // the map on main with the staged entry replaced, compared as a set of pairs
+        assertThat(
+            ConsumedElectionEvents.SUBSCRIPTIONS.entries
+                .map { it.key to it.value }
+                .toSet(),
+        ).isEqualTo(
+            setOf(
+                "com.dynokore.gst.transport.AccessPointRouteChanged.v1" to
+                    "gst.transport.access-point-route-changed.v1",
+                "com.dynokore.gst.platform.RulePackStaged.v1" to "gst.platform.rule-pack-staged.v1",
+                "com.dynokore.gst.rules.RulePackActivated.v1" to "gst.rules.rule-pack-activated.v1",
+            ),
+        )
+        assertThat(ConsumedElectionEvents.SUBSCRIPTIONS).doesNotContainKey("com.dynokore.gst.rules.RulePackStaged.v1")
+        assertThat(ConsumedElectionEvents.SUBSCRIPTIONS.values).doesNotContain("gst.rules.rule-pack-staged.v1")
+    }
+
+    @Test
+    fun `INV-AC-22371 the old rules-namespace type is refused as unexpected by both handlers`() {
+        run { _, env ->
+            stagedHandlers(env).forEach { (name, handler) ->
+                assertThat(refusal(handler, "com.dynokore.gst.rules.RulePackStaged.v1"))
+                    .describedAs(name)
+                    .isEqualTo("unexpected com.dynokore.gst.rules.RulePackStaged.v1")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-22371 the look-alike platform type is refused as unexpected by both handlers`() {
+        run { _, env ->
+            stagedHandlers(env).forEach { (name, handler) ->
+                assertThat(refusal(handler, "com.dynokore.gst.platform.RulePackStagedX.v1"))
+                    .describedAs(name)
+                    .isEqualTo("unexpected com.dynokore.gst.platform.RulePackStagedX.v1")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-22371 the platform type is handled by both handlers`() {
+        run { _, env ->
+            val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-000000000001"))
+            val data = "{\"packType\":\"other\"}"
+            stagedHandlers(env).forEach { (name, handler) ->
+                assertThat(
+                    handler.handle(testEnvelope("com.dynokore.gst.platform.RulePackStaged.v1", tenant, data)).name,
+                ).describedAs(name)
+                    .isEqualTo("IGNORED")
+            }
+        }
+    }
+
     // ---- the wiring ------------------------------------------------------------------------------------------------
 
     @Test
@@ -211,13 +301,13 @@ class ElectionReplicasTest {
             assertThat(ConsumedElectionEvents.SUBSCRIPTIONS.keys)
                 .containsExactlyInAnyOrder(
                     "com.dynokore.gst.transport.AccessPointRouteChanged.v1",
-                    "com.dynokore.gst.rules.RulePackStaged.v1",
+                    "com.dynokore.gst.platform.RulePackStaged.v1",
                     "com.dynokore.gst.rules.RulePackActivated.v1",
                 )
             assertThat(ConsumedElectionEvents.SUBSCRIPTIONS.values)
                 .containsExactlyInAnyOrder(
                     "gst.transport.access-point-route-changed.v1",
-                    "gst.rules.rule-pack-staged.v1",
+                    "gst.platform.rule-pack-staged.v1",
                     "gst.rules.rule-pack-activated.v1",
                 )
             val catalogue = TenancyEventCatalogue.load()
