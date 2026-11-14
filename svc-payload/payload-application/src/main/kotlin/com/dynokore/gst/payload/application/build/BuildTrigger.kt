@@ -61,5 +61,6 @@ class BuildTrigger(
     private fun enqueueWhenComplete(
         docUuid: UUID,
         version: Int,
-    ): Boolean = inputs.exists(docUuid, version) && decisions.exists(docUuid, version) && jobs.enqueueOnce(docUuid, version)
+    ): Boolean =
+        inputs.exists(docUuid, version) && decisions.exists(docUuid, version) && jobs.enqueueOnce(docUuid, version)
 }
