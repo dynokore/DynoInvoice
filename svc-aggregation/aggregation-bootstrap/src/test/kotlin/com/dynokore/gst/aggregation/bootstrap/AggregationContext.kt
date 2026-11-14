@@ -12,9 +12,14 @@ import java.nio.file.Path
 
 /** The service composed as TPL-18 writes it, over a TPL-16 configuration (application.yaml plus these overrides). */
 object AggregationContext {
+    /** The HMAC key of the drill-down cursor (a mounted secret, STK-29). */
+    const val CURSOR_KEY = "drill-down-cursor-test-key-0123456789abcdef"
+
     private fun secrets(mountRoot: Path) {
         Files.createDirectories(mountRoot.resolve("db"))
         Files.createDirectories(mountRoot.resolve("tenancy"))
+        Files.createDirectories(mountRoot.resolve("aggregation"))
+        Files.writeString(mountRoot.resolve("aggregation/drill-down-cursor-key"), CURSOR_KEY)
         Files.writeString(mountRoot.resolve("db/aggregation_runtime"), AggregationDb.RUNTIME_PASSWORD)
         Files.writeString(mountRoot.resolve("tenancy/binding-key-current"), AggregationDb.BINDING_SECRET)
     }

@@ -11,6 +11,7 @@ import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.CloseWindows
+import com.dynokore.gst.aggregation.application.ExcludeReplacedReceipt
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.ShortCodes
@@ -70,6 +71,7 @@ class PeriodSpansBoundaryTest {
                         CadenceSource { _, _, _ -> Cadence.WEEKLY },
                         windows,
                         context.getBean(JooqTransactionStore::class.java),
+                        context.getBean(ExcludeReplacedReceipt::class.java),
                     ),
                 ).setControllerAdvice(NotAggregatableAdvice())
                 .addFilters<StandaloneMockMvcBuilder>(IntakeBodyCachingFilter())

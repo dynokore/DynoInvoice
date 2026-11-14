@@ -6,6 +6,7 @@ import com.dynokore.gst.aggregation.adapters.http.IntakeController
 import com.dynokore.gst.aggregation.adapters.http.NotAggregatableAdvice
 import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
 import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
+import com.dynokore.gst.aggregation.application.ExcludeReplacedReceipt
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.PeriodSpans
@@ -64,6 +65,7 @@ class RefusalBoundaryTest {
                     { _, _, _ -> Cadence.WEEKLY },
                     context.getBean(WindowRepository::class.java),
                     context.getBean(JooqTransactionStore::class.java),
+                    context.getBean(ExcludeReplacedReceipt::class.java),
                 ),
             )
 

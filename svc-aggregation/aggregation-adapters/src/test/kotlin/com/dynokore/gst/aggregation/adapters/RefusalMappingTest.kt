@@ -2,9 +2,13 @@ package com.dynokore.gst.aggregation.adapters
 
 import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
 import com.dynokore.gst.aggregation.application.AggregateRepository
+import com.dynokore.gst.aggregation.application.Atomically
+import com.dynokore.gst.aggregation.application.ExcludeReplacedReceipt
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.NewAggregate
 import com.dynokore.gst.aggregation.application.PeriodSpans
+import com.dynokore.gst.aggregation.application.ReplacedReceiptOutcome
+import com.dynokore.gst.aggregation.application.ReplacedReceiptStore
 import com.dynokore.gst.aggregation.application.ShortCodes
 import com.dynokore.gst.aggregation.application.StoredAggregate
 import com.dynokore.gst.aggregation.application.WindowRepository
@@ -102,6 +106,31 @@ class RefusalMappingTest {
                 ),
         )
 
+    /** The exclusion is not under test here: a store that knows no receipt. */
+    private val noReplaced =
+        ExcludeReplacedReceipt(
+            object : ReplacedReceiptStore {
+                override fun recorded(
+                    entityRef: String,
+                    receiptNumber: String,
+                ): ReplacedReceiptOutcome? = null
+
+                override fun holder(
+                    entityRef: String,
+                    receiptNumber: String,
+                ): StoredAggregate? = null
+
+                override fun exclude(
+                    entityRef: String,
+                    receiptNumber: String,
+                    holder: StoredAggregate?,
+                ): ReplacedReceiptOutcome = ReplacedReceiptOutcome.NotAggregated
+            },
+            object : Atomically {
+                override fun <T> run(block: () -> T): T = block()
+            },
+        )
+
     private fun send(
         controller: TransactionIntakeController,
         revision: Int,
@@ -118,6 +147,7 @@ class RefusalMappingTest {
                     { _, _, _ -> Cadence.MONTHLY },
                     windows,
                     store,
+                    noReplaced,
                 )
             send(controller, 5) shouldBe 202
 

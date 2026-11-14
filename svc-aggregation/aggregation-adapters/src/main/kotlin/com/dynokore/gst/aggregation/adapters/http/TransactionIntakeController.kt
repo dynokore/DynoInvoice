@@ -3,21 +3,28 @@ package com.dynokore.gst.aggregation.adapters.http
 import com.dynokore.gst.aggregation.adapters.persistence.JooqTransactionStore
 import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.DatedTransaction
+import com.dynokore.gst.aggregation.application.ExcludeReplacedReceipt
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.IntakeTransactions
 import com.dynokore.gst.aggregation.application.PlacedTransaction
+import com.dynokore.gst.aggregation.application.ReplacedReceiptOutcome
 import com.dynokore.gst.aggregation.application.TransactionsCommand
 import com.dynokore.gst.aggregation.application.TransactionsOutcome
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsReceipt
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsRequest
+import com.dynokore.gst.aggregation.contract.model.ReplacedReceiptRequest
+import com.dynokore.gst.aggregation.contract.model.ReplacedReceiptResult
 import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
 import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
+import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
+import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 /**
@@ -32,6 +39,7 @@ open class TransactionIntakeController(
     private val cadences: CadenceSource,
     private val windows: WindowRepository,
     private val transactions: JooqTransactionStore,
+    private val replaced: ExcludeReplacedReceipt,
 ) : IntakeController(intake) {
     override fun intakeAggregationTransactions(
         idempotencyKey: UUID,
@@ -55,6 +63,8 @@ open class TransactionIntakeController(
                                     transactionDate = it.transactionDate,
                                     internalTaxCode = it.internalTaxCode,
                                     amount = it.amount.toPlainString(),
+                                    underlyingRef = request.underlyingRef,
+                                    isCreditNote = request.isCreditNote == true,
                                 )
                             },
                     ),
@@ -73,6 +83,49 @@ open class TransactionIntakeController(
     }
 
     /**
+     * The exclusion of an STI receipt that a full tax invoice replaced (INV-REQ-440): 200 with the outcome, or 409
+     * with ING-014 when its aggregate was already sent, in which case nothing is changed.
+     */
+    override fun excludeReplacedReceipt(
+        idempotencyKey: UUID,
+        replacedReceiptRequest: ReplacedReceiptRequest,
+    ): ResponseEntity<ReplacedReceiptResult> {
+        val request = replacedReceiptRequest
+        val outcome = replaced.execute(request.entityRef, request.receiptNumber)
+        val result =
+            when (outcome) {
+                is ReplacedReceiptOutcome.Excluded -> ReplacedReceiptResult.Outcome.EXCLUDED
+                is ReplacedReceiptOutcome.NotAggregated -> ReplacedReceiptResult.Outcome.NOT_AGGREGATED
+                is ReplacedReceiptOutcome.AlreadyTransmitted -> return alreadyTransmitted()
+            }
+        return ResponseEntity.ok(ReplacedReceiptResult(request.entityRef, request.receiptNumber, result))
+    }
+
+    /**
+     * The 409 of ING-014 (error-codes.yaml: BLOCK, MANUAL, owner Finance). `IngestionErrorCode` of service-runtime has
+     * no ING-014 entry yet, so the envelope of Problems (API-20) is written here with the same members until it has.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun alreadyTransmitted(): ResponseEntity<ReplacedReceiptResult> {
+        val correlation = CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString()
+        val body =
+            ObjectMapper().createObjectNode().also {
+                it.put("type", Problems.typeOf(ING_014))
+                it.put("title", "Replaced receipt already transmitted")
+                it.put("status", HttpStatus.CONFLICT.value())
+                it.put("correlationId", correlation)
+                it.put("code", ING_014)
+                it.put("severity", "BLOCK")
+                it.put("disposition", "MANUAL")
+                it.put("remediationOwner", "Finance")
+            }
+        return ResponseEntity
+            .status(HttpStatus.CONFLICT)
+            .header("Content-Type", "application/problem+json")
+            .body(body.toString()) as ResponseEntity<ReplacedReceiptResult>
+    }
+
+    /**
      * The stored states of the windows the transactions went to. For a request spanning several windows the state
      * furthest from OPEN is answered (OPEN, CLOSED, LATE in that order; fail-safe: a window is never reported as more
      * open than it is). Coordinator ruling, breakdown tooling/gap14463-gap.md.
@@ -80,5 +133,9 @@ open class TransactionIntakeController(
     private fun receiptState(placed: List<PlacedTransaction>): AggregationTransactionsReceipt.WindowState {
         val state = placed.map { it.placement.state }.maxByOrNull(WindowState::ordinal) ?: WindowState.OPEN
         return AggregationTransactionsReceipt.WindowState.valueOf(state.name)
+    }
+
+    private companion object {
+        const val ING_014 = "ING-014"
     }
 }

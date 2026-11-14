@@ -1,9 +1,9 @@
 package com.dynokore.gst.aggregation.adapters.persistence
 
-import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateLine.Companion.AGGREGATE_LINE
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateTransaction.Companion.AGGREGATE_TRANSACTION
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindow.Companion.AGGREGATE_WINDOW
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindowPart.Companion.AGGREGATE_WINDOW_PART
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.ReplacedReceipt.Companion.REPLACED_RECEIPT
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.application.Placement
 import com.dynokore.gst.aggregation.application.WindowRepository
@@ -14,9 +14,9 @@ import com.dynokore.gst.aggregation.domain.WindowPart
 import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import org.jooq.Condition
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
-import org.jooq.impl.SQLDataType
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -139,38 +139,82 @@ class JooqWindowStore(
                 .and(AGGREGATE_TRANSACTION.WINDOW_END.eq(window.window.end))
                 .and(AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(part.start, part.end))
                 .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
+                .and(AGGREGATE_TRANSACTION.CREDIT_NOTE.eq(false))
+                .and(notReplaced(tenant))
                 .execute()
             storeLines(tenant, aggregateId)
             closeWindowIfCovered(window, windowId)
         }
     }
 
-    /** One line per internal tax code of the transactions the aggregate now holds (INV-REQ-427 item 3). */
+    override fun hasCreditNotes(
+        window: OpenWindow,
+        part: WindowPart,
+    ): Boolean =
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            dsl.fetchExists(dsl.selectOne().from(AGGREGATE_TRANSACTION).where(creditNotesOf(window, part, tenant)))
+        }
+
+    /** The credit-note aggregate holds the refunds and returns of the part; its sales sibling is untouched. */
+    override fun closeCreditNotes(
+        window: OpenWindow,
+        part: WindowPart,
+        aggregateId: UUID,
+    ) {
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            val windowId = checkNotNull(windowId(window)) { "the window of a part being closed exists" }
+            dsl
+                .update(AGGREGATE_WINDOW_PART)
+                .set(AGGREGATE_WINDOW_PART.CREDIT_NOTE_AGGREGATE_ID, aggregateId)
+                .where(AGGREGATE_WINDOW_PART.TENANT_ID.eq(tenant))
+                .and(AGGREGATE_WINDOW_PART.WINDOW_ID.eq(windowId))
+                .and(AGGREGATE_WINDOW_PART.PART_START.eq(part.start))
+                .and(AGGREGATE_WINDOW_PART.CREDIT_NOTE_AGGREGATE_ID.isNull)
+                .execute()
+            dsl
+                .update(AGGREGATE_TRANSACTION)
+                .set(AGGREGATE_TRANSACTION.AGGREGATE_ID, aggregateId)
+                .where(creditNotesOf(window, part, tenant))
+                .execute()
+            storeLines(tenant, aggregateId)
+        }
+    }
+
+    private fun creditNotesOf(
+        window: OpenWindow,
+        part: WindowPart,
+        tenant: UUID,
+    ): Condition =
+        AGGREGATE_TRANSACTION.TENANT_ID
+            .eq(tenant)
+            .and(AGGREGATE_TRANSACTION.ENTITY_REF.eq(window.entityRef))
+            .and(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF.eq(window.businessUnitRef))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(window.aggregateType.name))
+            .and(AGGREGATE_TRANSACTION.WINDOW_START.eq(window.window.start))
+            .and(AGGREGATE_TRANSACTION.WINDOW_END.eq(window.window.end))
+            .and(AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(part.start, part.end))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
+            .and(AGGREGATE_TRANSACTION.CREDIT_NOTE.eq(true))
+            .and(notReplaced(tenant))
+
+    /** A receipt that a full tax invoice replaced is never aggregated (INV-REQ-440). */
+    private fun notReplaced(tenant: UUID): Condition =
+        DSL.notExists(
+            DSL
+                .selectOne()
+                .from(REPLACED_RECEIPT)
+                .where(REPLACED_RECEIPT.TENANT_ID.eq(tenant))
+                .and(REPLACED_RECEIPT.ENTITY_REF.eq(AGGREGATE_TRANSACTION.ENTITY_REF))
+                .and(REPLACED_RECEIPT.RECEIPT_NUMBER.eq(AGGREGATE_TRANSACTION.TRANSACTION_REF))
+                .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(AggregateType.STI.name)),
+        )
+
     private fun storeLines(
         tenant: UUID,
         aggregateId: UUID,
-    ) {
-        dsl
-            .select(
-                AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE,
-                DSL.sum(AGGREGATE_TRANSACTION.AMOUNT.cast(SQLDataType.NUMERIC)).cast(SQLDataType.VARCHAR),
-            ).from(AGGREGATE_TRANSACTION)
-            .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
-            .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.eq(aggregateId))
-            .groupBy(AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE)
-            .orderBy(AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE)
-            .fetch()
-            .forEachIndexed { position, row ->
-                dsl
-                    .insertInto(AGGREGATE_LINE)
-                    .set(AGGREGATE_LINE.TENANT_ID, tenant)
-                    .set(AGGREGATE_LINE.AGGREGATE_ID, aggregateId)
-                    .set(AGGREGATE_LINE.POSITION, position)
-                    .set(AGGREGATE_LINE.INTERNAL_TAX_CODE, checkNotNull(row.value1()))
-                    .set(AGGREGATE_LINE.AMOUNT, checkNotNull(row.value2()))
-                    .execute()
-            }
-    }
+    ) = dsl.storeLinesOf(tenant, aggregateId)
 
     private fun closeWindowIfCovered(
         window: OpenWindow,

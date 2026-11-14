@@ -17,7 +17,8 @@ import java.util.UUID
  * The adapter of [AggregateReadyPublisher] (INV-REQ-718, channel `aggregationAggregateReady`): one `AggregateReady`
  * per aggregate handed on, appended to the outbox in the transaction the caller has open. The payload is
  * `aggregate-ready-payload.schema.json` of platform-contracts: `aggregateId`, `entityRef`, `aggregateType`, `window`
- * (the period of the aggregate) and `linesByInternalTaxCode` (the stored lines, in order).
+ * (the period of the aggregate) and `linesByInternalTaxCode` (the stored lines, in order, one per internal tax code) and, when true, `isCreditNote`
+ * (INV-REQ-438) and `isSupplementary` (INV-REQ-439).
  */
 class AggregateReadyOutbox(
     private val outbox: OutboxWriter,
@@ -31,6 +32,9 @@ class AggregateReadyOutbox(
                 node.put("aggregateId", aggregate.aggregateId.toString())
                 node.put("entityRef", stored.entityRef)
                 node.put("aggregateType", stored.aggregateType.name)
+                // absent means false (aggregate-ready-payload.schema.json); each flag is written only when true
+                if (stored.isCreditNote) node.put("isCreditNote", true)
+                if (stored.isSupplementary) node.put("isSupplementary", true)
                 node.putObject("window").also {
                     it.put("from", stored.periodStart.toString())
                     it.put("to", stored.periodEnd.toString())

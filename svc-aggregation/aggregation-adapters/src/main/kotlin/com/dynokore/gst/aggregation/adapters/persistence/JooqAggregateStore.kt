@@ -188,6 +188,7 @@ class JooqAggregateStore(
             .set(AGGREGATE.WINDOW_END, aggregate.windowEnd)
             .set(AGGREGATE.WINDOW_STATE, aggregate.windowState?.name)
             .set(AGGREGATE.SUPPLEMENTARY, aggregate.isSupplementary)
+            .set(AGGREGATE.CREDIT_NOTE, aggregate.isCreditNote)
             .execute()
         // the first use of a code is recorded and announced in this transaction (INV-AC-2779, INV-Q-11266 A)
         checkNotNull(
@@ -226,6 +227,7 @@ class JooqAggregateStore(
                 windowState = row.get(AGGREGATE.WINDOW_STATE)?.let(WindowState::valueOf),
                 lines = linesOf(row.required(AGGREGATE.AGGREGATE_ID)),
                 isSupplementary = row.required(AGGREGATE.SUPPLEMENTARY),
+                isCreditNote = row.required(AGGREGATE.CREDIT_NOTE),
             ),
             row.required(AGGREGATE.AGGREGATE_ID),
             row.get(AGGREGATE.TRANSMITTED_AT)?.toInstant(),

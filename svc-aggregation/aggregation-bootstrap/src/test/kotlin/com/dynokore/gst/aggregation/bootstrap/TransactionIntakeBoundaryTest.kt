@@ -10,6 +10,7 @@ import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.CadenceSource
 import com.dynokore.gst.aggregation.application.CloseResult
 import com.dynokore.gst.aggregation.application.CloseWindows
+import com.dynokore.gst.aggregation.application.ExcludeReplacedReceipt
 import com.dynokore.gst.aggregation.application.HandOnAggregates
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
@@ -71,6 +72,7 @@ class TransactionIntakeBoundaryTest {
                         CadenceSource { _, _, _ -> cadence },
                         windows,
                         context.getBean(JooqTransactionStore::class.java),
+                        context.getBean(ExcludeReplacedReceipt::class.java),
                     ),
                 ).setControllerAdvice(NotAggregatableAdvice())
                 .addFilters<StandaloneMockMvcBuilder>(IntakeBodyCachingFilter())

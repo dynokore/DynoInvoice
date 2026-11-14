@@ -23,6 +23,9 @@ data class CloseResult(
  * next. A window with no known span, or with a date no span covers, is held when its own end is on or before the
  * tick; a window that ends after the tick and has no usable spans is neither closed nor held.
  *
+ * A part that holds refunds or returns also gets a separate credit-note aggregate (INV-REQ-438); the sales aggregate
+ * carries the sales only, and each aggregate has one line per distinct internal tax code (INV-REQ-437).
+ *
  * [intake] must be an [IntakeAggregate] built without a window repository: the part is closed here, not placed again.
  */
 class CloseWindows(
@@ -61,15 +64,55 @@ class CloseWindows(
 
                         else -> null
                     }
-                if (aggregate == null) {
+                val credit = if (aggregate == null) null else creditNote(open, part)
+                if (aggregate == null || credit == Credit.Refused) {
                     complete = false
                 } else if (!windows.isPartClosed(open, part)) {
                     closed += close(open, part, aggregate.aggregateId)
+                    if (credit is Credit.Made) windows.closeCreditNotes(open, part, credit.aggregateId)
                 }
             }
             if (!complete) held += open
         }
         return CloseResult(closed, held)
+    }
+
+    private sealed interface Credit {
+        data object None : Credit
+
+        /** The credit-note aggregate cannot be made now (for example no usable short code): the part stays open. */
+        data object Refused : Credit
+
+        data class Made(
+            val aggregateId: UUID,
+        ) : Credit
+    }
+
+    /**
+     * The credit-note aggregate of [part] (INV-REQ-438): made only when the part holds refunds or returns, under its
+     * own source key, so it never shares an aggregate, a number or a line with the sales of the part.
+     */
+    private fun creditNote(
+        open: OpenWindow,
+        part: WindowPart,
+    ): Credit {
+        if (windows.isPartClosed(open, part) || !windows.hasCreditNotes(open, part)) return Credit.None
+        val command =
+            IntakeCommand(
+                entityRef = open.entityRef,
+                businessUnitRef = open.businessUnitRef,
+                aggregateType = open.aggregateType,
+                periodStart = part.start,
+                periodEnd = part.end,
+                sourceKey = "window-credit:${open.entityRef}:${open.aggregateType}:${part.start}:${part.end}",
+                sourceRevision = 1,
+                isCreditNote = true,
+            )
+        return when (val outcome = intake.execute(command)) {
+            is IntakeOutcome.Created -> Credit.Made(outcome.aggregate.aggregateId)
+            is IntakeOutcome.Replayed -> Credit.Made(outcome.aggregate.aggregateId)
+            else -> Credit.Refused
+        }
     }
 
     private fun close(

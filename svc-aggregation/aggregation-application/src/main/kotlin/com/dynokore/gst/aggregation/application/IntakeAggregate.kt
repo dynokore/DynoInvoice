@@ -49,6 +49,8 @@ data class IntakeCommand(
     val sourceKey: String,
     val sourceRevision: Long,
     val lines: List<AggregateLine> = emptyList(),
+    /** True for the credit-note aggregate (document type 381) of refunds and returns (INV-REQ-438). */
+    val isCreditNote: Boolean = false,
 )
 
 data class NewAggregate(
@@ -70,12 +72,14 @@ data class NewAggregate(
     val windowState: WindowState? = null,
     val lines: List<AggregateLine> = emptyList(),
     val isSupplementary: Boolean = false,
+    /** A credit-note aggregate carries refunds and returns only; it is never netted with a sales aggregate. */
+    val isCreditNote: Boolean = false,
 )
 
 data class StoredAggregate(
     val aggregate: NewAggregate,
     val aggregateId: UUID,
-    /** Null until the aggregate is transmitted; written in production by INV-T-4980, only read here. */
+    /** Null until the aggregate is transmitted; written by the consumer of SubmissionDespatched (INV-T-22476), only read here. */
     val transmittedAt: Instant? = null,
     /** Whether AggregateReady was published for the aggregate. */
     val handedOn: Boolean = false,
@@ -362,6 +366,7 @@ class IntakeAggregate(
                 windowState = placement?.state,
                 lines = if (supplementary) command.lines else AggregateLines.merge(command.lines),
                 isSupplementary = supplementary,
+                isCreditNote = command.isCreditNote,
             )
         return try {
             IntakeOutcome.Created(repository.store(new))

@@ -65,7 +65,11 @@ class JooqHandOffStore(
                 .selectOne()
                 .from(AGGREGATE_WINDOW_PART)
                 .where(AGGREGATE_WINDOW_PART.TENANT_ID.eq(tenant))
-                .and(AGGREGATE_WINDOW_PART.AGGREGATE_ID.eq(AGGREGATE.AGGREGATE_ID)),
+                .and(
+                    AGGREGATE_WINDOW_PART.AGGREGATE_ID
+                        .eq(AGGREGATE.AGGREGATE_ID)
+                        .or(AGGREGATE_WINDOW_PART.CREDIT_NOTE_AGGREGATE_ID.eq(AGGREGATE.AGGREGATE_ID)),
+                ),
         )
 
     private fun windowNotOpen(tenant: UUID): Condition =

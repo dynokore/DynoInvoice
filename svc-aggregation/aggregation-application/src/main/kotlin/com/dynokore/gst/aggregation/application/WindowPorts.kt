@@ -82,6 +82,25 @@ interface WindowRepository {
 
     /** Records that [window] was reached after it had closed. */
     fun recordLate(window: OpenWindow)
+
+    /**
+     * Whether [part] of [window] holds refunds or returns (transactions of a credit note) that no aggregate holds yet;
+     * they form their own aggregate and are never netted with the sales (INV-REQ-438).
+     */
+    fun hasCreditNotes(
+        window: OpenWindow,
+        part: WindowPart,
+    ): Boolean = false
+
+    /**
+     * Hands the credit-note transactions of [part] to the credit-note aggregate [aggregateId], stores its one line
+     * per internal tax code and records it on the part row the sales aggregate closed.
+     */
+    fun closeCreditNotes(
+        window: OpenWindow,
+        part: WindowPart,
+        aggregateId: UUID,
+    ) {}
 }
 
 /** One state change of a window part, made by the closing run. */
@@ -103,6 +122,10 @@ data class DatedTransaction(
     val transactionDate: LocalDate,
     val internalTaxCode: String,
     val amount: String,
+    /** The batch that delivered the transaction (FR-4.9); the first sort key of the drill-down. */
+    val underlyingRef: String = "",
+    /** A refund or return: its aggregate is a credit-note aggregate (INV-REQ-438). */
+    val isCreditNote: Boolean = false,
 )
 
 data class PlacedTransaction(

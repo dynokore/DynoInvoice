@@ -84,6 +84,7 @@ open class IntakeController(
         sourceKey = request.sourceKey,
         sourceRevision = request.sourceRevision.toLong(),
         lines = request.linesByInternalTaxCode.map { AggregateLine(it.internalTaxCode, it.amount.toPlainString()) },
+        isCreditNote = request.isCreditNote == true,
     )
 
     /** The state stored with the aggregate at its first intake; a replay answers it unchanged (INV-REQ-434). */
@@ -104,6 +105,8 @@ open class IntakeController(
                 issueDate = aggregate.issueDate,
                 transactionDate = aggregate.transactionDate,
                 aggregateId = stored.aggregateId.toString(),
+                isCreditNote = aggregate.isCreditNote,
+                isSupplementary = aggregate.isSupplementary,
             )
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(receipt)
     }

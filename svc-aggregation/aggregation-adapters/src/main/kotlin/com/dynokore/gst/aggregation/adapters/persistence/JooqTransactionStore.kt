@@ -77,6 +77,8 @@ class JooqTransactionStore(
                             transactionDate = checkNotNull(row.transactionDate),
                             internalTaxCode = checkNotNull(row.internalTaxCode),
                             amount = checkNotNull(row.amount),
+                            underlyingRef = checkNotNull(row.underlyingRef),
+                            isCreditNote = checkNotNull(row.creditNote),
                         ),
                         Placement(
                             AggregationWindow(checkNotNull(row.windowStart), checkNotNull(row.windowEnd)),
@@ -121,6 +123,8 @@ class JooqTransactionStore(
                     .set(AGGREGATE_TRANSACTION.TRANSACTION_DATE, item.transaction.transactionDate)
                     .set(AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE, item.transaction.internalTaxCode)
                     .set(AGGREGATE_TRANSACTION.AMOUNT, item.transaction.amount)
+                    .set(AGGREGATE_TRANSACTION.UNDERLYING_REF, item.transaction.underlyingRef)
+                    .set(AGGREGATE_TRANSACTION.CREDIT_NOTE, item.transaction.isCreditNote)
                     .set(AGGREGATE_TRANSACTION.WINDOW_START, item.placement.window.start)
                     .set(AGGREGATE_TRANSACTION.WINDOW_END, item.placement.window.end)
                     .set(AGGREGATE_TRANSACTION.WINDOW_STATE, item.placement.state.name)
