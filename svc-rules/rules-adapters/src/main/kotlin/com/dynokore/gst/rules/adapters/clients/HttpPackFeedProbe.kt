@@ -21,7 +21,12 @@ class HttpPackFeedProbe(
 
     override fun reachable(): Boolean =
         try {
-            val request = HttpRequest.newBuilder(uri).timeout(timeout).GET().build()
+            val request =
+                HttpRequest
+                    .newBuilder(uri)
+                    .timeout(timeout)
+                    .GET()
+                    .build()
             client.send(request, HttpResponse.BodyHandlers.discarding()).statusCode() in 200..299
         } catch (_: java.io.IOException) {
             false

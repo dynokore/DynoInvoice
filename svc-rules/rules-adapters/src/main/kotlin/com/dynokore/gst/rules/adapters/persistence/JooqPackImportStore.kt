@@ -187,7 +187,10 @@ class JooqPackImportStore(
             minEngineVersion = m.minEngineVersion,
             manifest = present(json.readValue(pack.artefact.manifest, strings)),
             checksums = present(json.readValue(pack.artefact.checksums, strings)),
-            signature = java.util.Base64.getEncoder().encodeToString(pack.artefact.signature),
+            signature =
+                java.util.Base64
+                    .getEncoder()
+                    .encodeToString(pack.artefact.signature),
         )
     }
 

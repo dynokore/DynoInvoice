@@ -17,7 +17,9 @@ class PolicySilenceLimit(
     private val clock: Clock,
 ) : SilenceLimitPort {
     override fun limit(): SilenceLimit =
-        SilenceLimit.ofPolicyValue(policy.valueAt(PolicyScope.installation(), VARIATION_POINT, LocalDate.now(clock))?.value)
+        SilenceLimit.ofPolicyValue(
+            policy.valueAt(PolicyScope.installation(), VARIATION_POINT, LocalDate.now(clock))?.value,
+        )
 
     companion object {
         const val VARIATION_POINT = "VP-72"

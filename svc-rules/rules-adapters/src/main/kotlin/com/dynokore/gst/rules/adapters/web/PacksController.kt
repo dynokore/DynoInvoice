@@ -319,7 +319,11 @@ open class PacksController(
         val result = importer.execute(request.packType, request.version, request.bundleHash, actor())
         RegulatoryPackImportMapping.refusalOf(result)?.let { throw it }
         return ResponseEntity.status(HttpStatus.CREATED).body(
-            RegulatoryPack(packType = request.packType, version = request.version, status = RegulatoryPack.Status.STAGED),
+            RegulatoryPack(
+                packType = request.packType,
+                version = request.version,
+                status = RegulatoryPack.Status.STAGED,
+            ),
         )
     }
 
@@ -330,7 +334,9 @@ open class PacksController(
     ): ResponseEntity<RegulatoryPack> {
         val answer = importer.status(packType, version, actor())
         RegulatoryPackImportMapping.refusalOf(answer)?.let { throw it }
-        return ResponseEntity.ok(RegulatoryPackImportMapping.packOf(packType, version, (answer as ImportStatusAnswer.Found).status))
+        return ResponseEntity.ok(
+            RegulatoryPackImportMapping.packOf(packType, version, (answer as ImportStatusAnswer.Found).status),
+        )
     }
 
     override fun activateMappingPack(

@@ -20,13 +20,29 @@ object RegulatoryPackImportMapping {
 
     fun refusalOf(result: ImportRegulatoryPackResult): MappingRefusal? =
         when (result) {
-            ImportRegulatoryPackResult.Staged -> null
-            is ImportRegulatoryPackResult.Failed -> failed(result.failure)
-            ImportRegulatoryPackResult.Denied -> closed(ClosedErrorCode.ACCESS_DENIED, DENIED_DETAIL)
-            ImportRegulatoryPackResult.BundleNotFound -> closed(ClosedErrorCode.NOT_FOUND, null)
-            ImportRegulatoryPackResult.Unavailable -> unavailable("the import cannot be decided")
-            ImportRegulatoryPackResult.Conflict ->
+            ImportRegulatoryPackResult.Staged -> {
+                null
+            }
+
+            is ImportRegulatoryPackResult.Failed -> {
+                failed(result.failure)
+            }
+
+            ImportRegulatoryPackResult.Denied -> {
+                closed(ClosedErrorCode.ACCESS_DENIED, DENIED_DETAIL)
+            }
+
+            ImportRegulatoryPackResult.BundleNotFound -> {
+                closed(ClosedErrorCode.NOT_FOUND, null)
+            }
+
+            ImportRegulatoryPackResult.Unavailable -> {
+                unavailable("the import cannot be decided")
+            }
+
+            ImportRegulatoryPackResult.Conflict -> {
                 closed(ClosedErrorCode.STALE_AGGREGATE, "the pack version exists with another manifest")
+            }
         }
 
     fun refusalOf(answer: ImportStatusAnswer): MappingRefusal? =

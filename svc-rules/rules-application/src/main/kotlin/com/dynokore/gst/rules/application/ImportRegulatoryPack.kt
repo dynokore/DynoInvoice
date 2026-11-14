@@ -147,12 +147,21 @@ class ImportRegulatoryPack(
         val verified = verified(bytes, digest, trusted, packType, version)
         val failure =
             when {
-                verified == null -> ImportFailure.SIGNATURE
-                !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) ->
+                verified == null -> {
+                    ImportFailure.SIGNATURE
+                }
+
+                !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) -> {
                     ImportFailure.ENGINE
-                validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected ->
+                }
+
+                validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected -> {
                     ImportFailure.CONTENTS
-                else -> null
+                }
+
+                else -> {
+                    null
+                }
             }
         if (failure != null) {
             store.fail(packType, version, failure)

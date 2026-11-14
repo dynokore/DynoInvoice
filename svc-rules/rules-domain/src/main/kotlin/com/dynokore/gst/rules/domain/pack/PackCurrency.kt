@@ -61,7 +61,11 @@ object PackCurrency {
     fun daysBetween(
         from: LocalDate,
         to: LocalDate,
-    ): Int = ChronoUnit.DAYS.between(from, to).coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+    ): Int =
+        ChronoUnit.DAYS
+            .between(from, to)
+            .coerceIn(0, Int.MAX_VALUE.toLong())
+            .toInt()
 
     /**
      * DEP-001 is raised when the feed has been silent for MORE than [limit] days (7 days is not yet silence, the eighth

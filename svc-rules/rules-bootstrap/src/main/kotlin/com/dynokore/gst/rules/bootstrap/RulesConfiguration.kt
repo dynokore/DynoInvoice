@@ -2,28 +2,13 @@ package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
 import com.dynokore.gst.rules.adapters.clients.HttpPackFeedProbe
-import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
-import com.dynokore.gst.rules.adapters.packs.DirectoryPackSource
-import com.dynokore.gst.rules.adapters.persistence.JooqPackCurrencyStore
-import com.dynokore.gst.rules.adapters.persistence.JooqPackImportStore
-import com.dynokore.gst.rules.adapters.scope.PolicySilenceLimit
-import com.dynokore.gst.rules.application.ImportPermissionPort
-import com.dynokore.gst.rules.application.ImportRegulatoryPack
-import com.dynokore.gst.rules.application.PackBundleNotFoundException
-import com.dynokore.gst.rules.application.PackCurrencyMonitor
-import com.dynokore.gst.rules.application.PackFeedPoller
-import com.dynokore.gst.rules.application.PackCurrencyStore
-import com.dynokore.gst.rules.application.PackImportStore
-import com.dynokore.gst.rules.application.RunningEngine
-import com.dynokore.gst.rules.application.SilenceLimitPort
-import com.dynokore.gst.rules.application.TrustAnchorSource
-import com.dynokore.platform.rulepackkernel.PackContentValidator
-import com.dynokore.platform.serviceruntime.binding.PackSource
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
 import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
 import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
+import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
+import com.dynokore.gst.rules.adapters.packs.DirectoryPackSource
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.HolderCopySigningKeys
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
@@ -38,12 +23,15 @@ import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingImportRecordStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
+import com.dynokore.gst.rules.adapters.persistence.JooqPackCurrencyStore
+import com.dynokore.gst.rules.adapters.persistence.JooqPackImportStore
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.PersistedRegulatoryPackStore
 import com.dynokore.gst.rules.adapters.persistence.jooq.Rules
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
+import com.dynokore.gst.rules.adapters.scope.PolicySilenceLimit
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
 import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.adapters.web.BackgroundDryRunStore
@@ -65,6 +53,8 @@ import com.dynokore.gst.rules.application.DryRunDeltaStore
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.HolderCopyPort
+import com.dynokore.gst.rules.application.ImportPermissionPort
+import com.dynokore.gst.rules.application.ImportRegulatoryPack
 import com.dynokore.gst.rules.application.InstallationApproverFactPort
 import com.dynokore.gst.rules.application.LastCompletePeriodPort
 import com.dynokore.gst.rules.application.ListActiveRegulatoryPacks
@@ -75,14 +65,22 @@ import com.dynokore.gst.rules.application.MappingPackCollaborators
 import com.dynokore.gst.rules.application.NamedPackVersions
 import com.dynokore.gst.rules.application.PackActionAuthority
 import com.dynokore.gst.rules.application.PackApprovalDecisionPort
+import com.dynokore.gst.rules.application.PackBundleNotFoundException
+import com.dynokore.gst.rules.application.PackCurrencyMonitor
+import com.dynokore.gst.rules.application.PackCurrencyStore
 import com.dynokore.gst.rules.application.PackDocumentEvaluation
 import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PackEventEmitter
+import com.dynokore.gst.rules.application.PackFeedPoller
+import com.dynokore.gst.rules.application.PackImportStore
 import com.dynokore.gst.rules.application.PeriodCalendarUnavailableException
 import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.gst.rules.application.RegulatoryPackStore
 import com.dynokore.gst.rules.application.RunDryRun
+import com.dynokore.gst.rules.application.RunningEngine
 import com.dynokore.gst.rules.application.SampleRequestPort
+import com.dynokore.gst.rules.application.SilenceLimitPort
+import com.dynokore.gst.rules.application.TrustAnchorSource
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
@@ -99,6 +97,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.rulepackkernel.PackContentValidator
 import com.dynokore.platform.rulepackkernel.PackId
 import com.dynokore.platform.rulepackkernel.PackManifest
 import com.dynokore.platform.rulepackkernel.PackType
@@ -108,6 +107,7 @@ import com.dynokore.platform.rulepackkernel.PackVersionLabel
 import com.dynokore.platform.rulepackkernel.evaluation.Evaluator
 import com.dynokore.platform.serviceruntime.binding.DeploymentForm
 import com.dynokore.platform.serviceruntime.binding.GstProperties
+import com.dynokore.platform.serviceruntime.binding.PackSource
 import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
@@ -508,7 +508,10 @@ class RulesConfiguration {
     @ConditionalOnMissingBean(PackSource::class)
     fun packSource(environment: Environment): PackSource =
         environment.getProperty(PACK_SOURCE_DIRECTORY)?.takeIf { it.isNotBlank() }?.let {
-            DirectoryPackSource(java.nio.file.Path.of(it))
+            DirectoryPackSource(
+                java.nio.file.Path
+                    .of(it),
+            )
         } ?: PackSource { throw PackBundleNotFoundException(it.value) }
 
     @Bean
@@ -598,7 +601,16 @@ class RulesConfiguration {
         store: PackImportStore,
         currency: PackCurrencyMonitor,
     ): ImportRegulatoryPack =
-        ImportRegulatoryPack(source, anchors, verifier, validator, RunningEngine(engine::current), permission, store, currency)
+        ImportRegulatoryPack(
+            source,
+            anchors,
+            verifier,
+            validator,
+            RunningEngine(engine::current),
+            permission,
+            store,
+            currency,
+        )
 
     private companion object {
         const val PACK_FEED_URL = "rules.pack-feed.url"
