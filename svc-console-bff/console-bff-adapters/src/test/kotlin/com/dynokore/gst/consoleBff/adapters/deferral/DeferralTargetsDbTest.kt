@@ -71,7 +71,7 @@ class DeferralTargetsDbTest {
     }
 
     @Test
-    fun `INV-AC-21162 openDocument is false for a resolved, overridden, other entity, other tenant and absent document`() {
+    fun `INV-AC-21162 openDocument is false for resolved, overridden, other entity, other tenant, absent`() {
         seed()
         asTenant(tenantA) {
             it.openDocument("E1", d2) shouldBe false

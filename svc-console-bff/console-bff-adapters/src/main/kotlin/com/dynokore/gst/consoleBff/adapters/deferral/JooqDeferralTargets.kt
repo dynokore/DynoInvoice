@@ -29,7 +29,13 @@ class JooqDeferralTargets(
         entityRef: String,
         groupKey: String,
     ): Boolean =
-        openRow(entityRef, EXCEPTION.REMEDIATION_OWNER.concat(DSL.inline("/")).concat(EXCEPTION.CODE).eq(groupKey))
+        openRow(
+            entityRef,
+            EXCEPTION.REMEDIATION_OWNER
+                .concat(DSL.inline("/"))
+                .concat(EXCEPTION.CODE)
+                .eq(groupKey),
+        )
 
     private fun openRow(
         entityRef: String,
