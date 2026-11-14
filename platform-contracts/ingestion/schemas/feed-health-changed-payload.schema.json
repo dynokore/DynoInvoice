@@ -47,6 +47,11 @@
       "type": "object",
       "description": "Detail of the gap the control detected. Present when state is FAILED.",
       "additionalProperties": true
+    },
+    "stateVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The producer-owned counter of the key tenant, feed, entityRef, period and control. It starts at 1 and rises by one for every event the producer publishes for that key. A consumer applies an event only when its stateVersion is greater than the one it holds for the key, and an event without it applies only when the consumer holds no row for the key (fail closed). A producer always sends it; the member is optional in the schema only because the schema is additive-only within a major version."
     }
   },
   "required": [

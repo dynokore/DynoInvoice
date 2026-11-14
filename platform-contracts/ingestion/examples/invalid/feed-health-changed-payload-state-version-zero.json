@@ -1,0 +1,9 @@
+{
+  "feed": "pos-main",
+  "entityRef": "ENT-0001",
+  "period": "2026Q1",
+  "control": "SEQUENCE",
+  "state": "FAILED",
+  "errorCode": "ING-008",
+  "stateVersion": 0
+}

@@ -1,1 +1,2 @@
 ../schemas/transaction-request.schema.json
+../schemas/feed-health-changed-payload.schema.json feed-health-changed-payload-*.json
