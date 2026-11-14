@@ -6,7 +6,6 @@ import com.dynokore.gst.consoleBff.application.override.OwnerReply
 import com.dynokore.gst.consoleBff.application.override.Release
 import com.dynokore.gst.consoleBff.application.override.SubmissionOverrides
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
-import org.openapitools.client.infrastructure.RequestConfig
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.core.env.Environment
 import org.springframework.stereotype.Component
@@ -27,21 +26,20 @@ private const val HTTP_ACCEPTED = 202
 class SubmissionOverrideClient(
     @Qualifier("internalRestClientBuilder") builder: RestClient.Builder,
     registry: ResilienceRegistry,
-    private val clock: Clock,
+    clock: Clock,
     environment: Environment,
 ) : SubmissionOverrides {
     private val restClient = OwningServiceEdge.restClient(builder, environment, OwningService.SUBMISSION)
     private val readiness = ReadinessApi(restClient)
-    private val transport = OwnerTransport(restClient)
-    private val policy = OwningServiceEdge.policy(registry, OwningService.SUBMISSION)
+    private val edge = OwnerEdge(OwningService.SUBMISSION, registry, clock, restClient)
 
     override fun latestCheck(
         entityRef: String,
         periodRef: String,
     ): OwnerReply<String> =
-        call({ readiness.getLatestReadinessCheckRequestConfig(entityRef, periodRef) }) { answer ->
+        edge.call({ readiness.getLatestReadinessCheckRequestConfig(entityRef, periodRef) }) { answer ->
             val checkId = OwnerEnvelope.tree(answer.body)?.let { OwnerEnvelope.text(it, "checkId") }
-            if (answer.status == HTTP_OK && checkId != null) OwnerReply.Ok(checkId) else unreadable(answer.status)
+            if (answer.status == HTTP_OK && checkId != null) OwnerReply.Ok(checkId) else edge.unreadable(answer.status)
         }
 
     override fun override(
@@ -51,32 +49,19 @@ class SubmissionOverrideClient(
         reason: String,
     ): OwnerReply<Release> {
         val body = FilingGateOverrideRequest(checkId = checkId, reason = reason)
-        return call({ readiness.overrideFilingGateRequestConfig(entityRef, periodRef, body) }) { answer ->
-            val tree = OwnerEnvelope.tree(answer.body)
-            val released = tree?.let { OwnerEnvelope.instant(it, "overriddenAt") }
-            val pending = tree?.let { OwnerEnvelope.instant(it, "requestedAt") }
-            when {
-                answer.status == HTTP_CREATED && released != null -> OwnerReply.Ok(Release.Released(released))
-                answer.status == HTTP_ACCEPTED && pending != null -> OwnerReply.Ok(Release.Pending(pending))
-                else -> unreadable(answer.status)
-            }
+        return edge.call({ readiness.overrideFilingGateRequestConfig(entityRef, periodRef, body) }) { answer ->
+            released(answer)
         }
     }
 
-    private fun <T> call(
-        request: () -> RequestConfig<*>,
-        onSuccess: (OwnerAnswer) -> OwnerReply<T>,
-    ): OwnerReply<T> =
-        ownerCall(
-            OwningService.SUBMISSION.edge,
-            OwningService.SUBMISSION.timeout,
-            policy,
-            clock,
-            transport,
-            request,
-            onSuccess,
-        )
-
-    private fun unreadable(status: Int) =
-        OwnerReply.Unavailable("${OwningService.SUBMISSION.edge}: unreadable answer (status $status)")
+    private fun released(answer: OwnerAnswer): OwnerReply<Release> {
+        val tree = OwnerEnvelope.tree(answer.body)
+        val overriddenAt = tree?.let { OwnerEnvelope.instant(it, "overriddenAt") }
+        val requestedAt = tree?.let { OwnerEnvelope.instant(it, "requestedAt") }
+        return when {
+            answer.status == HTTP_CREATED && overriddenAt != null -> OwnerReply.Ok(Release.Released(overriddenAt))
+            answer.status == HTTP_ACCEPTED && requestedAt != null -> OwnerReply.Ok(Release.Pending(requestedAt))
+            else -> edge.unreadable(answer.status)
+        }
+    }
 }

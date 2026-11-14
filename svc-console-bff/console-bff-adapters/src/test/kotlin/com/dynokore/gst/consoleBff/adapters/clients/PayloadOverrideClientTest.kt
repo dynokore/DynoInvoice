@@ -105,6 +105,21 @@ internal object TestEdges {
     fun builder(): RestClient.Builder = RestClient.builder().requestInterceptor(EndUserTokenPropagationInterceptor())
 }
 
+internal val REFUSALS =
+    listOf(400 to "SRT-001", 403 to "SRT-004", 404 to "SRT-005", 409 to "SRT-008", 422 to "PAY-017")
+
+/** 4xx bodies that are no readable envelope: blank, not JSON, not an object, no code or title, a code not text. */
+internal val UNREADABLE_BODIES =
+    listOf(
+        null,
+        "",
+        "not json",
+        "[1]",
+        """{"title":"T","status":422}""",
+        """{"code":"X"}""",
+        """{"code":7,"title":"T"}""",
+    )
+
 /** The envelope members the owners answer a 4xx with. */
 internal fun envelope(
     status: Int,
@@ -128,13 +143,21 @@ class PayloadOverrideClientTest {
             MockEnvironment().withProperty(OwningService.PAYLOAD.urlProperty, stub.url),
         )
 
-    private fun read() = CurrentEndUserToken.callWith("Bearer u-1") { client().latestVersion(doc) }
+    private fun read(registry: ResilienceRegistry = TestEdges.passThrough) =
+        CurrentEndUserToken.callWith("Bearer u-1") { client(registry).latestVersion(doc) }
+
+    private fun unreadableSuccesses() =
+        listOf(201 to null, 201 to "{}", 200 to overridden, 202 to overridden, 204 to null, 201 to pending)
 
     private fun write(registry: ResilienceRegistry = TestEdges.passThrough) =
         CurrentEndUserToken.callWith("Bearer u-1") { client(registry).override(doc, 3, "PAY-017", "because") }
 
-    private val overridden = """{"docUuid":"$doc","version":3,"code":"PAY-017","reason":"because","overriddenBy":"u","overriddenAt":"2026-11-13T10:00:00Z"}"""
-    private val pending = """{"docUuid":"$doc","version":3,"code":"PAY-017","reason":"because","requestedBy":"u","requestedAt":"2026-11-13T11:00:00Z","status":"PENDING"}"""
+    private val overridden =
+        """{"docUuid":"$doc","version":3,"code":"PAY-017","reason":"because","overriddenBy":"u",""" +
+            """"overriddenAt":"2026-11-13T10:00:00Z"}"""
+    private val pending =
+        """{"docUuid":"$doc","version":3,"code":"PAY-017","reason":"because","requestedBy":"u",""" +
+            """"requestedAt":"2026-11-13T11:00:00Z","status":"PENDING"}"""
 
     private fun refused(
         status: Int,
@@ -158,9 +181,9 @@ class PayloadOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload 400 SRT-001, 403 SRT-004, 404 SRT-005, 409 SRT-008, 422 PAY-017 are relayed unchanged")
+    @DisplayName("INV-AC-21204 payload 400, 403, 404, 409 and 422 envelopes are relayed unchanged")
     fun refusalsRelayed() {
-        for ((status, code) in listOf(400 to "SRT-001", 403 to "SRT-004", 404 to "SRT-005", 409 to "SRT-008", 422 to "PAY-017")) {
+        for ((status, code) in REFUSALS) {
             stub.answer(status, envelope(status, code))
             assertEquals(refused(status, code), write(), "override $status")
             stub.answer(status, envelope(status, code))
@@ -176,16 +199,16 @@ class PayloadOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload the status of the answer is the status of the refusal, not the envelope's member")
+    @DisplayName("INV-AC-21204 payload refusal status is the HTTP status, not the envelope member")
     fun statusFromHttp() {
         stub.answer(409, envelope(422, "SRT-008"))
         assertEquals(409, (write() as OwnerReply.Refused).refusal.status)
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload a 4xx with an unreadable body or without a code gives Unavailable")
+    @DisplayName("INV-AC-21204 payload 4xx with unreadable body or no code gives Unavailable")
     fun unreadable4xx() {
-        for (raw in listOf(null, "", "not json", "[1]", """{"title":"T","status":422}""", """{"code":"X"}""", """{"code":7,"title":"T"}""")) {
+        for (raw in UNREADABLE_BODIES) {
             stub.answer(422, raw)
             assertEquals(true, write() is OwnerReply.Unavailable, "override body=$raw")
             stub.answer(404, raw)
@@ -194,7 +217,7 @@ class PayloadOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload a 500 gives Unavailable, also when its body is a readable envelope")
+    @DisplayName("INV-AC-21204 payload 500 gives Unavailable, also with a readable envelope")
     fun serverError() {
         stub.answer(500, envelope(500, "PAY-017"))
         assertEquals(true, write() is OwnerReply.Unavailable)
@@ -202,20 +225,20 @@ class PayloadOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload a refused connection, a timeout and an open breaker give Unavailable")
+    @DisplayName("INV-AC-21204 payload refused connection, timeout and open breaker give Unavailable")
     fun edgeFailures() {
         for (registry in listOf(TestEdges.connectRefused, TestEdges.timedOut, TestEdges.breakerOpen)) {
             stub.answer(201, overridden)
             assertEquals(true, write(registry) is OwnerReply.Unavailable)
-            assertEquals(true, CurrentEndUserToken.callWith("Bearer u-1") { client(registry).latestVersion(doc) } is OwnerReply.Unavailable)
+            assertEquals(true, read(registry) is OwnerReply.Unavailable)
             assertEquals(0, stub.seen.size, "the stub was not called")
         }
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload an answer that is 2xx but unreadable or of another status gives Unavailable")
+    @DisplayName("INV-AC-21204 payload 2xx unreadable or of another status gives Unavailable")
     fun unreadableSuccess() {
-        for ((status, raw) in listOf(201 to null, 201 to "{}", 200 to overridden, 202 to overridden, 204 to null, 201 to pending)) {
+        for ((status, raw) in unreadableSuccesses()) {
             stub.answer(status, raw)
             assertEquals(true, write() is OwnerReply.Unavailable, "override $status $raw")
         }
@@ -226,7 +249,7 @@ class PayloadOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload the request has the contract's method, path and body members and the end-user token")
+    @DisplayName("INV-AC-21204 payload request has contract method, path, body and token")
     fun requestShape() {
         stub.answer(201, overridden)
         write()
@@ -257,7 +280,7 @@ class PayloadOverrideClientTest {
     }
 
     @Test
-    @DisplayName("INV-AC-21204 payload no token reaches the stub when none is ambient is not invented by the client")
+    @DisplayName("INV-AC-21204 payload no token is invented when none is ambient")
     fun noInventedToken() {
         stub.answer(200, """{"docUuid":"$doc","version":7}""")
         client().latestVersion(doc)

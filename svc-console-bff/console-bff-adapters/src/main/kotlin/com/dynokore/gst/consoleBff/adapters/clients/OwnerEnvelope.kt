@@ -1,9 +1,9 @@
 package com.dynokore.gst.consoleBff.adapters.clients
 
-import com.dynokore.gst.consoleBff.application.override.OwnerReply
 import com.dynokore.gst.consoleBff.application.override.OwnerRefusal
+import com.dynokore.gst.consoleBff.application.override.OwnerReply
 import com.dynokore.platform.serviceruntime.resilience.Deadline
-import com.dynokore.platform.serviceruntime.resilience.ResilientEdge
+import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.RequestConfig
@@ -53,8 +53,15 @@ internal object OwnerEnvelope {
     fun tree(raw: String?): JsonNode? =
         raw
             ?.takeIf { it.isNotBlank() }
-            ?.let { runCatching { mapper.readTree(it) }.getOrElse { e -> if (e is JacksonException) null else throw e } }
+            ?.let { parsed(it) }
             ?.takeIf { it.isObject }
+
+    private fun parsed(raw: String): JsonNode? =
+        try {
+            mapper.readTree(raw)
+        } catch (_: JacksonException) {
+            null
+        }
 
     fun text(
         node: JsonNode,
@@ -81,8 +88,11 @@ internal object OwnerEnvelope {
 internal class OwnerTransport(
     client: RestClient,
 ) : ApiClient(client) {
-    fun <B : Any> send(config: RequestConfig<B>): ResponseEntity<String> =
-        prepare(defaults(config)).retrieve().toEntity(String::class.java)
+    fun send(config: RequestConfig<*>): ResponseEntity<String> {
+        @Suppress("UNCHECKED_CAST")
+        val typed = config as RequestConfig<Any>
+        return prepare(defaults(typed)).retrieve().toEntity(String::class.java)
+    }
 }
 
 /** The answer of the owner once it was read: its status and its raw body. */
@@ -92,41 +102,61 @@ internal class OwnerAnswer(
 )
 
 /**
- * One call through the policy of the edge. The status is read before the body (a 4xx with a readable envelope is a
- * [OwnerReply.Refused], any other failure of the owner or the edge is [OwnerReply.Unavailable]); nothing here retries
- * and nothing throws for an owner answer. [onSuccess] gets only a 2xx answer.
+ * The calls of one owning service through the policy of its edge. The status is read before the body (a 4xx with a
+ * readable envelope is a [OwnerReply.Refused], any other failure of the owner or the edge is
+ * [OwnerReply.Unavailable]); nothing here retries and nothing throws for an owner answer. The handler of [call] gets
+ * only a 2xx answer.
  */
-internal fun <T> ownerCall(
-    edge: String,
-    timeout: java.time.Duration,
-    policy: ResilientEdge,
-    clock: Clock,
-    transport: OwnerTransport,
-    request: () -> RequestConfig<*>,
-    onSuccess: (OwnerAnswer) -> OwnerReply<T>,
-): OwnerReply<T> {
-    // API-29: the deadline of the request being served; a call with none behind it gets the edge's timeout
-    val deadline = CurrentDeadline.current() ?: Deadline.after(timeout, clock)
-    return policy.execute(
-        deadline,
-        onCallNotPermitted = { OwnerReply.Unavailable("$edge: call not permitted (breaker open or bulkhead full)") },
-        onConnectFailure = { OwnerReply.Unavailable("$edge: connection refused") },
-        onTimeout = { OwnerReply.Unavailable("$edge: timed out") },
-    ) {
-        try {
-            @Suppress("UNCHECKED_CAST")
-            val response = transport.send(request() as RequestConfig<Any>)
-            val status = response.statusCode.value()
-            if (response.statusCode.is2xxSuccessful) {
-                onSuccess(OwnerAnswer(status, response.body))
-            } else {
-                OwnerReply.Unavailable("$edge: unexpected status $status")
+internal class OwnerEdge(
+    private val service: OwningService,
+    registry: ResilienceRegistry,
+    private val clock: Clock,
+    restClient: RestClient,
+) {
+    private val policy = OwningServiceEdge.policy(registry, service)
+    private val transport = OwnerTransport(restClient)
+
+    fun unreadable(status: Int): OwnerReply.Unavailable =
+        OwnerReply.Unavailable("${service.edge}: unreadable answer (status $status)")
+
+    fun <T> call(
+        request: () -> RequestConfig<*>,
+        onSuccess: (OwnerAnswer) -> OwnerReply<T>,
+    ): OwnerReply<T> {
+        // API-29: the deadline of the request being served; a call with none behind it gets the edge's timeout
+        val deadline = CurrentDeadline.current() ?: Deadline.after(service.timeout, clock)
+        return policy.execute(
+            deadline,
+            onCallNotPermitted = { OwnerReply.Unavailable("${service.edge}: call not permitted (breaker open)") },
+            onConnectFailure = { OwnerReply.Unavailable("${service.edge}: connection refused") },
+            onTimeout = { OwnerReply.Unavailable("${service.edge}: timed out") },
+        ) {
+            try {
+                val response = transport.send(request())
+                val status = response.statusCode.value()
+                if (response.statusCode.is2xxSuccessful) {
+                    onSuccess(OwnerAnswer(status, response.body))
+                } else {
+                    OwnerReply.Unavailable("${service.edge}: unexpected status $status")
+                }
+            } catch (failure: RestClientResponseException) {
+                refusedOrUnavailable(failure)
             }
-        } catch (failure: RestClientResponseException) {
-            val status = failure.statusCode.value()
-            val refusal =
-                if (failure.statusCode.is4xxClientError) OwnerEnvelope.refusal(status, failure.responseBodyAsString) else null
-            if (refusal != null) OwnerReply.Refused(refusal) else OwnerReply.Unavailable("$edge: status $status")
+        }
+    }
+
+    private fun refusedOrUnavailable(failure: RestClientResponseException): OwnerReply<Nothing> {
+        val status = failure.statusCode.value()
+        val refusal =
+            if (failure.statusCode.is4xxClientError) {
+                OwnerEnvelope.refusal(status, failure.responseBodyAsString)
+            } else {
+                null
+            }
+        return if (refusal != null) {
+            OwnerReply.Refused(refusal)
+        } else {
+            OwnerReply.Unavailable("${service.edge}: status $status")
         }
     }
 }
