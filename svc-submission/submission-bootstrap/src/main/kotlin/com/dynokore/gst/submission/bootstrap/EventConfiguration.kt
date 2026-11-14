@@ -75,6 +75,12 @@ object SubmissionEvents {
     const val ENTITY_PROFILE_CHANGED_TOPIC = "gst.tenancy.entity-profile-changed.v1"
     const val ENTITY_PROFILE_CHANGED_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
 
+    const val FEED_HEALTH_CHANGED_TOPIC = "gst.ingestion.feed-health-changed.v1"
+    const val FEED_HEALTH_CHANGED_TYPE = "com.dynokore.gst.ingestion.FeedHealthChanged.v1"
+
+    const val AGGREGATE_WINDOW_CHANGED_TOPIC = "gst.aggregation.aggregate-window-changed.v1"
+    const val AGGREGATE_WINDOW_CHANGED_TYPE = "com.dynokore.gst.aggregation.AggregateWindowChanged.v1"
+
     const val DOCUMENT_HELD_TOPIC = "gst.canonical.document-held.v1"
     const val DOCUMENT_HELD_TYPE = "com.dynokore.gst.canonical.DocumentHeld.v1"
 
@@ -93,8 +99,9 @@ object SubmissionEvents {
      * `PeriodExtended` (producer tenancy-svc, no content topic, INV-REQ-81), `CanonicalVersionCreated` (producer
      * canonical-svc, content topic) and `PeriodDueDateChanged` (producer tenancy-svc, no content topic), the last
      * two feeding the obligation register (INV-REQ-570), and `PeriodRecordsChanged` (producer tenancy-svc, no
-     * content topic, INV-REQ-570) and `EntityProfileChanged` (producer tenancy-svc, no content topic, INV-REQ-335);
-     * submission-svc
+     * content topic, INV-REQ-570), `EntityProfileChanged` (producer tenancy-svc, no content topic, INV-REQ-335),
+     * `FeedHealthChanged` (producer ingestion-svc) and `AggregateWindowChanged` (producer aggregation-svc), no
+     * content topic, the last two feeding the completeness rows (INV-REQ-792); submission-svc
      * is only their subscriber.
      */
     val consumed: List<CatalogueEntry> =
@@ -138,6 +145,20 @@ object SubmissionEvents {
                 ENTITY_PROFILE_CHANGED_TYPE,
                 ENTITY_PROFILE_CHANGED_TOPIC,
                 setOf("tenancy-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                FEED_HEALTH_CHANGED_TYPE,
+                FEED_HEALTH_CHANGED_TOPIC,
+                setOf("ingestion-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                AGGREGATE_WINDOW_CHANGED_TYPE,
+                AGGREGATE_WINDOW_CHANGED_TOPIC,
+                setOf("aggregation-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,
             ),
