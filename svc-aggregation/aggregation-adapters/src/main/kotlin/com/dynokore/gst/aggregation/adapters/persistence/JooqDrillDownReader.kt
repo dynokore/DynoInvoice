@@ -77,8 +77,7 @@ class JooqDrillDownReader(
                 AGGREGATE_TRANSACTION.AMOUNT,
                 AGGREGATE_TRANSACTION.CLAIMANT_REFERENCE,
                 AGGREGATE_TRANSACTION.CLAIMABLE_INPUT_TAX,
-            )
-            .from(AGGREGATE_TRANSACTION)
+            ).from(AGGREGATE_TRANSACTION)
             .where(held)
             .and(later)
             .orderBy(underlying, reference)

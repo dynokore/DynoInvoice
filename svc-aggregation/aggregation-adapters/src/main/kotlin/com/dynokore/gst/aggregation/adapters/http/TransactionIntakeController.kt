@@ -97,10 +97,17 @@ open class TransactionIntakeController(
         val outcome = replaced.execute(request.entityRef, request.receiptNumber)
         val result =
             when (outcome) {
-                is ReplacedReceiptOutcome.Excluded -> ReplacedReceiptResult.Outcome.EXCLUDED
-                is ReplacedReceiptOutcome.NotAggregated -> ReplacedReceiptResult.Outcome.NOT_AGGREGATED
-                is ReplacedReceiptOutcome.AlreadyTransmitted ->
+                is ReplacedReceiptOutcome.Excluded -> {
+                    ReplacedReceiptResult.Outcome.EXCLUDED
+                }
+
+                is ReplacedReceiptOutcome.NotAggregated -> {
+                    ReplacedReceiptResult.Outcome.NOT_AGGREGATED
+                }
+
+                is ReplacedReceiptOutcome.AlreadyTransmitted -> {
                     return problem(IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION)
+                }
             }
         return ResponseEntity.ok(ReplacedReceiptResult(request.entityRef, request.receiptNumber, result))
     }

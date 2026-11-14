@@ -23,7 +23,9 @@ class PcpInputTaxBoundaryTest {
     }
 
     private fun JsonNode.subtotals() =
-        this["subtotalsByTaxCode"].toList().associate { it["internalTaxCode"].asString() to it["amount"].decimalValue() }
+        this["subtotalsByTaxCode"].toList().associate {
+            it["internalTaxCode"].asString() to it["amount"].decimalValue()
+        }
 
     private fun ContentKit.tableCounts(): List<String> =
         rows(
@@ -92,16 +94,20 @@ class PcpInputTaxBoundaryTest {
             event["linesByInternalTaxCode"]
                 .toList()
                 .associate { it["internalTaxCode"].asString() to BigDecimal(it["amount"].asString()) }
-                .mapValues { it.value.stripTrailingZeros() } shouldBe expected.mapValues { it.value.stripTrailingZeros() }
+                .mapValues { it.value.stripTrailingZeros() } shouldBe
+                expected.mapValues { it.value.stripTrailingZeros() }
             val items = page["items"].toList()
             val byCode =
                 items.groupBy { item ->
-                    kit.rows(
-                        "select internal_tax_code from aggregation.aggregate_transaction where tenant_id = ? " +
-                            "and transaction_ref = '${item["transactionRef"].asString()}'",
-                    ).single()
+                    kit
+                        .rows(
+                            "select internal_tax_code from aggregation.aggregate_transaction where tenant_id = ? " +
+                                "and transaction_ref = '${item["transactionRef"].asString()}'",
+                        ).single()
                 }
-            byCode.mapValues { (_, list) -> list.sumOf { it["claimableInputTax"].decimalValue() }.stripTrailingZeros() } shouldBe
+            byCode.mapValues { (_, list) ->
+                list.sumOf { it["claimableInputTax"].decimalValue() }.stripTrailingZeros()
+            } shouldBe
                 expected.mapValues { it.value.stripTrailingZeros() }
         }
 
