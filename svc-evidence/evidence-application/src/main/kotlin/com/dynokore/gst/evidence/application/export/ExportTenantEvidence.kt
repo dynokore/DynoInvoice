@@ -104,15 +104,6 @@ class ExportTenantEvidence(
         val reason: String,
     ) : RuntimeException(reason)
 
-    private fun verify(files: PackageFiles): PackageVerification =
-        PackageVerifier.verify(
-            object : PackageSource {
-                override fun paths(): Set<String> = files.paths.toSet()
-
-                override fun read(path: String): ByteArray = files.bytes(path) ?: error("missing $path")
-            },
-        )
-
     private fun ready(
         job: ExportJob,
         stored: Outcome.Stored,
@@ -133,23 +124,6 @@ class ExportTenantEvidence(
         return done
     }
 
-    private fun result(
-        job: ExportJob,
-        state: ExportState,
-        contents: List<String>,
-        reason: String?,
-    ) = ExportResult(job.tenant.toString(), job.offboardingRef, job.exportRef, state, contents, reason)
-
-    @Suppress("TooGenericExceptionCaught") // a failing port is a FAILED job, never a rethrow (fail closed)
-    private fun <T> guarded(block: () -> T): Result<T> =
-        try {
-            Result.success(block())
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-
-    private fun named(e: Throwable): String = e.javaClass.name
-
     private sealed interface Outcome {
         data class Failed(
             val reason: String,
@@ -166,3 +140,29 @@ class ExportTenantEvidence(
         const val PROBLEMS_SHOWN = 5
     }
 }
+
+private fun verify(files: PackageFiles): PackageVerification =
+    PackageVerifier.verify(
+        object : PackageSource {
+            override fun paths(): Set<String> = files.paths.toSet()
+
+            override fun read(path: String): ByteArray = files.bytes(path) ?: error("missing $path")
+        },
+    )
+
+private fun result(
+    job: ExportJob,
+    state: ExportState,
+    contents: List<String>,
+    reason: String?,
+) = ExportResult(job.tenant.toString(), job.offboardingRef, job.exportRef, state, contents, reason)
+
+@Suppress("TooGenericExceptionCaught") // a failing port is a FAILED job, never a rethrow (fail closed)
+private fun <T> guarded(block: () -> T): Result<T> =
+    try {
+        Result.success(block())
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
+private fun named(e: Throwable): String = e.javaClass.name
