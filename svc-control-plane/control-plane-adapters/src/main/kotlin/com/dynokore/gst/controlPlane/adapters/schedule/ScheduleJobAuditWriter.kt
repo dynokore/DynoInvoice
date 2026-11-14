@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.adapters.schedule
 
 import com.dynokore.gst.controlPlane.application.schedule.OpenDueTenants
+import com.dynokore.gst.controlPlane.application.schedule.ScheduleClosingAudit
 import com.dynokore.gst.controlPlane.application.schedule.ScheduleJobAudit
 import com.dynokore.gst.controlPlane.domain.schedule.TenantSchedule
 import com.dynokore.platform.auditlog.AuditEntry
@@ -20,11 +21,20 @@ import java.util.UUID
  */
 class ScheduleJobAuditWriter(
     private val writer: AuditWriter,
-) : ScheduleJobAudit {
+) : ScheduleJobAudit,
+    ScheduleClosingAudit {
     override fun record(
         schedule: TenantSchedule,
         action: String,
         at: Instant,
+    ) = record(schedule, action, at, null)
+
+    /** The closing entry: the reason also carries the refusal `detail` of a failed step. */
+    override fun record(
+        schedule: TenantSchedule,
+        action: String,
+        at: Instant,
+        detail: String?,
     ) {
         val id = UUID.randomUUID().toString()
         writer.record(
@@ -32,7 +42,9 @@ class ScheduleJobAuditWriter(
                 actor = OpenDueTenants.ACTOR,
                 action = action,
                 scope = "installation",
-                reason = "tenant=${schedule.tenantRef.value} contract=${schedule.contractReference.value} at=$at",
+                reason =
+                    "tenant=${schedule.tenantRef.value} contract=${schedule.contractReference.value} at=$at" +
+                        detail?.let { " detail=$it" }.orEmpty(),
             ),
             EventContext(
                 tenant = TenantId.PLATFORM,

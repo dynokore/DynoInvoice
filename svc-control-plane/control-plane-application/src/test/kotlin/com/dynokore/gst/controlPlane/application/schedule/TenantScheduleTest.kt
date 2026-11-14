@@ -62,6 +62,14 @@ class TenantScheduleTest {
                     }?.tenantRef,
             )
 
+            override fun dueForClosing(
+                now: Instant,
+                limit: Int,
+            ): List<CommercialRef> =
+                listOfNotNull(
+                    stored?.takeIf { it.state == ScheduleState.APPROVED && !it.offboardingAt.isAfter(now) }?.tenantRef,
+                ).take(limit)
+
             override fun recordOpenAttempt(
                 tenantRef: CommercialRef,
                 at: Instant,
@@ -613,6 +621,15 @@ private class ManyRows(
                 .thenBy { it.goLiveAt }
                 .thenBy { it.scheduleRef },
         ).take(limit)
+        .map { it.tenantRef }
+
+    override fun dueForClosing(
+        now: Instant,
+        limit: Int,
+    ) = byTenant.values
+        .filter { it.state == ScheduleState.APPROVED && !it.offboardingAt.isAfter(now) }
+        .sortedWith(compareBy({ it.offboardingAt }, { it.scheduleRef }))
+        .take(limit)
         .map { it.tenantRef }
 
     override fun recordOpenAttempt(

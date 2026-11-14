@@ -13,12 +13,14 @@ import com.dynokore.gst.controlPlane.application.schedule.CancelTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.CancelTenantScheduleCommand
 import com.dynokore.gst.controlPlane.application.schedule.ChangeTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.ChangeTenantScheduleCommand
+import com.dynokore.gst.controlPlane.application.schedule.CloseDueTenants
 import com.dynokore.gst.controlPlane.application.schedule.GetTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.OpenDueTenants
 import com.dynokore.gst.controlPlane.application.schedule.SchedulePermission
 import com.dynokore.gst.controlPlane.application.schedule.ScheduleRefusal
 import com.dynokore.gst.controlPlane.application.schedule.SetTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.SetTenantScheduleCommand
+import com.dynokore.gst.controlPlane.application.schedule.TenantClosing
 import com.dynokore.gst.controlPlane.application.schedule.TenantOpening
 import com.dynokore.gst.controlPlane.contract.model.ApproveTenantScheduleRequest
 import com.dynokore.gst.controlPlane.contract.model.ChangeTenantScheduleRequest
@@ -119,6 +121,19 @@ class TenantScheduleIT {
             transactions,
             clock,
         )
+    private val closes = ArrayList<String>()
+    private var closerAnswer: TenantClosing = TenantClosing.Closed
+    private val closing =
+        CloseDueTenants(
+            schedules,
+            { t, sch ->
+                closes += "${t.value}/${sch.scheduleRef}/${sch.custodyHolder.name}"
+                closerAnswer
+            },
+            ScheduleJobAuditWriter(audit),
+            transactions,
+            clock,
+        )
     private val tenant = CommercialRef("TEN-IT1")
 
     @BeforeEach
@@ -214,6 +229,59 @@ class TenantScheduleIT {
         opens shouldBe listOf("TEN-IT1/SCH-IT1")
         stored()?.openedAt shouldBe goLive
         audits().single { it.second == "openTenant" }.first shouldBe OpenDueTenants.ACTOR
+    }
+
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
+    @Test
+    fun `INV-AC-8102 the job closes an opened tenant once at the offboarding time with an audit entry that commits with the step`() {
+        setSchedule("alice")
+        approveBy("bob")
+        now = goLive
+        runJob()
+        now = offboarding.minusSeconds(1)
+        tenants.bindPlatform("control-plane-svc") { closing.runOnce(10) } shouldBe 0
+        now = offboarding
+        tenants.bindPlatform("control-plane-svc") { closing.runOnce(10) } shouldBe 1
+        tenants.bindPlatform("control-plane-svc") { closing.runOnce(10) } shouldBe 0
+        closes shouldBe listOf("TEN-IT1/SCH-IT1/Custodian")
+        stored()?.state shouldBe ScheduleState.EXECUTED
+        val entry = audits().single { it.second == "closeTenant" }
+        entry.first shouldBe OpenDueTenants.ACTOR
+        entry.third shouldBe "tenant=TEN-IT1 contract=CTR-1 at=$offboarding"
+    }
+
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
+    @Test
+    fun `INV-AC-8102 a refused closing leaves the schedule FAILED that getTenantSchedule reads, with the detail in the audit entry`() {
+        setSchedule("alice")
+        approveBy("bob")
+        now = goLive
+        runJob()
+        now = offboarding
+        closerAnswer = TenantClosing.NotClosed("an in-scope document is unsubmitted")
+        tenants.bindPlatform("control-plane-svc") { closing.runOnce(10) } shouldBe 1
+        tenants.bindPlatform("control-plane-svc") { closing.runOnce(10) } shouldBe 0
+        closes.size shouldBe 1
+        val read = GetTenantSchedule(schedules, permissions)
+        tenants.bindPlatform("alice") { transactions.inTransaction { read.get(tenant) } }?.state shouldBe
+            ScheduleState.FAILED
+        val entry = audits().single { it.second == "closeTenantFailed" }
+        entry.first shouldBe OpenDueTenants.ACTOR
+        entry.third shouldBe
+            "tenant=TEN-IT1 contract=CTR-1 at=$offboarding detail=an in-scope document is unsubmitted"
+    }
+
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
+    @Test
+    fun `INV-AC-8102 a schedule whose opening was not carried out causes no closeTenant call and is FAILED with an audit entry`() {
+        setSchedule("alice")
+        approveBy("bob")
+        now = offboarding
+        tenants.bindPlatform("control-plane-svc") { closing.runOnce(10) } shouldBe 0
+        closes.size shouldBe 0
+        stored()?.state shouldBe ScheduleState.FAILED
+        audits().single { it.second == "closeTenantFailed" }.third shouldBe
+            "tenant=TEN-IT1 contract=CTR-1 at=$offboarding detail=${CloseDueTenants.NOT_OPENED_DETAIL}"
     }
 
     @Test

@@ -76,6 +76,11 @@ class TenantSchedulePermissionKeysTest {
                 limit: Int,
             ): List<CommercialRef> = fail("dueForOpening called")
 
+            override fun dueForClosing(
+                now: Instant,
+                limit: Int,
+            ): List<CommercialRef> = fail("dueForClosing called")
+
             override fun recordOpenAttempt(
                 tenantRef: CommercialRef,
                 at: Instant,

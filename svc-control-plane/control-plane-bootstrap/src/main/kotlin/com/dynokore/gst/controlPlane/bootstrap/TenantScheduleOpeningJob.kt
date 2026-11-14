@@ -1,5 +1,6 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
+import com.dynokore.gst.controlPlane.application.schedule.CloseDueTenants
 import com.dynokore.gst.controlPlane.application.schedule.OpenDueTenants
 import com.dynokore.platform.serviceruntime.jobs.JobBody
 import com.dynokore.platform.serviceruntime.jobs.JobCriticality
@@ -18,7 +19,8 @@ import java.time.Duration
 /**
  * The scheduled job that opens tenants (INV-REQ-8100 behaviors 3 and 6): a PLATFORM-scoped job of control-plane-svc on
  * the service's [JobRuntime], run without a person under `platform.bindPlatform`. Each run calls
- * [OpenDueTenants.runOnce]; the closing at the offboarding time is INV-T-8180. The cron comes from
+ * [OpenDueTenants.runOnce] and then [CloseDueTenants.runOnce] (the closing step at the offboarding time, INV-T-8180;
+ * a failure of the opening step does not stop the closing step of the same run). The cron comes from
  * `gst.jobs.tenant-schedule-opening.cron` and is fired by [TenantScheduleOpeningSchedule].
  */
 class TenantScheduleOpeningJob(
@@ -31,6 +33,7 @@ class TenantScheduleOpeningJob(
     /** What the job runs with. */
     class Collaborators(
         val step: OpenDueTenants,
+        val closing: CloseDueTenants,
         val platform: PlatformTenantBinding,
         val batchSize: Int,
     )
@@ -44,8 +47,11 @@ class TenantScheduleOpeningJob(
         runtime.register(definition, body = JobBody { runOnce() })
     }
 
-    /** Runs one batch and returns how many `openTenant` calls it made. */
-    fun runOnce(): Int = with.platform.bindPlatform(actor) { with.step.runOnce(with.batchSize) }
+    /** Runs the opening step, then the closing step; returns the number of `openTenant` and `closeTenant` calls. */
+    fun runOnce(): Int =
+        with.platform.bindPlatform(actor) {
+            with.step.runOnce(with.batchSize) + with.closing.runOnce(with.batchSize)
+        }
 
     companion object {
         const val NAME = "tenant-schedule-opening"

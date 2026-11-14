@@ -87,6 +87,22 @@ class TenantScheduleRepositoryJooq(
             .fetch(TENANT_SCHEDULE.TENANT_REF)
             .map { CommercialRef(checkNotNull(it)) }
 
+    override fun dueForClosing(
+        now: Instant,
+        limit: Int,
+    ): List<CommercialRef> =
+        dsl
+            .select(TENANT_SCHEDULE.TENANT_REF)
+            .from(TENANT_SCHEDULE)
+            .where(
+                TENANT_SCHEDULE.STATE
+                    .eq(ScheduleState.APPROVED.name)
+                    .and(TENANT_SCHEDULE.OFFBOARDING_AT.le(utc(now))),
+            ).orderBy(TENANT_SCHEDULE.OFFBOARDING_AT.asc(), TENANT_SCHEDULE.SCHEDULE_REF.asc())
+            .limit(limit)
+            .fetch(TENANT_SCHEDULE.TENANT_REF)
+            .map { CommercialRef(checkNotNull(it)) }
+
     override fun recordOpenAttempt(
         tenantRef: CommercialRef,
         at: Instant,
