@@ -59,7 +59,8 @@ class FeedHealthStoreTest {
             }
         }
 
-    private fun rows(tenant: UUID): Int = count("select count(*) from ingestion.feed_health_state where tenant_id = '$tenant'")
+    private fun rows(tenant: UUID): Int =
+        count("select count(*) from ingestion.feed_health_state where tenant_id = '$tenant'")
 
     @Test
     fun `INV-AC-22215 the counter is 1 then 2 for one key, restarts at 1 for another control and for another tenant`() {

@@ -8,18 +8,21 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.SpecificationVersion
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
+import java.io.File
 import java.util.UUID
 
 /**
  * INV-AC-22215 (INV-REQ-815): the outbox adapter publishes every change as `FeedHealthChanged` with the payload of the
  * ingestion AsyncAPI contract plus `stateVersion`, the tenant in the envelope and the key of the counter as aggregate
- * key. The writer is a recorder; the payload is checked against the constraints of the pinned
- * `feed-health-changed-payload.schema.json` (required members, enums, `stateVersion` integer of at least 1); the
- * schema validator itself runs in the acceptance module (`EventPayloadContractTest`).
+ * key. The writer is a recorder; the payload is validated against the pinned
+ * `feed-health-changed-payload.schema.json` staged under `gst.contract.dir`; a missing property or file fails.
  */
 class FeedHealthChangedOutboxTest {
     private class Recorder : OutboxWriter {
@@ -49,7 +52,14 @@ class FeedHealthChangedOutboxTest {
         return recorder
     }
 
-    private fun payload(recorder: Recorder): JsonNode = mapper.readTree(recorder.appended.single().first.single().dataJson)
+    private fun payload(recorder: Recorder): JsonNode =
+        mapper.readTree(
+            recorder.appended
+                .single()
+                .first
+                .single()
+                .dataJson,
+        )
 
     @Test
     fun `INV-AC-22215 a FAILED change publishes stateVersion 2 and a CLEARED change stateVersion 3`() {
@@ -75,20 +85,28 @@ class FeedHealthChangedOutboxTest {
     }
 
     @Test
-    fun `INV-AC-22215 the payload satisfies the constraints of the pinned feed-health-changed schema`() {
+    fun `INV-AC-22215 the payload of each control and state validates against the pinned feed-health-changed schema`() {
+        val dir = checkNotNull(System.getProperty("gst.contract.dir")) { "system property gst.contract.dir is absent" }
+        val file = File(dir, "schemas/feed-health-changed-payload.schema.json")
+        check(file.isFile) { "the pinned schema $file does not exist" }
+        val registry =
+            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
+                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+            }
+        val schema = registry.getSchema(file.readText())
+        var checked = 0
         FeedControl.entries.forEach { control ->
             FeedHealthState.entries.forEach { state ->
-                val node = payload(publish(control, state, 7))
-                listOf("feed", "entityRef", "period", "control", "state").forEach { node[it].isString shouldBe true }
-                (node["feed"].asString().length >= 1) shouldBe true
-                (node["entityRef"].asString().length >= 1) shouldBe true
-                setOf("SEQUENCE", "COUNT", "VALUE", "WATERMARK", "MANIFEST").contains(node["control"].asString()) shouldBe
-                    true
-                setOf("FAILED", "CLEARED").contains(node["state"].asString()) shouldBe true
+                val text = publish(control, state, 7).appended.single().first.single().dataJson
+                schema.validate(mapper.readTree(text)).map { it.toString() } shouldBe emptyList()
+                val node = mapper.readTree(text)
+                // the schema leaves stateVersion optional; the producer always sends it
                 node["stateVersion"].isIntegralNumber shouldBe true
                 (node["stateVersion"].asLong() >= 1) shouldBe true
+                checked++
             }
         }
+        checked shouldBe 10
     }
 
     @Test
@@ -101,7 +119,12 @@ class FeedHealthChangedOutboxTest {
     @Test
     fun `INV-AC-22215 the event travels under the v1 type and its look-alike v2 is not the type`() {
         val recorder = publish(FeedControl.VALUE, FeedHealthState.FAILED, 1)
-        val type = recorder.appended.single().first.single().type
+        val type =
+            recorder.appended
+                .single()
+                .first
+                .single()
+                .type
         type shouldBe "com.dynokore.gst.ingestion.FeedHealthChanged.v1"
         type shouldBe FeedHealthChangedOutbox.TYPE
         (type == "com.dynokore.gst.ingestion.FeedHealthChanged.v2") shouldBe false
@@ -117,7 +140,13 @@ class FeedHealthChangedOutboxTest {
 
     @Test
     fun `INV-AC-22215 the event carries no user id or role`() {
-        val text = publish(FeedControl.SEQUENCE, FeedHealthState.CLEARED, 4).appended.single().first.single().dataJson
+        val text =
+            publish(FeedControl.SEQUENCE, FeedHealthState.CLEARED, 4)
+                .appended
+                .single()
+                .first
+                .single()
+                .dataJson
         listOf("actor", "user", "role", "permission").forEach { text.lowercase().contains(it) shouldBe false }
     }
 }
