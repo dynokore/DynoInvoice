@@ -225,6 +225,7 @@ class ConfirmFilingControllerTest {
             confirm,
             runner,
             zone,
+            unusedFilingGateOverrides(),
         )
     }
 
@@ -453,6 +454,37 @@ internal fun unusedConfirmFiling(): ConfirmFiling =
 
             override fun append(fact: NewFilingFact) = error("confirmFiling is not under test")
         },
+    )
+
+/** A port that must not be called: any call fails the test. */
+internal inline fun <reified T : Any> unusedOf(): T =
+    java.lang.reflect.Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, method, _ ->
+        error("unused port called: ${method.name}")
+    } as T
+
+/** The holder of the override use cases for a controller test that never serves the override operations. */
+internal fun unusedFilingGateOverrides() =
+    com.dynokore.gst.submission.adapters.http.FilingGateOverrides(
+        com.dynokore.gst.submission.application.gate.RequestOverride(
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+        ),
+        com.dynokore.gst.submission.application.gate.ApproveOverride(
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+            unusedOf(),
+        ),
+        com.dynokore.gst.submission.application.gate
+            .ReadOverrides(unusedOf(), unusedOf(), unusedOf()),
+        unusedOf(),
+        unusedOf(),
+        unusedOf(),
     )
 
 /** A runner no drain or readiness test enters through `confirmFiling`. */

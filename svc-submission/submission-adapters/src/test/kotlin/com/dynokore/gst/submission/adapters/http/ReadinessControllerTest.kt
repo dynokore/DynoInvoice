@@ -5,6 +5,7 @@ import com.dynokore.gst.submission.adapters.SignedBindings
 import com.dynokore.gst.submission.adapters.SubmissionDb
 import com.dynokore.gst.submission.adapters.persistence.JooqReadinessCheckStore
 import com.dynokore.gst.submission.adapters.unusedConfirmFiling
+import com.dynokore.gst.submission.adapters.unusedFilingGateOverrides
 import com.dynokore.gst.submission.adapters.unusedRunner
 import com.dynokore.gst.submission.application.gate.OverrideAuthority
 import com.dynokore.gst.submission.application.readiness.GetLatestReadinessCheck
@@ -132,6 +133,7 @@ class ReadinessControllerTest {
             unusedConfirmFiling(),
             unusedRunner,
             ZoneId.of("Asia/Singapore"),
+            unusedFilingGateOverrides(),
         )
     }
 

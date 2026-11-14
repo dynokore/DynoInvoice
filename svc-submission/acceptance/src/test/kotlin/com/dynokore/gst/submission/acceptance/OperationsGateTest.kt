@@ -34,7 +34,17 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
         OperationsGate.contractChannels(asyncapi).size shouldBe 10
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\nINV-T-22166\nINV-T-20853\nINV-T-20948\n"
+        val doneLines = checkNotNull(doneText).lines()
+        listOf(
+            "INV-T-20589",
+            "INV-T-20607",
+            "INV-T-21141",
+            "INV-T-16327",
+            "INV-T-22166",
+            "INV-T-20853",
+            "INV-T-20948",
+            "INV-T-10714",
+        ).forEach { doneLines shouldContain it }
     }
 
     @Test
@@ -42,12 +52,14 @@ class OperationsGateTest {
         // getComplianceMetrics is implemented by INV-T-12844, replaySubmissionsByScope by INV-T-20589 and
         // replaySubmissions by INV-T-20607, getLatestReadinessCheck by INV-T-21141 and listSubmissions by
         // INV-T-16327 and getSubmissionSummary by INV-T-22166 and previewDrainPeriod and drainPeriod by INV-T-20853 and
-        // confirmFiling by INV-T-20948,
+        // confirmFiling by INV-T-20948 and overrideFilingGate, approveFilingGateOverride and getFilingGateOverrides by
+        // INV-T-10714,
         // so they no longer answer 501.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) - "getComplianceMetrics" - "replaySubmissionsByScope" -
             "replaySubmissions" - "getLatestReadinessCheck" - "listSubmissions" - "getSubmissionSummary" -
-            "previewDrainPeriod" - "drainPeriod" - "confirmFiling"
+            "previewDrainPeriod" - "drainPeriod" - "confirmFiling" - "overrideFilingGate" -
+            "approveFilingGateOverride" - "getFilingGateOverrides"
     }
 
     @Test

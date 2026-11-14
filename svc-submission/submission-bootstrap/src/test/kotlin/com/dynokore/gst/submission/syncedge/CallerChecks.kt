@@ -153,6 +153,9 @@ class CallerChecks(
                 "POST /internal/v1/transactions/{docUuid}/versions/{version}/replay",
                 "GET /internal/v1/entities/{entityRef}/periods/{periodRef}/readiness/latest-check",
                 "GET /internal/v1/entities/{entityRef}/periods/{periodRef}/drain-preview",
+                "POST /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides",
+                "GET /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides",
+                "POST /internal/v1/entities/{entityRef}/periods/{periodRef}/filing-gate-overrides/{checkId}/approval",
             )
         private val COUNTS =
             "select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', " +

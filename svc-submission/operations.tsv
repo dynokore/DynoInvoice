@@ -9,7 +9,7 @@ operation	getSubmissionReconciliation	UNASSIGNED
 operation	exportSubmissions	UNASSIGNED
 operation	getTransaction	UNASSIGNED
 operation	withdrawSubmission	UNASSIGNED
-operation	overrideFilingGate	UNASSIGNED
+operation	overrideFilingGate	INV-T-10714
 operation	checkSubmissionBoundary	UNASSIGNED
 operation	replaySubmissions	INV-T-20607
 operation	replaySubmissionsByScope	INV-T-20589
