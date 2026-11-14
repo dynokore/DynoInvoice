@@ -20,7 +20,8 @@ class ReplacedReceiptBoundaryTest {
 
     private fun ContentKit.rowOf(aggregateId: String) =
         rows(
-            "select row_to_json(a)::text from aggregation.aggregate a where tenant_id = ? and aggregate_id = '$aggregateId'",
+            "select row_to_json(a)::text from aggregation.aggregate a " +
+                "where tenant_id = ? and aggregate_id = '$aggregateId'",
         ).single()
 
     private fun ContentKit.outcome(

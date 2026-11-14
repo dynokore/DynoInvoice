@@ -69,11 +69,14 @@ class AggregateContentBoundaryTest {
                 "select credit_note::text from aggregation.aggregate where tenant_id = ? and aggregate_id = '$credit'",
             ) shouldBe
                 listOf("true")
+
             // the same placeholders: both aggregates carry the same entity code, business-unit code and period end
-            val placeholders =
-                "select entity_code || '|' || business_unit_code || '|' || period_end from aggregation.aggregate " +
-                    "where tenant_id = ? and aggregate_id = '%s'"
-            kit.rows(placeholders.format(credit)) shouldBe kit.rows(placeholders.format(sales))
+            fun placeholders(id: String) =
+                kit.rows(
+                    "select entity_code || '|' || business_unit_code || '|' || period_end " +
+                        "from aggregation.aggregate where tenant_id = ? and aggregate_id = '$id'",
+                )
+            placeholders(credit) shouldBe placeholders(sales)
             // its own sequence number
             kit.rows("select count(distinct sequence)::text from aggregation.aggregate where tenant_id = ?") shouldBe
                 listOf("2")
