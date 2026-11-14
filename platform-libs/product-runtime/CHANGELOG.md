@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.19.12] - 2026-11-14
+### Changed
+- Version step only: depends on `service-runtime` 13.19.0 (signed flow context; INV-T-9254, G-DVS); no code change.
+
 ## [2.19.11] - 2026-11-14
 ### Changed
 - Version step only: depends on `service-runtime` 13.18.1 and `outbox-and-queue` 6.23.0 (`PendingPartitionReader`; see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943); no code change.

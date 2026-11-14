@@ -262,6 +262,8 @@ dependencies {
         }
     }
     add("implTestImplementation", libs.assertj.core)
+    // INV-T-9254: the fake flow-context keys and issuer and FlowContextTestSupport are test fixtures of this same module.
+    add("implTestImplementation", testFixtures(project))
     add("implTestImplementation", libs.snakeyaml) // MountedOperationCallersTest reads the contract document
 
     // INV-T-2875: the composition root's optional L1 modules (see `optionalL1Modules` above).

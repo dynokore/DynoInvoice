@@ -1,5 +1,7 @@
 package com.dynokore.platform.serviceruntime.identity
 
+import com.dynokore.platform.tenancykernel.TenantContext
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication
@@ -15,6 +17,7 @@ import org.springframework.security.oauth2.jwt.JwtClaimValidator
 import org.springframework.security.oauth2.jwt.JwtValidators
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import java.nio.file.Path
+import java.time.Clock
 
 /**
  * Wires STK-26's callee side (INV-AC-2200: "verified by callee") and caller
@@ -79,9 +82,43 @@ class IdentityAutoConfiguration {
             urlPatterns = listOf("/*")
         }
 
+    /** The operations the contract marks `x-flow-context: required` (INV-T-9254). */
+    @Bean
+    @ConditionalOnMissingBean(FlowContextOperations::class)
+    fun flowContextOperations(resources: ResourceLoader): FlowContextOperations =
+        FlowContextOperations.from(
+            checkNotNull(resources.classLoader) { "no class loader to read the contract resources" },
+        )
+
+    /**
+     * Verifies the signed flow context of a listed operation, immediately after the calling-service filter (INV-T-9254).
+     * Without a [FlowContextKeys] bean every listed operation is refused (deny by default).
+     */
+    @Bean
+    fun flowContextFilter(
+        operations: FlowContextOperations,
+        keys: ObjectProvider<FlowContextKeys>,
+        clock: ObjectProvider<Clock>,
+        tenants: ObjectProvider<TenantContext>,
+        resolvers: ObjectProvider<EndUserPrincipalResolver>,
+    ): FilterRegistrationBean<FlowContextFilter> =
+        FilterRegistrationBean(FlowContextFilter(operations, keys, clock, tenants, resolvers)).apply {
+            order = ORDER_FLOW_CONTEXT
+            urlPatterns = listOf("/*")
+        }
+
+    /** Carries the held flow context on an outbound call to a listed operation (INV-T-9254). */
+    @Bean
+    @ConditionalOnMissingBean(name = ["flowContextPropagationInterceptor"])
+    fun flowContextPropagationInterceptor(operations: FlowContextOperations): ClientHttpRequestInterceptor =
+        FlowContextPropagationInterceptor(operations)
+
     companion object {
         /** After the workload authentication (-90) that captures the caller, before the deadline filter (-80). */
         const val ORDER_SYNC_EDGE_CALLER = -85
+
+        /** Immediately after the calling-service filter (-85), still before the deadline filter (-80). */
+        const val ORDER_FLOW_CONTEXT = -84
 
         // Runs first (Spring's own FilterRegistrationBean ordering, lower first):
         // an unauthenticated caller is refused before the deadline or end-user
