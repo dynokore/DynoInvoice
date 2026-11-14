@@ -28,3 +28,21 @@ create policy aggregate_line_tenant_isolation on aggregation.aggregate_line
     using      (tenant_id = (select aggregation.bound_tenant()))
     with check (tenant_id = (select aggregation.bound_tenant()));
 grant select, insert on aggregation.aggregate_line to aggregation_runtime;
+
+-- A higher revision whose difference to the recorded aggregates is zero stores no aggregate; the revision is recorded
+-- as seen against the aggregate it was compared with (INV-REQ-434 item 4), so a replay answers that aggregate and a
+-- lower revision is still refused (ING-002).
+create table aggregation.seen_revision (
+    tenant_id uuid not null,
+    entity_ref text not null,
+    source_key text not null,
+    source_revision bigint not null,
+    aggregate_id uuid not null references aggregation.aggregate (aggregate_id),
+    primary key (tenant_id, entity_ref, source_key, source_revision)
+);
+alter table aggregation.seen_revision enable row level security;
+alter table aggregation.seen_revision force row level security;
+create policy seen_revision_tenant_isolation on aggregation.seen_revision
+    using      (tenant_id = (select aggregation.bound_tenant()))
+    with check (tenant_id = (select aggregation.bound_tenant()));
+grant select, insert on aggregation.seen_revision to aggregation_runtime;

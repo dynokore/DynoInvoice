@@ -2,6 +2,7 @@ package com.dynokore.gst.aggregation.adapters.persistence
 
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.Aggregate.Companion.AGGREGATE
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateLine.Companion.AGGREGATE_LINE
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.SeenRevision.Companion.SEEN_REVISION
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.records.AggregateRecord
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.AggregateRevisions
@@ -45,21 +46,51 @@ class JooqAggregateStore(
                 .and(AGGREGATE.SOURCE_REVISION.eq(sourceRevision))
                 .fetchOne()
                 ?.let(::stored)
+                ?: seenAggregate(entityRef, sourceKey, sourceRevision)
         }
+
+    private fun seenAggregate(
+        entityRef: String,
+        sourceKey: String,
+        sourceRevision: Long,
+    ): StoredAggregate? =
+        dsl
+            .select(AGGREGATE.asterisk())
+            .from(SEEN_REVISION)
+            .join(AGGREGATE)
+            .on(AGGREGATE.AGGREGATE_ID.eq(SEEN_REVISION.AGGREGATE_ID))
+            .where(SEEN_REVISION.TENANT_ID.eq(tenants.current().value))
+            .and(SEEN_REVISION.ENTITY_REF.eq(entityRef))
+            .and(SEEN_REVISION.SOURCE_KEY.eq(sourceKey))
+            .and(SEEN_REVISION.SOURCE_REVISION.eq(sourceRevision))
+            .fetchOneInto(AGGREGATE)
+            ?.let(::stored)
 
     override fun highestRevision(
         entityRef: String,
         sourceKey: String,
     ): Long? =
         runner.inTransaction {
-            dsl
-                .select(DSL.max(AGGREGATE.SOURCE_REVISION))
-                .from(AGGREGATE)
-                .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
-                .and(AGGREGATE.ENTITY_REF.eq(entityRef))
-                .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
-                .fetchOne()
-                ?.value1()
+            val tenant = tenants.current().value
+            val stored =
+                dsl
+                    .select(DSL.max(AGGREGATE.SOURCE_REVISION))
+                    .from(AGGREGATE)
+                    .where(AGGREGATE.TENANT_ID.eq(tenant))
+                    .and(AGGREGATE.ENTITY_REF.eq(entityRef))
+                    .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                    .fetchOne()
+                    ?.value1()
+            val seen =
+                dsl
+                    .select(DSL.max(SEEN_REVISION.SOURCE_REVISION))
+                    .from(SEEN_REVISION)
+                    .where(SEEN_REVISION.TENANT_ID.eq(tenant))
+                    .and(SEEN_REVISION.ENTITY_REF.eq(entityRef))
+                    .and(SEEN_REVISION.SOURCE_KEY.eq(sourceKey))
+                    .fetchOne()
+                    ?.value1()
+            listOfNotNull(stored, seen).maxOrNull()
         }
 
     override fun nextSequence(): Long =
@@ -92,9 +123,10 @@ class JooqAggregateStore(
                 ?.let(::stored)
         }
 
-    override fun transmittedLines(
+    override fun recordedLines(
         entityRef: String,
         sourceKey: String,
+        excluding: UUID?,
     ): List<AggregateLine> =
         runner.inTransaction {
             val tenant = tenants.current().value
@@ -107,11 +139,28 @@ class JooqAggregateStore(
                 .and(AGGREGATE.TENANT_ID.eq(tenant))
                 .and(AGGREGATE.ENTITY_REF.eq(entityRef))
                 .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
-                .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
                 .and(AGGREGATE.SUPERSEDED_BY.isNull)
+                .and(excluding?.let { AGGREGATE.AGGREGATE_ID.ne(it) } ?: DSL.noCondition())
                 .orderBy(AGGREGATE.SOURCE_REVISION, AGGREGATE_LINE.POSITION)
                 .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
         }
+
+    override fun recordSeen(
+        compared: StoredAggregate,
+        sourceRevision: Long,
+    ) {
+        runner.inTransaction {
+            dsl
+                .insertInto(SEEN_REVISION)
+                .set(SEEN_REVISION.TENANT_ID, tenants.current().value)
+                .set(SEEN_REVISION.ENTITY_REF, compared.aggregate.entityRef)
+                .set(SEEN_REVISION.SOURCE_KEY, compared.aggregate.sourceKey)
+                .set(SEEN_REVISION.SOURCE_REVISION, sourceRevision)
+                .set(SEEN_REVISION.AGGREGATE_ID, compared.aggregateId)
+                .onConflictDoNothing()
+                .execute()
+        }
+    }
 
     override fun replace(
         old: StoredAggregate,
