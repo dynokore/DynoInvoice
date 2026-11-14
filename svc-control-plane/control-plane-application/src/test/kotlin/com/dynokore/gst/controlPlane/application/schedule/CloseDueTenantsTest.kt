@@ -169,4 +169,29 @@ class CloseDueTenantsTest {
         tenantState shouldBe mapOf("TEN-1" to "CLOSED", "TEN-2" to "OPEN")
         calls.map { it.scheduleRef } shouldBe listOf("SCH-1", "SCH-2")
     }
+
+    @Test
+    fun `INV-AC-8102 probe an opener that throws does not keep a due schedule from being closed and the failure is rethrown`() {
+        val a = schedule("TEN-1", "SCH-1", opened = false)
+        val b = schedule("TEN-2", "SCH-2")
+        val opening =
+            OpenDueTenants(
+                object : TenantScheduleRepository by repository {
+                    override fun dueForOpening(
+                        now: Instant,
+                        limit: Int,
+                    ) = listOf(a)
+                },
+                { _, _ -> error("openTenant down") },
+                { _, _, _ -> },
+                object : TransactionRunner {
+                    override fun <T> inTransaction(block: () -> T): T = block()
+                },
+                clock,
+            )
+        val thrown = runCatching { ScheduleJobRun.run(opening, step, 10) }.exceptionOrNull()
+        thrown?.message shouldBe "openTenant down"
+        calls.map { it.scheduleRef } shouldBe listOf("SCH-2")
+        rows.getValue(b).state shouldBe ScheduleState.EXECUTED
+    }
 }
