@@ -7,6 +7,7 @@ import com.dynokore.gst.aggregation.contract.api.DrillDownApi
 import com.dynokore.gst.aggregation.contract.model.AggregationReceiptSubtotalsByTaxCodeInner
 import com.dynokore.gst.aggregation.contract.model.UnderlyingTransactionPage
 import com.dynokore.gst.aggregation.contract.model.UnderlyingTransactionPageItemsInner
+import com.dynokore.platform.serviceruntime.binding.SecretNotFound
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
@@ -30,6 +31,18 @@ open class DrillDownController(
     private val tenants: TenantContext,
 ) : DrillDownApi {
     override fun getAggregateDrillDown(
+        aggregateId: String,
+        limit: Int,
+        cursor: String?,
+    ): ResponseEntity<UnderlyingTransactionPage> =
+        try {
+            page(aggregateId, limit, cursor)
+        } catch (_: SecretNotFound) {
+            // fail closed: with the cursor key unreadable no page is issued, so none can carry a nextCursor
+            refused(ClosedErrorCode.INTERNAL_ERROR, "the cursor key is not available")
+        }
+
+    private fun page(
         aggregateId: String,
         limit: Int,
         cursor: String?,

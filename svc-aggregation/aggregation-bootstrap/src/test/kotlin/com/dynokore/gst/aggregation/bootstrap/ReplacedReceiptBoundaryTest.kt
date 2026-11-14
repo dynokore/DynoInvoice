@@ -74,6 +74,44 @@ class ReplacedReceiptBoundaryTest {
         }
 
     @Test
+    fun `INV-AC-458 a handed-on but untransmitted aggregate answers 409 and is not amended`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit.post(listOf(Txn("R-7", "S", "10.00"), Txn("R-8", "Z", "5.00")), type = "STI").status shouldBe 202
+            kit.close()
+            val aggregate = kit.aggregateIds(creditNote = false).single()
+            kit.update(
+                "update aggregation.aggregate set handed_on_at = now() where tenant_id = '${kit.tenant}' " +
+                    "and aggregate_id = '$aggregate' and transmitted_at is null",
+            )
+            kit.rows(
+                "select (transmitted_at is null)::text from aggregation.aggregate a where tenant_id = ? " +
+                    "and aggregate_id = '$aggregate'",
+            ) shouldBe listOf("true")
+            val before = kit.rowOf(aggregate)
+            val (status, problem) = kit.outcome("E-001", "R-7")
+            status shouldBe 409
+            problem["code"].asString() shouldBe "ING-014"
+            kit.rowOf(aggregate) shouldBe before
+            kit.lines(aggregate) shouldBe listOf("S=10.00", "Z=5.00")
+        }
+
+    @Test
+    fun `INV-AC-458 a receipt that matches an item of a POS aggregate is not excluded`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            kit.post(listOf(Txn("R-9", "S", "7.00")), type = "POS").status shouldBe 202
+            kit.close()
+            val aggregate = kit.aggregateIds(creditNote = false).single()
+            val (status, body) = kit.outcome("E-001", "R-9")
+            status shouldBe 200
+            body["outcome"].asString() shouldBe "NOT_AGGREGATED"
+            kit.lines(aggregate) shouldBe listOf("S=7.00")
+        }
+
+    @Test
     fun `INV-AC-458 a receipt excluded before its window closes is never aggregated`(
         @TempDir dir: Path,
     ): Unit =

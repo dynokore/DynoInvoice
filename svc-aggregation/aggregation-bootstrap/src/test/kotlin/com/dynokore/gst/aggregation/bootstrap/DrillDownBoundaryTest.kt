@@ -4,6 +4,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import tools.jackson.databind.JsonNode
+import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
 
@@ -72,6 +73,27 @@ class DrillDownBoundaryTest {
             kit.drill(a, limit = 1, cursor = cursor).status shouldBe 400
             kit.drill(UUID.randomUUID().toString()).status shouldBe 404
             kit.drill("not-an-id").status shouldBe 400
+        }
+
+    @Test
+    fun `INV-AC-22471 with the cursor key secret absent no page carries a nextCursor`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { kit ->
+            val (a, _) = kit.seed()
+            // key mounted: the first page of two issues a cursor
+            val cursor = kit.json(kit.drill(a, limit = 1))["nextCursor"].asString()
+            // the key is removed from the mounted store: read at every use, so the next request sees it absent
+            Files.delete(dir.resolve("aggregation/drill-down-cursor-key"))
+            val pages =
+                listOf(kit.drill(a, limit = 1), kit.drill(a, limit = 2), kit.drill(a, limit = 1, cursor = cursor))
+            // fail closed: the page that would need a cursor is refused with the 500 envelope, nothing is issued
+            pages.map { it.status } shouldBe listOf(500, 500, 500)
+            pages.any { it.contentAsString.contains("nextCursor") } shouldBe false
+            // a page that needs no cursor is still served, and carries none
+            val last = kit.drill(a, limit = 100)
+            last.status shouldBe 200
+            kit.json(last).has("nextCursor") shouldBe false
         }
 
     @Test

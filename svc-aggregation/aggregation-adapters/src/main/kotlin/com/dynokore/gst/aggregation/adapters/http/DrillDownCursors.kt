@@ -17,9 +17,10 @@ const val DRILL_DOWN_CURSOR_KEY_SECRET = "aggregation/drill-down-cursor-key"
 /**
  * API-18: the `nextCursor` of `getAggregateDrillDown` is a payload (tenant, principal, aggregate, the sort key of the
  * last item, an expiry 24 hours after issue) and an HMAC-SHA256 tag over it, both base64url. The key is read through
- * [SecretStore] at every use (STK-29), so a rotated secret needs no restart; when it cannot be read no cursor is
- * issued. [decode] answers null for a cursor that is malformed, forged, altered, issued for another tenant, principal
- * or aggregate, or expired: the caller answers 400.
+ * [SecretStore] at every use (STK-29), so a rotated secret needs no restart; when it cannot be read [SecretNotFound]
+ * propagates and the controller answers 500 (fail closed, no default key), so no page carries a cursor. [decode]
+ * answers null for a cursor that is malformed, forged, altered, issued for another tenant, principal or aggregate, or
+ * expired: the caller answers 400.
  */
 class DrillDownCursors(
     private val secrets: SecretStore,
