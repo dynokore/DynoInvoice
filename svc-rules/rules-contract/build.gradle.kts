@@ -105,6 +105,12 @@ val stageContractResources =
         from(bundleRules) {
             include("openapi.yaml", "asyncapi.yaml", "schemas/*.json")
         }
+        // The platform events rules publishes (RulePackStaged, PackCurrencyChanged) are owned by service-runtime.
+        from(stagedRepo.map { it.dir(".bundle/service-runtime") }) {
+            include("asyncapi.yaml", "schemas/rule-pack-staged-payload.schema.json")
+            include("schemas/pack-currency-changed-payload.schema.json")
+            into("service-runtime")
+        }
         into(layout.buildDirectory.dir("generated/contract-resources/contract"))
     }
 

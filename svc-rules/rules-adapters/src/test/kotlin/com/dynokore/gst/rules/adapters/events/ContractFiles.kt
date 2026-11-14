@@ -55,4 +55,31 @@ internal object ContractFiles {
             .validate(payloadJson, InputFormat.JSON)
             .map { it.toString() }
     }
+
+    @Suppress("UNCHECKED_CAST")
+    private val platformApi: Map<String, Any?> =
+        Yaml().load<Map<String, Any?>>(text("/contract/service-runtime/asyncapi.yaml"))
+
+    /** The CloudEvents type of the platform message [name] of the service-runtime document. */
+    @Suppress("UNCHECKED_CAST")
+    fun platformType(name: String): String =
+        (
+            ((platformApi["components"] as Map<String, Any?>)["messages"] as Map<String, Map<String, Any?>>)
+                .getValue(name)["name"]
+        ) as String
+
+    /** The address of the platform channel `platform<name>` of the service-runtime document. */
+    @Suppress("UNCHECKED_CAST")
+    fun platformAddress(name: String): String =
+        (platformApi["channels"] as Map<String, Map<String, Any?>>).getValue("platform$name")["address"] as String
+
+    /** The validation errors of [payloadJson] against the service-runtime schema [schemaFile]. */
+    fun platformErrors(
+        schemaFile: String,
+        payloadJson: String,
+    ): List<String> =
+        schemas
+            .getSchema(text("/contract/service-runtime/schemas/$schemaFile"))
+            .validate(payloadJson, InputFormat.JSON)
+            .map { it.toString() }
 }

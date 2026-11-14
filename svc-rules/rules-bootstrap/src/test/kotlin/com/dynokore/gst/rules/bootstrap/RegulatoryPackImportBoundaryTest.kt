@@ -9,6 +9,13 @@ import com.dynokore.gst.rules.served.PolicyFixtures
 import com.dynokore.gst.rules.served.ReplicaFallbackDouble
 import com.dynokore.gst.rules.served.subjectOf
 import com.dynokore.gst.rules.served.workloadToken
+import com.dynokore.platform.outboxandqueue.CausationId
+import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
+import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.EventContext
+import com.dynokore.platform.outboxandqueue.OutboundEvent
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.rulepackkernel.TrustAnchor
 import com.dynokore.platform.rulepackkernel.TrustAnchors
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
@@ -18,6 +25,7 @@ import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
@@ -301,6 +309,34 @@ class RegulatoryPackImportBoundaryTest(
                 "and data::text like '%RulePackStaged%'",
         )
 
+    private fun stagedRow(version: String): List<String> =
+        owner { c ->
+            c.createStatement().use { st ->
+                st
+                    .executeQuery(
+                        "select type, topic, tenant_id, entity_ref from rules.outbox where " +
+                            "type like '%RulePackStaged%' and data::text like '%\"$version\"%'",
+                    ).use {
+                        check(it.next()) { "no staged outbox row for $version" }
+                        listOf(it.getString(1), it.getString(2), it.getString(3), it.getString(4)).also { _ ->
+                            check(!it.next()) { "more than one staged outbox row for $version" }
+                        }
+                    }
+            }
+        }
+
+    private fun platformContext() =
+        EventContext(
+            tenant = TenantId.PLATFORM,
+            entity = EntityRef.PLATFORM,
+            docUuid = null,
+            transactionDate = null,
+            aggregateKey = "probe",
+            aggregateVersion = null,
+            correlation = CorrelationId("probe"),
+            causation = CausationId("probe"),
+        )
+
     private fun nothingStored(version: String) {
         artefactRows(version) shouldBe 0
         registryRows(version) shouldBe 0
@@ -359,9 +395,6 @@ class RegulatoryPackImportBoundaryTest(
     }
 
     @Test
-    @org.junit.jupiter.api.Disabled(
-        "gap G8: RulePackStaged cannot be written under the platform tenant; owner ruling needed",
-    )
     fun `INV-AC-22192 a signed compatible bundle is staged once with artefact, registry row and RulePackStaged row`() {
         grant("u-op")
         val version = newVersion()
@@ -373,10 +406,70 @@ class RegulatoryPackImportBoundaryTest(
         registryRows(version) shouldBe 1
         stagedEvents(version) shouldBe 1
         status("u-op", version).body() shouldContain "\"STAGED\""
+        // the outbox row: platform type and topic, platform tenant, platform entity (event-class ruling, option A)
+        stagedRow(version) shouldBe
+            listOf(
+                "com.dynokore.gst.platform.RulePackStaged.v1",
+                "gst.platform.rule-pack-staged.v1",
+                TenantId.PLATFORM.value,
+                EntityRef.PLATFORM.value,
+            )
+        // the DEP-001 publication at the import: platform type, topic, tenant and entity
+        val currency =
+            "select count(*) from rules.outbox where " +
+                "type = 'com.dynokore.gst.platform.PackCurrencyChanged.v1'"
+        count(
+            "$currency and topic = 'gst.platform.pack-currency-changed.v1' and tenant_id = '" +
+                "${TenantId.PLATFORM.value}' and entity_ref = '${EntityRef.PLATFORM.value}'",
+        ) shouldNotBe 0L
+        count(
+            "$currency and (tenant_id <> '${TenantId.PLATFORM.value}' or entity_ref <> '${EntityRef.PLATFORM.value}')",
+        ) shouldBe
+            0L
         // a repeat of the same bundle stages nothing more
         import("u-op", version, hash).statusCode() shouldBe 201
         artefactRows(version) shouldBe 1
         stagedEvents(version) shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-22192 probe the look-alike domain types are refused under the platform tenant and leave no row`() {
+        val writer = context.getBean(OutboxWriter::class.java)
+        val ctx = platformContext()
+        val before = rulesTables()
+        listOf(
+            "com.dynokore.gst.rules.RulePackStaged.v1",
+            "com.dynokore.gst.rules.PackCurrencyChanged.v1",
+            "com.dynokore.gst.platform.RulePackStagedX.v1",
+            "com.dynokore.gst.platform.packcurrencychanged.v1",
+        ).forEach { type ->
+            shouldThrow<EmissionNotPermitted> { writer.append(listOf(OutboundEvent(type, "{}")), ctx) }
+        }
+        rulesTables() shouldBe before
+        // the platform names are accepted under the platform tenant (build-only: nothing is written)
+        listOf("RulePackStaged", "PackCurrencyChanged").forEach { name ->
+            writer.stage(listOf(OutboundEvent("com.dynokore.gst.platform.$name.v1", "{}")), ctx).size shouldBe 1
+        }
+        rulesTables() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-22192 probe a staged row under a real tenant or entity would fail the row check`() {
+        val bad = listOf("com.dynokore.gst.platform.RulePackStaged.v1", "t", "tenant-1", "entity-1")
+        (
+            bad ==
+                listOf(
+                    "com.dynokore.gst.platform.RulePackStaged.v1",
+                    "t",
+                    TenantId.PLATFORM.value,
+                    EntityRef.PLATFORM.value,
+                )
+        ).shouldBe(false)
+        // every staged row the suite has written carries the platform tenant and entity only
+        count(
+            "select count(*) from rules.outbox where type like '%RulePackStaged%' and " +
+                "(tenant_id <> '${TenantId.PLATFORM.value}' or entity_ref <> '${EntityRef.PLATFORM.value}')",
+        ) shouldBe 0
     }
 
     @Test
@@ -460,7 +553,7 @@ class RegulatoryPackImportBoundaryTest(
                 it.execute(
                     "insert into rules.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
                         "instance_id, correlation_id, causation_id, data) values ('probe-" + UUID.randomUUID() +
-                        "', 't', 'com.dynokore.gst.rules.RulePackStaged.v1', '/gst/rules-svc', 's', now(), '" +
+                        "', 't', 'com.dynokore.gst.platform.RulePackStaged.v1', '/gst/rules-svc', 's', now(), '" +
                         tenant + "', 'e', 'i', 'c', 'c', '{}'::jsonb)",
                 )
             }

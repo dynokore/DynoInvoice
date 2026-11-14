@@ -36,8 +36,9 @@ class PublishedChannelsTest {
                     "c2ln",
                 ),
             )
-        event.type shouldBe ContractFiles.message("rulesRulePackStaged").first
-        ContractFiles.errors("rulesRulePackStaged", event.dataJson).shouldBeEmpty()
+        event.type shouldBe ContractFiles.platformType("RulePackStaged")
+        RulesEventCatalogue.TOPICS.getValue(event.type) shouldBe ContractFiles.platformAddress("RulePackStaged")
+        ContractFiles.platformErrors("rule-pack-staged-payload.schema.json", event.dataJson).shouldBeEmpty()
     }
 
     @Test
@@ -51,9 +52,11 @@ class PublishedChannelsTest {
     fun `channel rulesPackCurrencyChanged carries a payload that validates against its schema`() {
         val raised = mapper.map(PackEvent.PackCurrencyChanged("DEP-001", raised = true, "scope-pack", "2026.4", 12, 3))
         val cleared = mapper.map(PackEvent.PackCurrencyChanged("DEP-001", raised = false))
-        raised.type shouldBe ContractFiles.message("rulesPackCurrencyChanged").first
-        ContractFiles.errors("rulesPackCurrencyChanged", raised.dataJson).shouldBeEmpty()
-        ContractFiles.errors("rulesPackCurrencyChanged", cleared.dataJson).shouldBeEmpty()
+        raised.type shouldBe ContractFiles.platformType("PackCurrencyChanged")
+        RulesEventCatalogue.TOPICS.getValue(raised.type) shouldBe ContractFiles.platformAddress("PackCurrencyChanged")
+        val schema = "pack-currency-changed-payload.schema.json"
+        ContractFiles.platformErrors(schema, raised.dataJson).shouldBeEmpty()
+        ContractFiles.platformErrors(schema, cleared.dataJson).shouldBeEmpty()
     }
 
     @Test
@@ -66,8 +69,8 @@ class PublishedChannelsTest {
     fun `a payload that breaks its schema is reported, so the checks above can fail`() {
         ContractFiles.errors("rulesRulePackActivated", """{"packIdentifier":"p"}""").shouldNotBeEmpty()
         ContractFiles
-            .errors(
-                "rulesPackCurrencyChanged",
+            .platformErrors(
+                "pack-currency-changed-payload.schema.json",
                 """{"depCode":"DEP-001","status":"raised"}""",
             ).shouldNotBeEmpty()
     }
@@ -76,10 +79,13 @@ class PublishedChannelsTest {
     fun `every channel of the document has a test above and every catalogued event is a channel of it`() {
         ContractFiles.channelAddresses.keys.toSet() shouldBe
             setOf("rulesRulePackStaged", "rulesRulePackActivated", "rulesPackCurrencyChanged", "rulesExampleHappened")
-        RulesEventCatalogue.TOPICS.forEach { (type, topic) ->
-            val channel = channelOf(type)
-            ContractFiles.channelAddresses.getValue(channel) shouldBe topic
+        // the activated event keeps its rules channel; the other two are platform events (INV-T-4976 option A)
+        val platform = setOf(RulesEventCatalogue.RULE_PACK_STAGED, RulesEventCatalogue.PACK_CURRENCY_CHANGED)
+        RulesEventCatalogue.TOPICS.filterKeys { it !in platform }.forEach { (type, topic) ->
+            ContractFiles.channelAddresses.getValue(channelOf(type)) shouldBe topic
         }
+        platform shouldBe
+            setOf(ContractFiles.platformType("RulePackStaged"), ContractFiles.platformType("PackCurrencyChanged"))
     }
 
     @Test
