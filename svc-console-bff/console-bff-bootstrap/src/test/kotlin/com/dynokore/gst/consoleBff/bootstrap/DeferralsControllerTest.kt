@@ -188,4 +188,14 @@ class DeferralsControllerTest {
             mvc().perform(post("/bff/entities/E1/deferrals/${UUID(7, 7)}/undo").accept(MediaType.ALL)).andReturn()
         problem(result, ClosedErrorCode.UNAUTHENTICATED)
     }
+
+    @Test
+    fun `INV-AC-21164 every case of this class carries the criterion token as a whole word`() {
+        val names =
+            DeferralsControllerTest::class.java.declaredMethods
+                .filter { it.isAnnotationPresent(Test::class.java) }
+                .map { it.name }
+        names.size shouldBe 9
+        names.filterNot { it.startsWith("INV-AC-21164 ") } shouldBe emptyList()
+    }
 }
