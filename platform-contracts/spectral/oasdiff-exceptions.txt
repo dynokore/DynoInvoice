@@ -83,3 +83,10 @@ POST /internal/v1/masterdata/counterparties/{counterpartyRef}/requests request b
 POST /internal/v1/transport/adapters/{adapterRef}/failovers added the new required request property `entityRef`
 # INV-Q-17416 B, INV-Q-17427 A (INV-T-17437) on INV-Q-3569's reasoning (pattern only): issueSignatoryLink is removed from the access contract (1.25.0 to 2.0.0, a major step, API-03); the link is issued only on SignedLinkRequested (DR-11). No train is published (platform-release manifest/trains/ holds only its README) and no consumer of the operation is deployed.
 POST /internal/v1/access/signatory-links api path removed without deprecation
+# INV-T-17620 (breakdown tooling/gap17620-gap.md; question located at the body of INV-T-17620, heading oasdiff-breaking-gate / new-required-request-parameter; precedent INV-Q-3569):
+# evaluateDocument, evaluatePreIssuanceDraft and recordDocument carry the required header X-Flow-Context (INV-Q-9241 B).
+# Permitted within v1 because no train is published (platform-release manifest/trains/ holds only its README) and the callees have not adopted the header.
+# After the first published train a new required request parameter is breaking (API-03).
+POST /internal/v1/canonical/documents added the new required `header` request parameter `x-flow-context`
+POST /internal/v1/rules/documents/evaluations added the new required `header` request parameter `x-flow-context`
+POST /internal/v1/rules/pre-issuance-drafts/evaluations added the new required `header` request parameter `x-flow-context`
