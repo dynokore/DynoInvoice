@@ -29,6 +29,8 @@ class ProductConfigurationTest {
             "TenantWideArchiveVolumeMeasured",
             "AuthorityHeadObserved",
             "CertificationMarkRequested",
+            "RulePackStaged",
+            "PackCurrencyChanged",
             "ConnectionCredentialExpiryReminderRequested",
         )
 
@@ -171,6 +173,19 @@ class ProductConfigurationTest {
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.masterdata.$base") shouldBe false
         val lookAlike = "com.dynokore.gst.platform.${base.replace("Requested", "Request")}"
         PlatformEventCatalogue.isPlatform(lookAlike) shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-22362 the catalogue holds RulePackStaged and PackCurrencyChanged with their topics and types`() {
+        PlatformEventCatalogue.RULE_PACK_STAGED.topic shouldBe "gst.platform.rule-pack-staged.v1"
+        PlatformEventCatalogue.PACK_CURRENCY_CHANGED.topic shouldBe "gst.platform.pack-currency-changed.v1"
+        PlatformEventCatalogue.ALL.contains(PlatformEventCatalogue.RULE_PACK_STAGED) shouldBe true
+        PlatformEventCatalogue.ALL.contains(PlatformEventCatalogue.PACK_CURRENCY_CHANGED) shouldBe true
+        listOf("RulePackStaged", "PackCurrencyChanged").forEach {
+            PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.$it.v1") shouldBe true
+            PlatformEventCatalogue.isPlatform("com.dynokore.gst.rules.$it.v1") shouldBe false
+        }
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.RulePackStagedX.v1") shouldBe false
     }
 
     @Test

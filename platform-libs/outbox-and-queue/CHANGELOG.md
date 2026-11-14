@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.24.0] - 2026-11-14
+### Added
+- `RulePackStaged` and `PackCurrencyChanged` join the closed platform event set of `Envelope` (`isPlatformType`; twenty-four names); the same names in the `com.dynokore.gst.rules` namespace stay domain types (see the answered design question raised at the body of INV-T-4976 (option A; tooling `gap4976e-gap.md`), INV-AC-22362, INV-T-22365).
+
 ## [6.23.0] - 2026-11-14
 ### Added
 - New interface `PendingPartitionReader` (`pendingPartitionKeys()`): the distinct partition keys of the `PENDING` items of the bound tenant, ascending byte order (`COLLATE "C"`), empty list when none; implemented by `JdbcWorkQueue`; no schema change (see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943).

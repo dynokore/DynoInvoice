@@ -83,6 +83,8 @@ data class Envelope(
                 "TenantWideArchiveVolumeMeasured",
                 "AuthorityHeadObserved",
                 "CertificationMarkRequested",
+                "RulePackStaged",
+                "PackCurrencyChanged",
                 "ConnectionCredentialExpiryReminderRequested",
             )
 
@@ -95,8 +97,9 @@ data class Envelope(
          * OperatorSessionKeysChanged by INV-Q-16498, InstallationStatusChanged by INV-Q-14289,
          * AuthorityHeadObserved by INV-Q-17070,
          * CertificationMarkRequested by the INV-T-16409 design question option C,
-         * ConnectionCredentialExpiryReminderRequested by the INV-T-18776 design question option A; twenty-two names
-         * in all)): the
+         * ConnectionCredentialExpiryReminderRequested by the INV-T-18776 design question option A,
+         * RulePackStaged and PackCurrencyChanged by the INV-T-4976 design question option A (INV-T-22365); twenty-four
+         * names in all)): the
          * only types that may be written under `TenantId.PLATFORM` and travel without `tenantid` and
          * `entityref` (INV-Q-3018). A domain event always carries a real tenant (FR-K.3, INV-REQ-1162).
          */

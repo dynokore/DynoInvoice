@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.19.1] - 2026-11-14
+### Changed
+- Version step only: depends on `outbox-and-queue` 6.24.0 (`RulePackStaged` and `PackCurrencyChanged` join the platform event set; INV-AC-22362, INV-T-22365); no code change.
+
 ## [13.19.0] - 2026-11-14
 ### Added
 - Signed flow context of a system flow (INV-T-9254, INV-AC-8251, INV-AC-8455; owner answer on INV-Q-9241 option B; INV-REQ-1202): `FlowContext` (`begin`, `requireEntity`, `current`, `runWith`), `FlowEntity`, the ports `FlowContextKeys` and `FlowContextIssuer` (adapters are a separate design question) and `FlowContextRefusedException`; the impl half's `FlowContextFilter` (order -84, immediately after the calling-service filter) refuses with 403 SRT-004 a call to an operation listed in `META-INF/gst/flow-context-operations.tsv` (INV-T-9255, INV-T-19978; matched by method and path with the one `OperationLines` matcher) unless `X-Flow-Context` verifies, is inside `iat`/`exp`, agrees on the tenant with the token that authenticated the request and names the verified calling service; the tenant is bound to `TenantContext` for the request; one structured `flow_context` log line per call; `FlowContextPropagationInterceptor` carries the held context on outbound calls to a listed operation. Test fixtures: `FlowContextTestSupport.contextFor`, `FakeFlowContextKeys`, `FakeFlowContextIssuer`.

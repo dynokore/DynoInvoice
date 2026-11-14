@@ -50,6 +50,8 @@ object PlatformEventCatalogue {
 
     val AUTHORITY_HEAD_OBSERVED = fixed("AuthorityHeadObserved", "authority-head-observed")
     val CERTIFICATION_MARK_REQUESTED = fixed("CertificationMarkRequested", "certification-mark-requested")
+    val RULE_PACK_STAGED = fixed("RulePackStaged", "rule-pack-staged")
+    val PACK_CURRENCY_CHANGED = fixed("PackCurrencyChanged", "pack-currency-changed")
     val CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED =
         fixed("ConnectionCredentialExpiryReminderRequested", "connection-credential-expiry-reminder-requested")
 
@@ -77,6 +79,8 @@ object PlatformEventCatalogue {
             TENANT_WIDE_ARCHIVE_VOLUME_MEASURED,
             AUTHORITY_HEAD_OBSERVED,
             CERTIFICATION_MARK_REQUESTED,
+            RULE_PACK_STAGED,
+            PACK_CURRENCY_CHANGED,
             CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED,
         )
 

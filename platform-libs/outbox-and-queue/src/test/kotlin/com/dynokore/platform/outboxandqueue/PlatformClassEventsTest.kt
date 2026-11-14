@@ -10,6 +10,7 @@ import java.time.Instant
 import java.util.UUID
 
 /** The platform events of INV-REQ-1226 b1 (INV-Q-7336, INV-Q-8839): a closed set of exact names. */
+@Suppress("LargeClass") // one test per platform name and rule case, INV-AC-22362 names its cases here (CS-50)
 class PlatformClassEventsTest {
     private val json = EnvelopeJson()
     private val tenant = TenantId(UUID.randomUUID())
@@ -36,6 +37,8 @@ class PlatformClassEventsTest {
             "TenantWideArchiveVolumeMeasured",
             "AuthorityHeadObserved",
             "CertificationMarkRequested",
+            "RulePackStaged",
+            "PackCurrencyChanged",
             "ConnectionCredentialExpiryReminderRequested",
         )
     private val refused =
@@ -438,5 +441,44 @@ class PlatformClassEventsTest {
     fun `isPlatformType is true for exactly the platform types and false for the refusal types`() {
         names.forEach { assertTrue(Envelope.isPlatformType("com.dynokore.gst.platform.$it.v1"), it) }
         refused.forEach { assertFalse(Envelope.isPlatformType(it), it) }
+    }
+
+    @Test
+    fun `INV-AC-22362 name set holds RulePackStaged and PackCurrencyChanged and not the look-alikes`() {
+        val base = "com.dynokore.gst.platform"
+        assertEquals(24, names.size)
+        listOf("RulePackStaged", "PackCurrencyChanged").forEach {
+            assertTrue(Envelope.isPlatformType("$base.$it.v1"), it)
+            assertFalse(Envelope.isPlatformType("$base.${it}X.v1"), it)
+            assertFalse(Envelope.isPlatformType("$base.${it.replaceFirstChar(Char::lowercaseChar)}.v1"), it)
+            assertFalse(Envelope.isPlatformType("com.dynokore.gst.rules.$it.v1"), it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22362 RulePackStaged and PackCurrencyChanged under the platform tenant are built and written`() {
+        listOf("RulePackStaged", "PackCurrencyChanged").forEach {
+            val e = envelope("com.dynokore.gst.platform.$it.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+            val text = json.write(e)
+            assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+            val back = json.read(text)
+            assertEquals(TenantId.PLATFORM, back.tenant)
+            assertEquals(EntityRef.PLATFORM, back.entity)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22362 the rules-namespace types are domain types and are refused under the platform tenant`() {
+        listOf(
+            "com.dynokore.gst.rules.RulePackStaged.v1",
+            "com.dynokore.gst.rules.PackCurrencyChanged.v1",
+            "com.dynokore.gst.platform.RulePackStagedX.v1",
+        ).forEach {
+            assertThrows(
+                IllegalArgumentException::class.java,
+                { envelope(it, TenantId.PLATFORM, EntityRef.PLATFORM) },
+                it,
+            )
+        }
     }
 }

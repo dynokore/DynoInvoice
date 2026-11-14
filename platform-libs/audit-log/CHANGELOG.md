@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.35] - 2026-11-14
+### Changed
+- Version step only: depends on `outbox-and-queue` 6.24.0 (`RulePackStaged` and `PackCurrencyChanged` join the platform event set; INV-AC-22362, INV-T-22365); no code change.
+
 ## [4.0.34] - 2026-11-14
 ### Changed
 - Version step only: dependency `outbox-and-queue` rose to 6.23.0 (`PendingPartitionReader`; see the answered design question raised at the body of INV-T-20852 (option A; tooling `gap20852b-gap.md`), INV-AC-21942, INV-T-21943); no code change.
