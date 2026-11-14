@@ -39,24 +39,45 @@ class AcknowledgementDeadlineMigrationTest {
         }
     }
 
+    private fun migrationSql(): String =
+        checkNotNull(javaClass.getResourceAsStream("/db/migration/V202611181200__acknowledgement_deadline.sql")) {
+            "migration resource missing"
+        }.use { String(it.readBytes(), Charsets.UTF_8) }
+
+    /**
+     * The state before the migration is rebuilt inside one transaction that is always rolled back: the column is
+     * dropped, a version row is inserted, the migration file is executed on the table holding that row, and the row
+     * is read. Nothing of this is visible to other connections.
+     */
     @Test
-    fun `INV-AC-22748 a version row written without the column reads null`() {
+    fun `INV-AC-22748 a version row inserted before the migration reads null after it`() {
         val doc = UUID.randomUUID().toString()
         SubmissionDb.superuser().use { c ->
+            c.autoCommit = false
             try {
+                c.createStatement().use {
+                    it.execute("alter table submission.submission drop column acknowledgement_deadline")
+                }
                 c.createStatement().use {
                     it.execute(
                         "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref) " +
                             "values ('${UUID.randomUUID()}', '$doc', 1, 'SENT', 'E-001')",
                     )
                 }
+                c.createStatement().use { it.execute(migrationSql()) }
                 c.strings(
                     "select coalesce(acknowledgement_deadline::text, 'null') from submission.submission " +
                         "where doc_uuid = '$doc'",
                 ) shouldBe listOf("null")
             } finally {
-                c.createStatement().use { it.execute("delete from submission.submission where doc_uuid = '$doc'") }
+                c.rollback()
             }
+        }
+        SubmissionDb.superuser().use { c ->
+            c.strings(
+                "select count(*)::text from information_schema.columns where table_schema = 'submission' " +
+                    "and table_name = 'submission' and column_name = 'acknowledgement_deadline'",
+            ) shouldBe listOf("1")
         }
     }
 }
