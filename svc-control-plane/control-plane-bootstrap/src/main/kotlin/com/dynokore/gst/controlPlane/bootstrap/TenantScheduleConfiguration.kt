@@ -3,15 +3,19 @@ package com.dynokore.gst.controlPlane.bootstrap
 import com.dynokore.gst.controlPlane.adapters.http.TenantScheduleEndpoint
 import com.dynokore.gst.controlPlane.adapters.persistence.TenantScheduleRepositoryJooq
 import com.dynokore.gst.controlPlane.adapters.schedule.ScheduleJobAuditWriter
+import com.dynokore.gst.controlPlane.adapters.tenancy.HttpTenantCloser
 import com.dynokore.gst.controlPlane.adapters.tenancy.HttpTenantOpener
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.gst.controlPlane.application.schedule.ApproveTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.CancelTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.ChangeTenantSchedule
+import com.dynokore.gst.controlPlane.application.schedule.CloseDueTenants
 import com.dynokore.gst.controlPlane.application.schedule.GetTenantSchedule
 import com.dynokore.gst.controlPlane.application.schedule.OpenDueTenants
+import com.dynokore.gst.controlPlane.application.schedule.ScheduleClosingAudit
 import com.dynokore.gst.controlPlane.application.schedule.ScheduleJobAudit
 import com.dynokore.gst.controlPlane.application.schedule.SetTenantSchedule
+import com.dynokore.gst.controlPlane.application.schedule.TenantCloser
 import com.dynokore.gst.controlPlane.application.schedule.TenantOpener
 import com.dynokore.gst.controlPlane.application.schedule.TenantScheduleRepository
 import com.dynokore.platform.auditlog.AuditWriter
@@ -105,7 +109,23 @@ class TenantScheduleOpeningConfiguration {
     ): TenantOpener = HttpTenantOpener(java.net.URI.create(checkNotNull(settings.baseUrl)), workloadTokenSource)
 
     @Bean
-    fun scheduleJobAudit(audit: AuditWriter): ScheduleJobAudit = ScheduleJobAuditWriter(audit)
+    fun tenantCloser(
+        settings: TenancySettings,
+        workloadTokenSource: WorkloadTokenSource,
+    ): TenantCloser = HttpTenantCloser(java.net.URI.create(checkNotNull(settings.baseUrl)), workloadTokenSource)
+
+    /** One writer serves both steps: [ScheduleJobAudit] of the opening and [ScheduleClosingAudit] of the closing. */
+    @Bean
+    fun scheduleJobAudit(audit: AuditWriter) = ScheduleJobAuditWriter(audit)
+
+    @Bean
+    fun closeDueTenants(
+        schedules: TenantScheduleRepository,
+        closer: TenantCloser,
+        audit: ScheduleClosingAudit,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ) = CloseDueTenants(schedules, closer, audit, transactions, clock)
 
     @Bean
     fun openDueTenants(
@@ -132,10 +152,12 @@ class TenantScheduleOpeningConfiguration {
     @Bean
     fun tenantScheduleOpeningCollaborators(
         step: OpenDueTenants,
+        closing: CloseDueTenants,
         platform: PlatformTenantBinding,
         environment: Environment,
     ) = TenantScheduleOpeningJob.Collaborators(
         step,
+        closing,
         platform,
         required(environment, TenantScheduleOpeningJob.BATCH_PROPERTY).toInt(),
     )
