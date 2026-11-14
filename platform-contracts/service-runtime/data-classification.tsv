@@ -69,10 +69,6 @@ schemas/rule-pack-staged-payload.schema.json	version	NONE
 schemas/rule-pack-staged-payload.schema.json	effectiveFrom	NONE
 schemas/rule-pack-staged-payload.schema.json	minEngineVersion	NONE
 schemas/rule-pack-staged-payload.schema.json	artefact	NONE
-schemas/rule-pack-staged-payload.schema.json	manifest	NONE
-schemas/rule-pack-staged-payload.schema.json	checksums	NONE
-schemas/rule-pack-staged-payload.schema.json	signature	NONE
-schemas/rule-pack-staged-payload.schema.json	contents	NONE
 schemas/pack-currency-changed-payload.schema.json	depCode	NONE
 schemas/pack-currency-changed-payload.schema.json	status	NONE
 schemas/pack-currency-changed-payload.schema.json	packIdentifier	NONE
