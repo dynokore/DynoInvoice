@@ -84,7 +84,7 @@ class PackMarginHandlersTest {
         Envelope(
             id = EventId(UUID.randomUUID().toString()),
             source = "/gst/rules-svc",
-            type = "com.dynokore.gst.rules.RulePackStaged.v1",
+            type = "com.dynokore.gst.platform.RulePackStaged.v1",
             subject = "pack",
             time = Instant.parse("2026-11-12T08:00:00Z"),
             tenant = tenant,

@@ -90,8 +90,8 @@ object SubmissionEvents {
     const val DOCUMENT_RELEASED_TOPIC = "gst.canonical.document-released.v1"
     const val DOCUMENT_RELEASED_TYPE = "com.dynokore.gst.canonical.DocumentReleased.v1"
 
-    const val RULE_PACK_STAGED_TOPIC = "gst.rules.rule-pack-staged.v1"
-    const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.rules.RulePackStaged.v1"
+    const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
+    const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.platform.RulePackStaged.v1"
 
     const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
     const val RULE_PACK_ACTIVATED_TYPE = "com.dynokore.gst.rules.RulePackActivated.v1"

@@ -102,7 +102,7 @@ class CompletenessConsumersWiringTest {
                 windowType to windowTopic,
                 "com.dynokore.gst.canonical.DocumentHeld.v1" to "gst.canonical.document-held.v1",
                 "com.dynokore.gst.canonical.DocumentReleased.v1" to "gst.canonical.document-released.v1",
-                SubmissionEvents.RULE_PACK_STAGED_TYPE to "gst.rules.rule-pack-staged.v1",
+                SubmissionEvents.RULE_PACK_STAGED_TYPE to "gst.platform.rule-pack-staged.v1",
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to "gst.rules.rule-pack-activated.v1",
             )
     }
