@@ -2,10 +2,13 @@ package com.dynokore.gst.aggregation.adapters.persistence
 
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.Aggregate.Companion.AGGREGATE
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateLine.Companion.AGGREGATE_LINE
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindow.Companion.AGGREGATE_WINDOW
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindowPart.Companion.AGGREGATE_WINDOW_PART
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.records.AggregateRecord
 import com.dynokore.gst.aggregation.application.AggregateRepository
 import com.dynokore.gst.aggregation.application.AggregateRevisions
 import com.dynokore.gst.aggregation.application.DuplicateIntakeKey
+import com.dynokore.gst.aggregation.application.HandOffRepository
 import com.dynokore.gst.aggregation.application.NewAggregate
 import com.dynokore.gst.aggregation.application.StoredAggregate
 import com.dynokore.gst.aggregation.domain.AggregateLine
@@ -30,9 +33,8 @@ class JooqAggregateStore(
     private val runner: TransactionRunner,
     private val tenants: TenantContext,
 ) : AggregateRepository,
-    AggregateRevisions {
-    private val seen = JooqSeenRevisions(dsl, tenants, runner)
-
+    AggregateRevisions,
+    HandOffRepository {
     override fun findByIntakeKey(
         entityRef: String,
         sourceKey: String,
@@ -47,14 +49,6 @@ class JooqAggregateStore(
                 .and(AGGREGATE.SOURCE_REVISION.eq(sourceRevision))
                 .fetchOne()
                 ?.let(::stored)
-                ?: seen.aggregateId(entityRef, sourceKey, sourceRevision)?.let { id ->
-                    dsl
-                        .selectFrom(AGGREGATE)
-                        .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
-                        .and(AGGREGATE.AGGREGATE_ID.eq(id))
-                        .fetchOne()
-                        ?.let(::stored)
-                }
         }
 
     override fun highestRevision(
@@ -62,17 +56,14 @@ class JooqAggregateStore(
         sourceKey: String,
     ): Long? =
         runner.inTransaction {
-            val tenant = tenants.current().value
-            val stored =
-                dsl
-                    .select(DSL.max(AGGREGATE.SOURCE_REVISION))
-                    .from(AGGREGATE)
-                    .where(AGGREGATE.TENANT_ID.eq(tenant))
-                    .and(AGGREGATE.ENTITY_REF.eq(entityRef))
-                    .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
-                    .fetchOne()
-                    ?.value1()
-            listOfNotNull(stored, seen.highest(entityRef, sourceKey)).maxOrNull()
+            dsl
+                .select(DSL.max(AGGREGATE.SOURCE_REVISION))
+                .from(AGGREGATE)
+                .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
+                .and(AGGREGATE.ENTITY_REF.eq(entityRef))
+                .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                .fetchOne()
+                ?.value1()
         }
 
     override fun nextSequence(): Long =
@@ -105,10 +96,9 @@ class JooqAggregateStore(
                 ?.let(::stored)
         }
 
-    override fun recordedLines(
+    override fun transmittedLines(
         entityRef: String,
         sourceKey: String,
-        excluding: UUID?,
     ): List<AggregateLine> =
         runner.inTransaction {
             val tenant = tenants.current().value
@@ -121,8 +111,8 @@ class JooqAggregateStore(
                 .and(AGGREGATE.TENANT_ID.eq(tenant))
                 .and(AGGREGATE.ENTITY_REF.eq(entityRef))
                 .and(AGGREGATE.SOURCE_KEY.eq(sourceKey))
+                .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
                 .and(AGGREGATE.SUPERSEDED_BY.isNull)
-                .and(excluding?.let { AGGREGATE.AGGREGATE_ID.ne(it) } ?: DSL.noCondition())
                 .orderBy(AGGREGATE.SOURCE_REVISION, AGGREGATE_LINE.POSITION)
                 .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
         }
@@ -155,6 +145,63 @@ class JooqAggregateStore(
         return StoredAggregate(replacement, id)
     }
 
+    override fun due(entityRef: String): List<StoredAggregate> =
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            val hasLines =
+                DSL.exists(
+                    DSL
+                        .selectOne()
+                        .from(AGGREGATE_LINE)
+                        .where(AGGREGATE_LINE.TENANT_ID.eq(tenant))
+                        .and(AGGREGATE_LINE.AGGREGATE_ID.eq(AGGREGATE.AGGREGATE_ID)),
+                )
+            val partClosed =
+                DSL.exists(
+                    DSL
+                        .selectOne()
+                        .from(AGGREGATE_WINDOW_PART)
+                        .where(AGGREGATE_WINDOW_PART.TENANT_ID.eq(tenant))
+                        .and(AGGREGATE_WINDOW_PART.AGGREGATE_ID.eq(AGGREGATE.AGGREGATE_ID)),
+                )
+            val windowNotOpen =
+                DSL.exists(
+                    DSL
+                        .selectOne()
+                        .from(AGGREGATE_WINDOW)
+                        .where(AGGREGATE_WINDOW.TENANT_ID.eq(tenant))
+                        .and(AGGREGATE_WINDOW.ENTITY_REF.eq(AGGREGATE.ENTITY_REF))
+                        .and(AGGREGATE_WINDOW.BUSINESS_UNIT_REF.eq(AGGREGATE.BUSINESS_UNIT_REF))
+                        .and(AGGREGATE_WINDOW.AGGREGATE_TYPE.eq(AGGREGATE.AGGREGATE_TYPE))
+                        .and(AGGREGATE_WINDOW.WINDOW_START.eq(AGGREGATE.WINDOW_START))
+                        .and(AGGREGATE_WINDOW.WINDOW_END.eq(AGGREGATE.WINDOW_END))
+                        .and(AGGREGATE_WINDOW.STATE.ne(WindowState.OPEN.name)),
+                )
+            dsl
+                .selectFrom(AGGREGATE)
+                .where(AGGREGATE.TENANT_ID.eq(tenant))
+                .and(AGGREGATE.ENTITY_REF.eq(entityRef))
+                .and(AGGREGATE.SUPERSEDED_BY.isNull)
+                .and(AGGREGATE.HANDED_ON_AT.isNull)
+                .and(hasLines)
+                .and(partClosed.or(windowNotOpen))
+                .orderBy(AGGREGATE.CREATED_AT, AGGREGATE.SEQUENCE)
+                .fetch()
+                .map(::stored)
+        }
+
+    override fun markHandedOn(aggregateId: UUID) {
+        runner.inTransaction {
+            dsl
+                .update(AGGREGATE)
+                .set(AGGREGATE.HANDED_ON_AT, DSL.currentOffsetDateTime())
+                .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
+                .and(AGGREGATE.AGGREGATE_ID.eq(aggregateId))
+                .and(AGGREGATE.HANDED_ON_AT.isNull)
+                .execute()
+        }
+    }
+
     private fun insert(
         id: UUID,
         aggregate: NewAggregate,
@@ -180,7 +227,7 @@ class JooqAggregateStore(
             .set(AGGREGATE.WINDOW_START, aggregate.windowStart)
             .set(AGGREGATE.WINDOW_END, aggregate.windowEnd)
             .set(AGGREGATE.WINDOW_STATE, aggregate.windowState?.name)
-            .set(AGGREGATE.SUPPLEMENTARY, aggregate.isSupplementary)
+            .set(AGGREGATE.IS_SUPPLEMENTARY, aggregate.isSupplementary)
             .execute()
         aggregate.lines.forEachIndexed { position, line ->
             dsl
@@ -194,7 +241,7 @@ class JooqAggregateStore(
         }
     }
 
-    internal fun stored(row: AggregateRecord): StoredAggregate =
+    private fun stored(row: AggregateRecord): StoredAggregate =
         StoredAggregate(
             NewAggregate(
                 entityRef = row.required(AGGREGATE.ENTITY_REF),
@@ -214,7 +261,7 @@ class JooqAggregateStore(
                 windowEnd = row.get(AGGREGATE.WINDOW_END),
                 windowState = row.get(AGGREGATE.WINDOW_STATE)?.let(WindowState::valueOf),
                 lines = linesOf(row.required(AGGREGATE.AGGREGATE_ID)),
-                isSupplementary = row.required(AGGREGATE.SUPPLEMENTARY),
+                isSupplementary = row.required(AGGREGATE.IS_SUPPLEMENTARY),
             ),
             row.required(AGGREGATE.AGGREGATE_ID),
             row.get(AGGREGATE.TRANSMITTED_AT)?.toInstant(),

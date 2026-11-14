@@ -92,14 +92,10 @@ interface AggregateRevisions {
         sourceKey: String,
     ): StoredAggregate?
 
-    /**
-     * The lines of every aggregate of the entity and source key that is not superseded (originals and supplementaries),
-     * except the aggregate [excluding]; credit-note aggregates are not part of the sum.
-     */
-    fun recordedLines(
+    /** The lines of every transmitted aggregate of the entity and source key, those of supplementaries included. */
+    fun transmittedLines(
         entityRef: String,
         sourceKey: String,
-        excluding: UUID? = null,
     ): List<AggregateLine>
 
     /**
@@ -110,14 +106,6 @@ interface AggregateRevisions {
         old: StoredAggregate,
         replacement: NewAggregate,
     ): StoredAggregate
-}
-
-/** Records a revision that stored no aggregate (zero difference), against the aggregate it was compared with. */
-interface SeenRevisions {
-    fun recordSeen(
-        compared: StoredAggregate,
-        sourceRevision: Long,
-    )
 }
 
 /** A short code that is null or does not match `^[A-Z0-9]{1,10}$` makes the number unbuildable. */
@@ -153,9 +141,12 @@ sealed interface IntakeOutcome {
         val aggregate: StoredAggregate,
     ) : IntakeOutcome
 
-    /** A higher revision whose per-code difference is zero: nothing is stored, [aggregate] is the one compared. */
-    data class Unchanged(
-        val aggregate: StoredAggregate,
+    /**
+     * The aggregate to replace has not been transmitted but AggregateReady was published for it. Not decided (open
+     * gap): nothing is stored.
+     */
+    data class ReplacementAfterHandOn(
+        val aggregateId: UUID,
     ) : IntakeOutcome
 
     data class NumberNotBuildable(
@@ -168,7 +159,6 @@ sealed interface IntakeOutcome {
  * (entityRef, sourceKey, sourceRevision); a replay returns the stored aggregate and reads neither the short codes nor
  * the sequence, so the number never changes (INV-REQ-436 item 3).
  */
-@Suppress("LongParameterList")
 class IntakeAggregate(
     private val shortCodes: ShortCodes,
     private val repository: AggregateRepository,
@@ -176,7 +166,6 @@ class IntakeAggregate(
     private val cadences: CadenceSource? = null,
     private val periods: PeriodBoundarySource? = null,
     private val revisions: AggregateRevisions? = null,
-    private val seen: SeenRevisions? = null,
 ) {
     init {
         require((windows == null) == (cadences == null)) { "windows and cadences are set together or not at all" }
@@ -184,71 +173,50 @@ class IntakeAggregate(
 
     fun execute(command: IntakeCommand): IntakeOutcome =
         alreadyKnown(command) ?: when {
-            crossesBoundary(command) -> {
-                IntakeOutcome.CrossesPeriodBoundary
-            }
-
-            else -> {
-                revisions?.current(command.entityRef, command.sourceKey)?.let { revise(command, it) }
-                    ?: create(command)
-            }
+            crossesBoundary(command) -> IntakeOutcome.CrossesPeriodBoundary
+            else -> recorded(command)?.let { revise(command, it) } ?: create(command)
         }
 
+    private fun recorded(command: IntakeCommand): StoredAggregate? =
+        revisions?.current(command.entityRef, command.sourceKey)
+
     /**
-     * Higher revision over a recorded aggregate (INV-REQ-434 item 4). Neither transmitted nor handed on: the new
-     * revision replaces it and keeps its number. Otherwise it is never amended; a supplementary aggregate with the next
-     * sequence and a new number carries the per-code difference to the aggregates of the key that are not superseded;
-     * a zero difference stores nothing and answers the aggregate compared.
+     * Higher revision over a recorded aggregate (INV-REQ-434 item 4). Not transmitted: the new revision replaces it
+     * and keeps its number. Transmitted: never amended; a supplementary aggregate with the next sequence and a new
+     * number carries the per-code difference to everything transmitted for the key.
      */
     private fun revise(
         command: IntakeCommand,
         current: StoredAggregate,
-    ): IntakeOutcome =
-        when {
-            current.transmittedAt != null || current.handedOn -> supplement(command, current)
-            else -> replace(command, current)
-        }
-
-    private fun replace(
-        command: IntakeCommand,
-        current: StoredAggregate,
     ): IntakeOutcome {
         val store = checkNotNull(revisions)
-        val old = current.aggregate
-        val lines =
-            if (old.isSupplementary) {
-                AggregateLines.difference(
-                    command.lines,
-                    store.recordedLines(command.entityRef, command.sourceKey, current.aggregateId),
+        if (current.transmittedAt == null) {
+            if (current.handedOn) return IntakeOutcome.ReplacementAfterHandOn(current.aggregateId)
+            val old = current.aggregate
+            val lines =
+                if (old.isSupplementary) {
+                    AggregateLines.difference(
+                        command.lines,
+                        store.transmittedLines(command.entityRef, command.sourceKey),
+                    )
+                } else {
+                    AggregateLines.merge(command.lines)
+                }
+            val replacement =
+                old.copy(
+                    periodStart = command.periodStart,
+                    periodEnd = command.periodEnd,
+                    sourceRevision = command.sourceRevision,
+                    lines = lines,
                 )
-            } else {
-                AggregateLines.merge(command.lines)
+            return try {
+                IntakeOutcome.Replaced(store.replace(current, replacement), current.aggregateId)
+            } catch (_: DuplicateIntakeKey) {
+                IntakeOutcome.Replayed(winner(command))
             }
-        val replacement =
-            old.copy(
-                periodStart = command.periodStart,
-                periodEnd = command.periodEnd,
-                sourceRevision = command.sourceRevision,
-                lines = lines,
-            )
-        return try {
-            IntakeOutcome.Replaced(store.replace(current, replacement), current.aggregateId)
-        } catch (_: DuplicateIntakeKey) {
-            IntakeOutcome.Replayed(winner(command))
         }
-    }
-
-    private fun supplement(
-        command: IntakeCommand,
-        current: StoredAggregate,
-    ): IntakeOutcome {
-        val store = checkNotNull(revisions)
         val difference =
-            AggregateLines.difference(command.lines, store.recordedLines(command.entityRef, command.sourceKey))
-        if (difference.isEmpty()) {
-            checkNotNull(seen).recordSeen(current, command.sourceRevision)
-            return IntakeOutcome.Unchanged(current)
-        }
+            AggregateLines.difference(command.lines, store.transmittedLines(command.entityRef, command.sourceKey))
         return when (val made = create(command.copy(lines = difference), supplementary = true)) {
             is IntakeOutcome.Created -> IntakeOutcome.Supplemented(made.aggregate)
             else -> made
