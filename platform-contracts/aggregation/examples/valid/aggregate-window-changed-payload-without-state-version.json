@@ -1,0 +1,11 @@
+{
+  "entityRef": "ent-1",
+  "prescribedPeriod": "2027-Q1",
+  "window": {
+    "periodRef": "2027-Q1",
+    "from": "2027-01-01",
+    "to": "2027-03-31"
+  },
+  "state": "CLOSED",
+  "aggregateId": "agg-1"
+}

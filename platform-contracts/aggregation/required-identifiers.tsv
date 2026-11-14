@@ -33,3 +33,5 @@ transactions	property	openapi.yaml	INV-REQ-435
 transactionRef	property	openapi.yaml	INV-REQ-435
 transactionDate	property	openapi.yaml	INV-REQ-435
 acceptedCount	property	openapi.yaml	INV-REQ-435
+# INV-T-22188. stateVersion, the optional producer-owned counter of the AggregateWindowChanged payload (INV-REQ-792).
+stateVersion	property	schemas/aggregate-window-changed-payload.schema.json	INV-REQ-792
