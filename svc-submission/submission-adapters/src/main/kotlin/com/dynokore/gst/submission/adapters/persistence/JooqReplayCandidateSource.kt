@@ -9,8 +9,11 @@ import com.dynokore.gst.submission.domain.replay.ReplayCandidate
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.Field
 import org.jooq.Record
+import org.jooq.Table
 import org.jooq.impl.DSL
+import java.time.OffsetDateTime
 
 /**
  * [ReplayCandidateSource] (INV-REQ-575, delegated ruling of owner 2026-10-14): the `DEAD_LETTERED` versions of one
@@ -33,8 +36,14 @@ class JooqReplayCandidateSource(
         tenant: TenantId,
         entityRef: String,
     ): List<ReplayCandidate> {
-        val last = attempt.`as`("last_attempt")
-        val first = attempt.`as`("first_attempt")
+        // First and last attempt of a version are derived tables (rank 1 by ascending or descending attempt number),
+        // never generated-table aliases: the tenancy verifier knows only the declared tables.
+        val lastRank = rankOf("last_rank", descending = true)
+        val firstRank = rankOf("first_rank", descending = false)
+        val last = attemptRanked(lastRank, "last_attempt")
+        val first = attemptRanked(firstRank, "first_attempt")
+        val failureClass = checkNotNull(last.field(attempt.FAILURE_CLASS))
+        val requestedAt = checkNotNull(first.field(attempt.REQUESTED_AT))
         val records =
             runner.inTransaction {
                 dsl
@@ -44,53 +53,68 @@ class JooqReplayCandidateSource(
                         version.ENTITY_REF,
                         entry.PERIOD_REF,
                         entry.DUE_DATE,
-                        last.FAILURE_CLASS,
-                        first.REQUESTED_AT,
+                        failureClass,
+                        requestedAt,
                     ).from(version)
                     .leftJoin(entry)
                     .on(entry.DOC_UUID.eq(version.DOC_UUID))
                     .and(entry.TENANT_ID.eq(version.TENANT_ID))
                     .leftJoin(last)
-                    .on(last.TENANT_ID.eq(version.TENANT_ID))
-                    .and(last.DOC_UUID.eq(version.DOC_UUID))
-                    .and(last.VERSION.eq(version.VERSION))
-                    .and(last.ATTEMPT_NUMBER.eq(maxAttempt(version, attempt, true)))
+                    .on(checkNotNull(last.field(attempt.TENANT_ID)).eq(version.TENANT_ID))
+                    .and(checkNotNull(last.field(attempt.DOC_UUID)).eq(version.DOC_UUID))
+                    .and(checkNotNull(last.field(attempt.VERSION)).eq(version.VERSION))
+                    .and(checkNotNull(last.field(lastRank)).eq(1))
                     .leftJoin(first)
-                    .on(first.TENANT_ID.eq(version.TENANT_ID))
-                    .and(first.DOC_UUID.eq(version.DOC_UUID))
-                    .and(first.VERSION.eq(version.VERSION))
-                    .and(first.ATTEMPT_NUMBER.eq(maxAttempt(version, attempt, false)))
+                    .on(checkNotNull(first.field(attempt.TENANT_ID)).eq(version.TENANT_ID))
+                    .and(checkNotNull(first.field(attempt.DOC_UUID)).eq(version.DOC_UUID))
+                    .and(checkNotNull(first.field(attempt.VERSION)).eq(version.VERSION))
+                    .and(checkNotNull(first.field(firstRank)).eq(1))
                     .where(version.TENANT_ID.eq(tenant.value))
                     .and(version.ENTITY_REF.eq(entityRef))
                     .and(version.STATE.eq(LifecycleState.DEAD_LETTERED.name))
                     .fetch()
             }
-        return records.mapNotNull { toCandidate(it, entityRef, last, first) }
+        return records.mapNotNull { toCandidate(it, entityRef, failureClass, requestedAt) }
     }
 
-    private fun maxAttempt(
-        v: Submission,
-        a: SubmissionAttempt,
-        highest: Boolean,
-    ) = dsl
-        .select(if (highest) DSL.max(a.ATTEMPT_NUMBER) else DSL.min(a.ATTEMPT_NUMBER))
-        .from(a)
-        .where(a.TENANT_ID.eq(v.TENANT_ID))
-        .and(a.DOC_UUID.eq(v.DOC_UUID))
-        .and(a.VERSION.eq(v.VERSION))
-        .asField<Int>()
+    private fun rankOf(
+        name: String,
+        descending: Boolean,
+    ): Field<Int> =
+        DSL
+            .rowNumber()
+            .over(
+                DSL
+                    .partitionBy(attempt.TENANT_ID, attempt.DOC_UUID, attempt.VERSION)
+                    .orderBy(if (descending) attempt.ATTEMPT_NUMBER.desc() else attempt.ATTEMPT_NUMBER.asc()),
+            ).`as`(name)
+
+    private fun attemptRanked(
+        rank: Field<Int>,
+        name: String,
+    ): Table<*> =
+        DSL
+            .select(
+                attempt.TENANT_ID,
+                attempt.DOC_UUID,
+                attempt.VERSION,
+                attempt.FAILURE_CLASS,
+                attempt.REQUESTED_AT,
+                rank,
+            ).from(attempt)
+            .asTable(name)
 
     private fun toCandidate(
         r: Record,
         entityRef: String,
-        last: SubmissionAttempt,
-        first: SubmissionAttempt,
+        failureClass: Field<String?>,
+        requestedAt: Field<OffsetDateTime?>,
     ): ReplayCandidate? {
         val doc = checkNotNull(r.get(version.DOC_UUID))
         val number = checkNotNull(r.get(version.VERSION))
         val period = r.get(entry.PERIOD_REF)
         val due = r.get(entry.DUE_DATE)
-        val queuedAt = r.get(first.REQUESTED_AT)
+        val queuedAt = r.get(requestedAt)
         if (period == null || due == null || queuedAt == null) {
             LOG.log(
                 System.Logger.Level.WARNING,
@@ -104,7 +128,7 @@ class JooqReplayCandidateSource(
             entityRef = entityRef,
             periodRef = period,
             state = LifecycleState.DEAD_LETTERED,
-            failureClass = r.get(last.FAILURE_CLASS),
+            failureClass = r.get(failureClass),
             dueDate = due,
             queuedAt = queuedAt.toInstant(),
         )

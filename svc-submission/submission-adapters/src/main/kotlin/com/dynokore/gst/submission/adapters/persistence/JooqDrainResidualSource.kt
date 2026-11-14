@@ -75,28 +75,41 @@ class JooqDrainResidualSource(
         entityRef: String,
         periodRef: String,
     ): List<ResidualCandidate> {
-        val last = attempt.`as`("last_attempt")
-        val newer = attempt.`as`("newer_attempt")
+        // The last attempt of each version is a derived table (rank 1 by descending attempt number), never a
+        // generated-table alias: the tenancy verifier knows only the declared tables and rewrites inside the derived one.
+        val rank =
+            DSL
+                .rowNumber()
+                .over(
+                    DSL
+                        .partitionBy(attempt.TENANT_ID, attempt.DOC_UUID, attempt.VERSION)
+                        .orderBy(attempt.ATTEMPT_NUMBER.desc()),
+                ).`as`("attempt_rank")
+        val last =
+            DSL
+                .select(
+                    attempt.TENANT_ID,
+                    attempt.DOC_UUID,
+                    attempt.VERSION,
+                    attempt.FAILURE_CLASS,
+                    attempt.REQUESTED_AT,
+                    rank,
+                ).from(attempt)
+                .asTable("last_attempt")
+        val failureClass = checkNotNull(last.field(attempt.FAILURE_CLASS))
+        val requestedAt = checkNotNull(last.field(attempt.REQUESTED_AT))
         return dsl
-            .select(version.DOC_UUID, version.VERSION, last.FAILURE_CLASS, last.REQUESTED_AT)
+            .select(version.DOC_UUID, version.VERSION, failureClass, requestedAt)
             .from(version)
             .join(entry)
             .on(entry.DOC_UUID.eq(version.DOC_UUID))
             .and(entry.TENANT_ID.eq(version.TENANT_ID))
             .leftJoin(last)
-            .on(last.TENANT_ID.eq(version.TENANT_ID))
-            .and(last.DOC_UUID.eq(version.DOC_UUID))
-            .and(last.VERSION.eq(version.VERSION))
-            .and(
-                last.ATTEMPT_NUMBER.eq(
-                    DSL
-                        .select(DSL.max(newer.ATTEMPT_NUMBER))
-                        .from(newer)
-                        .where(newer.TENANT_ID.eq(version.TENANT_ID))
-                        .and(newer.DOC_UUID.eq(version.DOC_UUID))
-                        .and(newer.VERSION.eq(version.VERSION)),
-                ),
-            ).where(version.TENANT_ID.eq(tenant.value))
+            .on(checkNotNull(last.field(attempt.TENANT_ID)).eq(version.TENANT_ID))
+            .and(checkNotNull(last.field(attempt.DOC_UUID)).eq(version.DOC_UUID))
+            .and(checkNotNull(last.field(attempt.VERSION)).eq(version.VERSION))
+            .and(checkNotNull(last.field(rank)).eq(1))
+            .where(version.TENANT_ID.eq(tenant.value))
             .and(version.STATE.eq(LifecycleState.DEAD_LETTERED.name))
             .and(version.ENTITY_REF.eq(entityRef))
             .and(entry.PERIOD_REF.eq(periodRef))
@@ -107,8 +120,8 @@ class JooqDrainResidualSource(
                     docUuid = checkNotNull(it.get(version.DOC_UUID)),
                     version = checkNotNull(it.get(version.VERSION)),
                     kind = ResidualKind.DEAD_LETTERED,
-                    reasonCode = it.get(last.FAILURE_CLASS),
-                    recordedAt = checkNotNull(it.get(last.REQUESTED_AT)) { "no attempt instant" }.toInstant(),
+                    reasonCode = it.get(failureClass),
+                    recordedAt = checkNotNull(it.get(requestedAt)) { "no attempt instant" }.toInstant(),
                 )
             }
     }
