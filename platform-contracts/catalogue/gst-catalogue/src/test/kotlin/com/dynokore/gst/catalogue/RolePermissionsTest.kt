@@ -690,3 +690,30 @@ class TenantScheduleRolePermissionsTest {
         }
     }
 }
+
+/** INV-T-22654: the key regulatory-pack.acknowledge, through the library API only (own class: LargeClass limit). */
+class RegulatoryPackAcknowledgeRolePermissionsTest {
+    private val saas = DeploymentForm.SAAS
+    private val privateForm = DeploymentForm.PRIVATE
+    private val key = "regulatory-pack.acknowledge"
+
+    private fun holders(form: DeploymentForm) =
+        RolePermissions.cells(form).filter { (_, perms) -> perms[key] == RoleAllowance.PERMITTED }.keys
+
+    private fun cell(
+        form: DeploymentForm,
+        role: String,
+    ) = RolePermissions.cells(form)[role]?.get(key)
+
+    @Test
+    fun `INV-AC-22652 regulatory-pack acknowledge is WRITE and tax approver SAAS only`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
+        assertEquals(RoleAllowance.PERMITTED, cell(saas, "tax.approver"))
+        // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+        assertNull(cell(privateForm, "tax.approver"))
+        assertNull(cell(saas, "regulatory.approver"))
+        assertNull(RolePermissions.kind("regulatory-pack.acknowledges"))
+        assertEquals(setOf("tax.approver"), holders(saas))
+        assertEquals(emptySet<String>(), holders(privateForm))
+    }
+}

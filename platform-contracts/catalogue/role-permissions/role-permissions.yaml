@@ -1326,6 +1326,11 @@ permissions:
     cells:
       - {role: tax.approver, form: SAAS, allowance: PERMITTED}
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.acknowledge
+    kind: WRITE
+    row: "Acknowledge a regulatory pack's dry-run delta within the grace window"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
   - key: exchange-rate.import
     kind: WRITE
     row: "Import a rate file"

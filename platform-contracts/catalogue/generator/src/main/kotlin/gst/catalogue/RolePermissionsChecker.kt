@@ -130,6 +130,7 @@ object RolePermissionsChecker {
             "View a tenant provisioning request",
             "Record onboarding questionnaire answers",
             "Preview the due dates a staged calendar pack would move",
+            "Acknowledge a regulatory pack's dry-run delta within the grace window",
             "Import a rate file",
             "Enter a missing rate with evidence",
             "Configure an external connection record",
@@ -226,6 +227,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the calendar pack delta read key (INV-T-16826, INV-Q-16810 C; key, label and holder are Inference), compared by equality. */
     val calendarPackDeltaPairs: Map<String, String> =
         mapOf("calendar-pack-delta.view" to "Preview the due dates a staged calendar pack would move")
+
+    /** The (key, row) pair of the regulatory pack delta acknowledgement key (INV-T-22654, owner answer "22644 A"; key and label are own wording, Inference), compared by equality. */
+    val acknowledgePackDeltaPairs: Map<String, String> =
+        mapOf("regulatory-pack.acknowledge" to "Acknowledge a regulatory pack's dry-run delta within the grace window")
 
     /** The (key, row) pairs of the seven connection and exchange-rate keys (INV-T-18769, ruling on the answered design question of INV-T-4947; connection.configure and its label are Inference), compared by equality. */
     val connectionPairs: Map<String, String> =
@@ -467,6 +472,7 @@ object RolePermissionsChecker {
             "licence.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "tenant-provisioning-request.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "questionnaire.answer" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "regulatory-pack.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "tax.approver")),
             "calendar-pack-delta.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver")),
             "exchange-rate.import" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(permitted, privateForm, "deployment.operator")),
             "exchange-rate.enter" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
@@ -722,6 +728,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in calendarPackDeltaPairs && (it.row in calendarPackDeltaPairs.values || it.key.startsWith("calendar-pack-delta")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${calendarPackDeltaPairs.keys.joinToString()}, which alone carry the calendar pack delta preview row (INV-T-16826)."
+        }
+        acknowledgePackDeltaPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${acknowledgePackDeltaPairs.keys.joinToString()}, INV-T-22654)."
+        }
+        table.permissions.filter { it.key !in acknowledgePackDeltaPairs && (it.row in acknowledgePackDeltaPairs.values || it.key.startsWith("regulatory-pack.acknowledge")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${acknowledgePackDeltaPairs.keys.joinToString()}, which alone carry the regulatory pack delta acknowledgement row (INV-T-22654)."
         }
         connectionPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }
