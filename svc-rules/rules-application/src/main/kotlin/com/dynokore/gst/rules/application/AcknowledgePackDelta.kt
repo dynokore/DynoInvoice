@@ -13,8 +13,7 @@ sealed interface AcknowledgePackDeltaResult {
     data class Acknowledged(
         val status: PackStatus,
         val effectiveFrom: LocalDate,
-        /** Null in the private form, which has no grace window. */
-        val graceWindowEnd: LocalDate?,
+        val graceWindowEnd: LocalDate,
     ) : AcknowledgePackDeltaResult
 
     data object Denied : AcknowledgePackDeltaResult
@@ -27,6 +26,9 @@ sealed interface AcknowledgePackDeltaResult {
     ) : AcknowledgePackDeltaResult
 
     data object NoCompleteDelta : AcknowledgePackDeltaResult
+
+    /** The private form has no grace window, so the contract precondition "grace window open" does not hold. */
+    data object NoGraceWindow : AcknowledgePackDeltaResult
 
     /** The tenant's grace window ends today or earlier. */
     data class WindowClosed(
@@ -80,19 +82,20 @@ class AcknowledgePackDelta(
                 p.stored,
                 p.maximum,
             )
-        val closed = end is GraceEnd.Ends && !end.on.isAfter(LocalDate.now(clock))
-        if (!closed) store.recordOnce(DeltaAcknowledgement(tenantId, packType, version, actor, clock.instant()))
+        val ends = (end as? GraceEnd.Ends)?.on
+        val closed = ends != null && !ends.isAfter(LocalDate.now(clock))
         return when {
-            end is GraceEnd.Ends && closed -> {
-                AcknowledgePackDeltaResult.WindowClosed(end.on)
+            ends == null -> {
+                AcknowledgePackDeltaResult.NoGraceWindow
+            }
+
+            closed -> {
+                AcknowledgePackDeltaResult.WindowClosed(ends)
             }
 
             else -> {
-                AcknowledgePackDeltaResult.Acknowledged(
-                    PackStatus.ACKNOWLEDGED,
-                    row.effectiveFrom,
-                    (end as? GraceEnd.Ends)?.on,
-                )
+                store.recordOnce(DeltaAcknowledgement(tenantId, packType, version, actor, clock.instant()))
+                AcknowledgePackDeltaResult.Acknowledged(PackStatus.ACKNOWLEDGED, row.effectiveFrom, ends)
             }
         }
     }

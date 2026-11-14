@@ -109,8 +109,11 @@ class AcknowledgePackDeltaTest {
     }
 
     @Test
-    fun `INV-AC-22939 case h the private form has no window end`() {
+    fun `INV-AC-22939 case i the private form answers NoGraceWindow and stores nothing while SaaS acknowledges`() {
         val e = Env().apply { form = DeploymentForm.PRIVATE }
-        e.call() shouldBe Acknowledged(PackStatus.ACKNOWLEDGED, LocalDate.of(2026, 12, 20), null)
+        e.refused(AcknowledgePackDeltaResult.NoGraceWindow)
+        e.acks shouldBe emptyMap()
+        e.form = DeploymentForm.SAAS
+        e.call() shouldBe Acknowledged(PackStatus.ACKNOWLEDGED, LocalDate.of(2026, 12, 20), LocalDate.of(2026, 12, 7))
     }
 }
