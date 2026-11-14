@@ -50,6 +50,18 @@ fun interface ImportPermissionPort {
     fun mayImport(user: String): Boolean
 }
 
+/**
+ * The checks of a pack type's contents that JSON Schema cannot express (INV-T-6567; INV-Q-6554, INV-Q-6556). Runs after
+ * the contents are loadable; the answer names the first failing item, or is null when the contents pass. A pack is
+ * never defaulted or partially accepted.
+ */
+fun interface PackContentsCheck {
+    fun refusal(
+        packType: String,
+        contents: ByteArray,
+    ): String?
+}
+
 /** The running train's version; null when the build states none (503 SRT-013). */
 fun interface RunningEngine {
     fun version(): String?
@@ -95,8 +107,10 @@ interface PackImportStore {
 sealed interface ImportRegulatoryPackResult {
     data object Staged : ImportRegulatoryPackResult
 
+    /** [detail] names the failing item of a refused content (step 3); it is null for the other steps. */
     data class Failed(
         val failure: ImportFailure,
+        val detail: String?,
     ) : ImportRegulatoryPackResult
 
     data object Denied : ImportRegulatoryPackResult
@@ -127,6 +141,7 @@ class ImportRegulatoryPack(
     private val permission: ImportPermissionPort,
     private val store: PackImportStore,
     private val currency: PackCurrencyMonitor,
+    private val contentsCheck: PackContentsCheck,
 ) {
     @Suppress("ReturnCount") // one early return per refusal, in the ruled order
     fun execute(
@@ -147,10 +162,10 @@ class ImportRegulatoryPack(
             }
         store.begin(packType, version, bundleHash, user)
         val verified = verified(bytes, digest, trusted, packType, version)
-        val failure = refusal(verified, running)
-        if (failure != null) {
-            store.fail(packType, version, failure)
-            return ImportRegulatoryPackResult.Failed(failure)
+        val refused = refusal(verified, running)
+        if (refused != null) {
+            store.fail(packType, version, refused.failure)
+            return ImportRegulatoryPackResult.Failed(refused.failure, refused.detail)
         }
         return try {
             store.stage(checkNotNull(verified), user)
@@ -162,26 +177,33 @@ class ImportRegulatoryPack(
         }
     }
 
+    private class Refusal(
+        val failure: ImportFailure,
+        val detail: String? = null,
+    )
+
     /** The refusal of the ruled order: signature (DEP-002), then engine range (DEP-003), then contents (RUL-005). */
     private fun refusal(
         verified: VerifiedPack?,
         running: String,
-    ): ImportFailure? =
+    ): Refusal? =
         when {
             verified == null -> {
-                ImportFailure.SIGNATURE
+                Refusal(ImportFailure.SIGNATURE)
             }
 
             !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) -> {
-                ImportFailure.ENGINE
+                Refusal(ImportFailure.ENGINE)
             }
 
             validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected -> {
-                ImportFailure.CONTENTS
+                Refusal(ImportFailure.CONTENTS)
             }
 
             else -> {
-                null
+                contentsCheck
+                    .refusal(verified.version.manifest.packType.value, verified.artefact.contents)
+                    ?.let { Refusal(ImportFailure.CONTENTS, it) }
             }
         }
 

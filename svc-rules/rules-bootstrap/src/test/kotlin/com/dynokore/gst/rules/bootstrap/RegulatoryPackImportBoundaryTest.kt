@@ -67,7 +67,7 @@ private val OTHER_KEYS = listOf("regulatory-pack.author", "filing.confirm", "reg
 private const val CONTENTS = """{"rules":[]}"""
 
 /** The throw-away train key whose certificate is the only trust anchor of these tests (STK-13). */
-private object TestTrain {
+internal object TestTrain {
     val key = TestPackSigning.newKey()
 }
 

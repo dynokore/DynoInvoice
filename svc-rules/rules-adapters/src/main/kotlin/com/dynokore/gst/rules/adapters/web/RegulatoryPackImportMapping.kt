@@ -25,7 +25,7 @@ object RegulatoryPackImportMapping {
             }
 
             is ImportRegulatoryPackResult.Failed -> {
-                failed(result.failure)
+                failed(result.failure, result.detail)
             }
 
             ImportRegulatoryPackResult.Denied -> {
@@ -63,17 +63,19 @@ object RegulatoryPackImportMapping {
         failureCode = status.failureCode,
     )
 
-    private fun failed(failure: ImportFailure) =
-        MappingRefusal(
-            UNPROCESSABLE,
-            failure.code,
-            when (failure) {
-                ImportFailure.SIGNATURE -> "Pack signature verification failed"
-                ImportFailure.ENGINE -> "Pack requires a newer engine version"
-                ImportFailure.CONTENTS -> "Pack contents do not load"
-            },
-            null,
-        )
+    private fun failed(
+        failure: ImportFailure,
+        detail: String?,
+    ) = MappingRefusal(
+        UNPROCESSABLE,
+        failure.code,
+        when (failure) {
+            ImportFailure.SIGNATURE -> "Pack signature verification failed"
+            ImportFailure.ENGINE -> "Pack requires a newer engine version"
+            ImportFailure.CONTENTS -> "Pack contents do not load"
+        },
+        detail,
+    )
 
     private fun closed(
         code: ClosedErrorCode,

@@ -11,6 +11,7 @@ import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
 import com.dynokore.gst.rules.adapters.packs.DirectoryPackSource
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
 import com.dynokore.gst.rules.adapters.packs.HolderCopySigningKeys
+import com.dynokore.gst.rules.adapters.packs.PackContentsChecks
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.packs.RefusingHolderCopyPort
 import com.dynokore.gst.rules.adapters.packs.RefusingPackActionAuthority
@@ -66,6 +67,7 @@ import com.dynokore.gst.rules.application.NamedPackVersions
 import com.dynokore.gst.rules.application.PackActionAuthority
 import com.dynokore.gst.rules.application.PackApprovalDecisionPort
 import com.dynokore.gst.rules.application.PackBundleNotFoundException
+import com.dynokore.gst.rules.application.PackContentsCheck
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
 import com.dynokore.gst.rules.application.PackCurrencyStore
 import com.dynokore.gst.rules.application.PackDocumentEvaluation
@@ -605,6 +607,7 @@ class RulesConfiguration {
         permission: ImportPermissionPort,
         store: PackImportStore,
         currency: PackCurrencyMonitor,
+        contentsCheck: PackContentsCheck,
     ): ImportRegulatoryPack =
         ImportRegulatoryPack(
             source,
@@ -615,7 +618,12 @@ class RulesConfiguration {
             permission,
             store,
             currency,
+            contentsCheck,
         )
+
+    /** The pack-type checks JSON Schema cannot express, applied at the import (INV-T-6567). */
+    @Bean
+    fun packContentsCheck(): PackContentsCheck = PackContentsChecks()
 
     private companion object {
         const val PACK_FEED_URL = "rules.pack-feed.url"
