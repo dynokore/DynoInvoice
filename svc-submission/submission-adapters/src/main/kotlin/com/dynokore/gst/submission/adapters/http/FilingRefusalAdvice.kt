@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.adapters.http
 
+import com.dynokore.gst.submission.application.filing.AmbiguousDueDateException
 import com.dynokore.platform.serviceruntime.http.PeriodErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
@@ -24,6 +25,18 @@ class FilingRefusalAdvice {
                 refusal.code,
                 CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString(),
             )
+        val headers = HttpHeaders()
+        headers.set(HttpHeaders.CONTENT_TYPE, Problems.CONTENT_TYPE)
+        return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
+    }
+
+    /** Ruling (g): more than one due date is a server fault, SRT-010 500 with no detail (API-22, OWASP ASVS V7). */
+    @ExceptionHandler(AmbiguousDueDateException::class)
+    fun ambiguous(
+        @Suppress("UNUSED_PARAMETER") failure: AmbiguousDueDateException,
+    ): ResponseEntity<String> {
+        val problem =
+            Problems.serverError(CorrelationContext.currentCorrelationId()?.value ?: UUID.randomUUID().toString())
         val headers = HttpHeaders()
         headers.set(HttpHeaders.CONTENT_TYPE, Problems.CONTENT_TYPE)
         return ResponseEntity.status(problem.status).headers(headers).body(problem.body)
