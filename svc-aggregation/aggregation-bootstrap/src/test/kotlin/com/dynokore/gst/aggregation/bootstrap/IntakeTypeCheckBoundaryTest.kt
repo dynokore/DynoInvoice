@@ -56,6 +56,7 @@ class IntakeTypeCheckBoundaryTest {
                 post("/internal/v1/aggregation/batches")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("Idempotency-Key", UUID.randomUUID().toString())
+                    .header("X-Flow-Context", "test-flow-context")
                     .apply { headers.forEach { (name, value) -> header(name, value) } }
                     .content(content),
             ).andReturn()

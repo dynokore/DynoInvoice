@@ -1,7 +1,7 @@
 package com.dynokore.gst.aggregation.acceptance
 
 import com.dynokore.gst.aggregation.adapters.http.DrillDownController
-import com.dynokore.gst.aggregation.adapters.http.IntakeController
+import com.dynokore.gst.aggregation.adapters.http.TransactionIntakeController
 import com.dynokore.gst.aggregation.bootstrap.AggregationEvents
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -20,7 +20,7 @@ class OperationsGateTest {
 
     /** Operations answering 501 (OperationsStubs): what each controller method does for placeholder arguments. */
     private val stubs: Set<String> =
-        OperationsStubs.stubs(listOf(IntakeController::class.java, DrillDownController::class.java))
+        OperationsStubs.stubs(listOf(TransactionIntakeController::class.java, DrillDownController::class.java))
 
     private fun run(
         table: String = tsv,
@@ -62,7 +62,7 @@ class OperationsGateTest {
 
     @Test
     fun `the real table covers the real contract`() {
-        OperationsGate.contractOperations(openapi).size shouldBe 3
+        OperationsGate.contractOperations(openapi).size shouldBe 4
         OperationsGate.contractChannels(asyncapi).size shouldBe 4
         run(done = doneText).shouldBeEmpty()
         OperationsGate.assignmentFindings(tsv).shouldBeEmpty()
@@ -145,9 +145,10 @@ class OperationsGateTest {
                 "getAggregateDrillDown\tINV-T-9999\topen",
             )
         run(table = table).shouldBeEmpty()
-        run(table = table, done = "INV-T-9999\n") shouldContain
+        // the operation is implemented now; a stub set that still holds it is what a 501 answer looks like
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs + "getAggregateDrillDown") shouldContain
             "operation getAggregateDrillDown: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getAggregateDrillDown").shouldBeEmpty()
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs).shouldBeEmpty()
     }
 
     @Test
