@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events console-bff lists in its [EventCatalogue]: the canonical and master-data events it consumes, each equal to its row of
- * platform-contracts `event-log/topics.yaml`. console-bff emits no event today; the task that emits one adds its entry.
+ * The events console-bff lists in its [EventCatalogue]: the canonical and master-data events it consumes, each equal
+ * to its row of platform-contracts `event-log/topics.yaml`. console-bff emits no event today; the task that emits one adds its entry.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
