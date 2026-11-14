@@ -78,6 +78,9 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
     jvmArgs("-Duser.timezone=UTC") // CS-41 baseline, as platform-libs' modules
+    // STK-40: the consumer tests write build/pacts; declared as an output so a build-cache hit restores the pact files
+    // that pactPublish reads (a FROM-CACHE test otherwise left no build/pacts and pact-publish failed, MR !19).
+    outputs.dir(layout.buildDirectory.dir("pacts"))
 }
 
 // STK-40: the shared pact-publish job runs `pactPublish` alone, where no pact file exists yet. With a broker URL the task
