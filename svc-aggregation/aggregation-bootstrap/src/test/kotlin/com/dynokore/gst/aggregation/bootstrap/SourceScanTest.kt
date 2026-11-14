@@ -8,7 +8,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 
-/** The negative fixtures of the main-source scan of INV-AC-8455: it must report a bad tree, or "0 findings" proves nothing. */
+/** The negative fixtures of the main-source scan of INV-AC-8455: a bad tree must be reported. */
 class SourceScanTest {
     private val names = setOf("ingestion-svc")
 
