@@ -279,4 +279,35 @@ class TriggerCoverageOperationsTest {
         second.mappedAt.toString() shouldBe first.mappedAt.toString()
         waiver2.waivedAt.toString() shouldBe waiver1.waivedAt.toString()
     }
+
+    @Test
+    fun `a validation failure answers 400 SRT-001 and changes nothing`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val before = state()
+        listOf(
+            map(u1, "E-001", "outbound_document_issued"),
+            waive(u1, "E-001", "outbound_document_issued", reviewWaiver),
+            waive(u1, "E-001", "THIRD_PARTY_ISSUANCE", TriggerWaiverRequest(TriggerWaiverRequest.Mode.REVIEW_WAIVER)),
+            waive(u1, "E-001", "INBOUND_DOCUMENT_RECORDED", covered(null)),
+            waive(u1, "E-001", "INBOUND_DOCUMENT_RECORDED", covered("  ")),
+            waive(
+                u1,
+                "E-001",
+                "INBOUND_DOCUMENT_RECORDED",
+                TriggerWaiverRequest(
+                    TriggerWaiverRequest.Mode.COVERED_BY_OTHER_SOLUTION,
+                    evidenceReference = "EV-1",
+                ),
+            ),
+            map(u1, "E-001", "OUTBOUND_DOCUMENT_ISSUED", " "),
+            // adapterRef over 40 characters: the contract Bean Validation throws ConstraintViolationException before
+            // the controller; ApiRefusalAdvice (outside this scope) has no handler for it; reported as a gap.
+        ).forEach { result ->
+            val (status, body) = refusal(result)
+            status shouldBe 400
+            body shouldContain "SRT-001"
+        }
+        state() shouldBe before
+    }
 }
