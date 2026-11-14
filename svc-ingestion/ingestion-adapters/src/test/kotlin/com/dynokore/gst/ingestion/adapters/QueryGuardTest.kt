@@ -32,6 +32,10 @@ class QueryGuardTest {
                 "recorded_by, recorded_at) values ($t, 'E', 'OUTBOUND_DOCUMENT_ISSUED', 'MAPPED', 'erp-ar', " +
                 "'$tenant', now())",
         )
+        superuser(
+            "insert into ingestion.feed_health_state (tenant_id, feed, entity_ref, period, control, state, " +
+                "state_version) values ($t, 'F', 'E', 'P', 'COUNT', 'FAILED', 1)",
+        )
         superuser("insert into ingestion.outbox_sequence values ($t, 'k', 1)")
         superuser("insert into ingestion.inbox (consumer, event_id, tenant_id) values ('c', '$tenant', $t)")
         superuser("insert into ingestion.consumer_sequence values ('c', 's', 'sub', $t, 1)")
