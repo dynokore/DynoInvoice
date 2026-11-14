@@ -306,7 +306,7 @@ class RegulatoryPackImportBoundaryTest(
     private fun stagedEvents(version: String) =
         count(
             "select count(*) from rules.outbox where data::text like '%\"$version\"%' " +
-                "and data::text like '%RulePackStaged%'",
+                "and type = 'com.dynokore.gst.platform.RulePackStaged.v1'",
         )
 
     private fun stagedRow(version: String): List<String> =
@@ -411,7 +411,7 @@ class RegulatoryPackImportBoundaryTest(
             listOf(
                 "com.dynokore.gst.platform.RulePackStaged.v1",
                 "gst.platform.rule-pack-staged.v1",
-                TenantId.PLATFORM.value,
+                TenantId.PLATFORM.value.toString(),
                 EntityRef.PLATFORM.value,
             )
         // the DEP-001 publication at the import: platform type, topic, tenant and entity
@@ -553,7 +553,7 @@ class RegulatoryPackImportBoundaryTest(
                 it.execute(
                     "insert into rules.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
                         "instance_id, correlation_id, causation_id, data) values ('probe-" + UUID.randomUUID() +
-                        "', 't', 'com.dynokore.gst.platform.RulePackStaged.v1', '/gst/rules-svc', 's', now(), '" +
+                        "', 't', 'com.dynokore.gst.rules.RulePackActivated.v1', '/gst/rules-svc', 's', now(), '" +
                         tenant + "', 'e', 'i', 'c', 'c', '{}'::jsonb)",
                 )
             }

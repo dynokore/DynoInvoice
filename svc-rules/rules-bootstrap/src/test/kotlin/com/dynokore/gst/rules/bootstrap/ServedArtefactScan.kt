@@ -29,6 +29,8 @@ internal object ServedArtefactScan {
             Files.walk(dir).use { stream ->
                 stream
                     .filter { Files.isRegularFile(it) }
+                    // the platform events' contract (service-runtime) is staged beside the rules contract, not part of it
+                    .filter { !dir.relativize(it).startsWith("service-runtime") }
                     .toList()
                     .associate { "rules/" + dir.relativize(it).joinToString("/") to Files.readString(it) }
             }
