@@ -53,8 +53,7 @@ class SyncEdgeCallerTest {
                     "service-runtime.workload-identity.callers[$index].service=$service",
                     "service-runtime.workload-identity.callers[$index].subject=sa-$service",
                 )
-            }.plus(QUIET_JOBS)
-            .toTypedArray()
+            }.toTypedArray()
 
     private fun serve(
         dir: Path,
@@ -160,14 +159,5 @@ class SyncEdgeCallerTest {
 
     private companion object {
         const val INTERNAL = "/internal/v1/"
-
-        /**
-         * The scheduled jobs fire every minute or ten minutes and hand out database connections; one firing inside a
-         * refused call would be counted as that call opening a connection. The test pins them to a yearly cron so
-         * only the calls under test touch the data source.
-         */
-        val QUIET_JOBS =
-            listOf("accreditation-step-retry", "tenant-schedule-opening", "pack-stage")
-                .map { "gst.jobs.$it.cron=0 0 0 1 1 *" }
     }
 }
