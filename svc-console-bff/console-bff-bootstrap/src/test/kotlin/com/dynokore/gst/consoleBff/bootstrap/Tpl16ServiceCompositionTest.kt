@@ -124,6 +124,7 @@ class Tpl16ServiceCompositionTest {
         /** `console_session` plus what code generation adds for the tables, views and functions of OutboxSchema.ddl. */
         val EXPECTED_TABLES =
             setOf(
+                "claim_due",
                 "console_session",
                 "deferral",
                 "consumer_offset",
@@ -136,11 +137,13 @@ class Tpl16ServiceCompositionTest {
                 "event_dead_letter_triage_page",
                 "event_dead_letter_triage_v",
                 "inbox",
+                "lane_rate_window",
                 "outbox",
                 "outbox_claim_page",
                 "outbox_claim_v",
                 "outbox_sequence",
                 "period_due_date",
+                "work_queue",
             )
     }
 }
