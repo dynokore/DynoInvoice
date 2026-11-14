@@ -6,12 +6,14 @@ import com.dynokore.gst.notification.application.alerting.BacklogThresholdSource
 import com.dynokore.gst.notification.application.alerting.HandleBacklogValues
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import org.jooq.DSLContext
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -47,7 +49,7 @@ class BacklogConsumerConfiguration {
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
         dsl: DSLContext,
-        handler: BacklogValuesMeasuredHandler,
+        @Qualifier("backlogValuesMeasuredHandler") handler: EventHandler,
     ): JdbcInboxConsumer =
         JdbcInboxConsumer(
             ConsumerSubscription(CONSUMER, TOPIC, SCHEMA),

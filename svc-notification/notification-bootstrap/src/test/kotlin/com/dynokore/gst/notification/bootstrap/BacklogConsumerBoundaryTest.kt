@@ -1,7 +1,6 @@
 package com.dynokore.gst.notification.bootstrap
 
 import com.dynokore.gst.notification.adapters.NotificationDb
-import com.dynokore.gst.notification.adapters.events.BacklogValuesMeasuredHandler
 import com.dynokore.gst.notification.adapters.persistence.jooq.tables.Alert.Companion.ALERT
 import com.dynokore.gst.notification.adapters.persistence.jooq.tables.EventDeadLetter.Companion.EVENT_DEAD_LETTER
 import com.dynokore.gst.notification.adapters.persistence.jooq.tables.Inbox.Companion.INBOX
@@ -13,6 +12,7 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EnvelopeJson
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
@@ -77,7 +77,7 @@ class BacklogConsumerBoundaryTest {
                 log,
                 scope,
                 dsl,
-                context.getBean(BacklogValuesMeasuredHandler::class.java),
+                context.getBean("backlogValuesMeasuredHandler", EventHandler::class.java),
                 RebuildRequiredSink { },
                 Clock.systemUTC(),
             )

@@ -8,12 +8,14 @@ import com.dynokore.gst.notification.adapters.persistence.jooq.tables.Inbox.Comp
 import com.dynokore.gst.notification.application.alerting.PackAlertNotDelivered
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EnvelopeJson
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
@@ -27,6 +29,11 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.ReplayDelivery
 import com.dynokore.platform.outboxandqueue.ReplayOutcome
 import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
+import com.dynokore.platform.serviceruntime.replica.StructureChange
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
@@ -44,56 +51,82 @@ import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
-/**
- * INV-AC-20913 through the real inbox consumer (`JdbcInboxConsumer`) with the handler, the use case and the jOOQ
- * adapters of the TPL-18 context over PostgreSQL (P109). Only the event-log read is a list in memory: the `eventlog`
- * schema belongs to the event-log instance.
- */
-class PackConsumerBoundaryTest {
-    private val actor = "svc:notification-svc"
-    private val at = Instant.parse("2026-11-12T10:00:00Z")
-    private val json = EnvelopeJson()
-    private var sequence = 0L
+class Log : EventLogReader {
+    private val records = mutableListOf<LogRecord>()
 
-    private class Log : EventLogReader {
-        private val records = mutableListOf<LogRecord>()
-
-        fun add(envelopeJson: String) {
-            records += LogRecord(records.size + 1L, envelopeJson)
-        }
-
-        override fun read(
-            topic: String,
-            afterOffset: Long,
-            limit: Int,
-        ): List<LogRecord> = records.filter { it.offset > afterOffset }.take(limit)
+    fun add(envelopeJson: String) {
+        records += LogRecord(records.size + 1L, envelopeJson)
     }
 
-    private class Boundary(
-        context: ApplicationContext,
+    override fun read(
         topic: String,
-    ) {
-        val scope: TenantScope = context.getBean(TenantScope::class.java)
-        val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
-        val dsl: DSLContext = context.getBean(DSLContext::class.java)
-        val log = Log()
+        afterOffset: Long,
+        limit: Int,
+    ): List<LogRecord> = records.filter { it.offset > afterOffset }.take(limit)
+}
 
-        // a consumer name of its own per test: the offset row is platform-scoped and the database is shared
-        val consumerName = PackConsumerConfiguration.CONSUMER + "-" + UUID.randomUUID()
-        val consumer =
-            JdbcInboxConsumer(
-                ConsumerSubscription(consumerName, topic, PackConsumerConfiguration.SCHEMA),
-                context.getBean(EventCatalogue::class.java),
-                log,
-                scope,
-                dsl,
-                context.getBean(PackCurrencyChangedHandler::class.java),
-                RebuildRequiredSink { },
-                Clock.systemUTC(),
-            )
+class Boundary(
+    context: ApplicationContext,
+    topic: String,
+) {
+    val scope: TenantScope = context.getBean(TenantScope::class.java)
+    val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
+    val dsl: DSLContext = context.getBean(DSLContext::class.java)
+    val log = Log()
+    val structure: StructureReplica = context.getBean(StructureReplica::class.java)
+    private var structureVersion = 0L
+
+    /** Feeds [tenants] as TENANT nodes (retired as given) and completes the snapshot. */
+    fun register(
+        tenants: List<TenantId>,
+        retired: Set<TenantId> = emptySet(),
+    ) {
+        tenants.forEach { put(it, it.value.toString(), StructureNodeKind.TENANT, it in retired) }
+        structure.onSnapshotComplete(structureVersion)
     }
 
-    private fun run(
+    fun put(
+        tenant: TenantId,
+        ref: String,
+        kind: StructureNodeKind,
+        retired: Boolean = false,
+    ) = structure.accept(
+        OrganisationStructureChanged(
+            tenant,
+            ref,
+            StructureChange.UPDATED,
+            StructureNode(kind, null, retired, ref, null, emptyList(), ++structureVersion),
+        ),
+    )
+
+    // a consumer name of its own per test: the offset row is platform-scoped and the database is shared
+    val consumerName = PackConsumerConfiguration.CONSUMER + "-" + UUID.randomUUID()
+    val consumer =
+        JdbcInboxConsumer(
+            ConsumerSubscription(consumerName, topic, PackConsumerConfiguration.SCHEMA),
+            context.getBean(EventCatalogue::class.java),
+            log,
+            scope,
+            dsl,
+            context.getBean("packCurrencyChangedHandler", EventHandler::class.java),
+            RebuildRequiredSink { },
+            Clock.systemUTC(),
+        )
+}
+
+const val SEQUENCE_MASK = 0x3fffffffffffL
+
+const val WIDE = "00000000-0000-0000-0000-000000000000"
+
+/** Shared fixtures of the pack consumer boundary tests (INV-AC-20913, INV-AC-22425). */
+open class PackBoundarySupport {
+    protected val actor = "svc:notification-svc"
+    protected val at = Instant.parse("2026-11-12T10:00:00Z")
+    protected val json = EnvelopeJson()
+    protected val foreign = TenantId(UUID.randomUUID())
+    protected var sequence = System.nanoTime() and SEQUENCE_MASK
+
+    protected fun run(
         dir: Path,
         topic: String = PackConsumerConfiguration.TOPIC,
         block: Boundary.(TenantId) -> Unit,
@@ -101,50 +134,55 @@ class PackConsumerBoundaryTest {
         NotificationContext.online(dir).run { context -> Boundary(context, topic).block(TenantId(UUID.randomUUID())) }
     }
 
-    private fun <T> Boundary.tx(
+    protected fun <T> Boundary.tx(
         tenant: TenantId,
         body: () -> T,
     ): T = scope.bind(tenant, actor) { runner.inTransaction { body() } }
 
-    private fun policy(tenant: TenantId) =
-        NotificationDb.superuser().use {
-            it.createStatement().use { s ->
-                s.execute(
-                    "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, " +
-                        "channels, escalation_tiers, updated_at) values ('${tenant.value}', '$WIDE', " +
-                        "'PACK_STALENESS', " +
-                        "'[\"u1\",\"u2\"]', '[]', '[{\"tier\":1,\"daysToDue\":30}]', now())",
-                )
-            }
-        }
-
-    private fun changed(
+    protected fun policy(
         tenant: TenantId,
+        recipients: String = "[\"u1\",\"u2\"]",
+        tiers: String = "[{\"tier\":1,\"daysToDue\":30}]",
+    ) = NotificationDb.superuser().use {
+        it.createStatement().use { s ->
+            s.execute(
+                "insert into notification.alert_policy (tenant_id, entity_ref, alert_class, recipients, " +
+                    "channels, escalation_tiers, updated_at) values ('${tenant.value}', '$WIDE', " +
+                    "'PACK_STALENESS', '$recipients', '[]', '$tiers', now())",
+            )
+        }
+    }
+
+    /** A tenantless type is a platform event; any other type needs a real tenant, so the old type carries [foreign]. */
+    protected fun changed(
         eventId: String,
         dep: String = "DEP-001",
         status: String = "RAISED",
-        type: String = "com.dynokore.gst.rules.PackCurrencyChanged.v1",
-    ): String =
-        json.write(
+        type: String = PackCurrencyChangedHandler.EVENT_TYPE,
+        days: Int = 20,
+    ): String {
+        val platform = type == PackCurrencyChangedHandler.EVENT_TYPE
+        return json.write(
             Envelope(
                 id = EventId(eventId),
                 source = "/gst/rules-svc",
                 type = type,
                 subject = "pack",
                 time = at,
-                tenant = tenant,
-                entity = EntityRef("E-1"),
+                tenant = if (platform) TenantId.PLATFORM else foreign,
+                entity = if (platform) EntityRef.PLATFORM else EntityRef("E-1"),
                 docUuid = DocUuid(UUID.randomUUID()),
                 transactionDate = LocalDate.of(2026, 1, 15),
                 docSequence = ++sequence,
                 instanceId = "rules-svc-0",
                 correlation = CorrelationId("corr-1"),
                 causation = CausationId("cause-1"),
-                dataJson = """{"depCode":"$dep","status":"$status","daysToEffectiveDate":20}""",
+                dataJson = """{"depCode":"$dep","status":"$status","daysToEffectiveDate":$days}""",
             ),
         )
+    }
 
-    private fun Boundary.alerts(tenant: TenantId): List<List<String?>> =
+    protected fun Boundary.alerts(tenant: TenantId): List<List<String?>> =
         tx(tenant) {
             dsl
                 .selectFrom(ALERT)
@@ -152,29 +190,37 @@ class PackConsumerBoundaryTest {
                 .map { listOf(it.state, it.alertClass, it.trigger, it.entityRef) }
         }
 
-    private fun Boundary.inboxRows(tenant: TenantId) =
-        tx(tenant) { dsl.fetchCount(INBOX, INBOX.CONSUMER.eq(consumerName)) }
+    protected fun Boundary.inboxRows() =
+        tx(TenantId.PLATFORM) { dsl.fetchCount(INBOX, INBOX.CONSUMER.eq(consumerName)) }
 
-    private fun raised(state: String = "RAISED") = listOf(state, "PACK_STALENESS", "PACK_NOT_ACTIVATED", WIDE)
+    protected fun raised(state: String = "RAISED") = listOf(state, "PACK_STALENESS", "PACK_NOT_ACTIVATED", WIDE)
 
-    private fun Boundary.deadLetters(tenant: TenantId) =
-        tx(tenant) {
-            dsl
-                .select(EVENT_DEAD_LETTER.REASON)
-                .from(EVENT_DEAD_LETTER)
-                .where(EVENT_DEAD_LETTER.CONSUMER.eq(consumerName))
-                .fetch(0)
+    /** Read as the owner: a dead letter of a platform-tenant event is hidden from the runtime role (outbox-and-queue). */
+    protected fun Boundary.deadLetters(): List<String?> =
+        NotificationDb.superuser().use { c ->
+            c.prepareStatement("select reason from notification.event_dead_letter where consumer = ?").use { st ->
+                st.setString(1, consumerName)
+                st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
+            }
         }
+}
 
+/**
+ * INV-AC-20913 through the real inbox consumer (`JdbcInboxConsumer`) with the handler, the use case and the jOOQ
+ * adapters of the TPL-18 context over PostgreSQL (P109). Only the event-log read is a list in memory: the `eventlog`
+ * schema belongs to the event-log instance.
+ */
+class PackConsumerBoundaryTest : PackBoundarySupport() {
     @Test
     fun `INV-AC-20913 the first RAISED event stores one RAISED alert at the tenant-wide reference and is APPLIED`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e1"))
+        register(listOf(tenant))
+        log.add(changed("e1"))
         consumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
         alerts(tenant) shouldBe listOf(raised())
-        inboxRows(tenant) shouldBe 1
+        inboxRows() shouldBe 1
     }
 
     @Test
@@ -182,12 +228,13 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e1"))
+        register(listOf(tenant))
+        log.add(changed("e1"))
         consumer.pollOnce().applied shouldBe 1
-        log.add(changed(tenant, "e1"))
+        log.add(changed("e1"))
         consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 1, stale = 0, deadLettered = 0)
         alerts(tenant) shouldBe listOf(raised())
-        inboxRows(tenant) shouldBe 1
+        inboxRows() shouldBe 1
     }
 
     @Test
@@ -195,8 +242,9 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e1"))
-        log.add(changed(tenant, "e2"))
+        register(listOf(tenant))
+        log.add(changed("e1"))
+        log.add(changed("e2"))
         val result = consumer.pollOnce()
         result.applied shouldBe 1
         result.ignored shouldBe 1
@@ -208,9 +256,10 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e1"))
+        register(listOf(tenant))
+        log.add(changed("e1"))
         consumer.pollOnce().applied shouldBe 1
-        log.add(changed(tenant, "e3", status = "CLEARED"))
+        log.add(changed("e3", status = "CLEARED"))
         consumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
         alerts(tenant) shouldBe listOf(raised("RESOLVED"))
     }
@@ -220,7 +269,8 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e4", dep = "DEP-002"))
+        register(listOf(tenant))
+        log.add(changed("e4", dep = "DEP-002"))
         consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 1, duplicates = 0, stale = 0, deadLettered = 0)
         alerts(tenant) shouldBe emptyList()
     }
@@ -229,12 +279,13 @@ class PackConsumerBoundaryTest {
     fun `INV-AC-20913 a RAISED event for a tenant with no policy raises no alert and is not marked processed`(
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
-        log.add(changed(tenant, "e5"))
+        register(listOf(tenant))
+        log.add(changed("e5"))
         // the platform consumer schedules a retry with backoff and rethrows; it dead-letters only after max attempts
         shouldThrow<PackAlertNotDelivered> { consumer.pollOnce() }
         alerts(tenant) shouldBe emptyList()
-        inboxRows(tenant) shouldBe 0
-        deadLetters(tenant) shouldBe emptyList()
+        inboxRows() shouldBe 0
+        deadLetters() shouldBe emptyList()
     }
 
     @Test
@@ -242,10 +293,11 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e6", status = "RAISE"))
+        register(listOf(tenant))
+        log.add(changed("e6", status = "RAISE"))
         consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
         alerts(tenant) shouldBe emptyList()
-        deadLetters(tenant) shouldBe listOf("status must be RAISED or CLEARED")
+        deadLetters() shouldBe listOf("status must be RAISED or CLEARED")
     }
 
     @Test
@@ -253,7 +305,8 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e7", type = "com.dynokore.gst.rules.PackCurrencyChanged.v2"))
+        register(listOf(tenant))
+        log.add(changed("e7", type = "com.dynokore.gst.platform.PackCurrencyChanged.v2"))
         consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
         alerts(tenant) shouldBe emptyList()
     }
@@ -263,12 +316,13 @@ class PackConsumerBoundaryTest {
         @TempDir dir: Path,
     ) = run(dir) { tenant ->
         policy(tenant)
-        log.add(changed(tenant, "e1"))
-        log.add(changed(tenant, "e1"))
-        log.add(changed(tenant, "e2"))
-        log.add(changed(tenant, "e3", status = "CLEARED"))
-        log.add(changed(tenant, "e4", dep = "DEP-002"))
-        log.add(changed(tenant, "e6", status = "RAISE"))
+        register(listOf(tenant))
+        log.add(changed("e1"))
+        log.add(changed("e1"))
+        log.add(changed("e2"))
+        log.add(changed("e3", status = "CLEARED"))
+        log.add(changed("e4", dep = "DEP-002"))
+        log.add(changed("e6", status = "RAISE"))
         consumer.pollOnce() shouldBe PollResult(applied = 2, ignored = 2, duplicates = 1, stale = 0, deadLettered = 1)
         alerts(tenant) shouldBe listOf(raised("RESOLVED"))
     }
@@ -286,7 +340,8 @@ class PackConsumerBoundaryTest {
                 val boundary = Boundary(context, PackConsumerConfiguration.TOPIC)
                 val bean = context.getBean("packConsumer", JdbcInboxConsumer::class.java)
                 policy(tenant)
-                log.add(changed(tenant, "e1"))
+                boundary.register(listOf(tenant))
+                log.add(changed("e1"))
                 try {
                     bean.pollOnce() shouldBe
                         PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
@@ -373,8 +428,9 @@ class PackConsumerBoundaryTest {
             val b = Boundary(context, PackConsumerConfiguration.TOPIC)
             val tenant = TenantId(UUID.randomUUID())
             policy(tenant)
+            b.register(listOf(tenant))
             backlogPolicy(tenant)
-            b.enqueueReplay(context, tenant, PackConsumerConfiguration.TOPIC, changed(tenant, "r1"))
+            b.enqueueReplay(context, TenantId.PLATFORM, PackConsumerConfiguration.TOPIC, changed("r1"))
             context.getBean(ReplayDelivery::class.java).runOnce() shouldBe ReplayOutcome.APPLIED
             b.alerts(tenant) shouldBe listOf(raised())
         }
@@ -404,7 +460,7 @@ class PackConsumerBoundaryTest {
             val tenant = TenantId(UUID.randomUUID())
             policy(tenant)
             backlogPolicy(tenant)
-            b.enqueueReplay(context, tenant, "gst.rules.rule-pack-activated.v1", changed(tenant, "r2"))
+            b.enqueueReplay(context, tenant, "gst.rules.rule-pack-activated.v1", changed("r2"))
             try {
                 shouldThrow<UnroutableReplayItem> { context.getBean(ReplayDelivery::class.java).runOnce() }
                 b.alerts(tenant) shouldBe emptyList()
@@ -422,8 +478,143 @@ class PackConsumerBoundaryTest {
             context.getBeansOfType(ReplayDelivery::class.java).keys shouldBe setOf("notificationReplayDelivery")
         }
     }
+}
 
-    private companion object {
-        const val WIDE = "00000000-0000-0000-0000-000000000000"
+/** INV-AC-22425: the fan-out over the registered tenants through the real consumer. */
+class PackFanOutBoundaryTest : PackBoundarySupport() {
+    private fun Boundary.fanOutFixture(
+        t1: TenantId,
+        t2: TenantId,
+        t4: TenantId,
+    ) {
+        policy(t1, recipients = "[\"u1\"]", tiers = "[{\"tier\":1,\"daysToDue\":30}]")
+        policy(
+            t2,
+            recipients = "[\"u2\",\"u3\"]",
+            tiers = "[{\"tier\":1,\"daysToDue\":30},{\"tier\":2,\"daysToDue\":10}]",
+        )
+        put(t1, "E-1", StructureNodeKind.ENTITY)
+        put(TenantId.PLATFORM, TenantId.PLATFORM.value.toString(), StructureNodeKind.TENANT)
+        register(listOf(t1, t2, t4), retired = setOf(t4))
+    }
+
+    private fun Boundary.tiers(tenant: TenantId): List<Int?> =
+        tx(tenant) { dsl.select(ALERT.CURRENT_TIER).from(ALERT).fetch(0, Int::class.javaObjectType) }
+
+    @Test
+    fun `INV-AC-22425 one RAISED alert per registered tenant with its own tier, none for retired entity or platform`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val (t1, t2, t4) = List(3) { TenantId(UUID.randomUUID()) }
+        fanOutFixture(t1, t2, t4)
+        log.add(changed("e1", days = 5))
+        consumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
+        alerts(t1) shouldBe listOf(raised())
+        alerts(t2) shouldBe listOf(raised())
+        alerts(t4) shouldBe emptyList()
+        alerts(TenantId.PLATFORM) shouldBe emptyList()
+        tiers(t1) shouldBe listOf(1)
+        tiers(t2) shouldBe listOf(2)
+        inboxRows() shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-22425 the repeated event id is a duplicate and a second RAISED id is IGNORED`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val (t1, t2, t4) = List(3) { TenantId(UUID.randomUUID()) }
+        fanOutFixture(t1, t2, t4)
+        log.add(changed("e1"))
+        consumer.pollOnce().applied shouldBe 1
+        log.add(changed("e1"))
+        consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 1, stale = 0, deadLettered = 0)
+        log.add(changed("e2"))
+        consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 1, duplicates = 0, stale = 0, deadLettered = 0)
+        alerts(t1) shouldBe listOf(raised())
+        alerts(t2) shouldBe listOf(raised())
+    }
+
+    @Test
+    fun `INV-AC-22425 CLEARED sets both alerts to RESOLVED and DEP-002 is IGNORED`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val (t1, t2, t4) = List(3) { TenantId(UUID.randomUUID()) }
+        fanOutFixture(t1, t2, t4)
+        log.add(changed("e1"))
+        consumer.pollOnce().applied shouldBe 1
+        log.add(changed("e3", status = "CLEARED"))
+        consumer.pollOnce() shouldBe PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
+        alerts(t1) shouldBe listOf(raised("RESOLVED"))
+        alerts(t2) shouldBe listOf(raised("RESOLVED"))
+        log.add(changed("e4", dep = "DEP-002"))
+        consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 1, duplicates = 0, stale = 0, deadLettered = 0)
+        alerts(t1) shouldBe listOf(raised("RESOLVED"))
+    }
+
+    @Test
+    fun `INV-AC-22425 a registered tenant with no policy is not delivered after the others were alerted`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val (t1, t2, t4) = List(3) { TenantId(UUID.randomUUID()) }
+        val t3 = TenantId(UUID.randomUUID())
+        fanOutFixture(t1, t2, t4)
+        register(listOf(t1, t2, t3))
+        log.add(changed("e5"))
+        shouldThrow<PackAlertNotDelivered> { consumer.pollOnce() }
+        alerts(t1) shouldBe listOf(raised())
+        alerts(t2) shouldBe listOf(raised())
+        alerts(t3) shouldBe emptyList()
+        inboxRows() shouldBe 0
+        deadLetters() shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-22425 a replica that is not synced raises no alert and the event is not delivered`(
+        @TempDir dir: Path,
+    ) = run(dir) { tenant ->
+        policy(tenant)
+        put(tenant, tenant.value.toString(), StructureNodeKind.TENANT)
+        log.add(changed("e6"))
+        shouldThrow<PackAlertNotDelivered> { consumer.pollOnce() }
+        alerts(tenant) shouldBe emptyList()
+        inboxRows() shouldBe 0
+        deadLetters() shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-22425 the old type, the look-alike type and the payload with status RAISE go to the dead letter`(
+        @TempDir dir: Path,
+    ) = run(dir) { tenant ->
+        policy(tenant)
+        register(listOf(tenant))
+        log.add(changed("o1", type = "com.dynokore.gst.rules.PackCurrencyChanged.v1"))
+        log.add(changed("o2", type = "com.dynokore.gst.platform.PackCurrencyChanged.v2"))
+        log.add(changed("o3", status = "RAISE"))
+        consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 3)
+        alerts(tenant) shouldBe emptyList()
+        deadLetters().size shouldBe 3
+    }
+
+    @Test
+    fun `INV-AC-22425 the handler refuses an envelope of the platform type under a real tenant`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = TenantId(UUID.randomUUID())
+        // the envelope itself accepts a real tenant with the platform type, so the refusal is the handler's
+        val envelope = json.read(changed("x1")).copy(tenant = tenant, entity = EntityRef("E-1"))
+        NotificationContext.online(dir).run { context ->
+            shouldThrow<ContractViolation> {
+                context.getBean("packCurrencyChangedHandler", EventHandler::class.java).handle(envelope)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-22425 the context requires the structure snapshot`(
+        @TempDir dir: Path,
+    ) {
+        NotificationContext.online(dir).run { context ->
+            context.environment.getProperty("serviceruntime.replica.structure.require-snapshot") shouldBe "true"
+        }
     }
 }

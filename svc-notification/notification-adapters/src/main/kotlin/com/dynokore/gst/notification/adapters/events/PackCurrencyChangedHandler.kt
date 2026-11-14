@@ -1,7 +1,6 @@
 package com.dynokore.gst.notification.adapters.events
 
-import com.dynokore.gst.notification.application.alerting.HandlePackCurrencyChanged
-import com.dynokore.gst.notification.application.alerting.HandlePackCurrencyChangedResult
+import com.dynokore.gst.notification.application.alerting.FanOutPackCurrencyChanged
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -12,27 +11,32 @@ import tools.jackson.databind.ObjectMapper
 import com.dynokore.gst.notification.application.alerting.ContractViolation as PayloadViolation
 
 /**
- * The consumer-side handler of PackCurrencyChanged (INV-REQ-1080, INV-Q-20864 A): an adapter around the framework-free
- * [HandlePackCurrencyChanged]. It runs inside the consumer's transaction. A wrong type or a payload the use case
- * refuses is a contract violation (platform [ContractViolation]) that goes to the dead letter at once. A not-delivered
- * alert (`PackAlertNotDelivered`) propagates, so the event is never marked processed.
+ * The consumer-side handler of the platform-class PackCurrencyChanged (INV-REQ-1080, option A): an adapter around the
+ * framework-free [FanOutPackCurrencyChanged], which raises or resolves one alert per registered tenant. The event
+ * carries no tenant, so one under a real tenant is a contract violation. A wrong type or a payload the use case refuses
+ * is a contract violation (platform [ContractViolation]) that goes to the dead letter at once. A not-delivered alert
+ * (`PackAlertNotDelivered`) propagates, so the event is never marked processed.
  */
 class PackCurrencyChangedHandler(
-    private val useCase: HandlePackCurrencyChanged,
+    private val useCase: FanOutPackCurrencyChanged,
     private val mapper: ObjectMapper,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
-        if (event.type != EVENT_TYPE) throw ContractViolation("unexpected event type ${event.type}", null)
+        require(event)
         val payload = parse(event.dataJson)
         val result =
             try {
-                useCase.handle(event.tenant, payload)
+                useCase.handle(payload)
             } catch (e: PayloadViolation) {
                 throw ContractViolation(e.message ?: "payload refused", e)
             }
-        return when (result) {
-            HandlePackCurrencyChangedResult.Raised, HandlePackCurrencyChangedResult.Resolved -> HandleOutcome.APPLIED
-            else -> HandleOutcome.IGNORED
+        return if (result.applied) HandleOutcome.APPLIED else HandleOutcome.IGNORED
+    }
+
+    private fun require(event: Envelope) {
+        if (event.type != EVENT_TYPE) throw ContractViolation("unexpected event type ${event.type}", null)
+        if (!event.tenant.isPlatform) {
+            throw ContractViolation("a platform event must not carry tenant ${event.tenant.value}", null)
         }
     }
 
@@ -44,7 +48,7 @@ class PackCurrencyChangedHandler(
         }
 
     companion object {
-        const val EVENT_TYPE = "com.dynokore.gst.rules.PackCurrencyChanged.v1"
-        const val TOPIC = "gst.rules.pack-currency-changed.v1"
+        const val EVENT_TYPE = "com.dynokore.gst.platform.PackCurrencyChanged.v1"
+        const val TOPIC = "gst.platform.pack-currency-changed.v1"
     }
 }

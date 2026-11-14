@@ -44,6 +44,8 @@ object NotificationContext {
             "service-runtime.idempotency.schema=notification",
             "service-runtime.datasource.credential=db/notification_runtime",
             "gst.bindings.secret-store.mount-root=$mountRoot",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
         )
 
     /**

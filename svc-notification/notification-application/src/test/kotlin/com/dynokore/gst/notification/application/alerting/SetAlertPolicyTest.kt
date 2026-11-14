@@ -6,12 +6,15 @@ import com.dynokore.gst.notification.domain.alerting.RecordedAcknowledgement
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.DecisionReason
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
@@ -26,6 +29,7 @@ import java.util.UUID
 
 internal val TENANT = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
 internal const val ENTITY = "e1"
+internal const val ROLE = "test-role"
 internal val PERMITTED = Principal("permitted", PrincipalKind.HUMAN)
 internal val NO_GRANT = Principal("nobody", PrincipalKind.HUMAN)
 internal val REVOKED = Principal("revoked", PrincipalKind.HUMAN)
@@ -49,15 +53,32 @@ internal class ReplicaFixture(
     action: String,
 ) {
     val clock = TestClock()
-    val replica = AuthorityReplica(clock)
+    val replica =
+        AuthorityReplica(
+            clock,
+            OperationRoleMap { key ->
+                if (key ==
+                    action
+                ) {
+                    mapOf(ROLE to CellAllowance.PERMITTED)
+                } else {
+                    emptyMap()
+                }
+            },
+        )
     private var version = 0L
 
     init {
         replica.onSnapshotComplete(0)
-        val grant = Grant(action, ScopeLevel.ENTITY, ENTITY, clock.instant().minusSeconds(60))
+        val grant = RoleGrant(ROLE, GrantScope.ENTITY, ENTITY, clock.instant().minusSeconds(60))
         for (p in listOf(PERMITTED, REVOKED)) {
             replica.accept(
-                AuthorityChanged(TENANT, p.id, ++version, AuthorityRecord.GrantRecord(ENTITY, listOf(grant))),
+                AuthorityChanged(
+                    TENANT,
+                    p.id,
+                    ++version,
+                    AuthorityRecord.RoleGrantRecord("g1", RoleGrantState.ACTIVE, grant),
+                ),
             )
         }
         replica.accept(
@@ -67,7 +88,7 @@ internal class ReplicaFixture(
 
     /** A replica of the same grants whose feed lags past the bound with no fallback. */
     fun lagging(): AuthorityReplica {
-        val lagged = AuthorityReplica(clock)
+        val lagged = AuthorityReplica(clock, OperationRoleMap { emptyMap() })
         lagged.onSnapshotComplete(0)
         lagged.observeHead(version + 5)
         clock.advance(lagged.lagBound.plusSeconds(1))

@@ -41,3 +41,9 @@ inv:
     # cannot see as library-declared: the sys-owned claim function of the queue (QueueSchema.CLAIM_DUE, a table-valued
     # function in the generated code). The signed-binding key table is not generated (INV-T-7430), so it is not declared.
     platform-scoped-tables: notification.claim_due
+serviceruntime:
+  replica:
+    structure:
+      # the registered tenants come from the structure replica (INV-REQ-1200); it is complete only after its snapshot
+      require-snapshot: true
+      snapshot-topics: gst.tenancy.organisation-structure-changed.v1,gst.tenancy.entity-profile-changed.v1

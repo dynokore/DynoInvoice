@@ -1,6 +1,7 @@
 package com.dynokore.gst.notification.adapters
 
 import com.dynokore.gst.notification.adapters.events.NotificationEventCatalogue
+import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -113,11 +114,12 @@ class NotificationEventCatalogueTest {
     @Test
     fun `INV-AC-20913 the consumed pack currency event is listed and the own entries are unchanged`() {
         val entries = NotificationEventCatalogue.load().entries()
-        val entry = entries.single { it.eventType == "com.dynokore.gst.rules.PackCurrencyChanged.v1" }
-        entry.topic shouldBe "gst.rules.pack-currency-changed.v1"
-        entry.producers shouldBe setOf("rules-svc")
+        val entry = entries.single { it.eventType == "com.dynokore.gst.platform.PackCurrencyChanged.v1" }
+        entry.topic shouldBe "gst.platform.pack-currency-changed.v1"
+        entry.producers shouldBe setOf(CatalogueEntry.EVERY_SERVICE)
         entry.contentTopic shouldBe false
-        entries.any { it.eventType == "com.dynokore.gst.rules.PackCurrencyChanged" } shouldBe false
+        entries.any { it.eventType == "com.dynokore.gst.rules.PackCurrencyChanged.v1" } shouldBe false
+        entries.any { it.eventType == "com.dynokore.gst.platform.PackCurrencyChanged.v2" } shouldBe false
         entries.any { it.eventType == "com.dynokore.gst.submission.BacklogValuesMeasured.v1" } shouldBe true
         entries
             .filter { it.producers == setOf(NotificationEventCatalogue.SERVICE) }
