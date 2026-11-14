@@ -72,6 +72,9 @@ object SubmissionEvents {
     const val PERIOD_RECORDS_CHANGED_TOPIC = "gst.tenancy.period-records-changed.v1"
     const val PERIOD_RECORDS_CHANGED_TYPE = "com.dynokore.gst.tenancy.PeriodRecordsChanged.v1"
 
+    const val ENTITY_PROFILE_CHANGED_TOPIC = "gst.tenancy.entity-profile-changed.v1"
+    const val ENTITY_PROFILE_CHANGED_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
+
     const val DOCUMENT_HELD_TOPIC = "gst.canonical.document-held.v1"
     const val DOCUMENT_HELD_TYPE = "com.dynokore.gst.canonical.DocumentHeld.v1"
 
@@ -90,7 +93,8 @@ object SubmissionEvents {
      * `PeriodExtended` (producer tenancy-svc, no content topic, INV-REQ-81), `CanonicalVersionCreated` (producer
      * canonical-svc, content topic) and `PeriodDueDateChanged` (producer tenancy-svc, no content topic), the last
      * two feeding the obligation register (INV-REQ-570), and `PeriodRecordsChanged` (producer tenancy-svc, no
-     * content topic, INV-REQ-570); submission-svc
+     * content topic, INV-REQ-570) and `EntityProfileChanged` (producer tenancy-svc, no content topic, INV-REQ-335);
+     * submission-svc
      * is only their subscriber.
      */
     val consumed: List<CatalogueEntry> =
@@ -126,6 +130,13 @@ object SubmissionEvents {
             CatalogueEntry(
                 PERIOD_RECORDS_CHANGED_TYPE,
                 PERIOD_RECORDS_CHANGED_TOPIC,
+                setOf("tenancy-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                ENTITY_PROFILE_CHANGED_TYPE,
+                ENTITY_PROFILE_CHANGED_TOPIC,
                 setOf("tenancy-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,
