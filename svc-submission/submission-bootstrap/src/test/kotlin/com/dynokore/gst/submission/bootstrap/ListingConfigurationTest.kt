@@ -1,5 +1,8 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.application.gstn.EntityGstns
+import com.dynokore.gst.submission.application.listing.ExportSubmissionsRequest
+import com.dynokore.gst.submission.application.listing.ExportSubmissionsResult
 import com.dynokore.gst.submission.application.listing.ListSubmissions
 import com.dynokore.gst.submission.application.listing.ListSubmissionsRequest
 import com.dynokore.gst.submission.application.listing.ListSubmissionsResult
@@ -85,5 +88,24 @@ class ListingConfigurationTest {
         wired.summary(request, deadline) shouldBe SubmissionSummaryResult.Forbidden
         wired.summary(request, deadline) shouldBe handBuilt.summary(request, deadline)
         source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16330 the exportSubmissions bean refuses a caller without grants and reads nothing`() {
+        val replica = AuthorityReplica(clock, OperationRoleMap { emptyMap() })
+        val source = RecordingSource()
+        var lookups = 0
+        val gstns =
+            EntityGstns { _, _ ->
+                lookups++
+                "M00000000X"
+            }
+        val request = ExportSubmissionsRequest(tenant, stranger, "E1", "P1", SubmissionFilter())
+
+        val wired = ListingConfiguration().exportSubmissions(replica, source, gstns, clock)
+
+        wired.handle(request, deadline) shouldBe ExportSubmissionsResult.Forbidden
+        source.calls shouldBe 0
+        lookups shouldBe 0
     }
 }
