@@ -181,4 +181,11 @@ class DeferralsControllerTest {
     fun `INV-AC-21164 a denied undo is answered like accessDenied`() {
         problem(undo(mvc(allow = false), UUID(7, 7).toString()), ClosedErrorCode.ACCESS_DENIED)
     }
+
+    @Test
+    fun `INV-AC-21164 an undo without the principal is answered like unauthenticated SRT-003`() {
+        val result =
+            mvc().perform(post("/bff/entities/E1/deferrals/${UUID(7, 7)}/undo").accept(MediaType.ALL)).andReturn()
+        problem(result, ClosedErrorCode.UNAUTHENTICATED)
+    }
 }
