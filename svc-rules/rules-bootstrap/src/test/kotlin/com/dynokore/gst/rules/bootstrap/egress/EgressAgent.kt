@@ -26,6 +26,7 @@ private const val SINK = EgressRecorder.SINK_KEY
  */
 object EgressAgent {
     @JvmStatic
+    @Suppress("UnusedParameter") // the signature `premain(String, Instrumentation)` is the JDK's
     fun premain(
         args: String?,
         inst: Instrumentation,
@@ -35,44 +36,40 @@ object EgressAgent {
             .with(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
             .with(AgentBuilder.TypeStrategy.Default.REDEFINE)
             .with(AgentBuilder.InitializationStrategy.NoOp.INSTANCE)
-            .with(AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly())
-            .ignore(none<TypeDescription>())
+            .with(
+                AgentBuilder.Listener.StreamWriting
+                    .toSystemError()
+                    .withErrorsOnly(),
+            ).ignore(none<TypeDescription>())
             .type(named<TypeDescription>("sun.nio.ch.NioSocketImpl"))
-            .transform { builder, _, _, _, _ ->
-                builder
-                    .visit(
-                        Advice
-                            .to(AddressAdvice::class.java)
-                            .on(named<MethodDescription>("connect").and(takesArgument(0, SocketAddress::class.java))),
-                    ).visit(
-                        Advice
-                            .to(TargetAdvice::class.java)
-                            .on(
-                                named<MethodDescription>("connect")
-                                    .and(takesArguments(String::class.java, Int::class.javaPrimitiveType))
-                                    .or(
-                                        named<MethodDescription>("connect")
-                                            .and(takesArguments(InetAddress::class.java, Int::class.javaPrimitiveType)),
-                                    ),
-                            ),
-                    )
-            }.type(named<TypeDescription>("sun.nio.ch.SocketChannelImpl"))
-            .transform { builder, _, _, _, _ ->
-                builder.visit(
-                    Advice
-                        .to(AddressAdvice::class.java)
-                        .on(
-                            named<MethodDescription>("connect")
-                                .and(takesArguments(SocketAddress::class.java))
-                                .or(
-                                    named<MethodDescription>("blockingConnect")
-                                        .and(takesArgument(0, SocketAddress::class.java)),
-                                ),
-                        ),
-                )
-            }.installOn(inst)
+            .transform { builder, _, _, _, _ -> builder.visit(socketImplAdvice()).visit(socketImplTargetAdvice()) }
+            .type(named<TypeDescription>("sun.nio.ch.SocketChannelImpl"))
+            .transform { builder, _, _, _, _ -> builder.visit(channelAdvice()) }
+            .installOn(inst)
         System.getProperties()[EgressRecorder.AGENT_KEY] = "loaded"
     }
+
+    private fun connect() = named<MethodDescription>("connect")
+
+    /** `NioSocketImpl.connect(SocketAddress, int)`. */
+    private fun socketImplAdvice() =
+        Advice.to(AddressAdvice::class.java).on(connect().and(takesArgument(0, SocketAddress::class.java)))
+
+    /** `NioSocketImpl.connect(String, int)` and `connect(InetAddress, int)`. */
+    private fun socketImplTargetAdvice() =
+        Advice.to(TargetAdvice::class.java).on(
+            connect()
+                .and(takesArguments(String::class.java, Int::class.javaPrimitiveType))
+                .or(connect().and(takesArguments(InetAddress::class.java, Int::class.javaPrimitiveType))),
+        )
+
+    /** `SocketChannelImpl.connect(SocketAddress)` and `blockingConnect(SocketAddress, long)`. */
+    private fun channelAdvice() =
+        Advice.to(AddressAdvice::class.java).on(
+            connect()
+                .and(takesArguments(SocketAddress::class.java))
+                .or(named<MethodDescription>("blockingConnect").and(takesArgument(0, SocketAddress::class.java))),
+        )
 }
 
 /** Reports the address argument of a connect, before the connect proceeds. */

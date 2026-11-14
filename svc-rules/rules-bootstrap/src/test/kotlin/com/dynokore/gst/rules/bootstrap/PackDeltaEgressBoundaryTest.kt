@@ -56,7 +56,7 @@ class PackDeltaEgressBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-2077 arming is refused before the delta, the delta run makes no outbound connection, then approval is accepted`() {
+    fun `INV-AC-2077 arming is refused before the delta, the delta run has no egress, then approval passes`() {
         samples.serve("2026-Q3", listOf(item(DOC, "2026-Q3")))
         val packId = candidate()
 

@@ -50,6 +50,9 @@ internal object SchemaInspection {
             "dry_run_delta_total",
             "dry_run_sample_page",
             "dry_run_sample_item",
+            // the import status and the DEP-001 state of INV-T-4976, both relational
+            "pack_import",
+            "pack_currency_state",
         )
 
     /** The columns of the kernel's registry table (`PackRegistryMigration.ddl`), `pack_version` and not `version`. */

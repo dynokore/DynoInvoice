@@ -49,7 +49,9 @@ class EgressGuard private constructor(
 
         fun install(vararg extra: Allowed): EgressGuard {
             if (!EgressRecorder.agentLoaded) {
-                throw AssertionError("the egress agent is not loaded: start the test JVM with the agent jar of rules-bootstrap")
+                throw AssertionError(
+                    "the egress agent is not loaded: start the test JVM with the rules-bootstrap agent jar",
+                )
             }
             check(installed.compareAndSet(false, true)) { "an egress guard is already installed" }
             EgressRecorder.start()

@@ -74,7 +74,11 @@ val egressAgentJar =
         archiveFileName.set("egress-agent.jar")
         destinationDirectory.set(layout.buildDirectory.dir("egress-agent"))
         dependsOn(tasks.named("testClasses"))
-        from(sourceSets.test.get().output.classesDirs) {
+        from(
+            sourceSets.test
+                .get()
+                .output.classesDirs,
+        ) {
             include("com/dynokore/gst/rules/bootstrap/egress/EgressAgent*.class")
             include("com/dynokore/gst/rules/bootstrap/egress/AddressAdvice*.class")
             include("com/dynokore/gst/rules/bootstrap/egress/TargetAdvice*.class")
@@ -89,7 +93,13 @@ val egressAgentJar =
 
 tasks.test {
     dependsOn(egressAgentJar)
-    jvmArgs("-javaagent:" + layout.buildDirectory.file("egress-agent/egress-agent.jar").get().asFile.absolutePath)
+    jvmArgs(
+        "-javaagent:" +
+            layout.buildDirectory
+                .file("egress-agent/egress-agent.jar")
+                .get()
+                .asFile.absolutePath,
+    )
     // ArchitectureTest scans the generated contract layer of rules-contract
     dependsOn(":rules-contract:generateContractServer")
     useJUnitPlatform()

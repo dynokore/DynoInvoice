@@ -168,12 +168,21 @@ class ImportRegulatoryPack(
         running: String,
     ): ImportFailure? =
         when {
-            verified == null -> ImportFailure.SIGNATURE
-            !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) ->
+            verified == null -> {
+                ImportFailure.SIGNATURE
+            }
+
+            !EngineCompatibility.isCompatible(verified.version.manifest.minEngineVersion, running) -> {
                 ImportFailure.ENGINE
-            validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected ->
+            }
+
+            validator.validate(verified.artefact.contents) is ContentValidationOutcome.Rejected -> {
                 ImportFailure.CONTENTS
-            else -> null
+            }
+
+            else -> {
+                null
+            }
         }
 
     /** The status of an import, for the caller who holds the same permission as the import (reads change nothing). */
