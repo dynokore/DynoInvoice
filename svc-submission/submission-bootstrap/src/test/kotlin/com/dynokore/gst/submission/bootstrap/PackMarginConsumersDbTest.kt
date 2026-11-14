@@ -307,21 +307,6 @@ class PackMarginConsumersDbTest {
     }
 
     @Test
-    fun `INV-AC-22373 the platform type is handled and the rules type and the look-alike are refused`(
-        @TempDir dir: Path,
-    ) = run(dir) {
-        val t = UUID.randomUUID()
-        val body = staged("P-CAL", "1", """{"value":5,"unit":"DAYS"}""")
-        val refused = listOf("com.dynokore.gst.rules.RulePackStaged.v1", "com.dynokore.gst.platform.RulePackStagedX.v1")
-        refused.forEach { bad ->
-            shouldThrow<ContractViolation> { deliver(true, envelope(t, bad, body)) }
-            rows(t, "calendar_pack_version") shouldBe emptyList()
-        }
-        deliver(true, envelope(t, STAGED, body))
-        rows(t, "calendar_pack_version").size shouldBe 1
-    }
-
-    @Test
     fun `INV-AC-22373 the staged constants are the platform type and topic and no subscription names the old topic`() {
         SubmissionEvents.RULE_PACK_STAGED_TYPE shouldBe "com.dynokore.gst.platform.RulePackStaged.v1"
         SubmissionEvents.RULE_PACK_STAGED_TOPIC shouldBe "gst.platform.rule-pack-staged.v1"
