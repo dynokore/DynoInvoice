@@ -90,3 +90,5 @@ getLatestDocumentVersion	operation	openapi.yaml	INV-REQ-500
 getLatestDocumentVersion.SRT-005	operation_error_code	openapi.yaml	INV-REQ-500
 LatestDocumentVersion.docUuid	schema_property	openapi.yaml	INV-REQ-500
 LatestDocumentVersion.version	schema_property	openapi.yaml	INV-REQ-500
+# INV-T-22805: optional aggregate reference member of the PayloadReady payload (INV-REQ-439).
+aggregateId	property	schemas/payload-ready-payload.schema.json	INV-REQ-439

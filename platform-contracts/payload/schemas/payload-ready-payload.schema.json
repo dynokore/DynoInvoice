@@ -63,6 +63,11 @@
     "exchangeRate": {
       "$ref": "#/$defs/ExchangeRateUsed",
       "description": "The exchange-rate record used for this document (INV-REQ-512, INV-AC-530), with its source and load provenance. Present exactly when the document currency is not SGD (producer-enforced)."
+    },
+    "aggregateId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The identifier of the aggregate this document was recorded from: the aggregateId of the AggregateReady event, set only for a document recorded from an aggregate and absent on every other document; carried unchanged by CanonicalVersionCreated, PayloadReady and SubmissionDespatched so that aggregation-svc can mark the aggregate transmitted (INV-REQ-439). Optional so an older consumer validates."
     }
   },
   "required": [
