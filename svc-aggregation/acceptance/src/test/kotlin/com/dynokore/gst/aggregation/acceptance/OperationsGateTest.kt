@@ -176,6 +176,25 @@ class OperationsGateTest {
     }
 
     @Test
+    fun `the row of the ShortCodeUsed channel names INV-T-11280 by equality of the whole key`() {
+        OperationsGate.assignmentFindings(tsv).shouldBeEmpty()
+        tsv.lines() shouldContain "channel\taggregationShortCodeUsed\tINV-T-11280\topen"
+        val row = "channel\taggregationShortCodeUsed\tINV-T-11280\topen"
+        OperationsGate
+            .assignmentFindings(tsv.replace(row, "channel\taggregationShortCodeUsed\tINV-T-112800\topen"))
+            .single() stringContain "channel aggregationShortCodeUsed: task 'INV-T-112800'"
+        OperationsGate
+            .assignmentFindings(tsv.replace(row, "channel\taggregationShortCodeUsed\tUNASSIGNED\topen"))
+            .single() stringContain "channel aggregationShortCodeUsed: task 'UNASSIGNED'"
+        OperationsGate
+            .assignmentFindings(tsv.replace(row, "channel\taggregationShortCodeUsed\tINV-T-4979\topen"))
+            .single() stringContain "channel aggregationShortCodeUsed: task 'INV-T-4979'"
+        OperationsGate
+            .assignmentFindings(tsv.lines().filterNot { it == row }.joinToString("\n"))
+            .single() stringContain "channel aggregationShortCodeUsed: no row"
+    }
+
+    @Test
     fun `the table names the task the split sets for each row`() {
         val intake = "intakeAggregationBatch\tINV-T-8473\topen"
         OperationsGate
