@@ -133,7 +133,7 @@ class JooqPackCurrencyStore(
         val id = UUID.randomUUID().toString()
         return EventContext(
             tenant = TenantId.PLATFORM,
-            entity = EntityRef(JooqPackImportStore.PLATFORM_ENTITY),
+            entity = EntityRef.PLATFORM,
             docUuid = null,
             transactionDate = null,
             aggregateKey = "pack-currency",

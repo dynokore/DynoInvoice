@@ -208,7 +208,7 @@ class JooqPackImportStore(
                 ?.value ?: UUID.randomUUID().toString()
         return EventContext(
             tenant = TenantId.PLATFORM,
-            entity = EntityRef(PLATFORM_ENTITY),
+            entity = EntityRef.PLATFORM,
             docUuid = null,
             transactionDate = null,
             aggregateKey = "$packId@$version",
@@ -227,7 +227,6 @@ class JooqPackImportStore(
         const val IMPORTING = "IMPORTING"
         const val STAGED = "STAGED"
         const val FAILED = "FAILED"
-        const val PLATFORM_ENTITY = "platform"
         private const val READER = "svc:rules-svc/op:get-regulatory-pack"
         private const val ACTOR_OF_FAILURE = "svc:rules-svc/op:import-regulatory-pack"
     }

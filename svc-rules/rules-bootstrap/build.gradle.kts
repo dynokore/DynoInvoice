@@ -56,6 +56,9 @@ dependencies {
     testImplementation(libs.jooq)
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.snakeyaml) // the gates read the rules contract documents
+    // the test bundles are signed with a throw-away key; the verifier already resolves the same versions
+    testImplementation(libs.bouncycastle.bcprov)
+    testImplementation(libs.bouncycastle.bcpkix)
     // ArchitectureRules, RawSqlPlacement, SqlGuards, MigrationLint (STK-41)
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.platform.outboxAndQueue.api)

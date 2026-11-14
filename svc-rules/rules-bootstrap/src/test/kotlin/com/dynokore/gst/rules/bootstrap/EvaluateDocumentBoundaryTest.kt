@@ -251,6 +251,8 @@ class BoundaryDoubles {
         "service-runtime.workload-identity.callers[2].subject=subject-of-$PAYLOAD",
         "service-runtime.workload-identity.callers[3].service=$PAYLOAD$ALT",
         "service-runtime.workload-identity.callers[3].subject=subject-of-$PAYLOAD$ALT",
+        // the pack feed is a stopped simulator: nothing listens on this port (INV-AC-22191)
+        "rules.pack-feed.url=http://127.0.0.1:1/",
     ],
 )
 class EvaluateDocumentBoundaryTest(
@@ -258,6 +260,8 @@ class EvaluateDocumentBoundaryTest(
     @Autowired private val reader: PackContentsReader,
     @Autowired private val tenants: TenantContext,
     @Autowired private val tx: TransactionRunner,
+    @Autowired private val poller: com.dynokore.gst.rules.application.PackFeedPoller,
+    @Autowired private val currency: com.dynokore.gst.rules.application.PackCurrencyMonitor,
     @org.springframework.boot.test.web.server.LocalServerPort private val port: Int,
 ) {
     private val mapper = JsonMapper()
@@ -590,6 +594,22 @@ class EvaluateDocumentBoundaryTest(
                 }
             }
         }
+    }
+
+    @Test
+    fun `INV-AC-22191 INV-AC-2070 with the pack feed unreachable evaluateDocument answers on the active version`() {
+        currency.tick() // today's DEP-001 state exists, so a later tick of the day writes nothing
+        val verdict = evaluate("CHG", "2026-10-01")
+        val tablesBefore = snapshot()
+        // the real client polls the stopped feed: the poll runs, fails, and writes nothing
+        poller.tick() shouldBe true
+        poller.tick() shouldBe false
+        evaluate("CHG", "2026-10-01") shouldBe verdict
+        evaluate("CHG", "2026-10-01").version("MAPPING") shouldBe "m2"
+        evaluate("CHG", "2026-09-15").version("MAPPING") shouldBe "m1"
+        snapshot() shouldBe tablesBefore
+        // no pack was received: the registry holds no row that was not seeded
+        tablesBefore.getValue("pack_registry").size shouldBe snapshot().getValue("pack_registry").size
     }
 
     @Test
