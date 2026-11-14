@@ -10,10 +10,8 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
-import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
@@ -56,18 +54,18 @@ class MasterDataConsumerConfiguration {
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer =
-        JdbcInboxConsumer(
+        inboxConsumer(
             subscription,
+            ConsoleEvents.MASTER_DATA_RESOLVED_TYPE,
             catalogue,
             reader,
             scope,
-            TenancyJooq.dslContext(OutboxSchema.jooqTables(subscription.schema), scope.tenants, scope.transactions),
             handler,
             rebuildRequired,
             clock,
         )
 
     companion object {
-        const val MASTER_DATA_TOPIC = "gst.masterdata.master-data-resolved.v1"
+        const val MASTER_DATA_TOPIC = ConsoleEvents.MASTER_DATA_RESOLVED_TOPIC
     }
 }

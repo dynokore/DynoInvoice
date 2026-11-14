@@ -206,7 +206,7 @@ class ExceptionConsumersTest {
     }
 
     @Test
-    fun `INV-AC-21028 the catalogue lists exactly the two consumed events as topics yaml does`(
+    fun `INV-AC-21028 the catalogue lists exactly the consumed events as topics yaml does`(
         @TempDir dir: Path,
     ) = run(dir) {
         val catalogue = context.getBean(EventCatalogue::class.java)
@@ -220,7 +220,9 @@ class ExceptionConsumersTest {
             it.recordTopic shouldBe false
             it.retainedWhileResolvable shouldBe false
         }
-        ConsoleEvents.consumed.map { it.eventType } shouldBe listOf(held.eventType, released.eventType)
+        val masterData = checkNotNull(catalogue.find("com.dynokore.gst.masterdata.MasterDataResolved.v1"))
+        ConsoleEvents.consumed.map { it.eventType } shouldBe
+            listOf(held.eventType, released.eventType, masterData.eventType)
     }
 
     @Test
@@ -247,7 +249,7 @@ class ExceptionConsumersTest {
                     return HandleOutcome.APPLIED
                 }
             }
-        val dispatch = replayDispatch(fake("held"), fake("released"))
+        val dispatch = replayDispatch(fake("held"), fake("released"), fake("masterData"))
         val tenant = UUID.randomUUID()
         dispatch.handle(heldEvent(tenant, "r1"))
         calls shouldBe listOf("held")

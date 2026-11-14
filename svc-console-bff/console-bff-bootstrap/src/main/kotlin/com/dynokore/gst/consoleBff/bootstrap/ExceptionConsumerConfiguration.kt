@@ -128,10 +128,11 @@ class ExceptionConsumerConfiguration {
         reader: EventLogReader,
         @Qualifier("documentHeldHandler") held: EventHandler,
         @Qualifier("documentReleasedHandler") released: EventHandler,
+        @Qualifier("masterDataResolvedHandler") masterData: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): ReplayDelivery {
-        val dispatch = replayDispatch(held, released)
+        val dispatch = replayDispatch(held, released, masterData)
         val inbox =
             JdbcInboxConsumer(
                 ConsumerSubscription(CONSUMER, ConsoleEvents.DOCUMENT_HELD_TOPIC, SCHEMA),
@@ -169,7 +170,7 @@ class ExceptionConsumerConfiguration {
 }
 
 @Suppress("LongParameterList")
-private fun inboxConsumer(
+internal fun inboxConsumer(
     subscription: ConsumerSubscription,
     type: String,
     catalogue: EventCatalogue,
@@ -195,13 +196,18 @@ private fun inboxConsumer(
     )
 }
 
-/** The replay dispatch of the service: the held type to [held], the released type to [released], nothing else. */
+/** The replay dispatch: each consumed type to its own handler, nothing else. */
 internal fun replayDispatch(
     held: EventHandler,
     released: EventHandler,
+    masterData: EventHandler,
 ): EventHandler =
     TypeDispatchHandler(
-        mapOf(ConsoleEvents.DOCUMENT_HELD_TYPE to held, ConsoleEvents.DOCUMENT_RELEASED_TYPE to released),
+        mapOf(
+            ConsoleEvents.DOCUMENT_HELD_TYPE to held,
+            ConsoleEvents.DOCUMENT_RELEASED_TYPE to released,
+            ConsoleEvents.MASTER_DATA_RESOLVED_TYPE to masterData,
+        ),
     )
 
 /**

@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events console-bff lists in its [EventCatalogue]: the two canonical events it consumes, each equal to its row of
+ * The events console-bff lists in its [EventCatalogue]: the canonical and master-data events it consumes, each equal to its row of
  * platform-contracts `event-log/topics.yaml`. console-bff emits no event today; the task that emits one adds its entry.
  */
 @Configuration(proxyBeanMethods = false)
@@ -31,15 +31,21 @@ object ConsoleEvents {
     const val DOCUMENT_RELEASED_TYPE = "com.dynokore.gst.canonical.DocumentReleased.v1"
     const val DOCUMENT_RELEASED_TOPIC = "gst.canonical.document-released.v1"
 
+    private const val MASTERDATA = "masterdata-svc"
+
+    const val MASTER_DATA_RESOLVED_TYPE = "com.dynokore.gst.masterdata.MasterDataResolved.v1"
+    const val MASTER_DATA_RESOLVED_TOPIC = "gst.masterdata.master-data-resolved.v1"
+
     val consumed: List<CatalogueEntry> =
         listOf(
-            DOCUMENT_HELD_TYPE to DOCUMENT_HELD_TOPIC,
-            DOCUMENT_RELEASED_TYPE to DOCUMENT_RELEASED_TOPIC,
-        ).map { (type, topic) ->
+            Triple(DOCUMENT_HELD_TYPE, DOCUMENT_HELD_TOPIC, CANONICAL),
+            Triple(DOCUMENT_RELEASED_TYPE, DOCUMENT_RELEASED_TOPIC, CANONICAL),
+            Triple(MASTER_DATA_RESOLVED_TYPE, MASTER_DATA_RESOLVED_TOPIC, MASTERDATA),
+        ).map { (type, topic, producer) ->
             CatalogueEntry(
                 type,
                 topic,
-                setOf(CANONICAL),
+                setOf(producer),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,

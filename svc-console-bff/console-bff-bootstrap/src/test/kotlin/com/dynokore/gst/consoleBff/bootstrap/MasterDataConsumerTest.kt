@@ -234,6 +234,46 @@ class MasterDataConsumerTest {
         rows(b) shouldBe emptyList()
     }
 
+    @Test
+    fun `INV-AC-21063 the catalogue lists MasterDataResolved on its topic and no look-alike`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val catalogue = context.getBean(EventCatalogue::class.java)
+        val entry = checkNotNull(catalogue.find(RESOLVED))
+        entry.topic shouldBe "gst.masterdata.master-data-resolved.v1"
+        entry.producers shouldBe setOf("masterdata-svc")
+        entry.contentTopic shouldBe false
+        entry.recordTopic shouldBe false
+        entry.retainedWhileResolvable shouldBe false
+        catalogue.find("com.dynokore.gst.masterdata.MasterDataResolved.v2") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-21063 the replay dispatch reaches the master-data handler only and refuses a look-alike type`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val calls = mutableListOf<String>()
+
+        fun fake(name: String) =
+            object : EventHandler {
+                override fun handle(event: Envelope): HandleOutcome {
+                    calls += name
+                    return HandleOutcome.APPLIED
+                }
+            }
+        val dispatch = replayDispatch(fake("held"), fake("released"), fake("masterData"))
+        val tenant = UUID.randomUUID()
+        dispatch.handle(resolvedEvent(tenant, "r1"))
+        calls shouldBe listOf("masterData")
+        dispatch.handle(heldEvent(tenant, "r2"))
+        dispatch.handle(envelope(tenant, "r3", "com.dynokore.gst.canonical.DocumentReleased.v1", "{}", 2))
+        calls shouldBe listOf("masterData", "held", "released")
+        shouldThrow<ContractViolation> {
+            dispatch.handle(envelope(tenant, "r4", "com.dynokore.gst.masterdata.MasterDataResolved.v2", "{}", 2))
+        }
+        calls.size shouldBe 3
+    }
+
     private companion object {
         const val HELD = "com.dynokore.gst.canonical.DocumentHeld.v1"
         const val RESOLVED = "com.dynokore.gst.masterdata.MasterDataResolved.v1"
