@@ -64,6 +64,9 @@ class RetentionLiteralScanTest {
         mapOf(
             "evidence-domain/kotlin/com/dynokore/gst/evidence/domain/cases/CaseRecord.kt: ${number.pattern}: 60" to
                 "the maximum length of a subject reference (INV-T-11704)",
+            "evidence-application/kotlin/com/dynokore/gst/evidence/application/export/ExportTenantEvidence.kt:" +
+                " ${number.pattern}: 5" to
+                "the number of problem codes a FAILED export reason names, not a retention period (INV-T-22953)",
         )
 
     private fun findings(text: String): List<String> =
