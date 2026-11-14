@@ -196,8 +196,9 @@ class SubmissionListingHandlerTest {
         caller: Principal?,
         replica: AuthorityReplica,
         endUser: EndUserPrincipal? = null,
+        fixtureRows: List<SubmissionRow> = rows,
     ): Fixture {
-        val source = RecordingSource(rows)
+        val source = RecordingSource(fixtureRows)
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
                 check(method.name == "getAttribute") { "unexpected request call ${method.name}" }
@@ -295,6 +296,32 @@ class SubmissionListingHandlerTest {
         val callsBefore = f.source.calls
         refusedCall(f, counterparty = "Acme") shouldBe (400 to "SRT-001")
         f.source.calls shouldBe callsBefore
+    }
+
+    @Test
+    fun `INV-AC-16326 an unlisted lifecycle state is INTERNAL_ERROR and SUPERSEDED maps to SUPERSEDED`() {
+        listOf(LifecycleState.INGESTED, LifecycleState.HELD, LifecycleState.BLOCKED, LifecycleState.NOT_SUBMITTABLE)
+            .forEach { state ->
+                val unlisted =
+                    row(doc1, 1, state, LocalDate.of(2026, 11, 10), LocalDate.of(2026, 11, 1), "Acme", "100.00")
+                val f = fixture(machine(), replica(), fixtureRows = listOf(unlisted))
+                refusedCall(f) shouldBe (500 to "SRT-010")
+            }
+        val superseded =
+            row(
+                doc1,
+                1,
+                LifecycleState.SUPERSEDED,
+                LocalDate.of(2026, 11, 10),
+                LocalDate.of(2026, 11, 1),
+                "Acme",
+                "1.00",
+            )
+        call(fixture(machine(), replica(), fixtureRows = listOf(superseded)))
+            .items
+            .single()
+            .state.value shouldBe
+            "SUPERSEDED"
     }
 
     @Test
