@@ -52,6 +52,7 @@ internal object CalendarPackChecks {
     fun refusal(root: ContentsNode): String? {
         val windows = root.member("windows") ?: return "windows is required"
         val thresholds = root.member("alertThresholds")
+        if (thresholds != null && !thresholds.isObject) return "alertThresholds must be an object"
         return frequencyRefusal(windows, thresholds)
             ?: descendingRefusal(thresholds)
             ?: marginRefusal(root)

@@ -135,8 +135,7 @@ class PackContentsChecksTest {
     @Test
     fun `INV-AC-1727 the pack type is compared by equality so look-alikes are not checked as calendar`() {
         val bad = calendar(margin = null)
-        refusal(bad, "Calendar") shouldBe null
-        refusal(bad, "calendar-pack") shouldBe null
+        listOf("Calendar", "calendar", "CALENDAR-PACK", "calendar-pack").forEach { refusal(bad, it) shouldBe null }
         refusal(bad, "CALENDAR") shouldBe "safetyMargin is absent"
     }
 
@@ -159,5 +158,13 @@ class PackContentsChecksTest {
     @Test
     fun `INV-AC-1727 a scenario pack without renditionWording passes this check`() {
         refusal("""{"treatments":[]}""".toByteArray(), "SCENARIO") shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-1727 an alertThresholds member that is not an object is refused naming it and nothing is thrown`() {
+        refusal(calendar(thresholds = "[14,7,1]")) shouldBe "alertThresholds must be an object"
+        refusal(calendar(thresholds = """{"MONTHLY":"14","QUARTERLY":[30,14,7]}""")) shouldBe
+            "alertThresholds.MONTHLY must be a list of integers"
+        refusal(calendar(rows = listOf("7"))) shouldContain "entrySources"
     }
 }
