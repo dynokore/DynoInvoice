@@ -74,7 +74,8 @@ private fun calendar(
 
 /**
  * INV-T-22703 (slice 2 of INV-T-6567; INV-Q-6554, INV-Q-6556; INV-REQ-774, INV-REQ-1117, INV-REQ-1279): the
- * served `importRegulatoryPack` refuses a calendar pack whose defaults or source rows are incomplete, and a scenario pack with an unclassified
+ * served `importRegulatoryPack` refuses a calendar pack whose defaults or source rows are incomplete, and a
+ * scenario pack with an unclassified
  * rendition wording, with RUL-005 and the failing item in the detail; nothing is stored for a refused pack.
  */
 @SpringBootTest(
