@@ -2,12 +2,14 @@ package com.dynokore.gst.ingestion.adapters.persistence
 
 import com.dynokore.gst.ingestion.adapters.persistence.jooq.tables.TriggerCoverage.Companion.TRIGGER_COVERAGE
 import com.dynokore.gst.ingestion.adapters.persistence.jooq.tables.records.TriggerCoverageRecord
+import com.dynokore.gst.ingestion.application.triggers.RecordedCoverage
 import com.dynokore.gst.ingestion.application.triggers.TriggerCoverageStore
 import com.dynokore.gst.ingestion.domain.triggers.CoverageRecord
 import com.dynokore.gst.ingestion.domain.triggers.TriggerClass
 import org.jooq.DSLContext
 import org.jooq.Record
 import java.time.Clock
+import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -24,14 +26,14 @@ class TriggerCoverageJooqStore(
         tenantId: UUID,
         entityRef: String,
         triggerClass: TriggerClass,
-    ): CoverageRecord? =
+    ): RecordedCoverage? =
         dsl
             .selectFrom(TRIGGER_COVERAGE)
             .where(TRIGGER_COVERAGE.TENANT_ID.eq(tenantId))
             .and(TRIGGER_COVERAGE.ENTITY_REF.eq(entityRef))
             .and(TRIGGER_COVERAGE.TRIGGER_CLASS.eq(triggerClass.name))
             .fetchOne()
-            ?.let(::record)
+            ?.let { RecordedCoverage(record(it), checkNotNull(it.into(TRIGGER_COVERAGE).recordedAt).toInstant()) }
 
     override fun save(
         tenantId: UUID,
@@ -39,21 +41,24 @@ class TriggerCoverageJooqStore(
         triggerClass: TriggerClass,
         record: CoverageRecord,
         actorUserId: UUID,
-    ) {
+    ): Instant {
         val row = newRow(tenantId, entityRef, triggerClass, record, actorUserId)
-        dsl
-            .insertInto(TRIGGER_COVERAGE)
-            .set(row)
-            .onConflict(TRIGGER_COVERAGE.TENANT_ID, TRIGGER_COVERAGE.ENTITY_REF, TRIGGER_COVERAGE.TRIGGER_CLASS)
-            .doUpdate()
-            .set(TRIGGER_COVERAGE.STATUS, row.status)
-            .set(TRIGGER_COVERAGE.ADAPTER_REF, row.adapterRef)
-            .set(TRIGGER_COVERAGE.REVIEW_DATE, row.reviewDate)
-            .set(TRIGGER_COVERAGE.COVERING_SOLUTION, row.coveringSolution)
-            .set(TRIGGER_COVERAGE.EVIDENCE_REFERENCE, row.evidenceReference)
-            .set(TRIGGER_COVERAGE.RECORDED_BY, row.recordedBy)
-            .set(TRIGGER_COVERAGE.RECORDED_AT, row.recordedAt)
-            .execute()
+        val stored =
+            dsl
+                .insertInto(TRIGGER_COVERAGE)
+                .set(row)
+                .onConflict(TRIGGER_COVERAGE.TENANT_ID, TRIGGER_COVERAGE.ENTITY_REF, TRIGGER_COVERAGE.TRIGGER_CLASS)
+                .doUpdate()
+                .set(TRIGGER_COVERAGE.STATUS, row.status)
+                .set(TRIGGER_COVERAGE.ADAPTER_REF, row.adapterRef)
+                .set(TRIGGER_COVERAGE.REVIEW_DATE, row.reviewDate)
+                .set(TRIGGER_COVERAGE.COVERING_SOLUTION, row.coveringSolution)
+                .set(TRIGGER_COVERAGE.EVIDENCE_REFERENCE, row.evidenceReference)
+                .set(TRIGGER_COVERAGE.RECORDED_BY, row.recordedBy)
+                .set(TRIGGER_COVERAGE.RECORDED_AT, row.recordedAt)
+                .returning(TRIGGER_COVERAGE.RECORDED_AT)
+                .fetchSingle()
+        return checkNotNull(stored.recordedAt).toInstant()
     }
 
     private fun newRow(

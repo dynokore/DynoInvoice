@@ -2,6 +2,7 @@ package com.dynokore.gst.ingestion.application.triggers
 
 import com.dynokore.gst.ingestion.domain.triggers.CoverageRecord
 import com.dynokore.gst.ingestion.domain.triggers.TriggerClass
+import java.time.Instant
 import java.util.UUID
 
 /** The operations the permission port is asked about; the key is decided per request, never a role. */
@@ -19,13 +20,19 @@ data class TriggerCoverageChanged(
     val actorUserId: UUID,
 )
 
+/** A stored record with the time the store holds for the row. */
+data class RecordedCoverage(
+    val record: CoverageRecord,
+    val recordedAt: Instant,
+)
+
 /** Reads and writes rows in the caller's unit of work. */
 interface TriggerCoverageStore {
     fun find(
         tenantId: UUID,
         entityRef: String,
         triggerClass: TriggerClass,
-    ): CoverageRecord?
+    ): RecordedCoverage?
 
     fun save(
         tenantId: UUID,
@@ -33,7 +40,7 @@ interface TriggerCoverageStore {
         triggerClass: TriggerClass,
         record: CoverageRecord,
         actorUserId: UUID,
-    )
+    ): Instant
 }
 
 /** Hands one change to the outbox in the same unit of work as the store. */

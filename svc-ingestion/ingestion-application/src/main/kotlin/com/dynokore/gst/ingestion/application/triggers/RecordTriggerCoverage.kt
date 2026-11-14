@@ -3,6 +3,7 @@ package com.dynokore.gst.ingestion.application.triggers
 import com.dynokore.gst.ingestion.domain.triggers.CoverageRecord
 import com.dynokore.gst.ingestion.domain.triggers.TriggerClass
 import com.dynokore.gst.ingestion.domain.triggers.TriggerCoverageDecision
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
@@ -11,11 +12,13 @@ sealed interface CoverageOutcome {
     /** First write: stored and published once. */
     data class Stored(
         val record: CoverageRecord,
+        val recordedAt: Instant,
     ) : CoverageOutcome
 
     /** Same content again: the stored record, nothing stored or published. */
     data class Unchanged(
         val record: CoverageRecord,
+        val recordedAt: Instant,
     ) : CoverageOutcome
 
     /** Different content for a class already recorded: nothing changed. */
@@ -73,18 +76,22 @@ private class CoverageWriter(
         target: Target,
         record: CoverageRecord,
     ): CoverageOutcome {
-        store.save(target.tenantId, target.entityRef, target.triggerClass, record, target.actorUserId)
+        val recordedAt = store.save(target.tenantId, target.entityRef, target.triggerClass, record, target.actorUserId)
         events.publish(
             TriggerCoverageChanged(target.tenantId, target.entityRef, target.triggerClass, record, target.actorUserId),
         )
-        return CoverageOutcome.Stored(record)
+        return CoverageOutcome.Stored(record, recordedAt)
     }
 
     private fun outcomeForExisting(
-        existing: CoverageRecord,
+        existing: RecordedCoverage,
         record: CoverageRecord,
     ): CoverageOutcome =
-        if (existing == record) CoverageOutcome.Unchanged(existing) else CoverageOutcome.PreconditionFailed(existing)
+        if (existing.record == record) {
+            CoverageOutcome.Unchanged(existing.record, existing.recordedAt)
+        } else {
+            CoverageOutcome.PreconditionFailed(existing.record)
+        }
 }
 
 /** Records a class as mapped to an adapter (INV-REQ-788). Port failures propagate so the unit of work rolls back. */

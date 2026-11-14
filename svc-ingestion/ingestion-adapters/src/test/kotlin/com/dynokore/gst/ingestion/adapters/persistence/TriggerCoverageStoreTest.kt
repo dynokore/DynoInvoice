@@ -49,6 +49,7 @@ class TriggerCoverageStoreTest {
     /** One transaction of the runtime login bound to [tenant]: committed when [block] returns, else rolled back. */
     private fun <T> inTransaction(
         tenant: UUID,
+        storeClock: Clock = clock,
         block: (DSLContext, TriggerCoverageJooqStore, TriggerCoverageChangedOutbox) -> T,
     ): T =
         IngestionDb.connect(IngestionDb.RUNTIME, IngestionDb.RUNTIME_PASSWORD).use { connection ->
@@ -57,7 +58,7 @@ class TriggerCoverageStoreTest {
                 SignedBindings.bind(connection, tenant)
                 val dsl = DSL.using(connection, SQLDialect.POSTGRES)
                 val writer = JdbcOutboxWriter(dsl, IngestionDb.SCHEMA, "ingestion-svc", "i-1", catalogue, clock)
-                val store = TriggerCoverageJooqStore(dsl, clock)
+                val store = TriggerCoverageJooqStore(dsl, storeClock)
                 val result = block(dsl, store, TriggerCoverageChangedOutbox(writer, clock))
                 connection.commit()
                 result
@@ -124,7 +125,8 @@ class TriggerCoverageStoreTest {
         save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Waived(REVIEW))
         coverageRows(tenant) shouldBe 1
         inTransaction(tenant) { _, store, _ ->
-            store.find(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED) shouldBe CoverageRecord.Waived(REVIEW)
+            store.find(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED)?.record shouldBe
+                CoverageRecord.Waived(REVIEW)
         }
     }
 
@@ -270,6 +272,22 @@ class TriggerCoverageStoreTest {
             connection.rollback()
         }
         coverageRows(tenant) shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-22510 save and find report the same instant with a nanosecond clock`() {
+        val tenant = UUID.randomUUID()
+        val nanos = Clock.fixed(Instant.parse("2026-11-12T10:00:00.123456789Z"), ZoneOffset.UTC)
+        val saved =
+            inTransaction(tenant, nanos) { _, store, _ ->
+                store.save(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED, CoverageRecord.Mapped("erp-ar"), actor)
+            }
+        val found =
+            inTransaction(tenant, nanos) { _, store, _ ->
+                store.find(tenant, "E-1", TriggerClass.OUTBOUND_DOCUMENT_ISSUED)
+            }
+        found?.recordedAt shouldBe saved
+        found?.record shouldBe CoverageRecord.Mapped("erp-ar")
     }
 
     private companion object {
