@@ -49,8 +49,7 @@ class PinnedResolveGroupContractTest {
 
     private fun props(schema: Map<*, *>) = (schema["properties"] as Map<*, *>)
 
-    @Test
-    fun `INV-AC-21303 resolveGroup is pinned with its request, result, codes, timeout and table row`() {
+    private fun assertOperation() {
         val op = console.operation("resolveGroup")
         requireEq("method", op.method, "POST")
         requireEq("path", op.path, "/bff/entities/{entityRef}/group-resolutions")
@@ -61,7 +60,9 @@ class PinnedResolveGroupContractTest {
             listOf("MDM-001", "MDM-002", "MDM-003", "MDM-004", "MDM-006", "SRT-001", "SRT-004", "SRT-014", "SRT-015"),
         )
         requireEq("x-timeout", op.body["x-timeout"], 5000)
+    }
 
+    private fun assertSchemas() {
         val request = console.schema("ResolveGroupRequest")
         val fields = setOf("errorCode", "counterpartyRef", "docUuids", "resolvedIdentifiers", "evidenceRef")
         requireEq("ResolveGroupRequest properties", props(request).keys, fields)
@@ -74,28 +75,29 @@ class PinnedResolveGroupContractTest {
         val counts = setOf("resolvedCount", "unchangedCount")
         requireEq("ResolveGroupResult properties", props(result).keys, counts)
         requireEq("ResolveGroupResult required", (result["required"] as List<*>).toSet(), counts)
+    }
 
+    private fun assertTable() {
         val rows =
-            File(
-                System.getProperty("gst.root.dir"),
-                "operations.tsv",
-            ).readLines().drop(1).map { it.split('\t') }.filter {
-                it.getOrNull(1) ==
-                    "resolveGroup"
-            }
-        requireEq("operations.tsv resolveGroup rows", rows.size, 1)
-        requireEq("operations.tsv row", rows.single(), listOf("operation", "resolveGroup", "UNASSIGNED"))
-        val tableIds =
             File(System.getProperty("gst.root.dir"), "operations.tsv")
                 .readLines()
                 .drop(1)
                 .map { it.split('\t') }
-                .filter { it[0] == "operation" }
-                .map { it[1] }
+        val resolve = rows.filter { it.getOrNull(1) == "resolveGroup" }
+        requireEq("operations.tsv resolveGroup rows", resolve.size, 1)
+        requireEq("operations.tsv row", resolve.single(), listOf("operation", "resolveGroup", "UNASSIGNED"))
+        val tableIds = rows.filter { it[0] == "operation" }.map { it[1] }
         requireEq(
             "table operation ids",
             tableIds.toSet(),
             OperationsGate.contractOperations(File(consoleDir, "openapi.yaml").readText()),
         )
+    }
+
+    @Test
+    fun `INV-AC-21303 resolveGroup is pinned with its request, result, codes, timeout and table row`() {
+        assertOperation()
+        assertSchemas()
+        assertTable()
     }
 }
