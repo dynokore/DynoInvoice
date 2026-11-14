@@ -77,7 +77,7 @@ class HttpTenantCloserTest {
     )
 
     @Test
-    fun `INV-AC-8177 closeTenant is a POST to the close path with the recorded custody holder, no override and no end-user token`() {
+    fun `INV-AC-8102 closeTenant is a POST to the close path with the recorded custody holder, no override and no end-user token`() {
         closer().close(CommercialRef("TEN-7B1004"), schedule(30)) shouldBe TenantClosing.Closed
         val r = received.single()
         r.path shouldBe "/internal/v1/tenancy/tenants/TEN-7B1004/close"
@@ -89,7 +89,7 @@ class HttpTenantCloserTest {
     }
 
     @Test
-    fun `INV-AC-8177 the idempotency key derives from the scheduleRef and is the same on a repeat`() {
+    fun `INV-AC-8102 the idempotency key derives from the scheduleRef and is the same on a repeat`() {
         closer().close(CommercialRef("TEN-7B1004"), schedule(null))
         closer().close(CommercialRef("TEN-7B1004"), schedule(null, "+6591234567"))
         received.map { it.key }.distinct().size shouldBe 1
@@ -98,7 +98,7 @@ class HttpTenantCloserTest {
     }
 
     @Test
-    fun `INV-AC-8177 a 409 refusal carries its detail and an unreachable tenancy-svc is not a closing`() {
+    fun `INV-AC-8102 a 409 refusal carries its detail and an unreachable tenancy-svc is not a closing`() {
         status = 409
         answer = """{"status":409,"code":"TNC-009","detail":"an in-scope document is unsubmitted"}"""
         closer().close(CommercialRef("TEN-2"), schedule(null)) shouldBe

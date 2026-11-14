@@ -158,7 +158,7 @@ class CloseDueTenantsTest {
     }
 
     @Test
-    fun `INV-AC-8177 the service closes the tenant that meets its checks once and the tenant that fails its check stays OPEN`() {
+    fun `INV-AC-8102 the service closes the tenant that meets its checks once and the tenant that fails its check stays OPEN`() {
         val ok = schedule("TEN-1", "SCH-1")
         val bad = schedule("TEN-2", "SCH-2")
         refusals["TEN-2"] = "an in-scope document is unsubmitted"
