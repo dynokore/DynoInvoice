@@ -47,6 +47,9 @@ inv:
     # PolicyReader (a later slice). A positive integer; a missing, zero or negative value fails the start.
     retry-boundary-minutes: 240 # provisional
     job-scheduling.enabled: true # INV-Q-16793 A: fire the registered jobs on their cron; tests set it false (SubmissionContext)
+  filing:
+    # The business zone in which a filing instant becomes a calendar date (ISO 8601; coordinator ruling round z, 2026-11-12, INV-T-20948): no default in code, a missing or invalid zone id fails the start.
+    business-zone: Asia/Singapore
   drain:
     # The period drain (INV-REQ-554): the number of despatches between two selections; a positive integer, a missing or non-positive value fails the start.
     batch-size: 20

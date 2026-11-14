@@ -318,6 +318,9 @@ class DrainControllerTest {
             },
             fixture.preview(),
             fixture.drain(),
+            unusedConfirmFiling(),
+            unusedRunner,
+            ZoneId.of("Asia/Singapore"),
         )
     }
 

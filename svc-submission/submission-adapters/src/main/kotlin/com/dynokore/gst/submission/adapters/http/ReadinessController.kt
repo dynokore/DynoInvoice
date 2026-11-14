@@ -6,12 +6,16 @@ import com.dynokore.gst.submission.application.drain.DrainResult
 import com.dynokore.gst.submission.application.drain.PreviewDrain
 import com.dynokore.gst.submission.application.drain.PreviewResult
 import com.dynokore.gst.submission.application.drain.number
+import com.dynokore.gst.submission.application.filing.ConfirmFiling
+import com.dynokore.gst.submission.application.filing.ConfirmFilingResult
 import com.dynokore.gst.submission.application.readiness.GetLatestReadinessCheck
 import com.dynokore.gst.submission.application.readiness.LatestCheckResult
 import com.dynokore.gst.submission.application.readiness.StoredReadinessCheck
 import com.dynokore.gst.submission.contract.api.ReadinessApi
+import com.dynokore.gst.submission.contract.model.ConfirmFilingRequest
 import com.dynokore.gst.submission.contract.model.DrainResultDrainedByTierInner
 import com.dynokore.gst.submission.contract.model.DrainResultResidualItemsInner
+import com.dynokore.gst.submission.contract.model.FilingConfirmation
 import com.dynokore.gst.submission.contract.model.IrreversibleImpact
 import com.dynokore.gst.submission.contract.model.OutcomeValues
 import com.dynokore.gst.submission.contract.model.ReadinessCheckRecord
@@ -27,6 +31,7 @@ import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
@@ -36,8 +41,10 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import tools.jackson.module.kotlin.readValue
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
+import com.dynokore.gst.submission.application.filing.ConfirmFilingRequest as ConfirmFilingCall
 
 /** ARC-19, CS-14: the one place a [ComplianceRefusal] of [ReadinessController] becomes the API-20 envelope. */
 @RestControllerAdvice(assignableTypes = [ReadinessController::class])
@@ -64,12 +71,61 @@ class ReadinessRefusalAdvice {
  * (SRT-001, SRT-004, SRT-005).
  */
 @RestController
+@Suppress("LongParameterList") // the composition of the readiness, drain and filing use cases (INV-T-20948)
 open class ReadinessController(
     private val latest: GetLatestReadinessCheck,
     private val http: ObjectProvider<HttpServletRequest>,
     private val preview: PreviewDrain,
     private val drain: DrainPeriod,
+    private val confirm: ConfirmFiling,
+    private val transactions: TransactionRunner,
+    private val businessZone: ZoneId,
 ) : ReadinessApi {
+    /**
+     * INV-REQ-914, INV-REQ-917 (INV-AC-20947): the filing fact over HTTP. The use case decides the permission for every
+     * caller kind; this binding converts the instant to the business-zone date and renders the dates back with the
+     * start of the day, so a repeat answers its body unchanged. One transaction wraps the call (the store needs it).
+     */
+    override fun confirmFiling(
+        entityRef: String,
+        periodRef: String,
+        confirmFilingRequest: ConfirmFilingRequest,
+    ): ResponseEntity<FilingConfirmation> {
+        val caller = filingCaller()
+        if (confirmFilingRequest.irasAcknowledgementReference.isBlank()) {
+            throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+        }
+        val call =
+            ConfirmFilingCall(
+                tenant = caller.first,
+                principal = caller.second,
+                entityRef = entityRef,
+                periodRef = periodRef,
+                filedAt = FilingBinding.toBusinessDate(confirmFilingRequest.filedAt, businessZone),
+                acknowledgementRef = confirmFilingRequest.irasAcknowledgementReference,
+                portalRef = confirmFilingRequest.portalReference,
+                correction = confirmFilingRequest.correction ?: false,
+            )
+        val result = transactions.inTransaction { confirm.handle(call, deadline()) }
+        if (result !is ConfirmFilingResult.Recorded) throw FilingBinding.refusalOf(result)
+        val portal = confirmFilingRequest.portalReference
+        return ResponseEntity.ok(FilingBinding.confirmation(call, portal, result, businessZone))
+    }
+
+    /** The tenant and principal of the request: the machine attribute first, else the end user as a person. */
+    private fun filingCaller(): Pair<TenantId, Principal> {
+        val request = http.getObject()
+        val machine = request.getAttribute(MachineTokenFilter.PRINCIPAL_ATTRIBUTE) as? Principal
+        if (machine != null) {
+            check(machine.kind == PrincipalKind.MACHINE) { "the machine attribute holds a non-machine principal" }
+            val tenant = machine.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+            return tenant to machine
+        }
+        val caller = caller()
+        val tenant = caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        return tenant to Principal(caller.actor, PrincipalKind.HUMAN)
+    }
+
     /** INV-REQ-1012: the count and total value of the drain; the use case decides the permission (never a role). */
     override fun previewDrainPeriod(
         entityRef: String,

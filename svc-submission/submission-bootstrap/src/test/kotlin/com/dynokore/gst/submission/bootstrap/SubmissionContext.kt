@@ -51,6 +51,8 @@ object SubmissionContext {
             "inv.submission.job-scheduling.enabled=false",
             // the TransportClient bean exists only with a base-url (INV-T-22121); the drain beans need it
             "inv.transport-client.base-url=http://transport.invalid",
+            // the business zone of confirmFiling has no default in code (INV-T-20948)
+            "inv.filing.business-zone=Asia/Singapore",
         )
 
     /**

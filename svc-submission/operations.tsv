@@ -2,7 +2,7 @@ kind	id	task
 operation	getReadiness	UNASSIGNED
 operation	drainPeriod	INV-T-20853
 operation	listReadinessChecks	UNASSIGNED
-operation	confirmFiling	UNASSIGNED
+operation	confirmFiling	INV-T-20948
 operation	listSubmissions	INV-T-16327
 operation	getSubmissionSummary	INV-T-22166
 operation	getSubmissionReconciliation	UNASSIGNED
