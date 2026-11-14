@@ -254,3 +254,5 @@ remediationOwner	property	schemas/document-code-raised-payload.schema.json	INV-R
 disposition	property	schemas/document-code-raised-payload.schema.json	INV-REQ-79
 getLatestReadinessCheck	operation	openapi.yaml	INV-REQ-500
 getLatestReadinessCheck.SRT-005	operation_error_code	openapi.yaml	INV-REQ-500
+# INV-T-22806 (INV-REQ-439). Optional aggregate reference member of the SubmissionDespatched payload.
+aggregateId	property	schemas/submission-despatched-payload.schema.json	INV-REQ-439

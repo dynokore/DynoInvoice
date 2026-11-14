@@ -25,3 +25,4 @@
 ../schemas/submission-failed-payload.schema.json submission-failed-*.json
 ../schemas/backlog-values-measured-payload.schema.json backlog-values-measured-*.json
 ../schemas/document-code-raised-payload.schema.json document-code-raised-*.json
+../schemas/submission-despatched-payload.schema.json submission-despatched-*.json
