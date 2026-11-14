@@ -11,6 +11,8 @@ import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Table
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 
@@ -75,27 +77,8 @@ class JooqDrainResidualSource(
         entityRef: String,
         periodRef: String,
     ): List<ResidualCandidate> {
-        // The last attempt of each version is a derived table (rank 1 by descending attempt number), never a
-        // generated-table alias: the tenancy verifier knows only the declared tables and rewrites inside the derived one.
-        val rank =
-            DSL
-                .rowNumber()
-                .over(
-                    DSL
-                        .partitionBy(attempt.TENANT_ID, attempt.DOC_UUID, attempt.VERSION)
-                        .orderBy(attempt.ATTEMPT_NUMBER.desc()),
-                ).`as`("attempt_rank")
-        val last =
-            DSL
-                .select(
-                    attempt.TENANT_ID,
-                    attempt.DOC_UUID,
-                    attempt.VERSION,
-                    attempt.FAILURE_CLASS,
-                    attempt.REQUESTED_AT,
-                    rank,
-                ).from(attempt)
-                .asTable("last_attempt")
+        val rank = lastRank()
+        val last = lastAttempts(rank)
         val failureClass = checkNotNull(last.field(attempt.FAILURE_CLASS))
         val requestedAt = checkNotNull(last.field(attempt.REQUESTED_AT))
         return dsl
@@ -125,6 +108,29 @@ class JooqDrainResidualSource(
                 )
             }
     }
+
+    // The last attempt of each version is a derived table (rank 1 by descending attempt number), never a
+    // generated-table alias: the tenancy verifier knows only the declared tables and rewrites inside the derived one.
+    private fun lastRank(): Field<Int> =
+        DSL
+            .rowNumber()
+            .over(
+                DSL
+                    .partitionBy(attempt.TENANT_ID, attempt.DOC_UUID, attempt.VERSION)
+                    .orderBy(attempt.ATTEMPT_NUMBER.desc()),
+            ).`as`("attempt_rank")
+
+    private fun lastAttempts(rank: Field<Int>): Table<*> =
+        DSL
+            .select(
+                attempt.TENANT_ID,
+                attempt.DOC_UUID,
+                attempt.VERSION,
+                attempt.FAILURE_CLASS,
+                attempt.REQUESTED_AT,
+                rank,
+            ).from(attempt)
+            .asTable(DSL.name("last_attempt"))
 
     private companion object {
         const val FIRST_VERSION = 1

@@ -102,7 +102,7 @@ class JooqReplayCandidateSource(
                 attempt.REQUESTED_AT,
                 rank,
             ).from(attempt)
-            .asTable(name)
+            .asTable(DSL.name(name))
 
     private fun toCandidate(
         r: Record,

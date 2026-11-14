@@ -6,9 +6,11 @@ import com.dynokore.gst.submission.adapters.persistence.JooqDrainResidualSource
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayCandidateSource
 import com.dynokore.gst.submission.application.drain.ResidualCandidate
 import com.dynokore.gst.submission.application.drain.ResidualKind
+import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -147,12 +149,13 @@ class TenancyVerifiedAdaptersDbTest {
     }
 
     private fun Kit.carriesTenancyListeners() {
-        // The test gate: a plain DSL.using context has no listeners, so it would never run through the verifier.
-        val configuration = dsl.configuration()
-        (
-            configuration.executeListenerProviders().isNotEmpty() ||
-                configuration.visitListenerProviders().isNotEmpty()
-        ) shouldBe true
+        // The test gate: a context that is not tenancy verified (DSL.using on a connection) would run a read of a
+        // table outside the declared schema; the verifier refuses it before any SQL reaches the server.
+        shouldThrow<TenantPredicateViolation> {
+            asTenant(UUID.randomUUID()) {
+                dsl.selectFrom(DSL.table(DSL.name("submission", "not_a_declared_table_$s"))).fetch()
+            }
+        }
     }
 
     private fun expected() =
