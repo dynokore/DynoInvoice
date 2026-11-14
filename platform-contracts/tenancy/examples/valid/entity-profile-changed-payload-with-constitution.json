@@ -1,0 +1,11 @@
+{
+  "entityRef": "E-001",
+  "changedAttributes": [
+    {
+      "attribute": "legalName",
+      "newValue": "Acme Pte Ltd"
+    }
+  ],
+  "effectiveDate": "2026-07-01",
+  "constitution": "PRIVATE_LIMITED"
+}

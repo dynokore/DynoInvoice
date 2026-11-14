@@ -230,3 +230,5 @@ closeTenant.TNC-014	operation_error_code	openapi.yaml	INV-REQ-8100
 dueDateVersion	property	schemas/period-due-date-changed-payload.schema.json	INV-REQ-88
 # INV-T-20742 adds one row (INV-REQ-88): filingDueDate is the optional per-period member of the PeriodRecordsChanged payload schema.
 filingDueDate	property	schemas/period-records-changed-payload.schema.json	INV-REQ-88
+# INV-T-21392: optional constitution member of the EntityProfileChanged payload (INV-REQ-479)
+constitution	property	schemas/entity-profile-changed-payload.schema.json	INV-REQ-479

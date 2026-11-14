@@ -41,6 +41,18 @@
       "description": "Date the changed profile takes effect.",
       "format": "date"
     },
+    "constitution": {
+      "type": "string",
+      "enum": [
+        "PRIVATE_LIMITED",
+        "SOLE_PROPRIETOR",
+        "PARTNERSHIP",
+        "PUBLIC_LIMITED"
+      ],
+      "x-extensible-enum": true,
+      "maxLength": 40,
+      "description": "Optional. The entity's constitution as tenancy-svc stores it; present only on an event of an entity; absent is valid. A replica orders by node.structureVersion."
+    },
     "node": {
       "type": "object",
       "description": "The node's full state after the change, the same node object getEntityStructure returns (INV-Q-3324 (a), INV-API-3327). A consumer replaces the node whole from it; the newest structureVersion holds every earlier change, so the order between the two structure topics does not matter. Absent only on a 1.0-shaped event.",
