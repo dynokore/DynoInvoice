@@ -13,6 +13,7 @@ import com.dynokore.gst.aggregation.application.TransactionsOutcome
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsReceipt
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsRequest
+import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsRequestTransactionsInner
 import com.dynokore.gst.aggregation.contract.model.ReplacedReceiptRequest
 import com.dynokore.gst.aggregation.contract.model.ReplacedReceiptResult
 import com.dynokore.gst.aggregation.domain.AggregateIntakeCheck
@@ -45,9 +46,17 @@ open class TransactionIntakeController(
     ): ResponseEntity<AggregationTransactionsReceipt> {
         val request = aggregationTransactionsRequest
         val type = (AggregateIntakeCheck.check(request.aggregateType.name) as IntakeVerdict.Accepted).type
-        if (request.transactions.any { (it.claimableInputTax != null) != (type == AggregateType.PCP) }) {
-            return refusedContract("claimableInputTax is required for PCP items and absent for POS and STI items")
+        return if (request.transactions.any { (it.claimableInputTax != null) != (type == AggregateType.PCP) }) {
+            refusedContract("claimableInputTax is required for PCP items and absent for POS and STI items")
+        } else {
+            store(request, type)
         }
+    }
+
+    private fun store(
+        request: AggregationTransactionsRequest,
+        type: AggregateType,
+    ): ResponseEntity<AggregationTransactionsReceipt> {
         val outcome =
             IntakeTransactions(cadences, windows, transactions.scoped(request.businessUnitRef, type))
                 .execute(
@@ -57,33 +66,36 @@ open class TransactionIntakeController(
                         aggregateType = type,
                         sourceKey = request.sourceKey,
                         sourceRevision = request.sourceRevision.toLong(),
-                        transactions =
-                            request.transactions.map {
-                                DatedTransaction(
-                                    transactionRef = it.transactionRef,
-                                    transactionDate = it.transactionDate,
-                                    internalTaxCode = it.internalTaxCode,
-                                    amount = it.amount.toPlainString(),
-                                    underlyingRef = request.underlyingRef,
-                                    isCreditNote = request.isCreditNote == true,
-                                    claimantReference = it.claimantReference,
-                                    claimableInputTax = it.claimableInputTax?.toPlainString(),
-                                )
-                            },
+                        transactions = request.transactions.map { dated(request, it) },
                     ),
                 )
-        if (outcome is TransactionsOutcome.SourceRevisionLower) {
-            return problem(IngestionErrorCode.SOURCE_REVISION_LOWER)
+        return if (outcome is TransactionsOutcome.SourceRevisionLower) {
+            problem(IngestionErrorCode.SOURCE_REVISION_LOWER)
+        } else {
+            ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                AggregationTransactionsReceipt(
+                    entityRef = request.entityRef,
+                    aggregateType = AggregationTransactionsReceipt.AggregateType.valueOf(type.name),
+                    acceptedCount = outcome.placed.size,
+                    windowState = receiptState(outcome.placed),
+                ),
+            )
         }
-        return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-            AggregationTransactionsReceipt(
-                entityRef = request.entityRef,
-                aggregateType = AggregationTransactionsReceipt.AggregateType.valueOf(type.name),
-                acceptedCount = outcome.placed.size,
-                windowState = receiptState(outcome.placed),
-            ),
-        )
     }
+
+    private fun dated(
+        request: AggregationTransactionsRequest,
+        item: AggregationTransactionsRequestTransactionsInner,
+    ) = DatedTransaction(
+        transactionRef = item.transactionRef,
+        transactionDate = item.transactionDate,
+        internalTaxCode = item.internalTaxCode,
+        amount = item.amount.toPlainString(),
+        underlyingRef = request.underlyingRef,
+        isCreditNote = request.isCreditNote == true,
+        claimantReference = item.claimantReference,
+        claimableInputTax = item.claimableInputTax?.toPlainString(),
+    )
 
     /**
      * The exclusion of an STI receipt that a full tax invoice replaced (INV-REQ-440): 200 with the outcome, or 409
