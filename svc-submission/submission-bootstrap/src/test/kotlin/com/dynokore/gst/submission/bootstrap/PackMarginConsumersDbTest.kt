@@ -312,7 +312,8 @@ class PackMarginConsumersDbTest {
     ) = run(dir) {
         val t = UUID.randomUUID()
         val body = staged("P-CAL", "1", """{"value":5,"unit":"DAYS"}""")
-        listOf("com.dynokore.gst.rules.RulePackStaged.v1", "com.dynokore.gst.platform.RulePackStagedX.v1").forEach { bad ->
+        val refused = listOf("com.dynokore.gst.rules.RulePackStaged.v1", "com.dynokore.gst.platform.RulePackStagedX.v1")
+        refused.forEach { bad ->
             shouldThrow<ContractViolation> { deliver(true, envelope(t, bad, body)) }
             rows(t, "calendar_pack_version") shouldBe emptyList()
         }
