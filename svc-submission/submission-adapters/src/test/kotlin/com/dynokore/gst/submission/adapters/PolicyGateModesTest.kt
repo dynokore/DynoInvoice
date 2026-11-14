@@ -46,7 +46,10 @@ class PolicyGateModesTest {
         val unsafe = unsafeField.get(null) as sun.misc.Unsafe
         val setting = unsafe.allocateInstance(ResolvedSetting::class.java) as ResolvedSetting
         mapOf("key" to key, "at" to at, "selected" to emptyList<SelectedOption>()).forEach { (name, value) ->
-            ResolvedSetting::class.java.getDeclaredField(name).also { it.isAccessible = true }.set(setting, value)
+            ResolvedSetting::class.java
+                .getDeclaredField(name)
+                .also { it.isAccessible = true }
+                .set(setting, value)
         }
         return setting
     }
