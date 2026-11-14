@@ -117,6 +117,7 @@ class BreakGlassRestrictionTest {
         issuedAt: Instant = BreakGlassTestBeans.BEFORE_E.minusSeconds(60),
         expiresIn: Duration = Duration.ofMinutes(10),
         pair: KeyPair = machinePair,
+        principalScope: String = "installation",
     ): String {
         val claims =
             JWTClaimsSet
@@ -128,7 +129,7 @@ class BreakGlassRestrictionTest {
                 .claim("tenant_id", BreakGlassTestBeans.TENANT_T)
                 .claim("scope", scope)
                 .claim("principal_type", scope)
-                .claim("principal_scope", "installation")
+                .claim("principal_scope", principalScope)
                 .jwtID("jti-1")
                 .issueTime(Date.from(issuedAt))
                 .expirationTime(Date.from(issuedAt.plus(expiresIn)))
@@ -324,7 +325,10 @@ class BreakGlassRestrictionTest {
         machineMarked.keys.forEach { label ->
             val reports = BreakGlassDoubles.reports.size
             val reached = Doubles.reached.size
-            val answer = call(context, op(label), machineToken(machineScopes.getValue(label)))
+            val entityRef = op(label).pathValues["entityRef"]
+            val coverage = if (entityRef == null) "installation" else "entity:$entityRef"
+            val token = machineToken(machineScopes.getValue(label), principalScope = coverage)
+            val answer = call(context, op(label), token)
             val shown = answer.body().take(BODY_SHOWN)
             (label to (answer.statusCode() in setOf(UNAUTHORIZED, FORBIDDEN)) to shown) shouldBe
                 (label to false to shown)
