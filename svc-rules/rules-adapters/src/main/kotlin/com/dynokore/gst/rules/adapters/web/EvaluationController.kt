@@ -68,10 +68,14 @@ open class EvaluationController(
 ) : EvaluationApi {
     private val creditNotes = CreditNoteCoding(DocumentCoder(packs, packs, packs))
 
-    override fun evaluateDocument(evaluateDocumentRequest: EvaluateDocumentRequest): ResponseEntity<EvaluationResult> =
-        ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = false))
+    // xFlowContext is verified by the runtime filter, not here (INV-T-9254)
+    override fun evaluateDocument(
+        xFlowContext: String,
+        evaluateDocumentRequest: EvaluateDocumentRequest,
+    ): ResponseEntity<EvaluationResult> = ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = false))
 
     override fun evaluatePreIssuanceDraft(
+        xFlowContext: String,
         evaluateDocumentRequest: EvaluateDocumentRequest,
     ): ResponseEntity<EvaluationResult> = ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = true))
 
