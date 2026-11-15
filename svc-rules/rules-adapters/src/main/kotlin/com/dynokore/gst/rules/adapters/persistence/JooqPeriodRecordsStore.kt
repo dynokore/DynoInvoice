@@ -37,7 +37,7 @@ class JooqPeriodRecordsStore(
         receivedAt: Instant,
     ): Boolean {
         val received = receivedAt.atOffset(ZoneOffset.UTC)
-        // One statement decides: the row is written only when absent or lower, so concurrent deliveries cannot both win.
+        // One statement decides: the row is written only when absent or lower, so two deliveries cannot both win.
         val applied =
             dsl
                 .insertInto(ENTITY_PERIOD_SET)

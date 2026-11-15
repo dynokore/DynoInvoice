@@ -27,9 +27,7 @@ class StoredLastCompletePeriodPort(
             try {
                 spans(tenant, entityRef)
             } catch (e: DataAccessException) {
-                throw PeriodCalendarUnavailableException(
-                    "the period calendar cannot be read: ${e.javaClass.simpleName}",
-                )
+                throw unreadable(e)
             } ?: throw PeriodCalendarUnavailableException("no period calendar record is stored for the entity")
         val today = BusinessDate.today(clock)
         return stored
@@ -37,4 +35,8 @@ class StoredLastCompletePeriodPort(
             .maxByOrNull { it.periodEnd }
             ?.periodRef
     }
+
+    private fun unreadable(cause: DataAccessException) =
+        PeriodCalendarUnavailableException("the period calendar cannot be read: ${cause.javaClass.simpleName}")
+            .also { it.addSuppressed(cause) }
 }

@@ -100,45 +100,47 @@ class PeriodRecordsChangedHandlerTest {
 
     @Test
     fun `INV-AC-20223 malformed payloads are contract violations and store nothing`() {
-        val long65 = "x".repeat(65)
-        val many = (1..601).joinToString(",", "[", "]") { period("P$it") }
-        val cases =
-            mapOf(
-                "not JSON" to "{not json",
-                "not an object" to "[]",
-                "no entityRef" to """{"version":1,"periods":[${period()}]}""",
-                "blank entityRef" to payload(entity = "\" \""),
-                "entityRef over 64" to payload(entity = "\"$long65\""),
-                "entityRef not a string" to payload(entity = "5"),
-                "version missing" to """{"entityRef":"E","periods":[${period()}]}""",
-                "version a string" to payload(version = "\"1\""),
-                "version a decimal" to payload(version = "1.5"),
-                "version zero" to payload(version = "0"),
-                "periods missing" to """{"entityRef":"E","version":1}""",
-                "periods not an array" to payload(periods = "{}"),
-                "periods empty" to payload(periods = "[]"),
-                "periods over 600" to payload(periods = many),
-                "item not an object" to payload(periods = "[\"x\"]"),
-                "periodRef missing" to payload(periods = """[{"periodStart":"2026-01-01","periodEnd":"2026-01-31"}]"""),
-                "periodRef blank" to payload(periods = "[${period(" ")}]"),
-                "periodRef over 64" to payload(periods = "[${period(long65)}]"),
-                "periodRef not a string" to
-                    payload(periods = """[{"periodRef":5,"periodStart":"2026-01-01","periodEnd":"2026-01-31"}]"""),
-                "periodStart missing" to payload(periods = """[{"periodRef":"P","periodEnd":"2026-01-31"}]"""),
-                "periodEnd missing" to payload(periods = """[{"periodRef":"P","periodStart":"2026-01-01"}]"""),
-                "periodStart not a date" to payload(periods = "[${period(start = "\"2026-13-01\"")}]"),
-                "periodEnd not a date" to payload(periods = "[${period(end = "\"31/01/2026\"")}]"),
-                "periodEnd before periodStart" to
-                    payload(periods = "[${period(start = "\"2026-02-01\"", end = "\"2026-01-31\"")}]"),
-                "periodRef repeated" to payload(periods = "[${period()},${period()}]"),
-            )
-        for ((name, data) in cases) {
+        for ((name, data) in malformedCases()) {
             statements.clear()
             val failure = runCatching { handler.handle(envelope(data)) }.exceptionOrNull()
             (failure != null && failure.javaClass == ContractViolation::class.java) shouldBe true
             if (statements.isNotEmpty()) error("$name: the store was called: $statements")
         }
         shouldThrow<ContractViolation> { handler.handle(envelope("{}")) }
+    }
+
+    private fun malformedCases(): Map<String, String> {
+        val long65 = "x".repeat(65)
+        val many = (1..601).joinToString(",", "[", "]") { period("P$it") }
+        return mapOf(
+            "not JSON" to "{not json",
+            "not an object" to "[]",
+            "no entityRef" to """{"version":1,"periods":[${period()}]}""",
+            "blank entityRef" to payload(entity = "\" \""),
+            "entityRef over 64" to payload(entity = "\"$long65\""),
+            "entityRef not a string" to payload(entity = "5"),
+            "version missing" to """{"entityRef":"E","periods":[${period()}]}""",
+            "version a string" to payload(version = "\"1\""),
+            "version a decimal" to payload(version = "1.5"),
+            "version zero" to payload(version = "0"),
+            "periods missing" to """{"entityRef":"E","version":1}""",
+            "periods not an array" to payload(periods = "{}"),
+            "periods empty" to payload(periods = "[]"),
+            "periods over 600" to payload(periods = many),
+            "item not an object" to payload(periods = "[\"x\"]"),
+            "periodRef missing" to payload(periods = """[{"periodStart":"2026-01-01","periodEnd":"2026-01-31"}]"""),
+            "periodRef blank" to payload(periods = "[${period(" ")}]"),
+            "periodRef over 64" to payload(periods = "[${period(long65)}]"),
+            "periodRef not a string" to
+                payload(periods = """[{"periodRef":5,"periodStart":"2026-01-01","periodEnd":"2026-01-31"}]"""),
+            "periodStart missing" to payload(periods = """[{"periodRef":"P","periodEnd":"2026-01-31"}]"""),
+            "periodEnd missing" to payload(periods = """[{"periodRef":"P","periodStart":"2026-01-01"}]"""),
+            "periodStart not a date" to payload(periods = "[${period(start = "\"2026-13-01\"")}]"),
+            "periodEnd not a date" to payload(periods = "[${period(end = "\"31/01/2026\"")}]"),
+            "periodEnd before periodStart" to
+                payload(periods = "[${period(start = "\"2026-02-01\"", end = "\"2026-01-31\"")}]"),
+            "periodRef repeated" to payload(periods = "[${period()},${period()}]"),
+        )
     }
 
     @Test

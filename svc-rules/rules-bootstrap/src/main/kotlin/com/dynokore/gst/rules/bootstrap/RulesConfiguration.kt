@@ -473,7 +473,7 @@ class RulesConfiguration {
         )
 
     /**
-     * rules-svc is the subscriber of `gst.tenancy.period-records-changed.v1` (platform-contracts event-log/topics.yaml):
+     * rules-svc is the subscriber of `gst.tenancy.period-records-changed.v1` (platform-contracts topics.yaml):
      * the handler replaces the period records of the entity in the consumer's transaction and sends nothing.
      */
     @Bean
