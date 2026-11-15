@@ -50,6 +50,19 @@ class PintSgPayloadProjectorTest {
     }
 
     @Test
+    fun `INV-AC-23006 projector blocks a buyer outside the value member`() {
+        val flat =
+            """
+            {"documentTypeCode":{"value":"380"},"parties":{"buyer":{"identifierScheme":"SG_UEN","identifierValue":"201888888A"},
+             "supplier":{"identifierScheme":"SG_UEN","identifierValue":"201912345A"}},
+             "documentNumber":{"value":"N1"},"documentDate":{"value":"2026-03-20"},
+             "identityTriple":{"value":{"senderId":"0195:201912345A","supplierId":"201912345A","supplierGstn":"M2-1234567-8"}}}
+            """.trimIndent()
+        val blocked = projector.project(BuildInput("E-001", flat, null, "SALE", true), "TYPE_2") as Projection.Blocked
+        blocked.validationTrace shouldContain "PARTY_IDENTIFIER_ABSENT"
+    }
+
+    @Test
     fun `INV-AC-23006 projector blocks an absent direction with its reason`() {
         val blocked = projector.project(input(direction = null), "TYPE_2") as Projection.Blocked
         blocked.validationTrace shouldContain "DIRECTION_ABSENT"
