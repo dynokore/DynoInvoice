@@ -103,7 +103,7 @@ class PackMarginConsumers {
     ): JdbcInboxConsumer =
         activatedConsumer(rulePackActivatedSubscription(), catalogue, reader, scope, handler, rebuildRequired, clock)
 
-    /** The activated consumer wiring of the bean: [handler] behind the exact-type guard; [subscription] is a seam for tests. */
+    /** The bean wiring: [handler] behind the exact-type guard; [subscription] is a seam for tests. */
     @Suppress("LongParameterList")
     internal fun activatedConsumer(
         subscription: ConsumerSubscription,
