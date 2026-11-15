@@ -9,13 +9,11 @@ import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.link.ClientSignatoryGrants
 import com.dynokore.gst.access.application.link.IssueSignedLinkUseCase
-import com.dynokore.gst.access.application.link.LinkInvalidations
 import com.dynokore.gst.access.application.link.LinkPasscodeSettings
 import com.dynokore.gst.access.application.link.LinkSecrets
 import com.dynokore.gst.access.application.link.OaepPasscodeSealer
 import com.dynokore.gst.access.application.link.PasscodeDigests
 import com.dynokore.gst.access.application.link.PasscodeSealer
-import com.dynokore.gst.access.application.link.RemovingClientSignatoryOnInvalidation
 import com.dynokore.gst.access.application.link.SealingKeys
 import com.dynokore.gst.access.application.link.SecureLinkSecrets
 import com.dynokore.gst.access.application.link.SignedLinks
@@ -25,10 +23,8 @@ import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
@@ -96,14 +92,6 @@ class SignedLinkIssueUseCases {
             incarnations,
             grants::nextAuthorityVersion,
         )
-
-    /** The invalidation of a client-signatory link also removes its role record, in the verify transaction. */
-    @Bean
-    @Primary
-    fun clientSignatoryAwareInvalidations(
-        @Qualifier("linkInvalidations") delegate: LinkInvalidations,
-        grants: ClientSignatoryGrants,
-    ): LinkInvalidations = RemovingClientSignatoryOnInvalidation(delegate, grants)
 
     @Suppress("LongParameterList") // one collaborator per port of the use case
     @Bean

@@ -15,7 +15,10 @@ interface ClientSignatoryGrants {
         issuedAt: Instant,
     )
 
-    /** Publishes the REMOVED record of [link] (invalidated or revoked) at [at], at a higher authority version. */
+    /**
+     * Publishes the REMOVED record of [link] at [at], at a higher authority version. The only caller in this build is
+     * the invalidation by the fifth wrong passcode (INV-AC-2765); no revoke path exists.
+     */
     fun removed(
         link: SignedLink,
         at: Instant,
