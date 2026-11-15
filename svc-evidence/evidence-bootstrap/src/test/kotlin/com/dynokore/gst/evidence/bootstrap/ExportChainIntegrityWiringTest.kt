@@ -5,9 +5,12 @@ import com.dynokore.gst.evidence.application.export.ExportChainIntegrity
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Conditional
 import java.nio.file.Path
 import java.util.UUID
 
@@ -52,5 +55,20 @@ class ExportChainIntegrityWiringTest {
                 runner.inTransaction { gate.allowsExport(TenantId(verified)) }
             } shouldBe true
         }
+    }
+
+    @Test
+    fun `INV-AC-23209 the configuration declares one bean and no conditional annotation`() {
+        val type = ExportChainIntegrityConfiguration::class.java
+        val methods = type.declaredMethods.filter { it.isAnnotationPresent(Bean::class.java) }
+        methods.size shouldBe 1
+        val annotations = (type.annotations.toList() + methods.single().annotations.toList())
+        annotations
+            .filter { a ->
+                a.annotationClass.java.name
+                    .startsWith("org.springframework.boot.autoconfigure.condition.") ||
+                    a.annotationClass.java.isAnnotationPresent(Conditional::class.java) ||
+                    a is Conditional
+            }.shouldBeEmpty()
     }
 }
