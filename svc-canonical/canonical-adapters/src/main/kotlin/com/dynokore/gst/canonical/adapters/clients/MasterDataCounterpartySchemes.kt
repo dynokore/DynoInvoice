@@ -7,7 +7,8 @@ import com.dynokore.gst.canonical.application.document.SchemeFactsAnswer
 import java.time.LocalDate
 
 /**
- * [CounterpartySchemeSource] over `resolveCounterparty` of masterdata-svc (schemes outside their window on the lookup date are dropped; a second bounded call per record; the
+ * [CounterpartySchemeSource] over `resolveCounterparty` of masterdata-svc (schemes outside their window on the lookup
+ * date are dropped; a second bounded call per record; the
  * contract says the resolution is cached and fast). An answered counterparty is Found with its scheme facts (absent
  * schemes read as empty); no counterparty (answered without one, or 404) is Found(null); any other refusal and no
  * answer are Unavailable (fail closed).

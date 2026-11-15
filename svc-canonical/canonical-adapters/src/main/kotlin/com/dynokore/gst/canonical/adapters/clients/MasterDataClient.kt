@@ -61,7 +61,7 @@ sealed interface MasterDataAnswer<out T> {
     ) : MasterDataAnswer<Nothing>
 }
 
-/** One approved scheme status item of the resolution, with the window in which it is in force (both bounds inclusive). */
+/** One approved scheme status item of the resolution, with its window of validity (both bounds inclusive). */
 data class ApprovedSchemeWindow(
     val scheme: String,
     val effectiveFrom: LocalDate,
