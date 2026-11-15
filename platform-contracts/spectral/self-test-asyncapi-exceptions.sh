@@ -34,8 +34,10 @@ expect "embedded wildcard" 1 "$F/breaking.json" "$work/embedded-glob.txt"
 expect "malformed line" 1 "$F/breaking.json" "$work/malformed.txt"
 expect "comment without ruling" 1 "$F/breaking.json" "$work/noruling.txt"
 expect "[] with empty list" 0 "$work/none.json" "$work/empty.txt"
-expect "the committed list is comment-only" 0 "$work/none.json" asyncapi-exceptions.txt
-if grep -v '^#' asyncapi-exceptions.txt | grep -q .; then echo "gst-ci: FAIL — asyncapi-exceptions.txt has a non-comment line"; failed=1; fi
+expect "the committed list accepts an empty breaking list" 0 "$work/none.json" asyncapi-exceptions.txt
+# Each committed entry is one JSON object line directly below a "# " comment line (INV-T-23124 adds the first entries).
+if ! awk 'prev !~ /^# / && $0 !~ /^#/ && $0 != "" {bad=1} {prev=$0} END {exit bad}' asyncapi-exceptions.txt; then echo "gst-ci: FAIL — asyncapi-exceptions.txt has an entry without a comment line above it"; failed=1; fi
+if grep -v '^#' asyncapi-exceptions.txt | grep -v '^{' | grep -q .; then echo "gst-ci: FAIL — asyncapi-exceptions.txt has a line that is neither a comment nor a JSON object"; failed=1; fi
 printf 'not json' > "$work/bad.json"
 expect "input that is not JSON" 1 "$work/bad.json" "$work/empty.txt"
 
