@@ -16,7 +16,6 @@ import com.dynokore.platform.outboxandqueue.QueueEntry
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
@@ -185,15 +184,17 @@ class SubmissionWorkerDbTest {
         boundary.queued(tenant, f, aggregateId = "a\"b\\c")
         repeat(3) { boundary.sentOrFail(boundary.worker.takeNext()) }
 
-        fun members(doc: String): Map<String, Any?> {
+        // PostgreSQL parses the stored text as JSON; a JSON null would show as a null value, an absent member as no key.
+        fun members(doc: String): Map<String, String?> {
             val rows = boundary.outboxRows(tenant, doc)
             rows.size shouldBe 1
-            @Suppress("UNCHECKED_CAST")
-            return ObjectMapper().readValue(checkNotNull(rows[0].data).data(), Map::class.java) as Map<String, Any?>
+            return boundary.dsl
+                .fetch("select key, value from jsonb_each_text(?::jsonb)", checkNotNull(rows[0].data).data())
+                .associate { it.get(0, String::class.java) to it.get(1, String::class.java) }
         }
 
         fun published(doc: String) =
-            mapOf<String, Any?>("docUuid" to doc, "version" to 1, "attemptNumber" to 1, "payloadSha256" to sha)
+            mapOf<String, String?>("docUuid" to doc, "version" to "1", "attemptNumber" to "1", "payloadSha256" to sha)
 
         members(d) shouldBe published(d) + ("aggregateId" to "AGG-2026-0001")
         members(e) shouldBe published(e)
