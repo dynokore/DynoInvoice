@@ -545,7 +545,7 @@ class ReplayStateSourceTest {
                 for (state in states) {
                     val ref = state.aggregateKey
                     val replayed = nodeOf(state.dataJson)
-                    // OrganisationStructureChanged carries no constitution (INV-AC-21394 adds it to EntityProfileChanged only)
+                    // OrganisationStructureChanged carries no constitution (INV-AC-21394: EntityProfileChanged only)
                     assertThat(replayed)
                         .isEqualTo(env.profile.inTx { env.queries.node(ref)!!.node }.copy(constitution = null))
                     assertThat(replayed.structureVersion).isEqualTo(storedVersion(env, ref))
