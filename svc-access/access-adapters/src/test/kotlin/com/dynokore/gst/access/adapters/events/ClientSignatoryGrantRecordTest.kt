@@ -132,7 +132,8 @@ class ClientSignatoryGrantRecordTest {
         object : GrantAudit {
             override fun record(entry: GrantAuditEntry) = Unit
         }
-    private val grantsOut = ClientSignatoryGrantOutbox(
+    private val grantsOut =
+        ClientSignatoryGrantOutbox(
             captured,
             tenants,
             mapper,
@@ -276,12 +277,12 @@ class ClientSignatoryGrantRecordTest {
     fun `INV-AC-926 a failure of the outbox append rolls the issue back`() {
         val failing =
             ClientSignatoryGrantOutbox(
-            captured,
-            tenants,
-            mapper,
-            InMemoryAuthorityHead(),
-            InMemoryAuthorityIncarnation(),
-        ) { error("injected failure of the version draw") }
+                captured,
+                tenants,
+                mapper,
+                InMemoryAuthorityHead(),
+                InMemoryAuthorityIncarnation(),
+            ) { error("injected failure of the version draw") }
         val use =
             IssueSignedLinkUseCase(
                 tx,

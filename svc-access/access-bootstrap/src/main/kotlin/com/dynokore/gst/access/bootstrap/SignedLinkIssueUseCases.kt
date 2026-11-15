@@ -2,9 +2,9 @@ package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.events.ClientSignatoryGrantOutbox
 import com.dynokore.gst.access.adapters.events.OutboxLinkMessages
+import com.dynokore.gst.access.adapters.link.PemSealingKeys
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
-import com.dynokore.gst.access.adapters.link.PemSealingKeys
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantRepository
 import com.dynokore.gst.access.application.link.ClientSignatoryGrants
@@ -15,8 +15,8 @@ import com.dynokore.gst.access.application.link.LinkSecrets
 import com.dynokore.gst.access.application.link.OaepPasscodeSealer
 import com.dynokore.gst.access.application.link.PasscodeDigests
 import com.dynokore.gst.access.application.link.PasscodeSealer
-import com.dynokore.gst.access.application.link.SealingKeys
 import com.dynokore.gst.access.application.link.RemovingClientSignatoryOnInvalidation
+import com.dynokore.gst.access.application.link.SealingKeys
 import com.dynokore.gst.access.application.link.SecureLinkSecrets
 import com.dynokore.gst.access.application.link.SignedLinks
 import com.dynokore.gst.access.application.link.SmsGatewayBinding
@@ -25,8 +25,8 @@ import com.dynokore.platform.serviceruntime.binding.SecretRef
 import com.dynokore.platform.serviceruntime.binding.SecretStore
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import org.springframework.context.annotation.Bean
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
 import org.springframework.core.env.Environment
@@ -87,7 +87,8 @@ class SignedLinkIssueUseCases {
         head: AuthorityHeadStore,
         incarnations: AuthorityIncarnationStore,
         grants: GrantRepository,
-    ): ClientSignatoryGrants = ClientSignatoryGrantOutbox(
+    ): ClientSignatoryGrants =
+        ClientSignatoryGrantOutbox(
             outbox,
             tenants,
             mapper,

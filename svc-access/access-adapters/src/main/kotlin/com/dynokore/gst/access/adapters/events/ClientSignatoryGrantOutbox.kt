@@ -55,7 +55,7 @@ class ClientSignatoryGrantOutbox(
                     client.value,
                     state,
                     ValidityWindow(from, link.expiresAt),
-                    nextVersion(),
+                    version,
                 ).toString()
         outbox.append(
             listOf(OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, json)),
