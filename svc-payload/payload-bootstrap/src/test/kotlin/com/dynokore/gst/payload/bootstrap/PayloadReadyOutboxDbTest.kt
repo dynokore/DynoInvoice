@@ -6,8 +6,12 @@ import com.dynokore.gst.payload.application.payload.PublishPayloadReady
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -16,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import java.io.File
 import java.nio.file.Path
 import java.security.MessageDigest
 import java.util.Base64
@@ -131,10 +136,47 @@ class PayloadReadyOutboxDbTest {
                 }
             }
         }
-        b.rows(tenant).values.toList().shouldBeEmpty()
+        b
+            .rows(tenant)
+            .values
+            .toList()
+            .shouldBeEmpty()
         val committed = UUID.randomUUID()
         b.scope.bind(TenantId(tenant), actor) { b.runner.inTransaction { b.publish.publish(facts(committed, null)) } }
         b.rows(tenant).size shouldBe 1
-        b.rows(UUID.randomUUID()).values.toList().shouldBeEmpty()
+        b
+            .rows(UUID.randomUUID())
+            .values
+            .toList()
+            .shouldBeEmpty()
+    }
+
+    private fun schemaErrors(row: JsonNode): List<String> {
+        val dir = checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" }
+        val file = File(dir, "schemas/payload-ready-payload.schema.json")
+        check(file.isFile) { "the published schema is missing: $file" }
+        val registry =
+            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
+                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+            }
+        return registry
+            .getSchema(file.readText())
+            .validate(row.toString(), com.networknt.schema.InputFormat.JSON)
+            .map { it.message }
+    }
+
+    @Test
+    fun `INV-AC-22859 the stored row validates against the published schema and fails without payloadSha256`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val tenant = UUID.randomUUID()
+        val d = UUID.randomUUID()
+        b.scope.bind(TenantId(tenant), actor) {
+            b.runner.inTransaction { b.publish.publish(facts(d, "AGG-2026-0001")) }
+        }
+        val data = b.rows(tenant).getValue(d.toString()).data
+        schemaErrors(data).shouldBeEmpty()
+        val without = data.deepCopy<tools.jackson.databind.node.ObjectNode>().also { it.remove("payloadSha256") }
+        schemaErrors(without).shouldNotBeEmpty()
     }
 }

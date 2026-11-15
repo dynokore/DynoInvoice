@@ -28,5 +28,15 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.jsonSchemaValidator)
     testImplementation(testFixtures(project(":payload-adapters")))
+}
+
+// PayloadReadyOutboxDbTest reads the published schema from the pinned contract bundle staged by payload-contract.
+tasks.withType<Test>().configureEach {
+    val contractDir =
+        project(":payload-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/payload/${libs.versions.platformContractsBundle.get()}",
+        )
+    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
 }
