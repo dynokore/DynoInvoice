@@ -228,6 +228,26 @@ class JooqSubmissionStore(
         check(updated == 1) { "the locked submission row $docUuid version $version was not updated" }
     }
 
+    override fun recordAcknowledgementDeadline(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        deadline: Instant,
+    ) {
+        val s = Submission.SUBMISSION_
+        val updated =
+            dsl
+                .update(s)
+                .set(
+                    s.ACKNOWLEDGEMENT_DEADLINE,
+                    DSL.coalesce(s.ACKNOWLEDGEMENT_DEADLINE, deadline.atOffset(ZoneOffset.UTC)),
+                ).where(s.TENANT_ID.eq(tenant.value))
+                .and(s.DOC_UUID.eq(docUuid))
+                .and(s.VERSION.eq(version))
+                .execute()
+        check(updated == 1) { "the submission row $docUuid version $version was not updated" }
+    }
+
     override fun clearDueRetries(
         tenant: TenantId,
         now: Instant,

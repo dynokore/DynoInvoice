@@ -107,6 +107,17 @@ interface SubmissionStore {
         at: Instant,
     )
 
+    /**
+     * Writes `acknowledgement_deadline` of the version once: `coalesce(acknowledgement_deadline, deadline)`, so the
+     * first value stays. No other column is written. Throws when the row of the tenant, document and version is missing.
+     */
+    fun recordAcknowledgementDeadline(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+        deadline: Instant,
+    )
+
     /** Inserts the attempt row: the request is the payload bytes, the response columns belong to the attempts slice. */
     fun insertAttempt(
         tenant: TenantId,
