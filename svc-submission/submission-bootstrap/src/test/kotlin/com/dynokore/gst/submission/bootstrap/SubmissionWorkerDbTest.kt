@@ -18,6 +18,8 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
@@ -184,13 +186,25 @@ class SubmissionWorkerDbTest {
         boundary.queued(tenant, f, aggregateId = "a\"b\\c")
         repeat(3) { boundary.sentOrFail(boundary.worker.takeNext()) }
 
-        // PostgreSQL parses the stored text as JSON; a JSON null would show as a null value, an absent member as no key.
+        // PostgreSQL parses the stored text as JSON: a member is read by name, and its jsonb type tells an absent member
+        // (no type) from a JSON null ("null").
         fun members(doc: String): Map<String, String?> {
             val rows = boundary.outboxRows(tenant, doc)
             rows.size shouldBe 1
-            return boundary.dsl
-                .fetch("select key, value from jsonb_each_text(?::jsonb)", checkNotNull(rows[0].data).data())
-                .associate { it.get(0, String::class.java) to it.get(1, String::class.java) }
+            return listOf("docUuid", "version", "attemptNumber", "payloadSha256", "aggregateId")
+                .mapNotNull { key ->
+                    fun <T> read(field: Field<T>): T? =
+                        boundary.asTenant(tenant) {
+                            boundary.dsl
+                                .select(field)
+                                .from(Outbox.OUTBOX)
+                                .where(Outbox.OUTBOX.DOC_UUID.eq(UUID.fromString(doc)))
+                                .fetchOne(0, field.type)
+                        }
+                    val kind = read(DSL.jsonbGetAttribute(Outbox.OUTBOX.DATA, key))
+                    val text = read(DSL.jsonbGetAttributeAsText(Outbox.OUTBOX.DATA, key))
+                    if (kind == null) null else key to text
+                }.toMap()
         }
 
         fun published(doc: String) =

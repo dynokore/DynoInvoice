@@ -134,8 +134,11 @@ class PayloadReadyDbTest {
                 dsl
                     .select(Submission.SUBMISSION_.AGGREGATE_ID)
                     .from(Submission.SUBMISSION_)
-                    .where(Submission.SUBMISSION_.DOC_UUID.eq(doc).and(Submission.SUBMISSION_.VERSION.eq(version)))
-                    .fetchOne(Submission.SUBMISSION_.AGGREGATE_ID)
+                    .where(
+                        Submission.SUBMISSION_.DOC_UUID
+                            .eq(doc)
+                            .and(Submission.SUBMISSION_.VERSION.eq(version)),
+                    ).fetchOne(Submission.SUBMISSION_.AGGREGATE_ID)
             }
 
         fun queueRows(doc: String): Int =
@@ -174,7 +177,6 @@ class PayloadReadyDbTest {
             id: String = UUID.randomUUID().toString(),
             sequence: Long? = null,
             payload: Payload = Payload(bytes),
-            aggregateId: String? = null,
         ): Envelope =
             Envelope(
                 id = EventId(id),
@@ -193,7 +195,9 @@ class PayloadReadyDbTest {
                 dataJson =
                     """{"docUuid":"$doc","version":$version,"docsequence":${sequence ?: 1},"submissionType":"2",
                     |"specificationVersion":"1.0","payloadBytes":"${Base64.getEncoder().encodeToString(payload.bytes)}",
-                    |"payloadSha256":"${payload.declaredSha}"${aggregateId?.let { ""","aggregateId":"$it"""" } ?: ""}}
+                    |"payloadSha256":"${payload.declaredSha}"${payload.aggregateId?.let {
+                        ""","aggregateId":"$it""""
+                    }.orEmpty()}}
                     """.trimMargin(),
             )
     }
@@ -201,6 +205,7 @@ class PayloadReadyDbTest {
     private class Payload(
         val bytes: ByteArray,
         val declaredSha: String = sha(bytes),
+        val aggregateId: String? = null,
     )
 
     private fun run(
@@ -216,9 +221,9 @@ class PayloadReadyDbTest {
     ) = run(dir) {
         val d = UUID.randomUUID().toString()
         val e = UUID.randomUUID().toString()
-        deliver(envelope(d, 1, sequence = 1, aggregateId = "AGG-2026-0001"))
+        deliver(envelope(d, 1, sequence = 1, payload = Payload(bytes, aggregateId = "AGG-2026-0001")))
         deliver(envelope(e, 1, sequence = 2))
-        deliver(envelope(d, 1, sequence = 3, aggregateId = "AGG-2026-0001"))
+        deliver(envelope(d, 1, sequence = 3, payload = Payload(bytes, aggregateId = "AGG-2026-0001")))
         val recording = Recording(handler)
 
         consumer(recording).pollOnce()

@@ -129,13 +129,15 @@ class SentTransaction(
                     c == '\t' -> append("\\t")
                     c == '\b' -> append("\\b")
                     c == '\u000C' -> append("\\f")
-                    c < ' ' -> append("\\u").append(String.format("%04x", c.code))
+                    c < ' ' -> append("\\u").append(c.code.toString(HEX).padStart(UNICODE_DIGITS, '0'))
                     else -> append(c)
                 }
             }
         }
 
     companion object {
+        private const val HEX = 16
+        private const val UNICODE_DIGITS = 4
         const val DESPATCHED = "com.dynokore.gst.submission.SubmissionDespatched.v1"
     }
 }
