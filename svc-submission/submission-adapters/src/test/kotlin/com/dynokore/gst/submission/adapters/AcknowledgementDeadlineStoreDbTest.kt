@@ -206,15 +206,26 @@ class AcknowledgementDeadlineStoreDbTest {
                 TenantId(tenantB),
                 NewReadySubmission(docB, 1, "E", null, byteArrayOf(2), "sha-b", SubmissionKind.TYPE_2),
             )
-            shouldThrow<IllegalStateException> { bypassStore.recordAcknowledgementDeadline(TenantId(tenantA), docB, 1, at) }
-            bypassDsl
-                .fetchOne("select acknowledgement_deadline from submission.submission where doc_uuid = ?", docB)!!
-                .get(0) shouldBe null
+            shouldThrow<IllegalStateException> {
+                bypassStore.recordAcknowledgementDeadline(
+                    TenantId(tenantA),
+                    docB,
+                    1,
+                    at,
+                )
+            }
+            deadlineOf(bypassDsl, docB) shouldBe null
             bypassStore.recordAcknowledgementDeadline(TenantId(tenantB), docB, 1, at)
-            bypassDsl
-                .fetchOne("select acknowledgement_deadline from submission.submission where doc_uuid = ?", docB)!!
-                .get(0, java.time.OffsetDateTime::class.java)
-                .toInstant() shouldBe at
+            deadlineOf(bypassDsl, docB) shouldBe at
         }
     }
+
+    private fun deadlineOf(
+        d: org.jooq.DSLContext,
+        doc: String,
+    ): Instant? =
+        d
+            .fetchOne("select acknowledgement_deadline from submission.submission where doc_uuid = ?", doc)!!
+            .get(0, java.time.OffsetDateTime::class.java)
+            ?.toInstant()
 }

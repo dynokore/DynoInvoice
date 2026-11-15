@@ -109,7 +109,8 @@ interface SubmissionStore {
 
     /**
      * Writes `acknowledgement_deadline` of the version once: `coalesce(acknowledgement_deadline, deadline)`, so the
-     * first value stays. No other column is written. Throws when the row of the tenant, document and version is missing.
+     * first value stays. No other column is written. Throws when the row of the tenant, document and version is
+     * missing.
      */
     fun recordAcknowledgementDeadline(
         tenant: TenantId,
