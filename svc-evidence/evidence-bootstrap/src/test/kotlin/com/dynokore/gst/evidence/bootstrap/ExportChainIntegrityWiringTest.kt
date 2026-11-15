@@ -11,7 +11,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.util.UUID
 
-/** INV-AC-23209: the context holds exactly one export chain-integrity gate, the database adapter, and it fails closed. */
+/** INV-AC-23209: the context holds one export chain-integrity gate, the database adapter, and it fails closed. */
 class ExportChainIntegrityWiringTest {
     private fun seed(sql: String) = EvidenceDb.superuser().use { c -> c.createStatement().use { it.execute(sql) } }
 
@@ -31,7 +31,7 @@ class ExportChainIntegrityWiringTest {
     }
 
     @Test
-    fun `INV-AC-23209 the context holds exactly one ExportChainIntegrity bean, the database adapter, which fails closed`(
+    fun `INV-AC-23209 the context holds one ExportChainIntegrity, the database adapter`(
         @TempDir dir: Path,
     ) {
         EvidenceContext.online(dir).run { context ->

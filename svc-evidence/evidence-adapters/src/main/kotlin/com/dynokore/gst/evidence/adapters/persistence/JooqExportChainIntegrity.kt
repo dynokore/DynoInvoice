@@ -8,6 +8,8 @@ import com.dynokore.gst.evidence.application.export.ExportChainIntegrity
 import com.dynokore.gst.evidence.domain.integrity.RunResult
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import org.jooq.Field
+import org.jooq.Table
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.util.UUID
@@ -38,20 +40,30 @@ class JooqExportChainIntegrity(
     private fun hasOpenFailure(tenant: TenantId): Boolean =
         dsl.fetchExists(INTEGRITY_FAILURE, INTEGRITY_FAILURE.TENANT_ID.eq(tenant.value))
 
-    private fun hasUnverifiedChain(tenant: TenantId): Boolean {
-        val chains =
-            DSL
-                .select(APPLIED_RECORD.ENTITY_REF.`as`("entity_ref"), APPLIED_RECORD.PERIOD_REF.`as`("period_ref"))
-                .from(APPLIED_RECORD)
-                .where(APPLIED_RECORD.TENANT_ID.eq(tenant.value))
-                .union(
-                    DSL
-                        .select(PERIOD_DIGEST.ENTITY_REF, PERIOD_DIGEST.PERIOD_REF)
-                        .from(PERIOD_DIGEST)
-                        .where(PERIOD_DIGEST.TENANT_ID.eq(tenant.value)),
-                ).asTable("chain")
-        val entity = chains.field("entity_ref", String::class.java)
-        val period = chains.field("period_ref", String::class.java)
+    /** A chain of either table whose newest run is missing or not VERIFIED (a missing run reads as NEVER_RUN). */
+    private fun hasUnverifiedChain(tenant: TenantId): Boolean =
+        unverified(
+            tenant,
+            APPLIED_RECORD,
+            APPLIED_RECORD.TENANT_ID,
+            APPLIED_RECORD.ENTITY_REF,
+            APPLIED_RECORD.PERIOD_REF,
+        ) ||
+            unverified(
+                tenant,
+                PERIOD_DIGEST,
+                PERIOD_DIGEST.TENANT_ID,
+                PERIOD_DIGEST.ENTITY_REF,
+                PERIOD_DIGEST.PERIOD_REF,
+            )
+
+    private fun unverified(
+        tenant: TenantId,
+        table: Table<*>,
+        tenantId: Field<UUID?>,
+        entity: Field<String?>,
+        period: Field<String?>,
+    ): Boolean {
         val newest =
             DSL
                 .select(INTEGRITY_RUN.RESULT)
@@ -63,10 +75,9 @@ class JooqExportChainIntegrity(
                 ).orderBy(INTEGRITY_RUN.RUN_AT.desc(), INTEGRITY_RUN.SEQ.desc())
                 .limit(1)
         return dsl.fetchExists(
-            DSL
-                .selectOne()
-                .from(chains)
-                .where(DSL.coalesce(DSL.field(newest), "NEVER_RUN").ne(RunResult.VERIFIED.name)),
+            table,
+            tenantId.eq(tenant.value),
+            DSL.coalesce(DSL.field(newest), "NEVER_RUN").ne(RunResult.VERIFIED.name),
         )
     }
 }

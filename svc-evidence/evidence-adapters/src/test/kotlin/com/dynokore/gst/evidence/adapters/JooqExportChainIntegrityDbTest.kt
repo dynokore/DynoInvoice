@@ -14,16 +14,16 @@ import java.util.UUID
 class JooqExportChainIntegrityDbTest {
     private val digest = "sha256:" + "a".repeat(64)
 
-    private fun seed(sql: String) =
-        EvidenceDb.superuser().use { c -> c.createStatement().use { it.execute(sql) } }
+    private fun seed(sql: String) = EvidenceDb.superuser().use { c -> c.createStatement().use { it.execute(sql) } }
 
     private fun applied(
         tenant: UUID,
         entity: String,
         period: String = "2026-Q1",
     ) = seed(
-        "insert into evidence.applied_record (tenant_id, source_event_id, kind, entity_ref, period_ref, seq, applied_at) " +
-            "values ('$tenant', '${UUID.randomUUID()}', 'evidence_payload', '$entity', '$period', 1, now())",
+        "insert into evidence.applied_record (tenant_id, source_event_id, kind, entity_ref, period_ref, seq, " +
+            "applied_at) values ('$tenant', '${UUID.randomUUID()}', 'evidence_payload', '$entity', " +
+            "'$period', 1, now())",
     )
 
     private fun digested(
@@ -31,8 +31,9 @@ class JooqExportChainIntegrityDbTest {
         entity: String,
         period: String = "2026-Q1",
     ) = seed(
-        "insert into evidence.period_digest (tenant_id, entity_ref, period_ref, digest_seq, return_version, filed_at, " +
-            "recorded_at, source_event_id, digest) values ('$tenant', '$entity', '$period', 1, 1, now(), now(), " +
+        "insert into evidence.period_digest (tenant_id, entity_ref, period_ref, digest_seq, return_version, " +
+            "filed_at, recorded_at, source_event_id, digest) values ('$tenant', '$entity', '$period', 1, 1, " +
+            "now(), now(), " +
             "'${UUID.randomUUID()}', '$digest')",
     )
 
@@ -65,8 +66,13 @@ class JooqExportChainIntegrityDbTest {
             c.autoCommit = false
             SignedBindings.bind(c, bound)
             // without the index the tie of equal run_at is broken by the ORDER BY alone, not by the index order
-            if (noIndex) c.createStatement().use { it.execute("set local enable_indexscan = off; set local enable_bitmapscan = off") }
-            JooqExportChainIntegrity(DSL.using(c, SQLDialect.POSTGRES)).allowsExport(TenantId(asked)).also { c.commit() }
+            if (noIndex) {
+                c.createStatement().use {
+                    it.execute("set local enable_indexscan = off; set local enable_bitmapscan = off")
+                }
+            }
+            val gate = JooqExportChainIntegrity(DSL.using(c, SQLDialect.POSTGRES))
+            gate.allowsExport(TenantId(asked)).also { c.commit() }
         }
 
     @Test
