@@ -50,7 +50,7 @@ class VersionAggregateIdTest {
         member: String?,
     ) = bound(tenant) { store ->
         val data =
-            """{"docUuid":"$doc","version":1,${member?.let { "\"aggregateId\":$it," } ?: ""}""" +
+            """{"docUuid":"$doc","version":1,${member?.let { "\"aggregateId\":$it," }.orEmpty()}""" +
                 """"canonicalDocument":{"currency":{"value":"SGD"},"totals":{"value":{"totalIncludingTax":"10.00"}}}}"""
         CanonicalVersionCreatedHandler(RecordVersionFacts(store)).handle(envelope(tenant, doc, data))
     }
