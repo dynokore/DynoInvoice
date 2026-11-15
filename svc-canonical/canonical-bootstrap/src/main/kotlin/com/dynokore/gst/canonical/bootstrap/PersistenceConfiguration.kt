@@ -1,8 +1,10 @@
 package com.dynokore.gst.canonical.bootstrap
 
+import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentVersions
 import com.dynokore.gst.canonical.adapters.persistence.JooqPeriodSpans
 import com.dynokore.gst.canonical.adapters.persistence.JooqProfileElections
 import com.dynokore.gst.canonical.adapters.persistence.jooq.DefaultCatalog
+import com.dynokore.gst.canonical.application.document.DocumentVersions
 import com.dynokore.gst.canonical.application.document.PeriodSpans
 import com.dynokore.gst.canonical.application.document.PurchaseElections
 import org.jooq.DSLContext
@@ -26,4 +28,8 @@ class PersistenceConfiguration {
     /** The profile election store (INV-Q-21422 A); the jOOQ context is the one of the open transaction. */
     @Bean
     fun purchaseElections(dsl: DSLContext): PurchaseElections = JooqProfileElections(dsl)
+
+    /** The document version store (INV-AC-21469); the jOOQ context is the one of the open transaction. */
+    @Bean
+    fun documentVersions(dsl: DSLContext): DocumentVersions = JooqDocumentVersions(dsl)
 }
