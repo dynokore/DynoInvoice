@@ -33,22 +33,28 @@ class LinkSignatoryPermission(
         entityRef: String?,
         permission: Permission,
     ): Boolean {
-        if (!actor.startsWith(PREFIX) || tenant.isPlatform || entityRef == null || scopeRef != entityRef) return false
-        if (!allowed(permission)) return false
-        val linkRef = actor.substring(PREFIX.length)
-        return runCatching {
+        val linkRef = actor.takeIf { it.startsWith(PREFIX) }?.substring(PREFIX.length)
+        val asked = entityRef?.takeIf { scopeRef == it && !tenant.isPlatform && allowed(permission) }
+        return linkRef != null && asked != null && liveLinkOf(linkRef, tenant, actor) == asked
+    }
+
+    /** The client entity of the stored, usable and unexpired signatory link [linkRef] of [tenant]; null otherwise. */
+    private fun liveLinkOf(
+        linkRef: String,
+        tenant: TenantId,
+        actor: String,
+    ): String? =
+        runCatching {
             tenants.bind(tenant, actor) {
                 tx.inTransaction {
-                    val link = links.find(LinkRef(linkRef))
-                    link != null &&
-                        link.ref.value == linkRef &&
-                        link.client?.value == entityRef &&
-                        link.usable &&
-                        clock.instant().isBefore(link.expiresAt)
+                    links
+                        .find(LinkRef(linkRef))
+                        ?.takeIf { it.ref.value == linkRef && it.usable && clock.instant().isBefore(it.expiresAt) }
+                        ?.client
+                        ?.value
                 }
             }
-        }.getOrDefault(false)
-    }
+        }.getOrNull()
 
     private fun allowed(permission: Permission): Boolean =
         permission in matrix.permissionsOf(Role.CLIENT_SIGNATORY) &&

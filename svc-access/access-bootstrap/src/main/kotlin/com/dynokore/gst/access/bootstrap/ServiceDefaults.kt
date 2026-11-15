@@ -12,7 +12,6 @@ import com.dynokore.gst.access.adapters.persistence.jooq.Access
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.application.grant.GrantRepository
-import com.dynokore.gst.access.application.link.SignedLinks
 import com.dynokore.gst.access.domain.grant.ConsentCheck
 import com.dynokore.gst.access.domain.principal.MachinePermissionSets
 import com.dynokore.gst.access.domain.role.PermissionMatrix
@@ -99,17 +98,6 @@ class ServiceDefaults {
         directory: EntityDirectory,
         linkSignatory: LinkSignatoryPermission,
     ): SetterPermission = LiveSetterPermission(live, matrix, installation, directory, linkSignatory)
-
-    /** The CLIENT_ENTITY answer for a link principal, read from this service's own link store (INV-Q-9222 A). */
-    @Bean
-    @ConditionalOnMissingBean
-    fun linkSignatoryPermission(
-        tenants: TenantContext,
-        tx: TransactionRunner,
-        links: SignedLinks,
-        matrix: PermissionMatrix,
-        clock: Clock,
-    ) = LinkSignatoryPermission(tenants, tx, links, matrix, clock)
 
     /**
      * The fixed permission set of each of the six machine principal types (INV-REQ-584, INV-Q-8779 A). Built from the

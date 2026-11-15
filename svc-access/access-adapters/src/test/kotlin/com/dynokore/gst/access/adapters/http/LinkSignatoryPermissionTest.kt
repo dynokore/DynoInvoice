@@ -119,6 +119,7 @@ class LinkSignatoryPermissionTest {
             arrayOf(com.dynokore.gst.access.application.grant.GrantRepository::class.java),
         ) { _, _, _ -> emptyList<Any>() } as com.dynokore.gst.access.application.grant.GrantRepository
 
+    @Suppress("LongParameterList") // test helper mirroring the holds call
     private fun LiveSetterPermission.at(
         key: String = "vp-10.set",
         actor: String = "link:LNK-771A",
