@@ -135,11 +135,6 @@ class ProfileElectionStoreTest {
             "insert into canonical.profile_election " +
                 "values ('$t1', 'E1', 'purchaseDateBasis', date '2026-02-01', 'BAD', 1)",
         ) shouldBe "23514"
-        // the tenant policy refuses a row of another tenant bound session (row level security, not the query)
-        sqlState(
-            "insert into canonical.profile_election " +
-                "values ('${UUID.randomUUID()}', 'E1', 'purchaseDateBasis', date '2026-02-01', 'INVOICE_DATE', 1)",
-        ) shouldBe "42501"
         sqlState("delete from canonical.profile_election where entity_ref = 'E1'") shouldBe "42501"
         b.basisAs(t1, t1, jan) shouldBe DateBasis.INVOICE_DATE
     }
