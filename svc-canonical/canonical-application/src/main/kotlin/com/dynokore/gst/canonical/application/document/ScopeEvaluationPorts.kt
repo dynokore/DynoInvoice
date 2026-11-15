@@ -49,6 +49,12 @@ data class LineScopeFacts(
 sealed interface LineAnswer {
     data class Verdict(
         val scopeVerdict: String,
+        val categoryCode: String? = null,
+        val rate: String? = null,
+        val scopePackVersion: String? = null,
+        val mappingPackVersion: String? = null,
+        val mdePackVersion: String? = null,
+        val documentTypeCode: String? = null,
     ) : LineAnswer
 
     data object Unavailable : LineAnswer

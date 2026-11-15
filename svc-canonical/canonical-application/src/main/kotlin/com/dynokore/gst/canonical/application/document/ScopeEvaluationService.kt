@@ -24,14 +24,43 @@ class ScopeEvaluationService(
         } else {
             val scheme = (facts as SchemeFactsAnswer.Found).facts
             val elected = schemes.electedSchemesOf(command.tenantId, command.entityRef, transactionDate)
-            val verdicts = mutableListOf<String>()
+            val verdicts = mutableListOf<LineAnswer.Verdict>()
             for (line in command.lines) {
                 val scoped = LineScopeFacts(command.entityRef, transactionDate, line.internalTaxCode, elected, scheme)
                 val answer = evaluator.evaluate(scoped)
                 if (answer !is LineAnswer.Verdict) return ScopeAnswer.Unavailable
-                verdicts += answer.scopeVerdict
+                verdicts += answer
             }
-            ScopeAnswer.Verdict(combination(verdicts))
+            answerOf(verdicts)
+        }
+    }
+
+    /**
+     * A line without a category code or rate, or lines that disagree on the pack versions or the document type code
+     * (null equals null only), give Unavailable: the document holds (fail closed, INV-REQ-1208).
+     */
+    private fun answerOf(verdicts: List<LineAnswer.Verdict>): ScopeAnswer {
+        val first = verdicts.first()
+        val lineTax = verdicts.map { LineTaxFact(it.categoryCode.orEmpty(), it.rate.orEmpty()) }
+        val incomplete = lineTax.any { it.categoryCode.isBlank() || it.rate.isBlank() }
+        val disagree =
+            verdicts.any {
+                it.scopePackVersion != first.scopePackVersion ||
+                    it.mappingPackVersion != first.mappingPackVersion ||
+                    it.mdePackVersion != first.mdePackVersion ||
+                    it.documentTypeCode != first.documentTypeCode
+            }
+        return if (incomplete || disagree) {
+            ScopeAnswer.Unavailable
+        } else {
+            ScopeAnswer.Verdict(
+                scopeVerdict = combination(verdicts.map { it.scopeVerdict }),
+                documentTypeCode = first.documentTypeCode,
+                scopePackVersion = first.scopePackVersion,
+                mappingPackVersion = first.mappingPackVersion,
+                mdePackVersion = first.mdePackVersion,
+                lineTax = lineTax,
+            )
         }
     }
 

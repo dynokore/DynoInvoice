@@ -12,6 +12,7 @@ class ScopeEvaluationServiceTest {
     private val d0320 = LocalDate.of(2026, 3, 20)
     private val d0401 = LocalDate.of(2026, 4, 1)
     private val scheme = SchemeFacts(listOf("ARCS"), true)
+    private val lineTax = listOf(LineTaxFact("SR", "9.00"), LineTaxFact("ZR", "0.00"))
 
     private class Run(
         sourceUp: Boolean,
@@ -46,8 +47,8 @@ class ScopeEvaluationServiceTest {
                     LineEvaluator {
                         calls += it
                         when (it.internalTaxCode) {
-                            "SR-STD" -> LineAnswer.Verdict("IN_SCOPE")
-                            "ZR-EXP" -> LineAnswer.Verdict("EXCLUDED_TXN")
+                            "SR-STD" -> LineAnswer.Verdict("IN_SCOPE", "SR", "9.00")
+                            "ZR-EXP" -> LineAnswer.Verdict("EXCLUDED_TXN", "ZR", "0.00")
                             else -> LineAnswer.Unavailable
                         }
                     },
@@ -88,7 +89,8 @@ class ScopeEvaluationServiceTest {
     @Test
     fun `INV-AC-21472 C1 calls the evaluator per line in order and combines`() {
         val r = run()
-        r.service.evaluate(c1("SR-STD", "ZR-EXP"), "2026-Q1", d0320) shouldBe ScopeAnswer.Verdict("COMBINED")
+        r.service.evaluate(c1("SR-STD", "ZR-EXP"), "2026-Q1", d0320) shouldBe
+            ScopeAnswer.Verdict("COMBINED", lineTax = lineTax)
         r.calls shouldBe listOf(facts("SR-STD"), facts("ZR-EXP"))
         r.combined shouldBe listOf(listOf("IN_SCOPE", "EXCLUDED_TXN"))
         r.reads shouldBe listOf(d0320)
@@ -123,7 +125,7 @@ class ScopeEvaluationServiceTest {
     fun `INV-AC-21472 C5 unknown entity skips the source and has no counterparty facts`() {
         val r = run()
         r.service.evaluate(c1("SR-STD", "ZR-EXP", entity = "E9"), "2026-Q1", d0320) shouldBe
-            ScopeAnswer.Verdict("COMBINED")
+            ScopeAnswer.Verdict("COMBINED", lineTax = lineTax)
         r.lookups shouldBe emptyList()
         r.calls.map { it.counterpartyScheme } shouldBe listOf(null, null)
     }

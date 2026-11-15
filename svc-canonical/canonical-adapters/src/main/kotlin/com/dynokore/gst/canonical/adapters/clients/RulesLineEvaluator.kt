@@ -16,9 +16,25 @@ class RulesLineEvaluator(
 
     override fun evaluate(facts: LineScopeFacts): LineAnswer =
         when (val answer = evaluate.invoke(request(facts))) {
-            is RulesAnswer.Verdict -> LineAnswer.Verdict(answer.scopeVerdict)
-            is RulesAnswer.Refused -> LineAnswer.Unavailable
-            RulesAnswer.Unavailable -> LineAnswer.Unavailable
+            is RulesAnswer.Verdict -> {
+                LineAnswer.Verdict(
+                    scopeVerdict = answer.scopeVerdict,
+                    categoryCode = answer.categoryCode,
+                    rate = answer.rate,
+                    scopePackVersion = answer.scopePackVersion,
+                    mappingPackVersion = answer.mappingPackVersion,
+                    mdePackVersion = answer.mdePackVersion,
+                    documentTypeCode = answer.documentTypeCode,
+                )
+            }
+
+            is RulesAnswer.Refused -> {
+                LineAnswer.Unavailable
+            }
+
+            RulesAnswer.Unavailable -> {
+                LineAnswer.Unavailable
+            }
         }
 
     private fun request(facts: LineScopeFacts) =

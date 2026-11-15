@@ -26,6 +26,11 @@ fun interface PurchaseElections {
 sealed interface ScopeAnswer {
     data class Verdict(
         val scopeVerdict: String,
+        val documentTypeCode: String? = null,
+        val scopePackVersion: String? = null,
+        val mappingPackVersion: String? = null,
+        val mdePackVersion: String? = null,
+        val lineTax: List<LineTaxFact> = emptyList(),
     ) : ScopeAnswer
 
     data object Unavailable : ScopeAnswer

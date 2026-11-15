@@ -3,6 +3,7 @@ package com.dynokore.gst.canonical.adapters.clients
 import com.dynokore.gst.canonical.adapters.clients.rules.api.EvaluationApi
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluateDocumentRequest
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluateDocumentRequestCounterpartySchemeData
+import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluationResult
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
@@ -13,6 +14,11 @@ import org.springframework.web.client.RestClientResponseException
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
+
+private const val SCOPE = "SCOPE"
+private const val MAPPING = "MAPPING"
+private const val MDE = "MDE"
+private val PACK_TYPES = listOf(SCOPE, MAPPING, MDE)
 
 /** The sync edge canonical-svc -> rules-svc (sync-edges.yaml; `x-sync-edge` of `evaluateDocument`). */
 object RulesEdge {
@@ -57,6 +63,11 @@ sealed interface RulesAnswer {
     data class Verdict(
         val scopeVerdict: String,
         val documentTypeCode: String?,
+        val categoryCode: String? = null,
+        val rate: String? = null,
+        val scopePackVersion: String? = null,
+        val mappingPackVersion: String? = null,
+        val mdePackVersion: String? = null,
     ) : RulesAnswer
 
     /** No answer: a 5xx, a timeout, an I/O error, an open breaker or a full bulkhead. The caller holds. */
@@ -94,7 +105,7 @@ class RulesClient(
                 if (body == null) {
                     RulesAnswer.Unavailable
                 } else {
-                    RulesAnswer.Verdict(body.scopeVerdict.value, body.documentTypeCode)
+                    verdictOf(body)
                 }
             } catch (failure: RestClientResponseException) {
                 if (failure.statusCode.is4xxClientError) {
@@ -106,6 +117,32 @@ class RulesClient(
                 // an I/O error or an unreadable answer: no usable answer from the owner
                 RulesAnswer.Unavailable
             }
+        }
+    }
+
+    /**
+     * The pack versions come from `packVersionsApplied` by exact, case-sensitive packType equality (no prefix, no case
+     * folding); other types are ignored and an absent type is null. Two items of one wanted type with different
+     * versions are ambiguous: the answer fails closed to Unavailable (INV-Q-21510).
+     */
+    private fun verdictOf(body: EvaluationResult): RulesAnswer {
+        val applied = body.packVersionsApplied.orEmpty()
+        val versions =
+            PACK_TYPES.associateWith { type ->
+                applied.filter { it.packType == type }.map { it.version }.toSet()
+            }
+        return if (versions.values.any { it.size > 1 }) {
+            RulesAnswer.Unavailable
+        } else {
+            RulesAnswer.Verdict(
+                scopeVerdict = body.scopeVerdict.value,
+                documentTypeCode = body.documentTypeCode,
+                categoryCode = body.categoryCode,
+                rate = body.rate?.toPlainString(),
+                scopePackVersion = versions.getValue(SCOPE).singleOrNull(),
+                mappingPackVersion = versions.getValue(MAPPING).singleOrNull(),
+                mdePackVersion = versions.getValue(MDE).singleOrNull(),
+            )
         }
     }
 

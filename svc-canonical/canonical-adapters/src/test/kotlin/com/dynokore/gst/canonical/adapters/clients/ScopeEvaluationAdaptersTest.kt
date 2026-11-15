@@ -36,7 +36,8 @@ class ScopeEvaluationAdaptersTest {
 
     @Test
     fun `INV-AC-21475 a Verdict is relayed and Unavailable and Refused 400 fail closed to Unavailable`() {
-        evaluatorOver(RulesAnswer.Verdict("IN_SCOPE", "380")).first.evaluate(f1) shouldBe LineAnswer.Verdict("IN_SCOPE")
+        evaluatorOver(RulesAnswer.Verdict("IN_SCOPE", "380")).first.evaluate(f1) shouldBe
+            LineAnswer.Verdict("IN_SCOPE", documentTypeCode = "380")
         evaluatorOver(RulesAnswer.Unavailable).first.evaluate(f1) shouldBe LineAnswer.Unavailable
         evaluatorOver(RulesAnswer.Refused(400)).first.evaluate(f1) shouldBe LineAnswer.Unavailable
     }
