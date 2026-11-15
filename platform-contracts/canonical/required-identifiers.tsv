@@ -216,3 +216,5 @@ packVersions	property	schemas/decision-trace-recorded-payload.schema.json	INV-RE
 partyRef	property	schemas/document-held-payload.schema.json	INV-REQ-1016
 # INV-T-22804: optional aggregateId on the CanonicalVersionCreated payload (INV-REQ-439)
 aggregateId	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-439
+# INV-T-23011: optional aggregateType on the canonicalDocument of CanonicalVersionCreated (INV-REQ-411)
+aggregateType	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-411

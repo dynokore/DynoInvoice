@@ -212,6 +212,31 @@
           ],
           "additionalProperties": true
         },
+        "aggregateType": {
+          "type": "object",
+          "description": "The aggregate type (POS, STI or PCP) of a document recorded from an AggregateReady aggregate, copied unchanged from its aggregateType; absent on every other document; payload-svc reads it to apply the placeholder literal of the MDE pack (INV-REQ-411). Wrapped with its FR-AE.72 classification. Optional so an older consumer validates.",
+          "properties": {
+            "value": {
+              "type": "string",
+              "enum": [
+                "POS",
+                "STI",
+                "PCP"
+              ]
+            },
+            "classification": {
+              "type": "string",
+              "enum": [
+                "NONE"
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "classification"
+          ],
+          "additionalProperties": true
+        },
         "currency": {
           "type": "object",
           "description": "The document currency. Wrapped with its FR-AE.72 classification (INV-NOTE-3 \u00a720; content added 25 Sep 2026, AD-30).",
