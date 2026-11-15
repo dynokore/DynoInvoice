@@ -44,11 +44,7 @@ class CanonicalVersionCreatedHandler(
     /** The optional `aggregateId`: absent keeps null; anything but a non-empty string is refused. */
     private fun aggregateId(data: JsonNode): String? {
         val node = data.get("aggregateId") ?: return null
-        if (!node.isString ||
-            node.asString().isBlank()
-        ) {
-            throw ContractViolation("aggregateId is not a non-empty string")
-        }
+        if (!node.isString || node.asString().isBlank()) throw ContractViolation("aggregateId is not a non-empty string")
         return node.asString()
     }
 
