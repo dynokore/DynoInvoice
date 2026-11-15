@@ -6,9 +6,11 @@ import java.math.BigDecimal
 data class VersionFacts(
     val entityRef: String,
     val totalSgd: BigDecimal?,
+    val aggregateId: String? = null,
 ) {
     init {
         require(entityRef.isNotBlank()) { "entityRef must not be blank" }
+        require(aggregateId == null || aggregateId.isNotBlank()) { "aggregateId must not be blank" }
     }
 }
 

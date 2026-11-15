@@ -32,6 +32,7 @@ class JooqVersionFactsStore(
             .set(table.VERSION, version)
             .set(table.ENTITY_REF, facts.entityRef)
             .set(table.TOTAL_SGD, facts.totalSgd)
+            .set(table.AGGREGATE_ID, facts.aggregateId)
             .onConflictDoNothing()
             .execute() == 1
 
@@ -48,5 +49,5 @@ class JooqVersionFactsStore(
                     .and(table.VERSION.eq(version)),
             ).fetchOne()
             ?.takeIf { it.totalSgd != null } // the reader answers nothing for a stored row whose total is absent
-            ?.let { VersionFacts(checkNotNull(it.entityRef), it.totalSgd) }
+            ?.let { VersionFacts(checkNotNull(it.entityRef), it.totalSgd, it.aggregateId) }
 }

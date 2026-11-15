@@ -27,7 +27,7 @@ class CanonicalVersionCreatedHandler(
         val data = parse(event.dataJson)
         val docUuid = docUuid(data)
         val version = version(data)
-        val facts = facts(event.entity.value, total(data.path("canonicalDocument")))
+        val facts = facts(event.entity.value, total(data.path("canonicalDocument")), aggregateId(data))
         return if (recordVersionFacts.record(docUuid, version, facts)) HandleOutcome.APPLIED else HandleOutcome.IGNORED
     }
 
@@ -39,6 +39,17 @@ class CanonicalVersionCreatedHandler(
         val node = data.required("version")
         return node.takeIf { it.isInt && it.asInt() >= 1 }?.asInt()
             ?: throw ContractViolation("version is not an integer of 1 or more")
+    }
+
+    /** The optional `aggregateId`: absent keeps null; anything but a non-empty string is refused. */
+    private fun aggregateId(data: JsonNode): String? {
+        val node = data.get("aggregateId") ?: return null
+        if (!node.isString ||
+            node.asString().isBlank()
+        ) {
+            throw ContractViolation("aggregateId is not a non-empty string")
+        }
+        return node.asString()
     }
 
     private fun total(document: JsonNode): BigDecimal? {
@@ -57,11 +68,12 @@ class CanonicalVersionCreatedHandler(
     private fun facts(
         entityRef: String,
         total: BigDecimal?,
+        aggregateId: String?,
     ): VersionFacts =
         try {
-            VersionFacts(entityRef, total)
+            VersionFacts(entityRef, total, aggregateId)
         } catch (e: IllegalArgumentException) {
-            throw ContractViolation("entityref is blank", e)
+            throw ContractViolation("entityref or aggregateId is blank", e)
         }
 
     private fun optionalText(node: JsonNode): String? =
