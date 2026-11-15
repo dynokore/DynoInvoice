@@ -598,6 +598,8 @@ asyncapi-breaking-gate:
   image:
     name: "$ASYNCAPI_CLI_IMAGE"
     entrypoint: [""]
+    docker:
+      user: root   # apk add needs root; the image default user is uid 100
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
   before_script:
