@@ -130,7 +130,8 @@ class PeriodSpanStoreTest {
                         )
                         st.executeUpdate("delete from canonical.period_span where entity_ref = 'ENT-1'")
                         st.executeUpdate(
-                            "insert into canonical.period_span values ('$t1', 'ENT-1', 'BAD', date '2026-04-01', date '2026-03-31')",
+                            "insert into canonical.period_span values " +
+                                "('$t1', 'ENT-1', 'BAD', date '2026-04-01', date '2026-03-31')",
                         )
                     }
                     null
