@@ -78,6 +78,7 @@ class SubmissionExportController(
             is ExportSubmissionsResult.Csv -> error("a CSV result is not a refusal")
             ExportSubmissionsResult.Forbidden -> ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
             ExportSubmissionsResult.BucketNotServed -> ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+            ExportSubmissionsResult.MaskedFactFilter -> ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
             ExportSubmissionsResult.GstnUnavailable -> ComplianceRefusal(ClosedErrorCode.SERVICE_NOT_READY)
         }
 

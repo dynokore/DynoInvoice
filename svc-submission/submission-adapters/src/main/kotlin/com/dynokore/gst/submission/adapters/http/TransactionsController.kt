@@ -206,6 +206,7 @@ open class TransactionsController(
         periodRef: String,
     ): ResponseEntity<SentVersusAcknowledgedView> =
         ResponseEntity.ok(reconciliation.reconcile(machineCaller(), entityRef, periodRef))
+
     /** `exportSubmissions` (INV-REQ-978): forwarded to [SubmissionExportController]. */
     @Suppress("LongParameterList") // the generated operation signature
     override fun exportSubmissions(

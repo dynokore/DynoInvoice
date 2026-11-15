@@ -3,11 +3,13 @@ package com.dynokore.gst.submission.adapters
 import com.dynokore.gst.submission.adapters.http.ComplianceRefusal
 import com.dynokore.gst.submission.adapters.http.SubmissionExportController
 import com.dynokore.gst.submission.adapters.http.SubmissionListingHandler
+import com.dynokore.gst.submission.adapters.http.SubmissionReconciliationController
 import com.dynokore.gst.submission.adapters.http.SubmissionSummaryController
 import com.dynokore.gst.submission.adapters.http.TransactionsController
 import com.dynokore.gst.submission.adapters.http.TransactionsRefusalAdvice
 import com.dynokore.gst.submission.application.gstn.EntityGstns
 import com.dynokore.gst.submission.application.listing.ExportSubmissions
+import com.dynokore.gst.submission.application.listing.GetSubmissionReconciliation
 import com.dynokore.gst.submission.application.listing.ListSubmissions
 import com.dynokore.gst.submission.application.listing.ListingActions
 import com.dynokore.gst.submission.application.listing.SourceRead
@@ -16,7 +18,6 @@ import com.dynokore.gst.submission.application.listing.SubmissionSummaryQuery
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.RequeueOutcome
-import com.dynokore.gst.submission.contract.model.ReconciliationBucket
 import com.dynokore.gst.submission.contract.model.SubmissionSummary
 import com.dynokore.gst.submission.domain.listing.Direction
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
@@ -52,16 +53,24 @@ class SubmissionExportControllerTest {
     private val entity = "E1"
     private val period = "P1"
 
-    /** Machine types of the fixture: the full reader, one without the content key, one without the status key. */
+    /** Machine types: full reader, no content key, no machine status key, and only `submission.view-status`. */
     private val roleMap =
         OperationRoleMap { key ->
             when (key) {
-                ListingActions.VIEW_STATUS, ListingActions.VIEW_STATUS_MACHINE -> {
+                ListingActions.VIEW_STATUS_MACHINE -> {
                     mapOf("machine.$FULL" to CellAllowance.PERMITTED, "machine.$NO_CONTENT" to CellAllowance.PERMITTED)
                 }
 
+                ListingActions.VIEW_STATUS -> {
+                    mapOf("machine.$VIEW_ONLY" to CellAllowance.PERMITTED)
+                }
+
                 ListingActions.VIEW_CONTENT -> {
-                    mapOf("machine.$FULL" to CellAllowance.PERMITTED, "machine.$NO_STATUS" to CellAllowance.PERMITTED)
+                    mapOf(
+                        "machine.$FULL" to CellAllowance.PERMITTED,
+                        "machine.$NO_STATUS" to CellAllowance.PERMITTED,
+                        "machine.$VIEW_ONLY" to CellAllowance.PERMITTED,
+                    )
                 }
 
                 else -> {
@@ -153,6 +162,7 @@ class SubmissionExportControllerTest {
                 },
                 SubmissionListingHandler(ListSubmissions(replica, source), clock),
                 SubmissionSummaryController(SubmissionSummaryQuery(replica, source), clock),
+                SubmissionReconciliationController(GetSubmissionReconciliation(replica, source), clock),
                 SubmissionExportController(ExportSubmissions(replica, source, EntityGstns { _, _ -> gstn }, clock)),
             )
         return Fixture(controller, source)
@@ -265,8 +275,8 @@ class SubmissionExportControllerTest {
     }
 
     @Test
-    fun `INV-AC-22284 a caller denied the view or content key gets 403 SRT-004 and the source has zero calls`() {
-        listOf(NO_STATUS, NO_CONTENT, "no-such-type").forEach { type ->
+    fun `INV-AC-22284 a machine caller without machine submissions read gets 403 SRT-004 and no source call`() {
+        listOf(NO_STATUS, VIEW_ONLY, "no-such-type").forEach { type ->
             val f = fixture(type)
             refused { export(f) } shouldBe (403 to "SRT-004")
             f.source.calls shouldBe 0
@@ -280,17 +290,68 @@ class SubmissionExportControllerTest {
         f.source.calls shouldBe 0
     }
 
+    /** The data lines of a CSV response: the cells of each row, after the header block and the column line. */
+    private fun dataCells(response: org.springframework.http.ResponseEntity<org.springframework.core.io.Resource>) =
+        text(response)
+            .trimEnd()
+            .split("\r\n")
+            .drop(4)
+            .map { it.split(",") }
+
     @Test
-    fun `INV-AC-22284 the operations gate shows getSubmissionReconciliation still in the stub set`() {
-        // the placeholder call of OperationsStubs: a stub answers 501, an overridden method does not
-        val f = fixture(FULL)
-        bound { f.controller.getSubmissionReconciliation(entity, period) }.statusCode.value() shouldBe 501
-        export(f).statusCode.value() shouldBe 200
+    fun `INV-AC-22284 a machine caller without doc view content gets the 200 CSV with the content cells empty`() {
+        val full = export(fixture(FULL))
+        val f = fixture(NO_CONTENT)
+        val masked = export(f)
+        masked.statusCode.value() shouldBe 200
+        masked.headers.contentType.toString() shouldBe "text/csv"
+        f.source.calls shouldBe 1
+        val columns = text(full).split("\r\n")[3].split(",")
+        val maskedColumns =
+            listOf("documentNumber", "counterpartyName", "counterpartyUen", "taxableAmount", "gstAmount")
+        val fullRows = dataCells(full)
+        val maskedRows = dataCells(masked)
+        maskedRows.size shouldBe fullRows.size
+        maskedColumns.forEach { name ->
+            val at = columns.indexOf(name)
+            (at >= 0) shouldBe true
+            maskedRows.forEach { it[at] shouldBe "" }
+        }
+        fullRows.zip(maskedRows).forEach { (a, b) ->
+            columns.indices.filter { columns[it] !in maskedColumns }.forEach { b[it] shouldBe a[it] }
+        }
+        listOf("X-Export-Row-Count", "X-Export-Total-Taxable-Amount", "X-Export-Total-Gst-Amount").forEach {
+            masked.headers.getFirst(it) shouldBe full.headers.getFirst(it)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22284 a masked caller filtering on a masked fact gets 400 SRT-001 and a direction filter gets 200`() {
+        val f = fixture(NO_CONTENT)
+        refused { export(f, counterparty = "Acme") } shouldBe (400 to "SRT-001")
+        f.source.calls shouldBe 0
+        bound {
+            f.controller.exportSubmissions(
+                entity,
+                period,
+                "CSV",
+                "SALE",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+            )
+        }.statusCode.value() shouldBe 200
     }
 
     private companion object {
         const val FULL = "export-full"
         const val NO_CONTENT = "export-no-content"
         const val NO_STATUS = "export-no-status"
+        const val VIEW_ONLY = "export-view-only"
     }
 }
