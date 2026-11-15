@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: masterdata events
-  version: 1.6.0
+  version: 1.7.0
   description: >-
     Every event masterdata produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -61,6 +61,11 @@ channels:
     messages:
       SignedLinkInvalidated:
         $ref: '#/components/messages/SignedLinkInvalidated'
+  accessSignedLinkOutcomeRecorded:
+    address: 'gst.access.signed-link-outcome-recorded.v1'
+    messages:
+      SignedLinkOutcomeRecorded:
+        $ref: '#/components/messages/SignedLinkOutcomeRecorded'
   canonicalDocumentHeld:
     address: 'gst.canonical.document-held.v1'
     messages:
@@ -135,6 +140,16 @@ operations:
       $ref: '#/channels/accessSignedLinkInvalidated'
     messages:
       - $ref: '#/channels/accessSignedLinkInvalidated/messages/SignedLinkInvalidated'
+  receiveSignedLinkOutcomeRecorded:
+    action: receive
+    description: >-
+      SignedLinkOutcomeRecorded, published by access-svc (INV-REQ-899). masterdata-svc sets the link status of the
+      client signatory record named by requestEventId. Delivery is at-least-once and the consumer is idempotent:
+      a repeated outcome, an outcome for an unknown requestEventId and a stale outcome change nothing.
+    channel:
+      $ref: '#/channels/accessSignedLinkOutcomeRecorded'
+    messages:
+      - $ref: '#/channels/accessSignedLinkOutcomeRecorded/messages/SignedLinkOutcomeRecorded'
   receiveDocumentHeld:
     action: receive
     description: >-
@@ -234,6 +249,16 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: '../access/schemas/signed-link-issued-payload.schema.json'
+    SignedLinkOutcomeRecorded:
+      name: com.dynokore.gst.access.SignedLinkOutcomeRecorded.v1
+      title: SignedLinkOutcomeRecorded
+      summary: SignedLinkOutcomeRecorded — access-svc recorded the outcome of a signed link for a client signatory (INV-REQ-899).
+      description: >-
+        Event SignedLinkOutcomeRecorded of access-svc (access/asyncapi.yaml), consumed by masterdata-svc (INV-REQ-899).
+        Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: '../access/schemas/signed-link-outcome-recorded-payload.schema.json'
     SignedLinkInvalidated:
       name: com.dynokore.gst.access.SignedLinkInvalidated.v1
       title: SignedLinkInvalidated

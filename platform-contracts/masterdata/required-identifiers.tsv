@@ -232,3 +232,4 @@ receiveDocumentReleased	asyncapi_operation	asyncapi.yaml	INV-REQ-941
 recordClientSignatory	operation	openapi.yaml	INV-REQ-899
 RecordClientSignatoryRequest.consentRef	schema_property	openapi.yaml	INV-REQ-899
 ClientSignatoryRecord.linkStatus	schema_property	openapi.yaml	INV-REQ-899
+receiveSignedLinkOutcomeRecorded	asyncapi_operation	asyncapi.yaml	INV-REQ-899
