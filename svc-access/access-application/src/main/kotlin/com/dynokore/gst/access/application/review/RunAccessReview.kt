@@ -17,6 +17,12 @@ sealed interface RunAccessReviewOutcome {
 
     /** A monthly label while VP-05 is planned: no campaign is stored. */
     data object MonthlyUnavailable : RunAccessReviewOutcome
+
+    /**
+     * A monthly label while VP-05 is no longer planned: the tenant's stored cadence is not readable here, and the label
+     * must not decide the cadence, so no campaign is stored until a ruling adds that port.
+     */
+    data object CadenceNotReadable : RunAccessReviewOutcome
 }
 
 /**
@@ -37,27 +43,25 @@ class RunAccessReviewUseCase(
         actor: IdentityRef,
         periodLabel: String,
     ): RunAccessReviewOutcome {
-        val period = PeriodLabel.parse(periodLabel) ?: return RunAccessReviewOutcome.InvalidPeriod
-        val cadence =
-            when (period) {
-                is PeriodLabel.Quarter -> {
-                    Cadence.QUARTERLY
-                }
+        val period = PeriodLabel.parse(periodLabel)
+        return when {
+            period == null -> RunAccessReviewOutcome.InvalidPeriod
+            period is PeriodLabel.Quarter -> open(actor, period, Cadence.QUARTERLY)
+            availability.current() == VpAvailability.PLANNED -> RunAccessReviewOutcome.MonthlyUnavailable
+            else -> RunAccessReviewOutcome.CadenceNotReadable
+        }
+    }
 
-                is PeriodLabel.Month -> {
-                    if (availability.current() == VpAvailability.PLANNED) {
-                        return RunAccessReviewOutcome.MonthlyUnavailable
-                    } else {
-                        Cadence.MONTHLY
-                    }
-                }
-            }
-        return tx.inTransaction {
+    private fun open(
+        actor: IdentityRef,
+        period: PeriodLabel,
+        cadence: Cadence,
+    ): RunAccessReviewOutcome =
+        tx.inTransaction {
             val campaign =
                 ReviewCampaign(campaigns.nextRef(), period, cadence, grants.grantsOfTenant(), actor, clock.instant())
             campaigns.insert(campaign)
             audit.record(ReviewAuditEntry(actor.value, "runAccessReview", campaign.ref, null, null))
             RunAccessReviewOutcome.Opened(campaign)
         }
-    }
 }

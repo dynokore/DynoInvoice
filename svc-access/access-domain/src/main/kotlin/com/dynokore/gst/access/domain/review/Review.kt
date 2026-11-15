@@ -30,7 +30,7 @@ sealed interface PeriodLabel {
         private val QUARTER = Regex("[0-9]{4}Q[1-4]")
         private val MONTH = Regex("[0-9]{4}-(0[1-9]|1[0-2])")
 
-        /** Whole-string match, case sensitive; any other text (a trailing space, `2026q3`, `2026H1`, `2026`) is null. */
+        /** Whole-string, case-sensitive match; any other text (trailing space, `2026q3`, `2026H1`) is null. */
         fun parse(raw: String): PeriodLabel? =
             when {
                 QUARTER.matches(raw) -> Quarter(raw)

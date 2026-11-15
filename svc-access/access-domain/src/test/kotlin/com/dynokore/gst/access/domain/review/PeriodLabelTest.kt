@@ -24,7 +24,7 @@ class PeriodLabelTest {
             "2026Q3\n",
             "2026-13",
             "2026-9",
-            "２０２６Q3",
+            "\uFF12\uFF10\uFF12\uFF16Q3",
             "",
         ).forEach { assertNull(PeriodLabel.parse(it), "[$it]") }
     }

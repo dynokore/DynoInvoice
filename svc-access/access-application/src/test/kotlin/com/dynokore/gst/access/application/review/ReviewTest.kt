@@ -47,7 +47,7 @@ class ReviewTest {
     private val outcomeRows = mutableListOf<ReviewOutcome>()
     private val audits = mutableListOf<ReviewAuditEntry>()
     private var ack: SoleOperatorAck? = null
-    private var vp05 = VpAvailability.PLANNED
+    private val vp05 = VpAvailability.PLANNED
 
     private val campaigns =
         object : ReviewCampaigns {
@@ -124,6 +124,23 @@ class ReviewTest {
         }
         assertTrue(stored.isEmpty())
         assertTrue(audits.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-23350 a monthly label never sets the cadence after planned`() {
+        val available =
+            RunAccessReviewUseCase(
+                tx,
+                { VpAvailability.AVAILABLE },
+                { tenantGrants },
+                campaigns,
+                { audits += it },
+                clock,
+            )
+        assertEquals(RunAccessReviewOutcome.CadenceNotReadable, available.handle(alice, "2026-09"))
+        assertTrue(stored.isEmpty())
+        val quarter = assertInstanceOf(RunAccessReviewOutcome.Opened::class.java, available.handle(alice, "2026Q3"))
+        assertEquals(Cadence.QUARTERLY, quarter.campaign.cadence)
     }
 
     @Test
