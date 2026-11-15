@@ -399,7 +399,8 @@ paths:
         `exportAuditPack` call made as part of offboarding. Answers 409
         EVD-002 while the tenant has no READY export (the job is not yet
         requested, REQUESTED or FAILED); the problem detail names the state
-        and nothing is changed (INV-REQ-877, INV-T-22952).
+        and nothing is changed (INV-REQ-877, INV-T-22952), for example
+        `code: "EVD-002"`, `status: 409`.
       tags: [exports]
       x-principal: reporting
       x-caller-auth: end-user
@@ -430,22 +431,8 @@ paths:
                     manifestUri: "s3://evidence-exports/offboarding/5e0b8a0e.../manifest.json"
                     itemCount: 18422
         '409':
-          description: EVD-002, the tenant has no READY export; the problem detail names the state and nothing is changed
-          content:
-            application/problem+json:
-              schema:
-                $ref: '../service-runtime/schemas/error-envelope.schema.json'
-              examples:
-                default:
-                  value:
-                    type: "https://errors.invoice.internal/EVD-002"
-                    title: "Export not finished"
-                    status: 409
-                    code: "EVD-002"
-                    severity: "BLOCK"
-                    disposition: "TERMINAL"
-                    remediationOwner: "Platform"
-                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+          description: The tenant has no READY export; the problem detail names the state
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/integrity-report:
