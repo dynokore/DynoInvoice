@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 2.2.0
+  version: 2.3.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1339,7 +1339,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-B.3, FR-G.8]
       x-operation:
-        role: tax.approver
+        kind: PERMISSION
+        permission: pack.dry-run
         scope: tenant
         precondition: "The pack has a draft or published delta; a historical sample is available (FR-B.3)."
         reversibility: UNDOABLE
@@ -1422,6 +1423,12 @@ paths:
                     packRef: "MAP-0042"
                     state: "RUNNING"
                     startedAt: "2026-03-20T03:15:00Z"
+        '403':
+          description: Permission DENY (SRT-004); the detail names no person.
+          $ref: '#/components/responses/Error'
+        '503':
+          description: A dependency is unavailable (SRT-013). Nothing is decided or changed; the caller retries later.
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/packs/{packRef}/dry-runs/{dryRunId}:

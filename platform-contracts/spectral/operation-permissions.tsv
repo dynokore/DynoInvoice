@@ -15,3 +15,4 @@ tenancy	getMigrationCutover	migration-cutover.view
 tenancy	recordRenditionResponsibility	entity-config.manage
 rules	acknowledgePackDelta	regulatory-pack.acknowledge
 rules	armRegulatoryPack	regulatory-pack.arm
+rules	dryRun	pack.dry-run
