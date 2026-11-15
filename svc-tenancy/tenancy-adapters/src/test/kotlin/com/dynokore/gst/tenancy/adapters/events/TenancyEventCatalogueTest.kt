@@ -46,4 +46,17 @@ class TenancyEventCatalogueTest {
                 contentTopic = false,
             )
     }
+
+    @Test
+    fun `INV-AC-23029 the catalogue lists UnsubmittedDocumentCountMeasured from submission-svc by equality`() {
+        catalogue.find("com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1") shouldBe
+            CatalogueEntry(
+                "com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1",
+                "gst.submission.unsubmitted-document-count-measured.v1",
+                setOf("submission-svc"),
+                contentTopic = false,
+            )
+        catalogue.find("com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v2") shouldBe null
+        catalogue.find("com.dynokore.gst.submission.UnsubmittedDocumentCountMeasure.v1") shouldBe null
+    }
 }

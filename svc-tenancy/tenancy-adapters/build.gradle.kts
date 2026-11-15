@@ -36,6 +36,35 @@ val stageRulesSchemas =
         into(layout.buildDirectory.dir("generated/rules-schemas/gst/contracts/rules/schemas"))
     }
 
+// The payload schema of UnsubmittedDocumentCountMeasured from the pinned bundle, for the tests only (INV-T-22885);
+// the build fails when the bundle has no such file.
+val stageUnsubmittedCountSchema =
+    tasks.register<Copy>("stageUnsubmittedCountSchema") {
+        val bundle = contractsBundle
+        from(zipTree(bundle.singleFile)) {
+            include("submission/schemas/unsubmitted-document-count-measured-payload.schema.json")
+            eachFile { path = name }
+        }
+        includeEmptyDirs = false
+        into(layout.buildDirectory.dir("generated/unsubmitted-count-schemas/gst/contracts/submission/schemas"))
+        doLast {
+            val staged =
+                destinationDir.resolve("unsubmitted-document-count-measured-payload.schema.json")
+            check(staged.isFile) { "the pinned bundle has no unsubmitted-document-count-measured-payload.schema.json" }
+        }
+    }
+
+sourceSets.test {
+    resources.srcDir(
+        layout.buildDirectory
+            .dir("generated/unsubmitted-count-schemas")
+            .map { it.asFile }
+            .get(),
+    )
+}
+
+tasks.named("processTestResources") { dependsOn(stageUnsubmittedCountSchema) }
+
 sourceSets.main {
     resources.srcDir(
         layout.buildDirectory
