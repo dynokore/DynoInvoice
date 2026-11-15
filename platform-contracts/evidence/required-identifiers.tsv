@@ -90,3 +90,4 @@ DecisionTraceEntry.packVersions	schema_property	openapi.yaml	INV-REQ-942
 generateSubjectAccessExport	operation	openapi.yaml	INV-REQ-885
 SubjectAccessExport.itemCount	schema_property	openapi.yaml	INV-REQ-885
 SubjectAccessExport.recordClasses	schema_property	openapi.yaml	INV-REQ-885
+getEvidenceExport.EVD-002	operation_error_code	openapi.yaml	INV-REQ-650

@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 0fae8dc0cd382fe12bed1c1c43a48808cc4d270d (2026-11-13), the merge of invoice-docs INV-T-22014 adding SUB-026 to SUB-028, the credential rotation refusals (INV-T-22003, coordinator ruling (delegated) HIGH option A on the refusal codes of rotateCredential, breakdown tooling/gap18676-gap.md);
+# pinned at commit 02e15b6b6fce623a1f250ed515955f3550b210fb (2026-11-15), the merge of invoice-docs INV-T-22951 adding EVD-002, export not finished, HTTP 409 (INV-T-22952, coordinator ruling of breakdown tooling/req49-gap.md Round 5);
+# previously pinned at 0fae8dc0cd382fe12bed1c1c43a48808cc4d270d (2026-11-13), the merge of invoice-docs INV-T-22014 adding SUB-026 to SUB-028, the credential rotation refusals (INV-T-22003, coordinator ruling (delegated) HIGH option A on the refusal codes of rotateCredential, breakdown tooling/gap18676-gap.md);
 # previously pinned at 0d26d2de1cdc959de01882fe034ee56cdf42c1bd (2026-11-12), the merge of invoice-docs INV-T-21274 adding SRT-015, group has members already submitted (INV-T-21276, coordinator ruling round zt of tooling/wave1/crun/chains/req137-pending-rulings.txt);
 # previously pinned at 5b5ef83811591636c5b5f45829a436d57884bd0f (2026-11-12), the merge of invoice-docs INV-T-20618 adding SUB-025, replay refused, version not replayable (INV-T-20619, coordinator ruling of breakdown tooling/req-breakdown-138.md round d);
 # previously pinned at 0a3dcc90467b4325597eaaa26935083dfb3072c9 (2026-11-10), the merge of invoice-docs INV-T-19786 adding TNC-014, tenant close refused while SCHEDULED or CLOSED (INV-T-19787, coordinator ruling of breakdown tooling/gap8179-gap.md; this re-vendor also brings CPL-010 and CPL-011 from INV-T-19763);
@@ -746,6 +747,11 @@ error_codes:
 - code: EVD-001
   condition: 'Maximum evidence retention cannot be determined: a VP-43 setting of the data region cannot be read, so no figure
     is given and none is partial; retryable (HTTP 503; INV-REQ-3767, INV-Q-3263, INV-Q-12582)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform
+- code: EVD-002
+  condition: 'Export not finished: the tenant has no READY offboarding export, the job is not yet requested, REQUESTED or FAILED, so no manifest is given; the problem detail names the state; nothing is changed (HTTP 409; INV-REQ-877, INV-REQ-650)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform

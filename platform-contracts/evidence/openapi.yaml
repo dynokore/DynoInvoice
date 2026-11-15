@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.14.0
+  version: 1.15.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -396,13 +396,16 @@ paths:
         DEP-007 when evidence chain verification has failed for the range
         (INV-NOTE-3 §21.2 raising points; INV-REQ-662) — this is the
         offboarding export the condition names, including an
-        `exportAuditPack` call made as part of offboarding.
+        `exportAuditPack` call made as part of offboarding. Answers 409
+        EVD-002 while the tenant has no READY export (the job is not yet
+        requested, REQUESTED or FAILED); the problem detail names the state
+        and nothing is changed (INV-REQ-877, INV-T-22952).
       tags: [exports]
       x-principal: reporting
       x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
-      x-error-codes: [DEP-007]
+      x-error-codes: [DEP-007, EVD-002]
       x-requirements: [INV-REQ-650, INV-REQ-642, INV-REQ-662]
       parameters:
         - name: tenantId
@@ -426,6 +429,23 @@ paths:
                     generatedAt: "2026-04-01T02:00:00Z"
                     manifestUri: "s3://evidence-exports/offboarding/5e0b8a0e.../manifest.json"
                     itemCount: 18422
+        '409':
+          description: EVD-002, the tenant has no READY export; the problem detail names the state and nothing is changed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "https://errors.invoice.internal/EVD-002"
+                    title: "Export not finished"
+                    status: 409
+                    code: "EVD-002"
+                    severity: "BLOCK"
+                    disposition: "TERMINAL"
+                    remediationOwner: "Platform"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/integrity-report:
