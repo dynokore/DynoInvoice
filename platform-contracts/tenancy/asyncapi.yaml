@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: tenancy events
-  version: 1.12.0
+  version: 1.11.0
   description: >-
     Every event tenancy produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -75,11 +75,6 @@ channels:
     messages:
       CertificationStatusChanged:
         $ref: '#/components/messages/CertificationStatusChanged'
-  tenancyOffboardingExportRequested:
-    address: 'gst.tenancy.offboarding-export-requested.v1'
-    messages:
-      OffboardingExportRequested:
-        $ref: '#/components/messages/OffboardingExportRequested'
   tenancyExampleHappened:
     address: 'gst.tenancy.example-happened.v1'
     messages:
@@ -155,13 +150,6 @@ operations:
       $ref: '#/channels/tenancyCertificationStatusChanged'
     messages:
       - $ref: '#/channels/tenancyCertificationStatusChanged/messages/CertificationStatusChanged'
-  publishOffboardingExportRequested:
-    action: send
-    description: OffboardingExportRequested — [ (INV-REQ-49, INV-REQ-956, INV-REQ-877).
-    channel:
-      $ref: '#/channels/tenancyOffboardingExportRequested'
-    messages:
-      - $ref: '#/channels/tenancyOffboardingExportRequested/messages/OffboardingExportRequested'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -297,16 +285,6 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/certification-status-changed-payload.schema.json'
-    OffboardingExportRequested:
-      name: com.dynokore.gst.tenancy.OffboardingExportRequested.v1
-      title: OffboardingExportRequested
-      summary: OffboardingExportRequested — [.
-      description: >-
-        Event OffboardingExportRequested (INV-REQ-49, INV-REQ-956, INV-REQ-877; class: domain). Emitted by: tenancy-svc. Consumed by: evidence-svc.
-        Delivery: At-least-once. "
-      contentType: application/cloudevents+json
-      payload:
-        $ref: './schemas/offboarding-export-requested-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.tenancy.ExampleHappened.v1
       title: ExampleHappened

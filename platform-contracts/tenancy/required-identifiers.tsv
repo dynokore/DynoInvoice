@@ -232,9 +232,3 @@ dueDateVersion	property	schemas/period-due-date-changed-payload.schema.json	INV-
 filingDueDate	property	schemas/period-records-changed-payload.schema.json	INV-REQ-88
 # INV-T-21392: optional constitution member of the EntityProfileChanged payload (INV-REQ-479)
 constitution	property	schemas/entity-profile-changed-payload.schema.json	INV-REQ-479
-tenantRef	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
-offboardingRef	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
-exportRef	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
-scope	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
-entityRef	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
-requestedAt	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
