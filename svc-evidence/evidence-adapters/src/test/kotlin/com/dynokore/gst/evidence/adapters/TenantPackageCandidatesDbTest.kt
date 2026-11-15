@@ -121,8 +121,11 @@ class TenantPackageCandidatesDbTest {
     fun `INV-AC-22948 a limit below the total throws the size refusal and returns no candidate`() {
         fixture()
         val perClass = 4L * rowBytes
+        val total = 4 * perClass
         shouldThrow<PackageSizeRefusal> { read(t1, perClass - 1) }
-        read(t1, perClass).size shouldBe 16
+        shouldThrow<PackageSizeRefusal> { read(t1, perClass * 2 + rowBytes) }
+        shouldThrow<PackageSizeRefusal> { read(t1, total - 1) }
+        read(t1, total).size shouldBe 16
     }
 
     @Test

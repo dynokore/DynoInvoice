@@ -14,6 +14,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Table
+import org.jooq.impl.DSL
 import java.security.MessageDigest
 import java.util.HexFormat
 import java.util.UUID
@@ -22,13 +23,16 @@ import java.util.UUID
 class PackageSizeRefusal(
     val contentClass: PackageContentClass,
     val maxBytes: Long,
-) : RuntimeException("the ${contentClass.name} content of the tenant exceeds the limit of $maxBytes bytes")
+) : RuntimeException("the content of the tenant (${contentClass.name} read) exceeds the limit of $maxBytes bytes")
 
 /**
  * The package candidates of the four sourced content classes of one tenant (INV-REQ-877). Each source selects the
  * rows of the bound tenant, with the tenant predicate in the WHERE clause as well as the binding (CS-19), ordered by
- * entity, period and seq. Rows are streamed and the running total of content bytes is checked per row, so a tenant
- * larger than [maxBytes] is refused before it is held in memory. [maxBytes] is configuration, never a constant.
+ * entity, period and seq. [maxBytes] bounds the content of the whole tenant, all four chain tables together
+ * (INV-AC-22948: a limit below the total of the tenant is refused): each source first sums the content bytes of the
+ * tenant in the four tables in the database and refuses above the limit, before any content is held in memory. Rows
+ * are then streamed and the running total is checked per row, in case rows were added since the sum. [maxBytes] is
+ * configuration, never a constant.
  */
 class JooqTenantPackageCandidates(
     private val dsl: DSLContext,
@@ -108,6 +112,7 @@ class JooqTenantPackageCandidates(
         chain: Chain,
         tenant: TenantId,
     ): List<PackageCandidate> {
+        if (tenantBytes(tenant) > maxBytes) throw PackageSizeRefusal(chain.contentClass, maxBytes)
         val candidates = mutableListOf<PackageCandidate>()
         var total = 0L
         val c = chain.columns
@@ -137,6 +142,20 @@ class JooqTenantPackageCandidates(
             }
         return candidates
     }
+
+    /** The content bytes of the tenant over all four sourced tables; null sums (no rows) count as zero. */
+    private fun tenantBytes(tenant: TenantId): Long =
+        chains.fold(0L) { sum, chain ->
+            val c = chain.columns
+            val bytes =
+                dsl
+                    .select(DSL.sum(DSL.octetLength(c.content.coerce(String::class.java))))
+                    .from(chain.table)
+                    .where(c.tenant.eq(tenant.value))
+                    .fetchOne()
+                    ?.value1()
+            sum + (bytes?.toLong() ?: 0L)
+        }
 
     private companion object {
         const val FETCH_SIZE = 200
