@@ -18,6 +18,7 @@ import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.LogRecord
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.PollResult
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancyjooq.TenancyJooq
@@ -106,6 +107,18 @@ class PackMarginConsumersDbTest {
             causation = CausationId("cause-1"),
             dataJson = data,
         )
+
+        private val guardedReader = ListReader()
+
+        /** Delivers through the handler the rulePackActivatedConsumer bean is given (type guard included). */
+        fun deliverGuarded(e: Envelope): PollResult {
+            guardedReader.records += LogRecord(++offset, json.write(e))
+            return consumer(
+                PackMarginConsumers.rulePackActivatedSubscription(),
+                guardedReader,
+                PackMarginConsumers.activatedTypeGuard(activatedHandler),
+            ).pollOnce()
+        }
 
         /** Delivers the envelopes through the consumer of the topic, in order. */
         fun deliver(
@@ -291,15 +304,15 @@ class PackMarginConsumersDbTest {
         @TempDir dir: Path,
     ) = run(dir) {
         PackMarginConsumers.rulePackStagedSubscription().topic shouldBe "gst.platform.rule-pack-staged.v1"
-        PackMarginConsumers.rulePackActivatedSubscription().topic shouldBe "gst.rules.rule-pack-activated.v1"
-        listOf("gst.rules.rule-pack-staged.v2", "gst.rules.rule-pack-activated.v1x").forEach { look ->
+        PackMarginConsumers.rulePackActivatedSubscription().topic shouldBe "gst.platform.rule-pack-activated.v1"
+        listOf("gst.rules.rule-pack-staged.v2", "gst.platform.rule-pack-activated.v1x").forEach { look ->
             (look == PackMarginConsumers.rulePackStagedSubscription().topic) shouldBe false
             (look == PackMarginConsumers.rulePackActivatedSubscription().topic) shouldBe false
         }
         val staged = checkNotNull(catalogue.find(STAGED))
         val activated = checkNotNull(catalogue.find(ACTIVATED))
         staged.topic shouldBe "gst.platform.rule-pack-staged.v1"
-        activated.topic shouldBe "gst.rules.rule-pack-activated.v1"
+        activated.topic shouldBe "gst.platform.rule-pack-activated.v1"
         staged.producers shouldBe setOf("rules-svc")
         activated.producers shouldBe setOf("rules-svc")
         staged.retainedWhileResolvable shouldBe true
@@ -322,19 +335,62 @@ class PackMarginConsumersDbTest {
     fun `INV-AC-22373 the staged constants are the platform type and topic and no subscription names the old topic`() {
         SubmissionEvents.RULE_PACK_STAGED_TYPE shouldBe "com.dynokore.gst.platform.RulePackStaged.v1"
         SubmissionEvents.RULE_PACK_STAGED_TOPIC shouldBe "gst.platform.rule-pack-staged.v1"
-        SubmissionEvents.RULE_PACK_ACTIVATED_TYPE shouldBe "com.dynokore.gst.rules.RulePackActivated.v1"
-        SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC shouldBe "gst.rules.rule-pack-activated.v1"
+        SubmissionEvents.RULE_PACK_ACTIVATED_TYPE shouldBe "com.dynokore.gst.platform.RulePackActivated.v1"
+        SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC shouldBe "gst.platform.rule-pack-activated.v1"
         val topics =
             setOf(
                 PackMarginConsumers.rulePackStagedSubscription().topic,
                 PackMarginConsumers.rulePackActivatedSubscription().topic,
             )
-        topics shouldBe setOf("gst.platform.rule-pack-staged.v1", "gst.rules.rule-pack-activated.v1")
+        topics shouldBe setOf("gst.platform.rule-pack-staged.v1", "gst.platform.rule-pack-activated.v1")
         topics.contains("gst.rules.rule-pack-staged.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-23122 the activated consumer dead-letters the old rules type, the look-alike and the staged type`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val t = UUID.randomUUID()
+        val body = """{"packIdentifier":"P-CAL","version":"1","effectiveFrom":"2026-01-01"}"""
+        listOf(
+            "com.dynokore.gst.rules.RulePackActivated.v1",
+            "com.dynokore.gst.platform.RulePackActivatedX.v1",
+            STAGED,
+        ).forEach { bad ->
+            val result = deliverGuarded(envelope(t, bad, body))
+            result.deadLettered shouldBe 1
+            result.applied shouldBe 0
+            rows(t, "calendar_pack_activation") shouldBe emptyList()
+        }
+    }
+
+    @Test
+    fun `INV-AC-23122 the activated consumer applies exactly the platform type and a redelivery changes nothing`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val t = UUID.randomUUID()
+        val e = envelope(t, ACTIVATED, """{"packIdentifier":"P-CAL","version":"1","effectiveFrom":"2026-01-01"}""")
+        deliverGuarded(e).applied shouldBe 1
+        val rowsAfter = rows(t, "calendar_pack_activation")
+        rowsAfter.size shouldBe 1
+        deliverGuarded(e).applied shouldBe 0
+        rows(t, "calendar_pack_activation") shouldBe rowsAfter
+    }
+
+    @Test
+    fun `INV-AC-23122 the subscriptions name the platform activated topic and never the old rules topic`() {
+        SubmissionEvents.RULE_PACK_ACTIVATED_TYPE shouldBe "com.dynokore.gst.platform.RulePackActivated.v1"
+        val topics =
+            setOf(
+                PackMarginConsumers.rulePackStagedSubscription().topic,
+                PackMarginConsumers.rulePackActivatedSubscription().topic,
+            )
+        topics shouldBe setOf("gst.platform.rule-pack-staged.v1", "gst.platform.rule-pack-activated.v1")
+        topics.contains("gst.rules.rule-pack-activated.v1") shouldBe false
     }
 
     private companion object {
         const val STAGED = "com.dynokore.gst.platform.RulePackStaged.v1"
-        const val ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
+        const val ACTIVATED = "com.dynokore.gst.platform.RulePackActivated.v1"
     }
 }

@@ -95,8 +95,8 @@ object SubmissionEvents {
     const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
     const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.platform.RulePackStaged.v1"
 
-    const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
-    const val RULE_PACK_ACTIVATED_TYPE = "com.dynokore.gst.rules.RulePackActivated.v1"
+    const val RULE_PACK_ACTIVATED_TOPIC = "gst.platform.rule-pack-activated.v1"
+    const val RULE_PACK_ACTIVATED_TYPE = "com.dynokore.gst.platform.RulePackActivated.v1"
 
     /**
      * `DocumentHeld` and `DocumentReleased` (producer canonical-svc, no content topic) feed the provisional register

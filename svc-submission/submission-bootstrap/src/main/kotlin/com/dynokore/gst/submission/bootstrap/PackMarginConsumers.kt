@@ -12,9 +12,12 @@ import com.dynokore.gst.submission.application.pack.PackMarginStore
 import com.dynokore.gst.submission.application.pack.PackStagedDataReader
 import com.dynokore.gst.submission.application.pack.StoredPackDefaultMargin
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.ContractViolation
+import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
+import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
@@ -104,7 +107,7 @@ class PackMarginConsumers {
             catalogue,
             reader,
             scope,
-            handler,
+            activatedTypeGuard(handler),
             rebuildRequired,
             clock,
         )
@@ -143,7 +146,25 @@ class PackMarginConsumers {
         fun rulePackStagedSubscription(): ConsumerSubscription =
             ConsumerSubscription(CONSUMER, SubmissionEvents.RULE_PACK_STAGED_TOPIC, SCHEMA)
 
+        /** The handler the activated consumer is given: [handler] behind an exact-type refusal. */
+        internal fun activatedTypeGuard(handler: EventHandler): EventHandler =
+            TypeGuardedHandler(SubmissionEvents.RULE_PACK_ACTIVATED_TYPE, handler)
+
         fun rulePackActivatedSubscription(): ConsumerSubscription =
             ConsumerSubscription(CONSUMER, SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC, SCHEMA)
+    }
+}
+
+/**
+ * Refuses an event whose type is not exactly [expectedType] with a `ContractViolation` before [delegate] is called
+ * (consumers subscribe by exact type and topic; no compatibility path for an old type, owner 2026-11-15).
+ */
+internal class TypeGuardedHandler(
+    private val expectedType: String,
+    private val delegate: EventHandler,
+) : EventHandler {
+    override fun handle(event: Envelope): HandleOutcome {
+        if (event.type != expectedType) throw ContractViolation("expected $expectedType, was ${event.type}")
+        return delegate.handle(event)
     }
 }

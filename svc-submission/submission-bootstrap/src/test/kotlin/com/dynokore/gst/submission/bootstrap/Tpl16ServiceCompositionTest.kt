@@ -53,12 +53,8 @@ class Tpl16ServiceCompositionTest {
             platform.getValue("com.dynokore.gst.platform.JobRegistered.v1").topic shouldBe
                 "gst.platform.job-registered.v1"
             assertStagedEntry(platform)
-            platform.values.filter { it.eventType != SubmissionEvents.RULE_PACK_STAGED_TYPE }.forEach {
-                it.producers shouldBe setOf("every service")
-                it.contentTopic shouldBe false
-                it.recordTopic shouldBe false
-                it.retainedWhileResolvable shouldBe false
-            }
+            assertActivatedEntry(platform)
+            assertOtherPlatformEntries(platform)
         }
     }
 
@@ -67,6 +63,26 @@ class Tpl16ServiceCompositionTest {
         staged.topic shouldBe SubmissionEvents.RULE_PACK_STAGED_TOPIC
         staged.producers shouldBe setOf("rules-svc")
         staged.retainedWhileResolvable shouldBe true
+    }
+
+    private fun assertOtherPlatformEntries(platform: Map<String, CatalogueEntry>) {
+        platform.values
+            .filter {
+                it.eventType != SubmissionEvents.RULE_PACK_STAGED_TYPE &&
+                    it.eventType != SubmissionEvents.RULE_PACK_ACTIVATED_TYPE
+            }.forEach {
+                it.producers shouldBe setOf("every service")
+                it.contentTopic shouldBe false
+                it.recordTopic shouldBe false
+                it.retainedWhileResolvable shouldBe false
+            }
+    }
+
+    private fun assertActivatedEntry(platform: Map<String, CatalogueEntry>) {
+        val activated = platform.getValue(SubmissionEvents.RULE_PACK_ACTIVATED_TYPE)
+        activated.topic shouldBe SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC
+        activated.producers shouldBe setOf("rules-svc")
+        activated.retainedWhileResolvable shouldBe false
     }
 
     @Test
