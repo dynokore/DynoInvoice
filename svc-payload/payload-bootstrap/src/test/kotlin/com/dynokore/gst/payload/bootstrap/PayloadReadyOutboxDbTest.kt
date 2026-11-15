@@ -20,6 +20,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
 import java.io.File
 import java.nio.file.Path
 import java.security.MessageDigest
@@ -176,7 +177,8 @@ class PayloadReadyOutboxDbTest {
         }
         val data = b.rows(tenant).getValue(d.toString()).data
         schemaErrors(data).shouldBeEmpty()
-        val without = data.deepCopy<tools.jackson.databind.node.ObjectNode>().also { it.remove("payloadSha256") }
+        val without = data.deepCopy() as ObjectNode
+        without.remove("payloadSha256")
         schemaErrors(without).shouldNotBeEmpty()
     }
 }
