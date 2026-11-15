@@ -52,6 +52,7 @@ object PlatformEventCatalogue {
     val CERTIFICATION_MARK_REQUESTED = fixed("CertificationMarkRequested", "certification-mark-requested")
     val RULE_PACK_STAGED = fixed("RulePackStaged", "rule-pack-staged")
     val PACK_CURRENCY_CHANGED = fixed("PackCurrencyChanged", "pack-currency-changed")
+    val RULE_PACK_ACTIVATED = fixed("RulePackActivated", "rule-pack-activated")
     val CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED =
         fixed("ConnectionCredentialExpiryReminderRequested", "connection-credential-expiry-reminder-requested")
 
@@ -81,6 +82,7 @@ object PlatformEventCatalogue {
             CERTIFICATION_MARK_REQUESTED,
             RULE_PACK_STAGED,
             PACK_CURRENCY_CHANGED,
+            RULE_PACK_ACTIVATED,
             CONNECTION_CREDENTIAL_EXPIRY_REMINDER_REQUESTED,
         )
 

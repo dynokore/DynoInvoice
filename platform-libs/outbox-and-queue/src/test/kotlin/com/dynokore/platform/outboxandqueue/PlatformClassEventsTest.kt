@@ -39,6 +39,7 @@ class PlatformClassEventsTest {
             "CertificationMarkRequested",
             "RulePackStaged",
             "PackCurrencyChanged",
+            "RulePackActivated",
             "ConnectionCredentialExpiryReminderRequested",
         )
     private val refused =
@@ -446,7 +447,7 @@ class PlatformClassEventsTest {
     @Test
     fun `INV-AC-22362 name set holds RulePackStaged and PackCurrencyChanged and not the look-alikes`() {
         val base = "com.dynokore.gst.platform"
-        assertEquals(24, names.size)
+        assertEquals(25, names.size)
         listOf("RulePackStaged", "PackCurrencyChanged").forEach {
             assertTrue(Envelope.isPlatformType("$base.$it.v1"), it)
             assertFalse(Envelope.isPlatformType("$base.${it}X.v1"), it)
@@ -480,5 +481,37 @@ class PlatformClassEventsTest {
                 it,
             )
         }
+    }
+
+    @Test
+    fun `INV-AC-23118 name set holds RulePackActivated and not the look-alikes`() {
+        val base = "com.dynokore.gst.platform"
+        assertTrue(names.contains("RulePackActivated"))
+        assertTrue(Envelope.isPlatformType("$base.RulePackActivated.v1"))
+        assertFalse(Envelope.isPlatformType("$base.RulePackActivatedX.v1"))
+        assertFalse(Envelope.isPlatformType("$base.rulePackActivated.v1"))
+        assertFalse(Envelope.isPlatformType("com.dynokore.gst.rules.RulePackActivated.v1"))
+    }
+
+    @Test
+    fun `INV-AC-23118 RulePackActivated under the platform tenant is built and written`() {
+        val e = envelope("com.dynokore.gst.platform.RulePackActivated.v1", TenantId.PLATFORM, EntityRef.PLATFORM)
+        val text = json.write(e)
+        assertFalse(text.contains("tenantid") || text.contains("entityref"), text)
+        val back = json.read(text)
+        assertEquals(TenantId.PLATFORM, back.tenant)
+        assertEquals(EntityRef.PLATFORM, back.entity)
+    }
+
+    @Test
+    fun `INV-AC-23118 the rules-namespace RulePackActivated is refused under the platform tenant`() {
+        val type = "com.dynokore.gst.rules.RulePackActivated.v1"
+        assertThrows(
+            IllegalArgumentException::class.java,
+            { envelope(type, TenantId.PLATFORM, EntityRef.PLATFORM) },
+            type,
+        )
+        // the writer's guard (JdbcOutboxWriter, INV-Q-3018) throws EmissionNotPermitted exactly when this is false
+        assertFalse(Envelope.isPlatformType(type))
     }
 }

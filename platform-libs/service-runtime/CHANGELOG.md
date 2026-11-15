@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.20.1] - 2026-11-15
+### Changed
+- Version step only: depends on `outbox-and-queue` 6.25.0 (`RulePackActivated` joins the platform event set; INV-AC-23118, INV-T-23125); no code change.
+
 ## [13.20.0] - 2026-11-14
 ### Added
 - `IngestionErrorCode.RECEIPT_REPLACED_AFTER_TRANSMISSION` (ING-014, 409, owner Finance) and `IngestionErrorCode.Owner.FINANCE`; `IngestionErrorCode` gains the member `disposition` (`TERMINAL` for the four existing entries, `MANUAL` for ING-014) and `Problems.renderIngestion` renders it instead of the literal `TERMINAL`, so the four existing envelopes are unchanged (ruling tooling `gap22525-gap.md` option A; INV-T-22525, INV-AC-22523, INV-REQ-440; answered design question raised at the body of INV-T-4980, tooling `gap4980b-gap.md`).

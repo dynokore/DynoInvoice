@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.21.0] - 2026-11-15
+### Added
+- `PlatformEventCatalogue.RULE_PACK_ACTIVATED` (`gst.platform.rule-pack-activated.v1`) and its place in `ALL` (coordinator ruling, design question raised at the body of INV-T-22942 option B; tooling `gap22942-gap.md`; INV-AC-23118, INV-T-23125).
+
 ## [2.20.1] - 2026-11-14
 ### Changed
 - Version step only: depends on `service-runtime` 13.20.0 (ING-014 entry of `IngestionErrorCode`; INV-T-22525); no code change.

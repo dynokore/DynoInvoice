@@ -31,6 +31,7 @@ class ProductConfigurationTest {
             "CertificationMarkRequested",
             "RulePackStaged",
             "PackCurrencyChanged",
+            "RulePackActivated",
             "ConnectionCredentialExpiryReminderRequested",
         )
 
@@ -186,6 +187,16 @@ class ProductConfigurationTest {
             PlatformEventCatalogue.isPlatform("com.dynokore.gst.rules.$it.v1") shouldBe false
         }
         PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.RulePackStagedX.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-23118 the catalogue holds RulePackActivated with its topic and type and rejects the look-alikes`() {
+        PlatformEventCatalogue.RULE_PACK_ACTIVATED.topic shouldBe "gst.platform.rule-pack-activated.v1"
+        PlatformEventCatalogue.RULE_PACK_ACTIVATED.eventType shouldBe "com.dynokore.gst.platform.RulePackActivated.v1"
+        PlatformEventCatalogue.ALL.contains(PlatformEventCatalogue.RULE_PACK_ACTIVATED) shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.RulePackActivated.v1") shouldBe true
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.rules.RulePackActivated.v1") shouldBe false
+        PlatformEventCatalogue.isPlatform("com.dynokore.gst.platform.RulePackActivatedX.v1") shouldBe false
     }
 
     @Test
