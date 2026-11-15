@@ -29,7 +29,10 @@ fun interface TypeDecisionSignals {
 
 /** Reads the optional `routingFacts` member of a `CanonicalVersionCreated` payload map. */
 object RoutingFactsOf {
-    /** @return null when `routingFacts` is absent. @throws ContractViolation on a member of another type or an unknown enum text. */
+    /**
+     * @return null when `routingFacts` is absent.
+     * @throws ContractViolation on a member of another type or an unknown enum text.
+     */
     fun of(payload: Map<String, Any?>): RoutingFacts? {
         if (!payload.containsKey("routingFacts")) return null
         val facts = member(payload, "routingFacts")
