@@ -111,7 +111,7 @@ class SubmissionReconciliationControllerTest {
     private val overdue = Instant.parse("2026-11-12T00:00:00Z")
     private val notYetDue = Instant.parse("2026-11-14T00:00:00Z")
 
-    /** X acknowledged, Y sent past its deadline (two versions), Z rejected, W dead-lettered, R never sent, V not yet due. */
+    /** X acknowledged, Y sent past its deadline, Z rejected, W dead-lettered, R never sent, V sent and not yet due. */
     private val rows =
         listOf(
             row(1, 1, LifecycleState.SUPERSEDED, "100.00"),

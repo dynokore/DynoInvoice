@@ -121,6 +121,7 @@ class TransactionsControllerSingleReplayTest {
         tenant: TenantId? = this.tenant,
     ) = EndUserPrincipal(name, tenant, if (tenant == null) emptySet() else setOf(EntityRef("e1")), true)
 
+    @Suppress("LongMethod") // the composition of the controller delegates
     private fun fixture(
         caller: EndUserPrincipal?,
         state: LifecycleState? = LifecycleState.DEAD_LETTERED,

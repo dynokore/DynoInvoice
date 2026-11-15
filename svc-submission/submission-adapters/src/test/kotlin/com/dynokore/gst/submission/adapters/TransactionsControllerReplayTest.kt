@@ -141,6 +141,7 @@ class TransactionsControllerReplayTest {
         val requeue: FakeRequeue,
     )
 
+    @Suppress("LongMethod") // the composition of the controller delegates
     private fun fixture(
         caller: EndUserPrincipal?,
         holder: String? = "holder",
