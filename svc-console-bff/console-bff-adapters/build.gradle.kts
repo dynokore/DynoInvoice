@@ -22,6 +22,7 @@ contractClient {
     generatorSource("platform-contracts:payload:openapi.yaml")
     generatorSource("platform-contracts:submission:openapi.yaml")
     generatorSource("platform-contracts:masterdata:openapi.yaml")
+    generatorSource("platform-contracts:access:openapi.yaml")
 }
 
 gstJooqCodegen {

@@ -1,6 +1,9 @@
 package com.dynokore.gst.consoleBff.adapters.session
 
+import com.dynokore.gst.consoleBff.adapters.persistence.jooq.tables.records.ConsoleSessionRecord
 import com.dynokore.gst.consoleBff.adapters.persistence.jooq.tables.references.CONSOLE_SESSION
+import com.dynokore.gst.consoleBff.application.session.ContentMode
+import com.dynokore.gst.consoleBff.application.session.OperatorSession
 import com.dynokore.gst.consoleBff.application.session.SessionRow
 import com.dynokore.gst.consoleBff.application.session.SessionStore
 import com.dynokore.gst.consoleBff.domain.session.SessionId
@@ -12,6 +15,7 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
@@ -43,6 +47,7 @@ class JooqSessionStore(
     private val binding: PlatformTenantBinding,
     private val transactions: TransactionRunner,
     private val random: SecureRandom = SecureRandom(),
+    private val clock: Clock = Clock.systemUTC(),
 ) : SessionStore {
     fun create(
         tenantId: String,
@@ -82,8 +87,24 @@ class JooqSessionStore(
                 authorityVersionAtOpen = checkNotNull(it.authorityVersion),
                 openedAt = checkNotNull(it.openedAt).toInstant(),
                 lastSeenAt = checkNotNull(it.lastSeenAt).toInstant(),
+                operator = operatorOf(it, clock.instant()),
             )
         }
+
+    override fun attachOperatorSession(
+        hash: String,
+        operator: OperatorSession,
+    ): Boolean =
+        platform {
+            dsl
+                .update(CONSOLE_SESSION)
+                .set(CONSOLE_SESSION.OPERATOR_TOKEN, operator.token)
+                .set(CONSOLE_SESSION.OPERATOR_TENANT_ID, UUID.fromString(operator.tenantId))
+                .set(CONSOLE_SESSION.OPERATOR_EXPIRES_AT, operator.expiresAt.atOffset(ZoneOffset.UTC))
+                .set(CONSOLE_SESSION.OPERATOR_CONTENT_MODE, operator.contentMode.name)
+                .where(CONSOLE_SESSION.SESSION_ID_HASH.eq(hash))
+                .execute()
+        } == 1
 
     /** Sets `last_seen_at` in one update; the number of rows changed is returned (0 for an unknown hash). */
     fun touchRows(
@@ -138,18 +159,6 @@ class JooqSessionStore(
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 
-    private fun hashOf(cookieValue: String): String =
-        when (val parsed = SessionId.parse(cookieValue)) {
-            is SessionIdParse.Parsed -> SessionIdHash.of(parsed.id)
-            SessionIdParse.Malformed -> error("generated cookie value is malformed")
-        }
-
-    private fun sha256(value: String): String =
-        MessageDigest
-            .getInstance("SHA-256")
-            .digest(value.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(Locale.ROOT, it) }
-
     companion object {
         /** The fixed workload actor of the platform binding of this store and of the sweeper. */
         const val ACTOR = "svc:console-bff/session-store"
@@ -172,3 +181,34 @@ class JooqSessionStore(
         ): JooqSessionStore = JooqSessionStore(dsl, bindingOf(tenants), transactions)
     }
 }
+
+/** The operator part, only while `operator_expires_at` is after now (expired means not after now). */
+private fun operatorOf(
+    row: ConsoleSessionRecord,
+    now: Instant,
+): OperatorSession? {
+    val expiresAt = row.operatorExpiresAt?.toInstant()
+    val stored = row.operatorToken
+    return if (stored == null || expiresAt == null || !expiresAt.isAfter(now)) {
+        null
+    } else {
+        OperatorSession(
+            tenantId = checkNotNull(row.operatorTenantId).toString(),
+            token = stored,
+            expiresAt = expiresAt,
+            contentMode = ContentMode.valueOf(checkNotNull(row.operatorContentMode)),
+        )
+    }
+}
+
+private fun hashOf(cookieValue: String): String =
+    when (val parsed = SessionId.parse(cookieValue)) {
+        is SessionIdParse.Parsed -> SessionIdHash.of(parsed.id)
+        SessionIdParse.Malformed -> error("generated cookie value is malformed")
+    }
+
+private fun sha256(value: String): String =
+    MessageDigest
+        .getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .joinToString("") { "%02x".format(Locale.ROOT, it) }

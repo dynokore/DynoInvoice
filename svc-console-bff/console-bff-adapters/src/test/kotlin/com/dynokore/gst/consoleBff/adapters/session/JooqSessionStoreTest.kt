@@ -48,8 +48,8 @@ class JooqSessionStoreTest {
                 rs.next() shouldBe true
                 val texts = (1..rs.metaData.columnCount).map { rs.getString(it) }
                 texts.forEach {
-                    (it.contains(created.cookieValue)) shouldBe false
-                    (it.contains(created.csrfToken)) shouldBe false
+                    (it?.contains(created.cookieValue) ?: false) shouldBe false
+                    (it?.contains(created.csrfToken) ?: false) shouldBe false
                 }
                 rs.getString("session_id_hash") shouldBe hash(created.cookieValue)
             }

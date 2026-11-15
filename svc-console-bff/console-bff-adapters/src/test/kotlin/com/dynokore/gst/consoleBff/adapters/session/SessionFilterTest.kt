@@ -1,5 +1,6 @@
 package com.dynokore.gst.consoleBff.adapters.session
 
+import com.dynokore.gst.consoleBff.application.session.OperatorSession
 import com.dynokore.gst.consoleBff.application.session.PrincipalStanding
 import com.dynokore.gst.consoleBff.application.session.SessionResolver
 import com.dynokore.gst.consoleBff.application.session.SessionRow
@@ -37,6 +38,11 @@ class SessionFilterTest {
         override fun delete(hash: String) {
             rows.remove(hash)
         }
+
+        override fun attachOperatorSession(
+            hash: String,
+            operator: OperatorSession,
+        ): Boolean = error("not used by the filter")
     }
 
     private fun filter(

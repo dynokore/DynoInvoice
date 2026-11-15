@@ -51,6 +51,11 @@ class SessionResolverTest {
             check(!failDelete) { "down" }
             deleted += hash
         }
+
+        override fun attachOperatorSession(
+            hash: String,
+            operator: OperatorSession,
+        ): Boolean = error("not used by the resolver")
     }
 
     private class Standings(
