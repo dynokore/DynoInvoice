@@ -346,6 +346,12 @@ class ExportSubmissionsTest {
     }
 
     @Test
+    fun `INV-AC-23395 b2 the status key follows the principal kind and not the principal id`() {
+        val odd = MachinePrincipalFixtures.machine("svc-1", tenant, MachineEntityCoverage.Entity(entityRef), "M1")
+        csvOf(exportAs(odd, RecordingSource(rows)))
+    }
+
+    @Test
     fun `INV-AC-23395 f the machine status key is the published string`() {
         ListingActions.VIEW_STATUS_MACHINE shouldBe "machine.submissions.read"
     }
