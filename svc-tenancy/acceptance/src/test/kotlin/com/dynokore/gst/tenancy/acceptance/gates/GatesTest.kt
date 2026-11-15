@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
 
+@Suppress("LargeClass") // one case per gate probe; the cases share the contract fixtures
 class GatesTest {
     private val openapi =
         """
@@ -415,6 +416,7 @@ class GatesTest {
     }
 
     @Test
+    @Suppress("LongMethod") // the real-table checks and the five look-alike probes of one criterion
     fun `INV-AC-23424 the table lists OffboardingExportRequested against its producer and the gate fails closed`() {
         val root = File(checkNotNull(System.getProperty("gst.repo.root")) { "gst.repo.root is unset" })
         val contract = File(checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is unset" })

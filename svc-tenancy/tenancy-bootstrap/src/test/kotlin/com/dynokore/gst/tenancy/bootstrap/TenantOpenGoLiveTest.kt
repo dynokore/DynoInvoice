@@ -141,6 +141,7 @@ class TenantOpenGoLiveTest {
     }
 
     @Test
+    @Suppress("LongMethod") // the added flow-context argument pushes the case one line over the limit
     fun `INV-AC-8139 createTenant stores SCHEDULED, openTenant opens once and refuses CLOSED with 409`() {
         lifecycleRun { l ->
             val contract = "C-${UUID.randomUUID()}"
