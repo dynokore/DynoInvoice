@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.27.0] - 2026-11-15
+### Added
+- `OffboardingExportFinished` (`com.dynokore.gst.evidence.OffboardingExportFinished.v1`) joins the closed exact-type set of domain events that may carry the tenant-wide entity (`allowsTenantWide`), with `AccessPointRouteChanged`, `PlanLimitExceeded` and `UnsubmittedDocumentCountMeasured`; tenant offboarding is tenant-scoped by nature; it stays a domain event and still needs a real tenant; look-alike types stay refused (delegated ruling of tooling `gap22956-gap.md` option A; INV-AC-23211, INV-T-23212).
+
 ## [6.26.0] - 2026-11-15
 ### Added
 - `UnsubmittedDocumentCountMeasured` (`com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1`) joins the closed exact-type set of domain events that may carry the tenant-wide entity (`allowsTenantWide`), with `AccessPointRouteChanged` and `PlanLimitExceeded`; it stays a domain event and still needs a real tenant; look-alike types stay refused (delegated ruling of tooling `gap23031-gap.md` option A; INV-AC-23149, INV-T-23150).

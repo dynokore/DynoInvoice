@@ -40,7 +40,8 @@ value class EntityRef(
          * except the exact types `com.dynokore.gst.transport.AccessPointRouteChanged.v1` (INV-Q-15474) and
          * `com.dynokore.gst.tenancy.PlanLimitExceeded.v1` (delegated ruling of tooling/t4933-gap.md Round 11) and
          * `com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1`
-         * (delegated ruling of tooling/gap23031-gap.md).
+         * (delegated ruling of tooling/gap23031-gap.md) and
+         * `com.dynokore.gst.evidence.OffboardingExportFinished.v1` (delegated ruling of tooling/gap22956-gap.md).
          */
         val TENANT_WIDE: EntityRef = EntityRef(TENANT_WIDE_VALUE)
     }
