@@ -7,3 +7,4 @@ operation	submission	overrideFilingGate	INV-REQ-72
 operation	submission	approveFilingGateOverride	INV-REQ-72
 operation	tenancy	changeFilingFrequency	INV-REQ-83
 message	tenancy	FilingFrequencyChanged	INV-REQ-83
+message	submission	PeriodFilingStatusChanged	INV-REQ-85
