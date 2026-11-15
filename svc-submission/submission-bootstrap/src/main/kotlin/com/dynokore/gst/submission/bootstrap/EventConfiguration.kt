@@ -7,9 +7,9 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events submission-svc may emit (INV-REQ-815 behaviour 2): the seven of model/architecture/events.yaml it produces,
- * each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type. The catalogue
- * also lists the one event it consumes, produced by payload-svc, so the consumer can read its topic.
+ * The events submission-svc may emit (INV-REQ-815 behaviour 2): the seven of model/architecture/events.yaml it
+ * produces, each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type.
+ * The catalogue also lists the one event it consumes, produced by payload-svc, so the consumer can read its topic.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {

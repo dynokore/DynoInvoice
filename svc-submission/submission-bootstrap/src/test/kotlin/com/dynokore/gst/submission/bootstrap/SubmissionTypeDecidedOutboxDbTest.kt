@@ -20,6 +20,7 @@ import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.File
 import java.nio.file.Path
@@ -225,22 +226,32 @@ class SubmissionTypeDecidedOutboxDbTest {
             }
         }
         schema.get("properties").properties().forEach { (name, rule) ->
-            val value = node.get(name) ?: return@forEach
-            val typeOk =
-                when (rule.get("type").asString()) {
-                    "string" -> value.isString
-                    "integer" -> value.isIntegralNumber
-                    else -> false
-                }
-            if (!typeOk) out += "$name type"
-            if (typeOk && rule.has("minimum") && value.asLong() < rule.get("minimum").asLong()) out += "$name minimum"
-            if (typeOk && rule.has("enum") && rule.get("enum").values().none { it.asString() == value.asString() }) {
-                out += "$name enum"
+            node.get(name)?.let { value -> out += propertyViolations(name, rule, value) }
+        }
+        return out
+    }
+
+    private fun propertyViolations(
+        name: String,
+        rule: JsonNode,
+        value: JsonNode,
+    ): List<String> {
+        val typeOk =
+            when (rule.get("type").asString()) {
+                "string" -> value.isString
+                "integer" -> value.isIntegralNumber
+                else -> false
             }
-            if (typeOk && rule.get("format")?.asString() == "uuid") {
-                runCatching { UUID.fromString(value.asString()) }
-                    .onFailure { out += "$name uuid" }
-            }
+        if (!typeOk) return listOf("$name type")
+        val out = mutableListOf<String>()
+        if (rule.has("minimum") && value.asLong() < rule.get("minimum").asLong()) out += "$name minimum"
+        if (rule.has("enum") &&
+            rule.get("enum").values().none { it.asString() == value.asString() }
+        ) {
+            out += "$name enum"
+        }
+        if (rule.get("format")?.asString() == "uuid" && runCatching { UUID.fromString(value.asString()) }.isFailure) {
+            out += "$name uuid"
         }
         return out
     }
