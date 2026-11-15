@@ -37,6 +37,11 @@ class OffboardingExportRequestedHandlerTest {
                 offboardingRef: String,
             ): ExportJob? = null
 
+            override fun findLatest(
+                tenant: TenantId,
+                scope: ExportScope,
+            ): ExportJob? = null
+
             override fun register(request: ExportRequest): ExportJob {
                 registered += request
                 return ExportJob(request.tenant, request.offboardingRef, request.exportRef, ExportState.REQUESTED)

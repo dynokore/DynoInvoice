@@ -51,6 +51,11 @@ class ExportTenantEvidenceTest {
             offboardingRef: String,
         ) = job
 
+        override fun findLatest(
+            tenant: TenantId,
+            scope: ExportScope,
+        ) = job
+
         override fun register(request: ExportRequest) =
             ExportJob(
                 request.tenant,

@@ -87,6 +87,116 @@ class OffboardingExportJobDbTest {
                 }
         }
 
+    private val older = Instant.parse("2026-11-15T08:00:00Z")
+    private val newer = Instant.parse("2026-11-15T09:00:00Z")
+    private val newest = Instant.parse("2026-11-15T10:00:00Z")
+
+    private fun <T> txAt(
+        tenant: UUID,
+        at: Instant,
+        block: (JooqOffboardingExportJobs) -> T,
+    ): T =
+        EvidenceDb.connect(EvidenceDb.RUNTIME, EvidenceDb.RUNTIME_PASSWORD).use { c ->
+            c.autoCommit = false
+            SignedBindings.bind(c, tenant)
+            val dsl: DSLContext = DSL.using(c, SQLDialect.POSTGRES)
+            block(JooqOffboardingExportJobs(dsl, Clock.fixed(at, ZoneOffset.UTC))).also { c.commit() }
+        }
+
+    private fun registerAt(
+        tenant: UUID,
+        at: Instant,
+        offboardingRef: String,
+        exportRef: String,
+        scope: ExportScope = ExportScope.TENANT,
+    ): ExportJob =
+        txAt(tenant, at) {
+            it.register(
+                ExportRequest(
+                    TenantId(tenant),
+                    offboardingRef,
+                    exportRef,
+                    scope,
+                    if (scope == ExportScope.ENTITY) "E1" else null,
+                    "EV-$exportRef",
+                ),
+            )
+        }
+
+    private fun latest(
+        tenant: UUID,
+        bound: UUID = tenant,
+        scope: ExportScope = ExportScope.TENANT,
+    ): ExportJob? = tx(bound) { it.findLatest(TenantId(tenant), scope) }
+
+    @Test
+    fun `INV-AC-23561 the newer of two TENANT jobs is answered`() {
+        val t1 = UUID.randomUUID()
+        registerAt(t1, older, "OFF-A", "EXP-OLD")
+        registerAt(t1, newer, "OFF-B", "EXP-NEW")
+        latest(t1)!!.exportRef shouldBe "EXP-NEW"
+    }
+
+    @Test
+    fun `INV-AC-23561 a newer REQUESTED job is answered although an older READY job exists`() {
+        val t1 = UUID.randomUUID()
+        val ready = registerAt(t1, older, "OFF-A", "EXP-OLD")
+        txAt(t1, newest) { it.markReady(ready, "s3://m/1", 1, listOf("A")) }
+        registerAt(t1, newer, "OFF-B", "EXP-NEW")
+        val got = latest(t1)!!
+        got.exportRef shouldBe "EXP-NEW"
+        got.state shouldBe ExportState.REQUESTED
+    }
+
+    @Test
+    fun `INV-AC-23561 an ENTITY job newer than the TENANT job is not answered for TENANT`() {
+        val t1 = UUID.randomUUID()
+        registerAt(t1, older, "OFF-A", "EXP-TENANT")
+        registerAt(t1, newest, "OFF-B", "EXP-ENTITY", ExportScope.ENTITY)
+        latest(t1)!!.exportRef shouldBe "EXP-TENANT"
+        latest(t1, scope = ExportScope.ENTITY)!!.exportRef shouldBe "EXP-ENTITY"
+    }
+
+    @Test
+    fun `INV-AC-23561 no TENANT job gives null`() {
+        val t1 = UUID.randomUUID()
+        latest(t1) shouldBe null
+        registerAt(t1, newest, "OFF-B", "EXP-ENTITY", ExportScope.ENTITY)
+        latest(t1) shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-23561 READY and FAILED jobs carry the stated finishedAt and a REQUESTED job carries null`() {
+        val t1 = UUID.randomUUID()
+        val a = registerAt(t1, older, "OFF-A", "EXP-A")
+        txAt(t1, newer) { it.markReady(a, "s3://m/1", 1, listOf("A")) }
+        val readyJob = latest(t1)!!
+        readyJob.state shouldBe ExportState.READY
+        readyJob.finishedAt shouldBe newer
+
+        val t2 = UUID.randomUUID()
+        val b = registerAt(t2, older, "OFF-A", "EXP-A")
+        txAt(t2, newest) { it.markFailed(b, "no source") }
+        val failedJob = latest(t2)!!
+        failedJob.state shouldBe ExportState.FAILED
+        failedJob.finishedAt shouldBe newest
+
+        val t3 = UUID.randomUUID()
+        registerAt(t3, older, "OFF-A", "EXP-A")
+        val requested = latest(t3)!!
+        requested.state shouldBe ExportState.REQUESTED
+        requested.finishedAt shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-23561 the read bound to T2 answers null for the job of T1`() {
+        val t1 = UUID.randomUUID()
+        val t2 = UUID.randomUUID()
+        registerAt(t1, older, "OFF-A", "EXP-A")
+        latest(t1, bound = t2) shouldBe null
+        latest(t1)!!.exportRef shouldBe "EXP-A"
+    }
+
     @Test
     fun `INV-AC-22947 the second register for the same offboarding returns the first row and creates none`() {
         val t1 = UUID.randomUUID()

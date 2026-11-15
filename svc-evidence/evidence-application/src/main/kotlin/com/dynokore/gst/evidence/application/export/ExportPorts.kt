@@ -43,6 +43,7 @@ data class ExportJob(
     val itemCount: Int? = null,
     val contents: List<String> = emptyList(),
     val failureReason: String? = null,
+    val finishedAt: java.time.Instant? = null,
 )
 
 /** The candidates of one content class for a tenant. Reads only; it never writes. */
@@ -66,6 +67,14 @@ interface ExportJobs {
     fun find(
         tenant: TenantId,
         offboardingRef: String,
+    ): ExportJob?
+
+    /**
+     * The newest job of the tenant for the scope by requested_at (whatever its state), or null when none.
+     */
+    fun findLatest(
+        tenant: TenantId,
+        scope: ExportScope,
     ): ExportJob?
 
     /** Registers a REQUESTED job and returns it; idempotent per offboarding. */

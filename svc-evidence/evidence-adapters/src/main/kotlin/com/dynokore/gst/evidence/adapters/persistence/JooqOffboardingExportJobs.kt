@@ -4,6 +4,7 @@ import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.OffboardingExp
 import com.dynokore.gst.evidence.application.export.ExportJob
 import com.dynokore.gst.evidence.application.export.ExportJobs
 import com.dynokore.gst.evidence.application.export.ExportRequest
+import com.dynokore.gst.evidence.application.export.ExportScope
 import com.dynokore.gst.evidence.application.export.ExportState
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
@@ -30,6 +31,18 @@ class JooqOffboardingExportJobs(
         dsl
             .selectFrom(t)
             .where(t.TENANT_ID.eq(tenant.value), t.OFFBOARDING_REF.eq(offboardingRef))
+            .fetchOne()
+            ?.let(::toJob)
+
+    override fun findLatest(
+        tenant: TenantId,
+        scope: ExportScope,
+    ): ExportJob? =
+        dsl
+            .selectFrom(t)
+            .where(t.TENANT_ID.eq(tenant.value), t.SCOPE.eq(scope.name))
+            .orderBy(t.REQUESTED_AT.desc(), t.JOB_ID.desc())
+            .limit(1)
             .fetchOne()
             ?.let(::toJob)
 
@@ -103,5 +116,6 @@ class JooqOffboardingExportJobs(
             itemCount = r.get(t.ITEM_COUNT)?.toInt(),
             contents = r.get(t.CONTENTS)?.filterNotNull().orEmpty(),
             failureReason = r.get(t.FAILURE_REASON),
+            finishedAt = r.get(t.FINISHED_AT)?.toInstant(),
         )
 }
