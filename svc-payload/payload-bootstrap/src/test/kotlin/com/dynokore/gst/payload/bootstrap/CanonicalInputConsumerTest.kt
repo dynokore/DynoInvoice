@@ -148,8 +148,8 @@ class CanonicalInputConsumerTest {
         PayloadDb.superuser().use { c ->
             c
                 .prepareStatement(
-                    "select canonical_document::text, direction, counterparty_on_network from payload.canonical_input " +
-                        "where tenant_id = ? and doc_uuid = ?",
+                    "select canonical_document::text, direction, counterparty_on_network " +
+                        "from payload.canonical_input where tenant_id = ? and doc_uuid = ?",
                 ).use { st ->
                     st.setObject(1, tenant.value)
                     st.setObject(2, doc)
@@ -200,7 +200,8 @@ class CanonicalInputConsumerTest {
         tx(t1) { decisions.store(d1, 1, "TYPE_2") } shouldBe true
         log.add(created(t1, "ev-1", d1, routing = """{"direction":"SALE","counterpartyOnNetwork":true}"""))
         consumer.pollOnce() shouldBe applied1
-        row(t1, d1)?.document shouldBe """{"currency": {"value": "SGD"}, "totals": {"value": {"totalIncludingTax": "80.00"}}}"""
+        row(t1, d1)?.document shouldBe
+            """{"totals": {"value": {"totalIncludingTax": "80.00"}}, "currency": {"value": "SGD"}}"""
         jobs(t1, d1) shouldBe 1
     }
 
@@ -233,7 +234,11 @@ class CanonicalInputConsumerTest {
         log.add(created(t1, "ev-1", d1, document = "\"text\""))
         consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
         row(t1, d1) shouldBe null
-        count("select count(*) from payload.document_version_fact where tenant_id = ? and doc_uuid = ?", t1.value, d1) shouldBe 0
+        count(
+            "select count(*) from payload.document_version_fact where tenant_id = ? and doc_uuid = ?",
+            t1.value,
+            d1,
+        ) shouldBe 0
         tx(t1) { dsl.fetchCount(EVENT_DEAD_LETTER, EVENT_DEAD_LETTER.CONSUMER.eq(consumerName)) } shouldBe 1
     }
 

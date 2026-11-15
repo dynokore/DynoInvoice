@@ -50,37 +50,12 @@ class CanonicalVersionCreatedHandler(
         if (document == null || !document.isObject) throw ContractViolation("canonicalDocument is not an object")
         val facts = facts(event.entity.value, total(document), aggregateId(data))
         val routing = data.get("routingFacts")
-        val direction = direction(routing)
-        val onNetwork = counterpartyOnNetwork(routing)
+        val direction = RoutingFacts.direction(routing)
+        val onNetwork = RoutingFacts.counterpartyOnNetwork(routing)
         val factsStored = recordVersionFacts.record(docUuid, version, facts)
         val inputStored = inputs.store(docUuid, version, json.writeValueAsString(document), direction, onNetwork)
         trigger.onInputStored(docUuid, version)
         return if (factsStored || inputStored) HandleOutcome.APPLIED else HandleOutcome.IGNORED
-    }
-
-    /** The optional `routingFacts.direction`: absent keeps null; anything but SALE or PURCHASE text is refused. */
-    private fun direction(routing: JsonNode?): String? {
-        val node = member(routing, "direction") ?: return null
-        if (!node.isString || node.asString() !in DIRECTIONS) {
-            throw ContractViolation("routingFacts.direction is not SALE or PURCHASE")
-        }
-        return node.asString()
-    }
-
-    /** The optional `routingFacts.counterpartyOnNetwork`: absent keeps null (never defaulted); non-boolean is refused. */
-    private fun counterpartyOnNetwork(routing: JsonNode?): Boolean? {
-        val node = member(routing, "counterpartyOnNetwork") ?: return null
-        if (!node.isBoolean) throw ContractViolation("routingFacts.counterpartyOnNetwork is not a boolean")
-        return node.asBoolean()
-    }
-
-    private fun member(
-        routing: JsonNode?,
-        name: String,
-    ): JsonNode? {
-        if (routing == null || routing.isNull) return null
-        if (!routing.isObject) throw ContractViolation("routingFacts is not an object")
-        return routing.get(name)?.takeUnless { it.isNull }
     }
 
     private fun docUuid(data: JsonNode): UUID =
@@ -153,8 +128,34 @@ class CanonicalVersionCreatedHandler(
         if (!node.isString) throw ContractViolation("$name is not text")
         return node.asString().also { if (it.isBlank()) throw ContractViolation("$name is blank") }
     }
+}
 
-    private companion object {
-        val DIRECTIONS = setOf("SALE", "PURCHASE")
+/** The optional `routingFacts` member of the event; each refusal is a [ContractViolation]. */
+private object RoutingFacts {
+    private val DIRECTIONS = setOf("SALE", "PURCHASE")
+
+    /** The optional `routingFacts.direction`: absent keeps null; anything but SALE or PURCHASE text is refused. */
+    fun direction(routing: JsonNode?): String? {
+        val node = member(routing, "direction") ?: return null
+        if (!node.isString || node.asString() !in DIRECTIONS) {
+            throw ContractViolation("routingFacts.direction is not SALE or PURCHASE")
+        }
+        return node.asString()
+    }
+
+    /** The optional `routingFacts.counterpartyOnNetwork`: absent stays null, never false; non-boolean is refused. */
+    fun counterpartyOnNetwork(routing: JsonNode?): Boolean? {
+        val node = member(routing, "counterpartyOnNetwork") ?: return null
+        if (!node.isBoolean) throw ContractViolation("routingFacts.counterpartyOnNetwork is not a boolean")
+        return node.asBoolean()
+    }
+
+    private fun member(
+        routing: JsonNode?,
+        name: String,
+    ): JsonNode? {
+        if (routing == null || routing.isNull) return null
+        if (!routing.isObject) throw ContractViolation("routingFacts is not an object")
+        return routing.get(name)?.takeUnless { it.isNull }
     }
 }

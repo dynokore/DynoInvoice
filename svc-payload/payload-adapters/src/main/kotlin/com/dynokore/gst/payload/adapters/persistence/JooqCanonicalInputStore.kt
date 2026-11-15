@@ -3,7 +3,8 @@ package com.dynokore.gst.payload.adapters.persistence
 import com.dynokore.gst.payload.adapters.events.CanonicalInputWriter
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.CanonicalInput
 import org.jooq.DSLContext
-import org.jooq.JSONB
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 import java.util.UUID
 
 /**
@@ -31,7 +32,7 @@ class JooqCanonicalInputStore(
             .set(table.TENANT_ID, boundTenant())
             .set(table.DOC_UUID, docUuid)
             .set(table.VERSION, version)
-            .set(table.CANONICAL_DOCUMENT, JSONB.valueOf(canonicalDocument))
+            .set(table.CANONICAL_DOCUMENT, DSL.cast(canonicalDocument, SQLDataType.JSONB))
             .set(table.DIRECTION, direction)
             .set(table.COUNTERPARTY_ON_NETWORK, counterpartyOnNetwork)
             .onConflictDoNothing()
