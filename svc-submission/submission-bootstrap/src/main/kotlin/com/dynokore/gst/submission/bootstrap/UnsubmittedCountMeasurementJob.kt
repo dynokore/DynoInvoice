@@ -87,21 +87,23 @@ class UnsubmittedCountMeasurementJob(
         scope.bound(tenant) {
             scope.inTransaction {
                 val measurement = measure.execute(tenant)
-                outbox.append(listOf(OutboundEvent(EVENT_TYPE, data(measurement))), context(tenant))
+                outbox.append(listOf(OutboundEvent(EVENT_TYPE, data(measurement))), context(tenant, measurement))
             }
         }
 
-    private fun context(tenant: TenantId) =
-        EventContext(
-            tenant = tenant,
-            entity = EntityRef.TENANT_WIDE,
-            docUuid = null,
-            transactionDate = null,
-            aggregateKey = tenant.value.toString(),
-            aggregateVersion = null,
-            correlation = CorrelationId(UUID.randomUUID().toString()),
-            causation = CausationId("unsubmitted-count-measurement:${clock.instant()}"),
-        )
+    private fun context(
+        tenant: TenantId,
+        measurement: UnsubmittedCountMeasurement,
+    ) = EventContext(
+        tenant = tenant,
+        entity = EntityRef.TENANT_WIDE,
+        docUuid = null,
+        transactionDate = null,
+        aggregateKey = tenant.value.toString(),
+        aggregateVersion = null,
+        correlation = CorrelationId(UUID.randomUUID().toString()),
+        causation = CausationId("unsubmitted-count-measurement:${measurement.measuredAt}"),
+    )
 
     companion object {
         const val NAME = "unsubmitted-count-measurement"
