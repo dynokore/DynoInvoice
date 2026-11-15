@@ -4,8 +4,10 @@ import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
 import com.dynokore.gst.submission.application.queue.NewReadySubmission
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.SQLDialect
+import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -56,5 +58,12 @@ class SubmissionAggregateIdDbTest {
         locked(t1, d)!!.aggregateId shouldBe "AGG-2026-0001"
         locked(t1, e)!!.aggregateId shouldBe null
         locked(UUID.randomUUID(), d) shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-22807 the database refuses an empty aggregate_id`() {
+        val t1 = UUID.randomUUID()
+        val ex = shouldThrow<DataAccessException> { insert(t1, "f-${UUID.randomUUID()}", "") }
+        ex.sqlState() shouldBe "23514"
     }
 }
