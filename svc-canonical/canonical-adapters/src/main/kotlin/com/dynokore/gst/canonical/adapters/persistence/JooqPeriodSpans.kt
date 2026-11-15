@@ -68,9 +68,9 @@ class JooqPeriodSpans(
             .orderBy(PERIOD_SPAN.PERIOD_START, PERIOD_SPAN.PERIOD_REF)
             .fetch {
                 PeriodSpan(
-                    it.getValue(PERIOD_SPAN.PERIOD_REF),
-                    it.getValue(PERIOD_SPAN.PERIOD_START),
-                    it.getValue(PERIOD_SPAN.PERIOD_END),
+                    checkNotNull(it.get(PERIOD_SPAN.PERIOD_REF)),
+                    checkNotNull(it.get(PERIOD_SPAN.PERIOD_START)),
+                    checkNotNull(it.get(PERIOD_SPAN.PERIOD_END)),
                 )
             }
 }
