@@ -16,13 +16,11 @@ import com.dynokore.platform.serviceruntime.replica.GrantScope
 import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
-import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldContain
-import org.jooq.DSLContext
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -73,9 +71,8 @@ class PackIdentifierStagingJoinBoundaryTest(
     @Autowired private val replica: AuthorityReplica,
     @Autowired private val clock: MovableClock,
     @Autowired private val tx: TransactionRunner,
-    @Autowired private val tenants: TenantContext,
     @Autowired private val platform: PlatformTenantBinding,
-    @Autowired private val db: DSLContext,
+    @Autowired private val registry: PersistedPackRegistry,
 ) {
     companion object {
         private val dir: Path = Files.createTempDirectory("rules-join-bundles")
@@ -206,7 +203,12 @@ class PackIdentifierStagingJoinBoundaryTest(
         synchronized(Companion) {
             imported ?: run {
                 grant("u-join")
-                val suffix = UUID.randomUUID().toString().take(8).uppercase()
+                val suffix =
+                    UUID
+                        .randomUUID()
+                        .toString()
+                        .take(8)
+                        .uppercase()
                 val packId = "gst-join-$suffix"
                 val version = "j${suffix.lowercase()}"
                 Imported(packId, version, import("u-join", version, mount(bundle(packId, version))))
@@ -248,7 +250,7 @@ class PackIdentifierStagingJoinBoundaryTest(
     private fun resolved() =
         platform.bindPlatform("rules-join-test") {
             tx.inTransaction {
-                PersistedPackRegistry(db, tenants).resolve(PackTypes.SCOPE, null, LocalDate.parse("2027-01-01"))
+                registry.resolve(PackTypes.SCOPE, null, LocalDate.parse("2027-01-01"))
             }
         }
 
