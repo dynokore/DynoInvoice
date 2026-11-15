@@ -128,4 +128,57 @@ class ScopeEvaluationAdaptersTest {
         server?.stop(0)
         sourceAnswering(400, envelope).schemeFactsOf(lookup) shouldBe SchemeFactsAnswer.Unavailable
     }
+
+    private fun window(
+        from: String,
+        to: String?,
+        scheme: String = "ARCS",
+    ) = ApprovedSchemeWindow(scheme, LocalDate.parse(from), to?.let { LocalDate.parse(it) })
+
+    private fun schemesOver(vararg windows: ApprovedSchemeWindow): SchemeFactsAnswer {
+        var handedDate: LocalDate? = null
+        val source =
+            MasterDataCounterpartySchemes { _, _, _, _, on ->
+                handedDate = on
+                MasterDataAnswer.Answered(ResolvedCounterparty("CTP-118", windows.toList(), true))
+            }
+        val answer = source.schemeFactsOf(lookup)
+        handedDate shouldBe date
+        return answer
+    }
+
+    private fun kept(vararg windows: ApprovedSchemeWindow): List<String> =
+        (schemesOver(*windows) as SchemeFactsAnswer.Found).facts!!.approvedSchemes
+
+    @Test
+    fun `INV-AC-21475 a window of exactly the lookup date is kept, both bounds inclusive`() {
+        kept(window("2026-03-20", "2026-03-20")) shouldBe listOf("ARCS")
+    }
+
+    @Test
+    fun `INV-AC-21475 an item ending one day before the lookup date is dropped`() {
+        kept(window("2026-01-01", "2026-03-19")) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21475 an item starting one day after the lookup date is dropped`() {
+        kept(window("2026-03-21", null)) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21475 an item with no end date is kept`() {
+        kept(window("2026-01-01", null)) shouldBe listOf("ARCS")
+    }
+
+    @Test
+    fun `INV-AC-21475 two items of one scheme count only for the window that contains the date`() {
+        kept(window("2025-01-01", "2025-12-31"), window("2026-01-01", null)) shouldBe listOf("ARCS")
+        kept(window("2026-01-01", null), window("2026-03-01", "2026-04-01")) shouldBe listOf("ARCS", "ARCS")
+    }
+
+    @Test
+    fun `INV-AC-21475 when every item is out of window the facts hold an empty list and the answer is Found`() {
+        schemesOver(window("2025-01-01", "2025-12-31"), window("2026-04-01", null)) shouldBe
+            SchemeFactsAnswer.Found(SchemeFacts(emptyList(), true))
+    }
 }

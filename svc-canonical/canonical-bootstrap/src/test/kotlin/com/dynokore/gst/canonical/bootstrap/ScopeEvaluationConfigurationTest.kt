@@ -25,7 +25,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.web.client.RestClient
 import java.nio.file.Path
 
-/** INV-AC-21475: the scope evaluation beans of the record chain (the client beans are INV-T-21416's, faked here). */
+/** INV-AC-21475: the scope evaluation beans of the record chain (the clients are declared by the configuration; the collaborators they need are faked here). */
 class ScopeEvaluationConfigurationTest {
     private class Registry : ResilienceRegistry {
         override fun forEdge(edge: String): ResilientEdge =

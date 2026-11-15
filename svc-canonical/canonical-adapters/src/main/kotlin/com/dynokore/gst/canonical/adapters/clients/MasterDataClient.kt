@@ -61,13 +61,20 @@ sealed interface MasterDataAnswer<out T> {
     ) : MasterDataAnswer<Nothing>
 }
 
+/** One approved scheme status item of the resolution, with the window in which it is in force (both bounds inclusive). */
+data class ApprovedSchemeWindow(
+    val scheme: String,
+    val effectiveFrom: LocalDate,
+    val effectiveTo: LocalDate?,
+)
+
 /**
  * The counterparty the resolution found; `partyRef` is null when the owner answered without a counterparty.
  * `approvedSchemes` and `arcsGstChargeAgreed` are the scheme facts of the answer, null when the owner sent none.
  */
 data class ResolvedCounterparty(
     val partyRef: String?,
-    val approvedSchemes: List<String>? = null,
+    val approvedSchemes: List<ApprovedSchemeWindow>? = null,
     val arcsGstChargeAgreed: Boolean? = null,
 )
 
@@ -112,7 +119,7 @@ class MasterDataClient(
                 MasterDataAnswer.Answered(
                     ResolvedCounterparty(
                         body.counterparty?.partyRef,
-                        body.approvedSchemes?.map { it.scheme },
+                        body.approvedSchemes?.map { ApprovedSchemeWindow(it.scheme, it.effectiveFrom, it.effectiveTo) },
                         body.arcsGstChargeAgreed,
                     ),
                 )
