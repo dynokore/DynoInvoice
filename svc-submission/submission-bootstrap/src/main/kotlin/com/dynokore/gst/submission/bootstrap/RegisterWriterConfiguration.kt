@@ -2,6 +2,7 @@ package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.events.JacksonCanonicalVersionCreatedDataReader
 import com.dynokore.gst.submission.adapters.events.JacksonPeriodDueDateChangedDataReader
+import com.dynokore.gst.submission.adapters.events.OutboxSubmissionTypeDecidedPublisher
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedDataReader
@@ -14,12 +15,15 @@ import com.dynokore.gst.submission.application.register.PeriodDueDateChangedHand
 import com.dynokore.gst.submission.application.register.PeriodDueDateDeadlineSource
 import com.dynokore.gst.submission.application.register.PeriodDueDates
 import com.dynokore.gst.submission.application.register.RegisterEntryStore
+import com.dynokore.gst.submission.application.typing.DecideSubmissionType
+import com.dynokore.gst.submission.application.typing.TypeDecidingHandler
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancyjooq.TenancyJooq
@@ -74,7 +78,13 @@ class RegisterWriterConfiguration {
         deadlines: FilingDeadlineSource,
         kinds: DocumentKindResolver,
         store: RegisterEntryStore,
-    ): CanonicalVersionCreatedHandler = CanonicalVersionCreatedHandler(tenants, reader, deadlines, kinds, store)
+        outbox: OutboxWriter,
+    ): EventHandler =
+        TypeDecidingHandler(
+            CanonicalVersionCreatedHandler(tenants, reader, deadlines, kinds, store),
+            reader,
+            DecideSubmissionType(OutboxSubmissionTypeDecidedPublisher(outbox, tenants)),
+        )
 
     @Bean
     fun periodDueDateChangedHandler(

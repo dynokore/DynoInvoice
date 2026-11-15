@@ -2,19 +2,20 @@ package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
-import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedHandler
 import com.dynokore.gst.submission.application.register.DocumentKindResolver
 import com.dynokore.gst.submission.application.register.DocumentTypeKindResolver
 import com.dynokore.gst.submission.application.register.FilingDeadlineSource
 import com.dynokore.gst.submission.application.register.PeriodDueDateDeadlineSource
 import com.dynokore.gst.submission.application.register.PeriodDueDates
 import com.dynokore.gst.submission.application.register.RegisterEntryStore
+import com.dynokore.gst.submission.application.typing.TypeDecidingHandler
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -112,7 +113,7 @@ class RegisterWriterWiringTest {
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
-        SubmissionEvents.topicByType.size shouldBe 6
+        SubmissionEvents.topicByType.size shouldBe 7
         SubmissionEvents.PAYLOAD_READY_TOPIC shouldBe "gst.payload.payload-ready.v1"
         BreakGlassFeed.TOPIC shouldBe "gst.platform.break-glass-session-changed.v1"
     }
@@ -157,15 +158,16 @@ class RegisterWriterWiringTest {
     ) = withContext(dir) { context ->
         val store = RegisterEntryStore { _, _ -> error("not called") }
         val dueDates = context.getBean(PeriodDueDates::class.java)
-        val handler: CanonicalVersionCreatedHandler =
+        val handler: EventHandler =
             config.canonicalVersionCreatedHandler(
                 tenants,
                 { error("not called") },
                 config.filingDeadlineSource(dueDates),
                 config.documentKindResolver(),
                 store,
+                context.getBean(OutboxWriter::class.java),
             )
-        handler.shouldBeInstanceOf<CanonicalVersionCreatedHandler>()
+        handler.shouldBeInstanceOf<TypeDecidingHandler>()
         context.getBean(RegisterEntryStore::class.java).shouldBeInstanceOf<JooqRegisterEntryStore>()
         dueDates.shouldBeInstanceOf<JooqPeriodDueDateStore>()
         context.getBean(DocumentKindResolver::class.java).shouldBeInstanceOf<DocumentTypeKindResolver>()
