@@ -20,7 +20,6 @@ import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.mock.env.MockEnvironment
 import org.springframework.web.client.RestClient
 
@@ -39,7 +38,7 @@ class ScopeEvaluationConfigurationTest {
             }
     }
 
-    @Configuration(proxyBeanMethods = false)
+    // not annotated: a @Configuration nested here would be found by the component scan of the full-context tests
     class Collaborators {
         @Bean
         fun rulesClient(): RulesClient =

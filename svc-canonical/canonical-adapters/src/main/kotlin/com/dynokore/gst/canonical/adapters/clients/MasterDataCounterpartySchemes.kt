@@ -34,7 +34,7 @@ class MasterDataCounterpartySchemes(
                     if (counterparty.partyRef == null) {
                         null
                     } else {
-                        SchemeFacts(counterparty.approvedSchemes ?: emptyList(), counterparty.arcsGstChargeAgreed)
+                        SchemeFacts(counterparty.approvedSchemes.orEmpty(), counterparty.arcsGstChargeAgreed)
                     },
                 )
             }
