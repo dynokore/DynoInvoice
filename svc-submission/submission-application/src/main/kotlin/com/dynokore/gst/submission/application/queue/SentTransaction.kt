@@ -112,8 +112,28 @@ class SentTransaction(
         row: LockedSubmission,
     ): String {
         val sha = checkNotNull(row.payloadSha256) { "submission $docUuid version $version holds no payload SHA-256" }
-        return """{"docUuid":"$docUuid","version":$version,"attemptNumber":$attemptNumber,"payloadSha256":"$sha"}"""
+        val base = """{"docUuid":"$docUuid","version":$version,"attemptNumber":$attemptNumber,"payloadSha256":"$sha""""
+        val aggregate = row.aggregateId ?: return "$base}"
+        return """$base,"aggregateId":"${jsonEscaped(aggregate)}"}"""
     }
+
+    /** RFC 8259 section 7: the quotation mark, the backslash and U+0000 to U+001F are escaped. */
+    private fun jsonEscaped(text: String): String =
+        buildString {
+            for (c in text) {
+                when {
+                    c == '"' -> append("\\\"")
+                    c == '\\' -> append("\\\\")
+                    c == '\n' -> append("\\n")
+                    c == '\r' -> append("\\r")
+                    c == '\t' -> append("\\t")
+                    c == '\b' -> append("\\b")
+                    c == '\u000C' -> append("\\f")
+                    c < ' ' -> append("\\u").append(String.format("%04x", c.code))
+                    else -> append(c)
+                }
+            }
+        }
 
     companion object {
         const val DESPATCHED = "com.dynokore.gst.submission.SubmissionDespatched.v1"

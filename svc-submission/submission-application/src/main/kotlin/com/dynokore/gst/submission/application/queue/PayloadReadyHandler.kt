@@ -55,6 +55,7 @@ class PayloadReadyHandler(
                     bytes,
                     declared,
                     submissionType,
+                    data.aggregateId,
                 ),
             )
         if (inserted == 0) {

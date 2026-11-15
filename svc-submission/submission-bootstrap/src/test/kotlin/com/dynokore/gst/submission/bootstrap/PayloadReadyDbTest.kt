@@ -126,6 +126,18 @@ class PayloadReadyDbTest {
                 )
             }
 
+        fun storedAggregateId(
+            doc: String,
+            version: Int,
+        ): String? =
+            asTenant {
+                dsl
+                    .select(Submission.SUBMISSION_.AGGREGATE_ID)
+                    .from(Submission.SUBMISSION_)
+                    .where(Submission.SUBMISSION_.DOC_UUID.eq(doc).and(Submission.SUBMISSION_.VERSION.eq(version)))
+                    .fetchOne(Submission.SUBMISSION_.AGGREGATE_ID)
+            }
+
         fun queueRows(doc: String): Int =
             asTenant { dsl.fetchCount(WorkQueue.WORK_QUEUE, WorkQueue.WORK_QUEUE.PARTITION_KEY.eq(doc)) }
 
@@ -162,6 +174,7 @@ class PayloadReadyDbTest {
             id: String = UUID.randomUUID().toString(),
             sequence: Long? = null,
             payload: Payload = Payload(bytes),
+            aggregateId: String? = null,
         ): Envelope =
             Envelope(
                 id = EventId(id),
@@ -180,7 +193,7 @@ class PayloadReadyDbTest {
                 dataJson =
                     """{"docUuid":"$doc","version":$version,"docsequence":${sequence ?: 1},"submissionType":"2",
                     |"specificationVersion":"1.0","payloadBytes":"${Base64.getEncoder().encodeToString(payload.bytes)}",
-                    |"payloadSha256":"${payload.declaredSha}"}
+                    |"payloadSha256":"${payload.declaredSha}"${aggregateId?.let { ""","aggregateId":"$it"""" } ?: ""}}
                     """.trimMargin(),
             )
     }
@@ -195,6 +208,24 @@ class PayloadReadyDbTest {
         block: Kit.() -> Unit,
     ) {
         SubmissionContext.online(dir).run { context -> Kit(context).block() }
+    }
+
+    @Test
+    fun `INV-AC-22808 the arrival stores the aggregateId, and none when the PayloadReady has none`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val d = UUID.randomUUID().toString()
+        val e = UUID.randomUUID().toString()
+        deliver(envelope(d, 1, sequence = 1, aggregateId = "AGG-2026-0001"))
+        deliver(envelope(e, 1, sequence = 2))
+        deliver(envelope(d, 1, sequence = 3, aggregateId = "AGG-2026-0001"))
+        val recording = Recording(handler)
+
+        consumer(recording).pollOnce()
+
+        recording.outcomes shouldBe listOf(HandleOutcome.APPLIED, HandleOutcome.APPLIED, HandleOutcome.IGNORED)
+        storedAggregateId(d, 1) shouldBe "AGG-2026-0001"
+        storedAggregateId(e, 1) shouldBe null
     }
 
     @Test

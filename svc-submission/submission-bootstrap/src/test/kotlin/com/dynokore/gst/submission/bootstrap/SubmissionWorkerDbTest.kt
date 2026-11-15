@@ -16,6 +16,7 @@ import com.dynokore.platform.outboxandqueue.QueueEntry
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
@@ -66,9 +67,11 @@ class SubmissionWorkerDbTest {
         docUuid: String,
         state: LifecycleState,
         version: Int = 1,
+        aggregateId: String? = null,
     ) = asTenant(tenant) {
         dsl
             .insertInto(Submission.SUBMISSION_)
+            .set(Submission.SUBMISSION_.AGGREGATE_ID, aggregateId)
             .set(Submission.SUBMISSION_.TENANT_ID, tenant)
             .set(Submission.SUBMISSION_.DOC_UUID, docUuid)
             .set(Submission.SUBMISSION_.VERSION, version)
@@ -84,8 +87,9 @@ class SubmissionWorkerDbTest {
         tenant: UUID,
         docUuid: String,
         version: Int = 1,
+        aggregateId: String? = null,
     ) {
-        seed(tenant, docUuid, LifecycleState.READY, version)
+        seed(tenant, docUuid, LifecycleState.READY, version, aggregateId)
         asTenant(tenant) { queue.enqueue(docUuid, version) }
     }
 
@@ -167,6 +171,36 @@ class SubmissionWorkerDbTest {
 
     private fun Boundary.sentOrFail(result: SentResult?): SentResult.Sent =
         (result as? SentResult.Sent) ?: error("expected a Sent result, got $result")
+
+    @Test
+    fun `INV-AC-22808 the despatched event carries the aggregateId escaped, or has no such member`(
+        @TempDir dir: Path,
+    ) = run(dir) { boundary ->
+        val tenant = UUID.randomUUID()
+        val d = UUID.randomUUID().toString()
+        val e = UUID.randomUUID().toString()
+        val f = UUID.randomUUID().toString()
+        boundary.queued(tenant, d, aggregateId = "AGG-2026-0001")
+        boundary.queued(tenant, e)
+        boundary.queued(tenant, f, aggregateId = "a\"b\\c")
+        repeat(3) { boundary.sentOrFail(boundary.worker.takeNext()) }
+
+        fun members(doc: String): Map<String, Any?> {
+            val rows = boundary.outboxRows(tenant, doc)
+            rows.size shouldBe 1
+            @Suppress("UNCHECKED_CAST")
+            return ObjectMapper().readValue(checkNotNull(rows[0].data).data(), Map::class.java) as Map<String, Any?>
+        }
+
+        fun published(doc: String) =
+            mapOf<String, Any?>("docUuid" to doc, "version" to 1, "attemptNumber" to 1, "payloadSha256" to sha)
+
+        members(d) shouldBe published(d) + ("aggregateId" to "AGG-2026-0001")
+        members(e) shouldBe published(e)
+        members(e).containsKey("aggregateId") shouldBe false
+        members(f)["aggregateId"] shouldBe "a\"b\\c"
+        members(f) shouldBe published(f) + ("aggregateId" to "a\"b\\c")
+    }
 
     @Test
     fun `INV-AC-13068 takeNext moves a queued version to SENT in one transaction and the item stays CLAIMED`(
