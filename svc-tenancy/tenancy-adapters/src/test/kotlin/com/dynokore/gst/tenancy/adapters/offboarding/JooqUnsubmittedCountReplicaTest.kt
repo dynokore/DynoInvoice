@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.adapters.offboarding
 import com.dynokore.gst.tenancy.adapters.PgTestImages
 import com.dynokore.gst.tenancy.adapters.events.EntityUnsubmittedCount
 import com.dynokore.gst.tenancy.adapters.events.UnsubmittedCountMeasurement
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.BindingSignature
 import com.dynokore.platform.tenancykernel.TenantId
@@ -45,7 +46,8 @@ class JooqUnsubmittedCountReplicaTest {
         tenant: TenantId,
         measurement: UnsubmittedCountMeasurement,
         receivedAt: Instant,
-    ): Boolean = Db.bound(tenant, actor) { JooqUnsubmittedCountReplica(it).keep(tenant, measurement, receivedAt) }
+        entity: EntityRef = EntityRef.TENANT_WIDE,
+    ): Boolean = Db.bound(tenant, actor) { JooqUnsubmittedCountReplica(it).keep(tenant, entity, measurement, receivedAt) }
 
     private fun read(
         bound: TenantId,
@@ -93,6 +95,35 @@ class JooqUnsubmittedCountReplicaTest {
         read(b, a) shouldBe null
         read(b, b) shouldBe null
         read(a, a) shouldBe StoredUnsubmittedCount(first, recv1)
+    }
+
+    @Test
+    fun `INV-AC-23029 a row of another entity of the same tenant is never read as the tenant-wide row`() {
+        val a = tenant()
+        keep(a, first, recv1)
+        keep(a, second, recv2, EntityRef("E1")) shouldBe true
+        val rows =
+            Db.superuser {
+                it.fetchValue(
+                    "select count(*) from tenancy.unsubmitted_count_replica where tenant_id = ?::uuid",
+                    a.value.toString(),
+                )
+            }
+        rows.toString() shouldBe "2"
+        read(a, a) shouldBe StoredUnsubmittedCount(first, recv1)
+        val c = tenant()
+        keep(c, second, recv2, EntityRef("E1")) shouldBe true
+        read(c, c) shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-23029 the primary key is tenant_id and entity_ref`() {
+        Db.superuser {
+            it.fetch(
+                "select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey) " +
+                    "where i.indrelid = 'tenancy.unsubmitted_count_replica'::regclass and i.indisprimary order by a.attname",
+            ).map { r -> r.get(0, String::class.java) }
+        } shouldBe listOf("entity_ref", "tenant_id")
     }
 
     @Test

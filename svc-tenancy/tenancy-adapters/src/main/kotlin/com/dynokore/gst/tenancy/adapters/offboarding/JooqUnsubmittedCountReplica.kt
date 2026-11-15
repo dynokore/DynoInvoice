@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.adapters.events.EntityUnsubmittedCount
 import com.dynokore.gst.tenancy.adapters.events.UnsubmittedCountMeasurement
 import com.dynokore.gst.tenancy.adapters.events.UnsubmittedCountReplica
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.UNSUBMITTED_COUNT_REPLICA
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
@@ -31,6 +32,7 @@ class JooqUnsubmittedCountReplica(
     /** One statement: insert, or update only when the stored `measured_at` is strictly smaller. */
     override fun keep(
         tenant: TenantId,
+        entity: EntityRef,
         measurement: UnsubmittedCountMeasurement,
         receivedAt: Instant,
     ): Boolean {
@@ -41,11 +43,12 @@ class JooqUnsubmittedCountReplica(
         return dsl
             .insertInto(t)
             .set(t.TENANT_ID, tenant.value)
+            .set(t.ENTITY_REF, entity.value)
             .set(t.MEASURED_AT, measuredAt)
             .set(t.RECEIVED_AT, received)
             .set(t.UNSUBMITTED_TOTAL, measurement.total)
             .set(t.ENTITIES, entities)
-            .onConflict(t.TENANT_ID)
+            .onConflict(t.TENANT_ID, t.ENTITY_REF)
             .doUpdate()
             .set(t.MEASURED_AT, measuredAt)
             .set(t.RECEIVED_AT, received)
@@ -55,10 +58,10 @@ class JooqUnsubmittedCountReplica(
             .execute() == 1
     }
 
-    /** The row of [tenant], or null; another tenant's row is invisible to the bound session. */
+    /** The tenant-wide row of [tenant], or null; another tenant's row is invisible to the bound session. */
     fun read(tenant: TenantId): StoredUnsubmittedCount? {
         val t = UNSUBMITTED_COUNT_REPLICA
-        val row = dsl.selectFrom(t).where(t.TENANT_ID.eq(tenant.value)).fetchOne() ?: return null
+        val row = dsl.selectFrom(t).where(t.TENANT_ID.eq(tenant.value).and(t.ENTITY_REF.eq(EntityRef.TENANT_WIDE.value))).fetchOne() ?: return null
         val items =
             json.readTree(checkNotNull(row.entities).data()).values().map {
                 EntityUnsubmittedCount(it["entityRef"].asString(), it["unsubmittedDocumentCount"].asInt())

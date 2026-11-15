@@ -1,6 +1,7 @@
 package com.dynokore.gst.tenancy.adapters.events
 
 import com.dynokore.platform.outboxandqueue.ContractViolation
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
@@ -26,14 +27,15 @@ data class UnsubmittedCountMeasurement(
     val entities: List<EntityUnsubmittedCount>,
 )
 
-/** The read model of the count, one row per tenant. */
+/** The read model of the count, one row per tenant and envelope entity (the producer writes the tenant-wide one). */
 interface UnsubmittedCountReplica {
     /**
-     * Stores [measurement] for [tenant] with [receivedAt] when no row exists or the stored `measuredAt` is strictly
+     * Stores [measurement] for [tenant] and [entity] with [receivedAt] when no row exists or the stored `measuredAt` is strictly
      * smaller; true when one row changed. An equal or older measurement changes nothing, `receivedAt` included.
      */
     fun keep(
         tenant: TenantId,
+        entity: EntityRef,
         measurement: UnsubmittedCountMeasurement,
         receivedAt: Instant,
     ): Boolean
@@ -42,7 +44,7 @@ interface UnsubmittedCountReplica {
 /**
  * The consumer of `gst.submission.unsubmitted-document-count-measured.v1` (INV-REQ-956, INV-AC-23029): keeps, per
  * tenant, the event with the greatest `measuredAt` and stamps the receipt time from [clock] only when it applies one.
- * A payload that breaks the contract is a [ContractViolation] and stores nothing; the total must equal the sum of the
+ * An envelope with a real entity, or a payload that breaks the contract, is a [ContractViolation] and stores nothing; the total must equal the sum of the
  * item counts (the producer guarantees it, so a difference is never repaired). The consumer emits no event.
  */
 class UnsubmittedCountMeasuredHandler(
@@ -51,10 +53,12 @@ class UnsubmittedCountMeasuredHandler(
     private val clock: Clock,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
+        if (!event.entity.isTenantWide) throw ContractViolation("the envelope entity is not the tenant-wide entity")
         val data = parse(event.dataJson)
         val measurement = measurement(data)
         return if (replica.keep(
                 event.tenant,
+                event.entity,
                 measurement,
                 clock.instant(),
             )

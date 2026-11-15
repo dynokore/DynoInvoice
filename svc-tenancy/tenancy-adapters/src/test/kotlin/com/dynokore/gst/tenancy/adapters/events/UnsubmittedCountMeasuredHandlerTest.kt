@@ -34,14 +34,15 @@ class UnsubmittedCountMeasuredHandlerTest {
     private class FakeReplica(
         private val keeps: Boolean,
     ) : UnsubmittedCountReplica {
-        val calls = ArrayList<Triple<TenantId, UnsubmittedCountMeasurement, Instant>>()
+        val calls = ArrayList<List<Any>>()
 
         override fun keep(
             tenant: TenantId,
+            entity: EventEntityRef,
             measurement: UnsubmittedCountMeasurement,
             receivedAt: Instant,
         ): Boolean {
-            calls += Triple(tenant, measurement, receivedAt)
+            calls += listOf(tenant, entity, measurement, receivedAt)
             return keeps
         }
     }
@@ -54,9 +55,11 @@ class UnsubmittedCountMeasuredHandlerTest {
     private fun handle(
         data: String,
         keeps: Boolean = true,
+        entity: EventEntityRef = EventEntityRef.TENANT_WIDE,
     ): Pair<HandleOutcome, FakeReplica> {
         val replica = FakeReplica(keeps)
-        val outcome = UnsubmittedCountMeasuredHandler(replica, JsonMapper.builder().build(), clock).handle(event(data))
+        val outcome =
+            UnsubmittedCountMeasuredHandler(replica, JsonMapper.builder().build(), clock).handle(event(data, entity))
         return outcome to replica
     }
 
@@ -68,7 +71,10 @@ class UnsubmittedCountMeasuredHandlerTest {
         replica.calls shouldBe emptyList()
     }
 
-    private fun event(data: String) =
+    private fun event(
+        data: String,
+        entity: EventEntityRef = EventEntityRef.TENANT_WIDE,
+    ) =
         Envelope(
             id = EventId("ev-${UUID.randomUUID()}"),
             source = "/gst/submission-svc",
@@ -76,7 +82,7 @@ class UnsubmittedCountMeasuredHandlerTest {
             subject = "tenant",
             time = Instant.parse("2026-11-20T10:00:00Z"),
             tenant = tenant,
-            entity = EventEntityRef("E1"),
+            entity = entity,
             docUuid = null,
             transactionDate = null,
             docSequence = null,
@@ -91,14 +97,15 @@ class UnsubmittedCountMeasuredHandlerTest {
         val (outcome, replica) = handle(valid)
         outcome shouldBe HandleOutcome.APPLIED
         val call = replica.calls.single()
-        call.first shouldBe tenant
-        call.second shouldBe
+        call[0] shouldBe tenant
+        call[1] shouldBe EventEntityRef.TENANT_WIDE
+        call[2] shouldBe
             UnsubmittedCountMeasurement(
                 Instant.parse("2026-11-20T10:00:00Z"),
                 5,
                 listOf(EntityUnsubmittedCount("E1", 3), EntityUnsubmittedCount("E2", 2)),
             )
-        call.third shouldBe now
+        call[3] shouldBe now
     }
 
     @Test
@@ -106,8 +113,18 @@ class UnsubmittedCountMeasuredHandlerTest {
         val (outcome, replica) =
             handle("""{"measuredAt":"2026-11-20T10:05:00Z","unsubmittedDocumentCount":0,"entities":[]}""")
         outcome shouldBe HandleOutcome.APPLIED
-        replica.calls.single().second shouldBe
+        replica.calls.single()[2] shouldBe
             UnsubmittedCountMeasurement(Instant.parse("2026-11-20T10:05:00Z"), 0, emptyList())
+    }
+
+    @Test
+    fun `INV-AC-23029 an envelope with a real entity is a contract violation and stores nothing`() {
+        val replica = FakeReplica(true)
+        shouldThrow<ContractViolation> {
+            UnsubmittedCountMeasuredHandler(replica, JsonMapper.builder().build(), clock)
+                .handle(event(valid, EventEntityRef("E1")))
+        }
+        replica.calls shouldBe emptyList()
     }
 
     @Test
