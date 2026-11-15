@@ -134,6 +134,7 @@ class UnsubmittedCountMeasurementDbTest {
         seed(f.t1, f.e1, "D7-$s", false, "QUEUED")
         seed(f.t1, f.e2, "D8-$s", true, "QUEUED")
         seed(f.t1, f.e2, "D10-$s", true)
+        seed(f.t1, "E4-$s", "D11-$s", true, "ACKNOWLEDGED")
         seed(f.t2, f.e3, "D9-$s", true, "QUEUED")
         node(f.t3, "N3-$s")
         return f
@@ -160,6 +161,19 @@ class UnsubmittedCountMeasurementDbTest {
     fun `INV-AC-22871 the reader bound to T2 and asked for T1 answers the empty map`() {
         val f = fixture()
         counts(f.t2, f.t1) shouldBe emptyMap()
+    }
+
+    @Test
+    fun `INV-AC-22871 a failed read throws the same exception and never answers an empty map`() {
+        val boom = IllegalStateException("db down")
+        val failing =
+            object : TransactionRunner {
+                override fun <T> inTransaction(block: () -> T): T = throw boom
+            }
+        val thrown =
+            runCatching { JooqUnsubmittedCountsByEntity(dsl, failing).counts(TenantId(UUID.randomUUID())) }
+                .exceptionOrNull()
+        (thrown === boom) shouldBe true
     }
 
     @Test
