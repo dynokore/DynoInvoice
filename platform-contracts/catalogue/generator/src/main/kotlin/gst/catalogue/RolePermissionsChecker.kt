@@ -131,6 +131,7 @@ object RolePermissionsChecker {
             "Record onboarding questionnaire answers",
             "Preview the due dates a staged calendar pack would move",
             "Acknowledge a regulatory pack's dry-run delta within the grace window",
+            "Dry run of a staged pack against the tenant's own data",
             "Import a rate file",
             "Enter a missing rate with evidence",
             "Configure an external connection record",
@@ -231,6 +232,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the regulatory pack delta acknowledgement key (INV-T-22654, owner answer "22644 A"; key and label are own wording, Inference), compared by equality. */
     val acknowledgePackDeltaPairs: Map<String, String> =
         mapOf("regulatory-pack.acknowledge" to "Acknowledge a regulatory pack's dry-run delta within the grace window")
+
+    /** The (key, row) pair of the pack dry-run key (INV-T-22817, owner choice "22646 relax SCR-11.2"; key and label are own wording, Inference), compared by equality. */
+    val packDryRunPairs: Map<String, String> =
+        mapOf("pack.dry-run" to "Dry run of a staged pack against the tenant's own data")
 
     /** The (key, row) pairs of the seven connection and exchange-rate keys (INV-T-18769, ruling on the answered design question of INV-T-4947; connection.configure and its label are Inference), compared by equality. */
     val connectionPairs: Map<String, String> =
@@ -474,6 +479,10 @@ object RolePermissionsChecker {
             "tenant-provisioning-request.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "commercial.admin")),
             "questionnaire.answer" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "regulatory-pack.acknowledge" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "tax.approver")),
+            "pack.dry-run" to Required(
+                PermissionKind.READ,
+                cells(permitted, both, "tax.operator") + cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator"),
+            ),
             "calendar-pack-delta.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver")),
             "exchange-rate.import" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(permitted, privateForm, "deployment.operator")),
             "exchange-rate.enter" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
@@ -736,6 +745,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in acknowledgePackDeltaPairs && (it.row in acknowledgePackDeltaPairs.values || it.key.startsWith("regulatory-pack.acknowledge")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${acknowledgePackDeltaPairs.keys.joinToString()}, which alone carry the regulatory pack delta acknowledgement row (INV-T-22654)."
+        }
+        packDryRunPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${packDryRunPairs.keys.joinToString()}, INV-T-22817)."
+        }
+        table.permissions.filter { it.key !in packDryRunPairs && (it.row in packDryRunPairs.values || it.key.startsWith("pack.dry-run")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${packDryRunPairs.keys.joinToString()}, which alone carry the pack dry-run row (INV-T-22817)."
         }
         connectionPairs.forEach { (key, row) ->
             val p = table.permissions.firstOrNull { it.key == key }

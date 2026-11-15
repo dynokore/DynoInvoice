@@ -769,3 +769,28 @@ class RegulatoryPackArmRolePermissionsTest {
         }
     }
 }
+
+/** INV-T-22817: the key pack.dry-run, through the library API only (own class: LargeClass limit). */
+class PackDryRunRolePermissionsTest {
+    private val saas = DeploymentForm.SAAS
+    private val privateForm = DeploymentForm.PRIVATE
+    private val key = "pack.dry-run"
+
+    // DENIED is the absence of a cell (role-permissions.yaml header: fail closed).
+    private fun allowance(
+        form: DeploymentForm,
+        role: String,
+    ) = RolePermissions.cells(form)[role]?.get(key) ?: "DENIED"
+
+    @Test
+    fun `INV-AC-22794 pack dry-run is READ, held by tax operator, tax approver and agent operator in both forms`() {
+        assertEquals(PermissionKind.READ, RolePermissions.kind(key))
+        assertEquals(RoleAllowance.PERMITTED, allowance(saas, "tax.operator"))
+        assertEquals(RoleAllowance.PERMITTED, allowance(privateForm, "tax.approver"))
+        assertEquals(RoleAllowance.WITHIN_SCOPE, allowance(saas, "agent.operator"))
+        assertEquals("DENIED", allowance(saas, "tenant.admin"))
+        assertNull(RolePermissions.kind("pack.dry-runs"))
+        assertEquals(setOf("tax.operator", "tax.approver", "agent.operator"), OperationRoles.rolesFor(saas, key).keys)
+        assertEquals(3, OperationRoles.rolesFor(saas, key).size)
+    }
+}
