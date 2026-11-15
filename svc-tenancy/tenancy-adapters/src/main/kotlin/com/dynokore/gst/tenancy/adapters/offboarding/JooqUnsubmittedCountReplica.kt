@@ -61,7 +61,11 @@ class JooqUnsubmittedCountReplica(
     /** The tenant-wide row of [tenant], or null; another tenant's row is invisible to the bound session. */
     fun read(tenant: TenantId): StoredUnsubmittedCount? {
         val t = UNSUBMITTED_COUNT_REPLICA
-        val row = dsl.selectFrom(t).where(t.TENANT_ID.eq(tenant.value).and(t.ENTITY_REF.eq(EntityRef.TENANT_WIDE.value))).fetchOne() ?: return null
+        val row =
+            dsl
+                .selectFrom(t)
+                .where(t.TENANT_ID.eq(tenant.value).and(t.ENTITY_REF.eq(EntityRef.TENANT_WIDE.value)))
+                .fetchOne() ?: return null
         val items =
             json.readTree(checkNotNull(row.entities).data()).values().map {
                 EntityUnsubmittedCount(it["entityRef"].asString(), it["unsubmittedDocumentCount"].asInt())

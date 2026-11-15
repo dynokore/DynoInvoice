@@ -30,7 +30,8 @@ data class UnsubmittedCountMeasurement(
 /** The read model of the count, one row per tenant and envelope entity (the producer writes the tenant-wide one). */
 interface UnsubmittedCountReplica {
     /**
-     * Stores [measurement] for [tenant] and [entity] with [receivedAt] when no row exists or the stored `measuredAt` is strictly
+     * Stores [measurement] for [tenant] and [entity] with [receivedAt] when no row exists or the stored `measuredAt`
+     * is strictly
      * smaller; true when one row changed. An equal or older measurement changes nothing, `receivedAt` included.
      */
     fun keep(
@@ -44,7 +45,8 @@ interface UnsubmittedCountReplica {
 /**
  * The consumer of `gst.submission.unsubmitted-document-count-measured.v1` (INV-REQ-956, INV-AC-23029): keeps, per
  * tenant, the event with the greatest `measuredAt` and stamps the receipt time from [clock] only when it applies one.
- * An envelope with a real entity, or a payload that breaks the contract, is a [ContractViolation] and stores nothing; the total must equal the sum of the
+ * An envelope with a real entity, or a payload that breaks the contract, is a [ContractViolation] and stores
+ * nothing; the total must equal the sum of the
  * item counts (the producer guarantees it, so a difference is never repaired). The consumer emits no event.
  */
 class UnsubmittedCountMeasuredHandler(

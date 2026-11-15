@@ -74,23 +74,22 @@ class UnsubmittedCountMeasuredHandlerTest {
     private fun event(
         data: String,
         entity: EventEntityRef = EventEntityRef.TENANT_WIDE,
-    ) =
-        Envelope(
-            id = EventId("ev-${UUID.randomUUID()}"),
-            source = "/gst/submission-svc",
-            type = TenancyEventCatalogue.UNSUBMITTED_COUNT_MEASURED_TYPE,
-            subject = "tenant",
-            time = Instant.parse("2026-11-20T10:00:00Z"),
-            tenant = tenant,
-            entity = entity,
-            docUuid = null,
-            transactionDate = null,
-            docSequence = null,
-            instanceId = "submission-svc-0",
-            correlation = CorrelationId("corr-1"),
-            causation = CausationId("cause-1"),
-            dataJson = data,
-        )
+    ) = Envelope(
+        id = EventId("ev-${UUID.randomUUID()}"),
+        source = "/gst/submission-svc",
+        type = TenancyEventCatalogue.UNSUBMITTED_COUNT_MEASURED_TYPE,
+        subject = "tenant",
+        time = Instant.parse("2026-11-20T10:00:00Z"),
+        tenant = tenant,
+        entity = entity,
+        docUuid = null,
+        transactionDate = null,
+        docSequence = null,
+        instanceId = "submission-svc-0",
+        correlation = CorrelationId("corr-1"),
+        causation = CausationId("cause-1"),
+        dataJson = data,
+    )
 
     @Test
     fun `INV-AC-23029 a valid payload is applied with the tenant, the values and the clock as receipt time`() {

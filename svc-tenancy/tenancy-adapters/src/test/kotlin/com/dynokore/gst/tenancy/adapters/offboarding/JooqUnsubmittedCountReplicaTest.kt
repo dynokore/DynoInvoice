@@ -47,7 +47,8 @@ class JooqUnsubmittedCountReplicaTest {
         measurement: UnsubmittedCountMeasurement,
         receivedAt: Instant,
         entity: EntityRef = EntityRef.TENANT_WIDE,
-    ): Boolean = Db.bound(tenant, actor) { JooqUnsubmittedCountReplica(it).keep(tenant, entity, measurement, receivedAt) }
+    ): Boolean =
+        Db.bound(tenant, actor) { JooqUnsubmittedCountReplica(it).keep(tenant, entity, measurement, receivedAt) }
 
     private fun read(
         bound: TenantId,
@@ -119,10 +120,13 @@ class JooqUnsubmittedCountReplicaTest {
     @Test
     fun `INV-AC-23029 the primary key is tenant_id and entity_ref`() {
         Db.superuser {
-            it.fetch(
-                "select a.attname from pg_index i join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey) " +
-                    "where i.indrelid = 'tenancy.unsubmitted_count_replica'::regclass and i.indisprimary order by a.attname",
-            ).map { r -> r.get(0, String::class.java) }
+            it
+                .fetch(
+                    "select a.attname from pg_index i join pg_attribute a " +
+                        "on a.attrelid = i.indrelid and a.attnum = any(i.indkey) " +
+                        "where i.indrelid = 'tenancy.unsubmitted_count_replica'::regclass and i.indisprimary " +
+                        "order by a.attname",
+                ).map { r -> r.get(0, String::class.java) }
         } shouldBe listOf("entity_ref", "tenant_id")
     }
 
