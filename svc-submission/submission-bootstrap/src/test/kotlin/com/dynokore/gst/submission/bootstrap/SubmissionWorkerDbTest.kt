@@ -186,8 +186,8 @@ class SubmissionWorkerDbTest {
         boundary.queued(tenant, f, aggregateId = "a\"b\\c")
         repeat(3) { boundary.sentOrFail(boundary.worker.takeNext()) }
 
-        // PostgreSQL parses the stored text as JSON: a member is read by name, and its jsonb type tells an absent member
-        // (no type) from a JSON null ("null").
+        // PostgreSQL parses the stored text as JSON: a member is read by name; an absent member gives no value,
+        // a JSON null gives a jsonb null.
         fun members(doc: String): Map<String, String?> {
             val rows = boundary.outboxRows(tenant, doc)
             rows.size shouldBe 1
