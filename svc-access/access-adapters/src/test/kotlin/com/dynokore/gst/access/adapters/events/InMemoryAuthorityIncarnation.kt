@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
+import com.dynokore.gst.access.adapters.persistence.Bumped
 
 /** A fixed incarnation for the unit tests of the publishers (the store itself is proved over the database). */
 class InMemoryAuthorityIncarnation(
@@ -10,5 +11,5 @@ class InMemoryAuthorityIncarnation(
 
     override fun start(): Long = value
 
-    override fun bump(): Long = ++value
+    override fun bump(): Bumped = Bumped(value, ++value)
 }

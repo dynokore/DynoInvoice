@@ -112,6 +112,7 @@ object FixtureMatrix {
     val USER_MANAGE = Permission("user.manage")
     val BREAK_GLASS_UNLOCK = Permission("break-glass.unlock")
     val BREAK_GLASS_RESEAL = Permission("break-glass.reseal")
+    val AUTHORITY_INCARNATION_BUMP = Permission("authority-incarnation.bump")
 
     val matrix =
         PermissionMatrix(
@@ -128,6 +129,7 @@ object FixtureMatrix {
                     PermissionDefinition(USER_MANAGE, PermissionKind.WRITE),
                     PermissionDefinition(BREAK_GLASS_UNLOCK, PermissionKind.WRITE),
                     PermissionDefinition(BREAK_GLASS_RESEAL, PermissionKind.WRITE),
+                    PermissionDefinition(AUTHORITY_INCARNATION_BUMP, PermissionKind.WRITE),
                 ),
             rows =
                 mapOf(
@@ -145,6 +147,7 @@ object FixtureMatrix {
                             EXPORT_SUPPORT_BUNDLE to Allowance.PERMITTED,
                             BREAK_GLASS_UNLOCK to Allowance.PERMITTED,
                             BREAK_GLASS_RESEAL to Allowance.PERMITTED,
+                            AUTHORITY_INCARNATION_BUMP to Allowance.PERMITTED,
                         ),
                     Role.TENANT_ADMIN to
                         mapOf(USER_MANAGE to Allowance.PERMITTED, BREAK_GLASS_UNLOCK to Allowance.PERMITTED),

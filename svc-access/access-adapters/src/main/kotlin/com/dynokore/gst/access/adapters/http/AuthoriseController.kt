@@ -10,6 +10,7 @@ import com.dynokore.gst.access.application.keys.RevocationListOutcome
 import com.dynokore.gst.access.application.keys.VerificationKeys
 import com.dynokore.gst.access.contract.api.AuthoriseApi
 import com.dynokore.gst.access.contract.model.AuthoriseResponse
+import com.dynokore.gst.access.contract.model.AuthorityIncarnationResponse
 import com.dynokore.gst.access.contract.model.RevocationEntry
 import com.dynokore.gst.access.contract.model.RevocationListResponse
 import com.dynokore.gst.access.contract.model.VerificationKeysResponse
@@ -25,6 +26,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 import java.time.ZoneOffset
 import java.util.Base64
+import java.util.UUID
 
 /**
  * TPL-08. `authorise` answers 200 whatever the decision: a DENY, not an HTTP error, carries a refusal (the operation's
@@ -33,6 +35,7 @@ import java.util.Base64
 @RestController
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
+@Suppress("LongParameterList") // one collaborator per operation group of the tag
 open class AuthoriseController(
     private val authorise: AuthoriseGate,
     private val platform: AuthorisePlatform,
@@ -40,7 +43,11 @@ open class AuthoriseController(
     private val keys: VerificationKeys,
     private val revocations: RevocationList,
     private val gateway: GatewayCaller,
+    private val incarnation: AuthorityIncarnationOperation,
 ) : AuthoriseApi {
+    override fun bumpAuthorityIncarnation(idempotencyKey: UUID): ResponseEntity<AuthorityIncarnationResponse> =
+        incarnation.bump(idempotencyKey)
+
     override fun authorise(
         principalRef: String,
         permission: String,

@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.access.adapters.http.AuthoriseController
+import com.dynokore.gst.access.adapters.http.AuthorityIncarnationOperation
 import com.dynokore.gst.access.adapters.http.GatewayCaller
 import com.dynokore.gst.access.application.authorise.AuthoriseGate
 import com.dynokore.gst.access.application.authorise.AuthorisePlatform
@@ -42,6 +43,7 @@ class TokenKit(
             context.getBean(VerificationKeys::class.java),
             context.getBean(RevocationList::class.java),
             GatewayCaller { true },
+            context.getBean(AuthorityIncarnationOperation::class.java),
         )
 
     private val appender =

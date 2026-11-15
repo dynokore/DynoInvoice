@@ -3,6 +3,7 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.events.AuthorityHeadOutbox
 import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
+import com.dynokore.gst.access.adapters.persistence.Bumped
 import com.dynokore.gst.access.adapters.persistence.JooqAuthorityIncarnationStore
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
@@ -156,11 +157,94 @@ class AuthorityIncarnationDbTest {
     fun `INV-AC-22069 bump with a later clock stores max(stored+1, now), with an earlier clock stored+1`() {
         withContext { c ->
             given(incarnation = 1_000, mark = 40, sequence = 41)
-            assertThat(inTx(c) { store(c, 5_000).bump() }).isEqualTo(5_000L)
+            assertThat(inTx(c) { store(c, 5_000).bump().incarnation }).isEqualTo(5_000L)
             assertThat(incarnation()).isEqualTo(5_000L)
             // a clock earlier than stored: the value never decreases
-            assertThat(inTx(c) { store(c, 10).bump() }).isEqualTo(5_001L)
+            assertThat(inTx(c) { store(c, 10).bump().incarnation }).isEqualTo(5_001L)
             assertThat(incarnation()).isEqualTo(5_001L)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22070 bump returns the replaced and the stored value from the statement`() {
+        withContext { c ->
+            given(incarnation = 1_000, mark = 40, sequence = 41)
+            assertThat(inTx(c) { store(c, 5_000).bump() }).isEqualTo(Bumped(1_000, 5_000))
+            assertThat(incarnation()).isEqualTo(5_000L)
+            assertThat(inTx(c) { store(c, 10).bump() }).isEqualTo(Bumped(5_000, 5_001))
+            assertThat(incarnation()).isEqualTo(5_001L)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22070 bump on an empty table fails and creates no row`() {
+        withContext { c ->
+            given(incarnation = 1, mark = 0, sequence = 1)
+            sql("delete from access.authority_incarnation")
+            assertThatThrownBy { inTx(c) { store(c, 5_000).bump() } }.hasStackTraceContaining("holds no row")
+            BoundaryFixture.asSuperuser { conn ->
+                conn.createStatement().use { st ->
+                    st.executeQuery("select count(*) from access.authority_incarnation").use {
+                        it.next()
+                        assertThat(it.getLong(1)).isZero()
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-22070 a second bump started while the first transaction is open blocks, then reads its value`() {
+        withContext { c ->
+            given(incarnation = 1_000, mark = 40, sequence = 41)
+            val second =
+                java.util.concurrent.Executors
+                    .newSingleThreadExecutor()
+            try {
+                var secondResult: java.util.concurrent.Future<Bumped>? = null
+                inTx(c) {
+                    val first = store(c, 5_000).bump()
+                    assertThat(first).isEqualTo(Bumped(1_000, 5_000))
+                    // the second transaction runs on another thread and connection while the first is still open
+                    secondResult = second.submit<Bumped> { inTx(c) { store(c, 10).bump() } }
+                    Thread.sleep(1_500)
+                    assertThat(secondResult!!.isDone).describedAs("the second bump blocks on the row lock").isFalse()
+                }
+                val after = secondResult!!.get(30, java.util.concurrent.TimeUnit.SECONDS)
+                assertThat(after.previous).isEqualTo(5_000L)
+                assertThat(after.incarnation).isEqualTo(5_001L)
+            } finally {
+                second.shutdownNow()
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-22070 the function is executable by the runtime login and not by PUBLIC`() {
+        withContext {
+            BoundaryFixture.asSuperuser { conn ->
+                fun has(query: String): Boolean =
+                    conn.createStatement().use { st ->
+                        st.executeQuery(query).use {
+                            it.next()
+                            it.getBoolean(1)
+                        }
+                    }
+                val fn = "'access.bump_authority_incarnation(bigint)'"
+                assertThat(has("select has_function_privilege('access_runtime', $fn, 'EXECUTE')")).isTrue()
+                assertThat(has("select has_function_privilege('public', $fn, 'EXECUTE')")).isFalse()
+                assertThat(has("select prosecdef from pg_proc where oid = $fn::regprocedure")).isTrue()
+                assertThat(
+                    conn.createStatement().use { st ->
+                        st
+                            .executeQuery("select pg_get_userbyid(proowner) from pg_proc where oid = $fn::regprocedure")
+                            .use {
+                                it.next()
+                                it.getString(1)
+                            }
+                    },
+                ).isEqualTo("access_sys")
+            }
         }
     }
 

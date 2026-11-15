@@ -55,3 +55,4 @@ operation	getInstallationApproverFact	INV-T-4936	done
 channel	accessAuthorityHeadObserved	INV-T-9054	done
 operation	requestConsultantGrant	INV-T-15800	open
 operation	decideConsultantGrant	INV-T-15800	open
+operation	bumpAuthorityIncarnation	INV-T-22072	open

@@ -249,7 +249,9 @@ class AuthorityVersionMigrationDbTest {
 
                     override fun start() = 1L
 
-                    override fun bump() = 2L
+                    override fun bump() =
+                        com.dynokore.gst.access.adapters.persistence
+                            .Bumped(1L, 2L)
                 },
             )
         val replayed = pages(source)
