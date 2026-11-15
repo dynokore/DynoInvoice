@@ -195,7 +195,7 @@ class PackIdentifierAnswerTest {
         checkNotNull(
             controller()
                 .evaluateDocument(
-                    "flow-context",
+                    "eyJhbGciOiJub25lIn0.eyJmYyI6InQifQ.c2ln",
                     mapper.readValue(
                         """{"entityRef":"E1","transactionDate":"2026-04-01","internalTaxCode":"SR"$extra}""",
                         EvaluateDocumentRequest::class.java,

@@ -321,7 +321,7 @@ class SchemeHandlerBoundaryTest {
         return checkNotNull(
             f.controller
                 .evaluateDocument(
-                    "flow-context",
+                    "eyJhbGciOiJub25lIn0.eyJmYyI6InQifQ.c2ln",
                     mapper.readValue(json, EvaluateDocumentRequest::class.java),
                 ).body,
         )
