@@ -94,7 +94,7 @@ class PayloadReadyOutboxDbTest {
                 }
         }
 
-    /** Rows visible to the runtime login with `tenant` bound (signed) and no SQL filter: row-level security alone decides. */
+    /** Rows the runtime login sees with `tenant` bound and no SQL filter: row-level security alone decides. */
     private fun visibleAs(tenant: UUID): Int =
         PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { c ->
             c.autoCommit = false
