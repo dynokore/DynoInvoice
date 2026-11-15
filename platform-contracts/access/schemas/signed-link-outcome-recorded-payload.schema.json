@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/access/schemas/signed-link-outcome-recorded-payload.schema.json",
+  "title": "SignedLinkOutcomeRecordedPayload",
+  "description": "Payload of the SignedLinkOutcomeRecorded event (INV-Q-17431): access-svc tells the sender asynchronously whether the link requested by a SignedLinkRequested event was issued or refused. Carries no link reference, passcode or sealed value. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "requestEventId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The CloudEvents id of the SignedLinkRequested event this outcome answers."
+    },
+    "subjectReference": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "The subject reference, copied from the request."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["ISSUED", "REFUSED"],
+      "description": "ISSUED when the link was issued; REFUSED when issuing failed, with reasonCode."
+    },
+    "reasonCode": {
+      "type": "string",
+      "enum": ["MOBILE_NUMBER_REQUIRED", "CONSENT_NOT_LIVE", "RECIPIENT_INVALID", "EXPIRY_INVALID"],
+      "description": "Why the issue was refused; required when outcome is REFUSED."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the outcome was recorded."
+    }
+  },
+  "required": ["requestEventId", "subjectReference", "outcome", "occurredAt"],
+  "if": {
+    "properties": { "outcome": { "const": "REFUSED" } },
+    "required": ["outcome"]
+  },
+  "then": {
+    "required": ["reasonCode"]
+  },
+  "additionalProperties": true
+}

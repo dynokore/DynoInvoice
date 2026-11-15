@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: access events
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Every event access produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -67,6 +67,11 @@ channels:
     messages:
       SignedLinkInvalidated:
         $ref: '#/components/messages/SignedLinkInvalidated'
+  accessSignedLinkOutcomeRecorded:
+    address: 'gst.access.signed-link-outcome-recorded.v1'
+    messages:
+      SignedLinkOutcomeRecorded:
+        $ref: '#/components/messages/SignedLinkOutcomeRecorded'
   accessExampleHappened:
     address: 'gst.access.example-happened.v1'
     messages:
@@ -126,6 +131,14 @@ operations:
       $ref: '#/channels/accessSignedLinkInvalidated'
     messages:
       - $ref: '#/channels/accessSignedLinkInvalidated/messages/SignedLinkInvalidated'
+
+  publishSignedLinkOutcomeRecorded:
+    action: send
+    description: SignedLinkOutcomeRecorded — the outcome of a SignedLinkRequested event (INV-Q-17431).
+    channel:
+      $ref: '#/channels/accessSignedLinkOutcomeRecorded'
+    messages:
+      - $ref: '#/channels/accessSignedLinkOutcomeRecorded/messages/SignedLinkOutcomeRecorded'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -275,6 +288,15 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/signed-link-invalidated-payload.schema.json'
+    SignedLinkOutcomeRecorded:
+      name: com.dynokore.gst.access.SignedLinkOutcomeRecorded.v1
+      title: SignedLinkOutcomeRecorded
+      summary: SignedLinkOutcomeRecorded — the outcome of a signed-link request (INV-Q-17431).
+      description: >-
+        Emitted by: access-svc. Consumed by: masterdata-svc. Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/signed-link-outcome-recorded-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.access.ExampleHappened.v1
       title: ExampleHappened
