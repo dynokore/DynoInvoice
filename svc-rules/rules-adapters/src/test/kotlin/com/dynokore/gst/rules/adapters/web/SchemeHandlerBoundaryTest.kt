@@ -319,11 +319,7 @@ class SchemeHandlerBoundaryTest {
                 lineAgreed?.let { ""","lineArcsGstChargeAgreed":$it""" }.orEmpty() +
                 (if (purchase) ""","direction":"PURCHASE"""" else "") + "}"
         return checkNotNull(
-            f.controller
-                .evaluateDocument(
-                    "flow-context",
-                    mapper.readValue(json, EvaluateDocumentRequest::class.java),
-                ).body,
+            f.controller.evaluateDocument(mapper.readValue(json, EvaluateDocumentRequest::class.java)).body,
         )
     }
 

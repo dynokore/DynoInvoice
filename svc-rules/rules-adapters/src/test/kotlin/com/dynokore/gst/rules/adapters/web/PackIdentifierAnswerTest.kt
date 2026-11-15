@@ -190,7 +190,6 @@ class PackIdentifierAnswerTest {
         checkNotNull(
             controller()
                 .evaluateDocument(
-                    "flow-context",
                     mapper.readValue(
                         """{"entityRef":"E1","transactionDate":"2026-04-01","internalTaxCode":"SR"$extra}""",
                         EvaluateDocumentRequest::class.java,
@@ -236,11 +235,7 @@ class PackIdentifierAnswerTest {
         val registered = scopeVersion.manifest
         val activated =
             PackEventMapper().map(
-                PackEvent.RulePackActivated(
-                    registered.packId.value,
-                    registered.version.value,
-                    registered.effectiveFrom,
-                ),
+                PackEvent.RulePackActivated(registered.packId.value, registered.version.value, registered.effectiveFrom),
             )
         val published = mapper.readTree(activated.dataJson).get("packIdentifier").asString()
         val scope = answer(classified).packVersionsApplied.orEmpty().single { it.packType == "SCOPE" }
@@ -250,9 +245,8 @@ class PackIdentifierAnswerTest {
 
     @Test
     fun `INV-AC-22908 d no item has the pack type or the version as its identifier`() {
-        val items =
-            answer(classified).packVersionsApplied.orEmpty() +
-                answer(unclassified).packVersionsApplied.orEmpty()
+        val items = answer(classified).packVersionsApplied.orEmpty() +
+            answer(unclassified).packVersionsApplied.orEmpty()
         items.forEach { item ->
             item.packIdentifier shouldNotBe null
             item.packIdentifier shouldNotBe item.packType
