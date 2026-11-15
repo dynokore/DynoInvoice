@@ -14,7 +14,8 @@ import tools.jackson.databind.node.ObjectNode
  * outbox-and-queue, in the transaction of the command that changed the records (CS-17; INV-Q-16535 A, event-carried
  * state transfer). The payload is the `period-records-changed-payload` schema of platform-contracts: `entityRef`, the
  * monotonic `version` (consumers apply it idempotently by version) and the `periods` in force, each with `periodRef`,
- * `periodStart`, `periodEnd` and `filingDueDate` as ISO dates, in the order given.
+ * `periodStart`, `periodEnd` and `filingDueDate` as ISO dates, and the optional `periodId` (the id of the row in
+ * `tenancy.period_record`, absent when none), in the order given.
  */
 class PeriodRecordsChangedOutbox(
     private val outbox: OutboxWriter,
@@ -37,12 +38,14 @@ class PeriodRecordsChangedOutbox(
         root.put("version", change.version)
         val periods = root.putArray("periods")
         change.periods.forEach {
-            periods
-                .addObject()
-                .put("periodRef", it.periodRef)
-                .put("periodStart", it.periodStart.toString())
-                .put("periodEnd", it.periodEnd.toString())
-                .put("filingDueDate", it.filingDueDate.toString())
+            val item =
+                periods
+                    .addObject()
+                    .put("periodRef", it.periodRef)
+                    .put("periodStart", it.periodStart.toString())
+                    .put("periodEnd", it.periodEnd.toString())
+                    .put("filingDueDate", it.filingDueDate.toString())
+            it.periodId?.let { id -> item.put("periodId", id.toString()) }
         }
         return root
     }

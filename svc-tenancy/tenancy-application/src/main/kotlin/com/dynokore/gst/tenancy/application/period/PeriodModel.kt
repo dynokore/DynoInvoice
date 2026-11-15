@@ -36,6 +36,8 @@ data class StoredPeriod(
     val dueDate: LocalDate,
     val kinds: Set<PeriodKind>,
     val confirmation: ConfirmationState = ConfirmationState.UNCONFIRMED,
+    /** The id of the row in `tenancy.period_record`; null for a value not read from a record (a proposal, a plan). */
+    val periodId: UUID? = null,
 ) {
     /** True for a first, final or transitional period. */
     val irregular: Boolean get() = kinds.isNotEmpty()
@@ -204,6 +206,8 @@ data class PeriodSpanRecord(
     val periodEnd: LocalDate,
     /** The due date stored for the period, read as is (an extension or recomputation that moved it is reflected). */
     val filingDueDate: LocalDate,
+    /** The id of the period record in force (`tenancy.period_record.id`); null when the value holds none. */
+    val periodId: UUID? = null,
 )
 
 /**
@@ -228,7 +232,7 @@ interface PeriodRecordsChangePublisher {
             }
 
         /** The change for [entityRef] from the records in force [inForce] after the call, at [version]. */
-        internal fun changeOf(
+        fun changeOf(
             entityRef: String,
             version: Long,
             inForce: List<StoredPeriod>,
@@ -236,7 +240,7 @@ interface PeriodRecordsChangePublisher {
             PeriodRecordsChange(
                 entityRef,
                 version,
-                inForce.map { PeriodSpanRecord(it.periodRef, it.start, it.end, it.dueDate) },
+                inForce.map { PeriodSpanRecord(it.periodRef, it.start, it.end, it.dueDate, it.periodId) },
             )
     }
 }

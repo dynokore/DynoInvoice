@@ -48,6 +48,7 @@ class JooqPeriodRecordStore(
                     it.dueDate.column("due_date"),
                     kindsOf(it.kinds.column("kinds")),
                     ConfirmationState.valueOf(it.confirmationState.column("confirmation_state")),
+                    it.id.column("id"),
                 )
             }
 
