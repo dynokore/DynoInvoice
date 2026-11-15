@@ -1,7 +1,7 @@
 package com.dynokore.gst.canonical.bootstrap
 
-import com.dynokore.gst.canonical.adapters.persistence.jooq.DefaultCatalog
 import com.dynokore.gst.canonical.adapters.persistence.JooqPeriodSpans
+import com.dynokore.gst.canonical.adapters.persistence.jooq.DefaultCatalog
 import com.dynokore.gst.canonical.application.document.PeriodSpans
 import org.jooq.DSLContext
 import org.jooq.Schema
