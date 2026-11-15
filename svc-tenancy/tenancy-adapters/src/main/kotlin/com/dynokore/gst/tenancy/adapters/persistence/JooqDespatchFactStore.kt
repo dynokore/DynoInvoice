@@ -10,7 +10,7 @@ import java.util.UUID
 
 /**
  * The replica of SubmissionDespatched facts (INV-REQ-1243, INV-AC-16774; jOOQ only, CS-18): one row per tenant and
- * entity ref. Insert-only; the first fact of a key stays.
+ * entity ref, and one unattributed marker per tenant. Insert-only; the first fact of a key stays.
  */
 class JooqDespatchFactStore(
     private val dsl: DSLContext,
@@ -21,18 +21,17 @@ class JooqDespatchFactStore(
         entityRef: String,
         despatchedAt: Instant,
         docUuid: UUID?,
-    ): Boolean =
-        dsl
-            .insertInto(DESPATCH_FACT)
-            .set(DESPATCH_FACT.TENANT_ID, tenant.value)
-            .set(DESPATCH_FACT.ENTITY_REF, entityRef)
-            .set(DESPATCH_FACT.FIRST_DESPATCHED_AT, OffsetDateTime.ofInstant(despatchedAt, ZoneOffset.UTC))
-            .set(DESPATCH_FACT.DOC_UUID, docUuid)
-            .onConflictDoNothing()
-            .execute() == 1
+    ): Boolean = insert(tenant, ENTITY, entityRef, despatchedAt, docUuid)
+
+    /** Keeps the unattributed marker of [tenant] when none exists; true when a row was inserted. */
+    fun keepUnattributedMarker(
+        tenant: TenantId,
+        despatchedAt: Instant,
+        docUuid: UUID?,
+    ): Boolean = insert(tenant, UNATTRIBUTED, null, despatchedAt, docUuid)
 
     /**
-     * True when [tenant] has a fact whose entity ref equals [entityRef] (exact equality,
+     * True when [tenant] has the unattributed marker, or a fact whose entity ref equals [entityRef] (exact equality,
      * never a prefix). Every other tenant's row is out of reach by condition and by forced row-level security.
      */
     fun hasFactFor(
@@ -43,6 +42,32 @@ class JooqDespatchFactStore(
             DESPATCH_FACT,
             DESPATCH_FACT.TENANT_ID
                 .eq(tenant.value)
-                .and(DESPATCH_FACT.ENTITY_REF.eq(entityRef)),
+                .and(
+                    DESPATCH_FACT.ROW_KIND
+                        .eq(UNATTRIBUTED)
+                        .or(DESPATCH_FACT.ROW_KIND.eq(ENTITY).and(DESPATCH_FACT.ENTITY_REF.eq(entityRef))),
+                ),
         )
+
+    private fun insert(
+        tenant: TenantId,
+        kind: String,
+        entityRef: String?,
+        despatchedAt: Instant,
+        docUuid: UUID?,
+    ): Boolean =
+        dsl
+            .insertInto(DESPATCH_FACT)
+            .set(DESPATCH_FACT.TENANT_ID, tenant.value)
+            .set(DESPATCH_FACT.ROW_KIND, kind)
+            .set(DESPATCH_FACT.ENTITY_REF, entityRef)
+            .set(DESPATCH_FACT.FIRST_DESPATCHED_AT, OffsetDateTime.ofInstant(despatchedAt, ZoneOffset.UTC))
+            .set(DESPATCH_FACT.DOC_UUID, docUuid)
+            .onConflictDoNothing()
+            .execute() == 1
+
+    companion object {
+        const val ENTITY = "ENTITY"
+        const val UNATTRIBUTED = "UNATTRIBUTED"
+    }
 }

@@ -17,7 +17,7 @@ import java.time.LocalDate
  * [TenancyVariationPoints.NON_BUSINESS_DAY_RULE] and a target of level ENTITY or CLIENT_ENTITY it answers the
  * `obligation_start_date` of the OBLIGATION_START row with the greatest `effective_from` of the entity named by
  * `SettingTarget.entity` (the entity ref), unless the replica of SubmissionDespatched facts holds a fact for (tenant,
- * entity) (the stricter reading "nothing transmitted for this entity at all"). It
+ * entity) or the tenant's unattributed marker (the stricter reading "nothing transmitted for this entity at all"). It
  * answers null for every other key and level, an unknown entity, an entity without that row, a missing tenant and any
  * exception: it fails closed and never answers a default date.
  */

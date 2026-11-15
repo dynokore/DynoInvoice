@@ -76,6 +76,14 @@ class TenancyBackdatingFloorTest {
     }
 
     @Test
+    fun `INV-AC-16774 the unattributed marker of the tenant makes the floor null for every entity of it`() {
+        val tenant = DespatchTestDb.tenant()
+        val entity = DespatchTestDb.entity(tenant, start to start)
+        DespatchTestDb.bound(tenant) { JooqDespatchFactStore(it).keepUnattributedMarker(tenant, at, null) }
+        earliest(tenant, target(tenant, entity)) shouldBe null
+    }
+
+    @Test
     fun `INV-AC-16774 a fact of another entity or of another tenant for the same entity ref leaves the floor`() {
         val tenant = DespatchTestDb.tenant()
         val other = DespatchTestDb.tenant()

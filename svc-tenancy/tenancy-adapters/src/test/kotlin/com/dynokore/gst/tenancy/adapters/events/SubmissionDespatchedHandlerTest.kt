@@ -63,6 +63,7 @@ class SubmissionDespatchedHandlerTest {
         handle(tenant, event(tenant, "E-1", doc)) shouldBe HandleOutcome.APPLIED
         val row = rows(tenant).single()
         row.entityRef shouldBe "E-1"
+        row.rowKind shouldBe JooqDespatchFactStore.ENTITY
         row.docUuid shouldBe doc
         row.firstDespatchedAt!!.toInstant() shouldBe time
     }
@@ -116,5 +117,16 @@ class SubmissionDespatchedHandlerTest {
             )
         shouldThrow<ContractViolation> { handle(tenant, platform) }
         rows(tenant).size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16774 the unattributed marker is written through the store and a second one changes nothing`() {
+        val tenant = DespatchTestDb.tenant()
+        DespatchTestDb.bound(tenant) { dsl ->
+            val store = JooqDespatchFactStore(dsl)
+            store.keepUnattributedMarker(tenant, time, null) shouldBe true
+            store.keepUnattributedMarker(tenant, time, null) shouldBe false
+        }
+        rows(tenant).single().rowKind shouldBe JooqDespatchFactStore.UNATTRIBUTED
     }
 }

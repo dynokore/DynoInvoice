@@ -29,8 +29,8 @@ import java.util.HexFormat
 import java.util.UUID
 
 /**
- * The replica of SubmissionDespatched facts (INV-AC-16774): one fact per (tenant, entity ref), the first fact stays,
- * and forced row-level security hides and refuses another tenant's rows.
+ * The replica of SubmissionDespatched facts (INV-AC-16774): one fact per (tenant, entity ref), one unattributed marker
+ * per tenant, the first fact stays, and forced row-level security hides and refuses another tenant's rows.
  */
 class JooqDespatchFactStoreTest {
     private val at = Instant.parse("2026-11-01T01:00:00Z")
@@ -51,6 +51,20 @@ class JooqDespatchFactStoreTest {
             rows.single().docUuid shouldBe first
             rows.single().firstDespatchedAt!!.toInstant() shouldBe at
         }
+    }
+
+    @Test
+    fun `INV-AC-16774 the unattributed marker is kept once per tenant and covers every entity of that tenant only`() {
+        val tenant = DespatchTestDb.tenant()
+        val other = DespatchTestDb.tenant()
+        DespatchTestDb.bound(tenant) { dsl ->
+            val store = JooqDespatchFactStore(dsl)
+            store.hasFactFor(tenant, "E-9") shouldBe false
+            store.keepUnattributedMarker(tenant, at, null) shouldBe true
+            store.keepUnattributedMarker(tenant, at.plusSeconds(1), null) shouldBe false
+            store.hasFactFor(tenant, "E-9") shouldBe true
+        }
+        DespatchTestDb.bound(other) { dsl -> JooqDespatchFactStore(dsl).hasFactFor(other, "E-9") shouldBe false }
     }
 
     @Test
@@ -83,38 +97,30 @@ class JooqDespatchFactStoreTest {
     }
 
     @Test
-    fun `INV-AC-16774 the columns of despatch_fact are exactly tenant_id entity_ref first_despatched_at doc_uuid`() {
-        val columns =
+    fun `INV-AC-16774 the table refuses a marker with an entity ref and an entity row without one`() {
+        val tenant = DespatchTestDb.tenant()
+        shouldThrow<Exception> {
             DespatchTestDb.superuser { dsl ->
                 dsl
-                    .select(DSL.field(DSL.name("column_name"), String::class.java))
-                    .from(DSL.table(DSL.name("information_schema", "columns")))
-                    .where(DSL.field(DSL.name("table_schema")).eq("tenancy"))
-                    .and(DSL.field(DSL.name("table_name")).eq("despatch_fact"))
-                    .fetch(0, String::class.java)
-                    .toSet()
+                    .insertInto(DESPATCH_FACT)
+                    .set(DESPATCH_FACT.TENANT_ID, tenant.value)
+                    .set(DESPATCH_FACT.ROW_KIND, JooqDespatchFactStore.UNATTRIBUTED)
+                    .set(DESPATCH_FACT.ENTITY_REF, "E-1")
+                    .set(DESPATCH_FACT.FIRST_DESPATCHED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+                    .execute()
             }
-        columns shouldBe setOf("tenant_id", "entity_ref", "first_despatched_at", "doc_uuid")
+        }
+        shouldThrow<Exception> {
+            DespatchTestDb.superuser { dsl ->
+                dsl
+                    .insertInto(DESPATCH_FACT)
+                    .set(DESPATCH_FACT.TENANT_ID, tenant.value)
+                    .set(DESPATCH_FACT.ROW_KIND, JooqDespatchFactStore.ENTITY)
+                    .set(DESPATCH_FACT.FIRST_DESPATCHED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+                    .execute()
+            }
+        }
     }
-
-    @Test
-    fun `INV-AC-16774 the table refuses a second row for the same pair and an empty entity ref`() {
-        val tenant = DespatchTestDb.tenant()
-        DespatchTestDb.superuser { dsl -> raw(dsl, tenant, "E-1") }
-        shouldThrow<Exception> { DespatchTestDb.superuser { dsl -> raw(dsl, tenant, "E-1") } }
-        shouldThrow<Exception> { DespatchTestDb.superuser { dsl -> raw(dsl, tenant, "") } }
-    }
-
-    private fun raw(
-        dsl: org.jooq.DSLContext,
-        tenant: com.dynokore.platform.tenancykernel.TenantId,
-        ref: String,
-    ) = dsl
-        .insertInto(DESPATCH_FACT)
-        .set(DESPATCH_FACT.TENANT_ID, tenant.value)
-        .set(DESPATCH_FACT.ENTITY_REF, ref)
-        .set(DESPATCH_FACT.FIRST_DESPATCHED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-        .execute()
 }
 
 /** One PostgreSQL with the service schema migrated as the installation does, shared by the despatch replica tests. */
