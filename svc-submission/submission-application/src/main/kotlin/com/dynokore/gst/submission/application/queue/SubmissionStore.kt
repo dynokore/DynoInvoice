@@ -151,6 +151,7 @@ class VersionState(
 )
 
 /** The `submission` row as the despatch step reads it. */
+@Suppress("LongParameterList")
 class LockedSubmission(
     val state: LifecycleState,
     val payloadBytes: ByteArray?,
@@ -158,6 +159,7 @@ class LockedSubmission(
     val attemptCount: Int,
     val event: EventFacts,
     val outcome: OutcomeFacts,
+    val aggregateId: String? = null,
 ) {
     val entityRef: String get() = event.entityRef
     val transactionDate: LocalDate? get() = event.transactionDate
@@ -208,6 +210,7 @@ class NewReadySubmission(
     val payloadBytes: ByteArray,
     val payloadSha256: String,
     val submissionType: SubmissionKind,
+    val aggregateId: String? = null,
 )
 
 /** The values a `Retry` decision writes. */

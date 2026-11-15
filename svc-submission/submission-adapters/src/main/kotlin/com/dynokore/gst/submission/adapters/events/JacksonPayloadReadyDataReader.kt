@@ -30,6 +30,7 @@ class JacksonPayloadReadyDataReader : PayloadReadyDataReader {
             specificationVersion = data.text("specificationVersion"),
             payloadBytes = decode(data.text("payloadBytes")),
             payloadSha256 = data.text("payloadSha256"),
+            aggregateId = if (data.has("aggregateId")) data.text("aggregateId") else null,
         )
     }
 

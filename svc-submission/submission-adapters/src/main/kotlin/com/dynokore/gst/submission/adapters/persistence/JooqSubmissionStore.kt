@@ -45,6 +45,7 @@ class JooqSubmissionStore(
             .set(Submission.SUBMISSION_.ENTITY_REF, version.entityRef)
             .set(Submission.SUBMISSION_.TRANSACTION_DATE, version.transactionDate)
             .set(Submission.SUBMISSION_.SUBMISSION_TYPE, version.submissionType.name)
+            .set(Submission.SUBMISSION_.AGGREGATE_ID, version.aggregateId)
             .onConflict(Submission.SUBMISSION_.DOC_UUID, Submission.SUBMISSION_.VERSION)
             .doNothing()
             .execute()
@@ -107,6 +108,7 @@ class JooqSubmissionStore(
                             checkNotNull(it.retryFailures),
                             it.retryFirstFailureAt?.toInstant(),
                         ),
+                    aggregateId = it.aggregateId,
                 )
             }
 
