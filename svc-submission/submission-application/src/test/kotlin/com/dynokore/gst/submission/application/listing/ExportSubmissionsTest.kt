@@ -61,8 +61,8 @@ class ExportSubmissionsTest {
             .sorted()
             .first()
 
-    private fun replica(): AuthorityReplica =
-        AuthorityReplica(clock, roleMap).also { replica ->
+    private fun replica(map: OperationRoleMap = roleMap): AuthorityReplica =
+        AuthorityReplica(clock, map).also { replica ->
             replica.onSnapshotComplete(0)
             listOf(holder to roleHoldingBoth(), statusOnly to roleStatusOnly()).forEach { (principal, role) ->
                 val grant = RoleGrant(role, GrantScope.ENTITY, entityRef, clock.instant().minusSeconds(60))
@@ -210,13 +210,152 @@ class ExportSubmissionsTest {
         csv.csv.split("\r\n")[1].split(",")[1] shouldBe "M12345678X"
     }
 
+    private val maskedIdx = listOf(2, 6, 7, 9, 10)
+
+    private fun cols(line: String) = line.split(",")
+
+    /** True per data line when the five masked columns are empty. */
+    private fun masked(lines: List<String>) = lines.map { l -> maskedIdx.all { cols(l)[it].isEmpty() } }
+
+    private fun filled(lines: List<String>) = lines.map { l -> maskedIdx.all { cols(l)[it].isNotEmpty() } }
+
+    private fun unmaskedPart(lines: List<String>) = lines.map { l -> cols(l).filterIndexed { i, _ -> i !in maskedIdx } }
+
+    /** Machine of a type (the type is the role of the type map); the map grants [keys] to the type. */
+    private class RecordingMap(
+        private val granted: Map<String, Set<String>>,
+    ) {
+        val asked = mutableListOf<String>()
+        val map =
+            OperationRoleMap { key ->
+                asked.add(key)
+                granted[key].orEmpty().associateWith { CellAllowance.PERMITTED }
+            }
+    }
+
+    private val typeGrants =
+        mapOf(
+            ListingActions.VIEW_STATUS_MACHINE to setOf("machine.M1", "machine.M3"),
+            ListingActions.VIEW_STATUS to setOf("machine.M2"),
+            ListingActions.VIEW_CONTENT to setOf("machine.M1", "machine.M2"),
+        )
+
+    private fun machine(type: String) =
+        MachinePrincipalFixtures.machine("m-$type", tenant, MachineEntityCoverage.Entity(entityRef), type)
+
+    private fun exportAs(
+        principal: Principal,
+        source: SubmissionRowSource,
+        gstns: EntityGstns = CountingGstns("M00000000X"),
+        filter: SubmissionFilter = SubmissionFilter(),
+        map: OperationRoleMap = RecordingMap(typeGrants).map,
+    ) = ExportSubmissions(AuthorityReplica(clock, map).also { it.onSnapshotComplete(0) }, source, gstns, clock)
+        .handle(ExportSubmissionsRequest(tenant, principal, entityRef, periodRef, filter, clock.instant()), deadline)
+
     @Test
-    fun `INV-AC-16330 a caller without doc view content is Forbidden and the source and GSTN lookup are not called`() {
+    fun `INV-AC-23395 a machine granted machine-submissions-read and content gets the filled Csv`() {
+        val source = RecordingSource(rows)
+        val csv = csvOf(exportAs(machine("M1"), source))
+        source.calls shouldBe 1
+        filled(dataLines(csv.csv)).forEach { it shouldBe true }
+    }
+
+    @Test
+    fun `INV-AC-23395 b a machine without machine-submissions-read is Forbidden and nothing is called`() {
         val source = RecordingSource(rows)
         val gstns = CountingGstns("M00000000X")
-        export(source, principal = statusOnly, gstns = gstns) shouldBe ExportSubmissionsResult.Forbidden
+        exportAs(machine("M2"), source, gstns) shouldBe ExportSubmissionsResult.Forbidden
         source.calls shouldBe 0
         gstns.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-23395 c a machine without content gets the masked Csv equal to the full one elsewhere`() {
+        val full = csvOf(exportAs(machine("M1"), RecordingSource(rows)))
+        val source = RecordingSource(rows)
+        val csv = csvOf(exportAs(machine("M3"), source))
+        source.calls shouldBe 1
+        masked(dataLines(csv.csv)).forEach { it shouldBe true }
+        unmaskedPart(dataLines(csv.csv)) shouldBe unmaskedPart(dataLines(full.csv))
+        csv.csv
+            .split("\r\n")[1]
+            .split(",")
+            .drop(6) shouldBe
+            full.csv
+                .split("\r\n")[1]
+                .split(",")
+                .drop(6)
+        csv.rowCount shouldBe full.rowCount
+        csv.totalTaxableAmount shouldBe full.totalTaxableAmount
+        csv.totalGstAmount shouldBe full.totalGstAmount
+    }
+
+    @Test
+    fun `INV-AC-23395 c2 a filter on a masked fact is refused for a machine without content and direction is served`() {
+        listOf(
+            SubmissionFilter(counterparty = "Acme"),
+            SubmissionFilter(amountMin = BigDecimal("1.00")),
+            SubmissionFilter(amountMax = BigDecimal("1000.00")),
+            SubmissionFilter(categoryCode = "SR"),
+        ).forEach { filter ->
+            val source = RecordingSource(rows)
+            val gstns = CountingGstns("M00000000X")
+            exportAs(machine("M3"), source, gstns, filter) shouldBe ExportSubmissionsResult.MaskedFactFilter
+            source.calls shouldBe 0
+            gstns.calls shouldBe 0
+        }
+        csvOf(exportAs(machine("M3"), RecordingSource(rows), filter = SubmissionFilter(direction = Direction.SALE)))
+    }
+
+    @Test
+    fun `INV-AC-23395 d a person holding both keys gets the unmasked Csv`() {
+        filled(dataLines(csvOf(export(RecordingSource(rows))).csv)).forEach { it shouldBe true }
+    }
+
+    @Test
+    fun `INV-AC-23395 e the keys asked are exactly the expected lists in order`() {
+        fun asked(
+            principal: Principal,
+            grants: Map<String, Set<String>>,
+        ): List<String> {
+            val map = RecordingMap(grants)
+            exportAs(principal, RecordingSource(rows), map = map.map)
+            return map.asked
+        }
+        asked(machine("M1"), typeGrants) shouldBe listOf("machine.submissions.read", "doc.view.content")
+        asked(machine("M2"), typeGrants) shouldBe listOf("machine.submissions.read")
+        val recorded = mutableListOf<String>()
+        val recordingCatalogue =
+            OperationRoleMap { key ->
+                recorded.add(key)
+                roleMap.rolesFor(key)
+            }
+        ExportSubmissions(replica(recordingCatalogue), RecordingSource(rows), CountingGstns("M00000000X"), clock)
+            .handle(
+                ExportSubmissionsRequest(tenant, holder, entityRef, periodRef, SubmissionFilter(), clock.instant()),
+                deadline,
+            )
+        recorded shouldBe listOf("submission.view-status", "doc.view.content")
+        recorded.clear()
+        ExportSubmissions(replica(recordingCatalogue), RecordingSource(rows), CountingGstns("M00000000X"), clock)
+            .handle(
+                ExportSubmissionsRequest(tenant, statusOnly, entityRef, periodRef, SubmissionFilter(), clock.instant()),
+                deadline,
+            )
+        recorded shouldBe listOf("submission.view-status", "doc.view.content")
+    }
+
+    @Test
+    fun `INV-AC-23395 f the machine status key is the published string`() {
+        ListingActions.VIEW_STATUS_MACHINE shouldBe "machine.submissions.read"
+    }
+
+    @Test
+    fun `INV-AC-23395 c3 a person without doc view content gets the masked Csv and the source is read once`() {
+        val source = RecordingSource(rows)
+        val csv = csvOf(export(source, principal = statusOnly))
+        source.calls shouldBe 1
+        masked(dataLines(csv.csv)).forEach { it shouldBe true }
     }
 
     @Test

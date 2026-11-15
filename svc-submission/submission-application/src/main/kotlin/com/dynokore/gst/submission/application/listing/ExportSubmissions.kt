@@ -8,6 +8,7 @@ import com.dynokore.gst.submission.domain.listing.SubmissionRows
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.Principal
+import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import java.math.BigDecimal
@@ -37,19 +38,24 @@ sealed interface ExportSubmissionsResult {
 
     data object BucketNotServed : ExportSubmissionsResult
 
+    /** The filter touches a masked fact and the caller lacks `doc.view.content`: nothing is read. */
+    data object MaskedFactFilter : ExportSubmissionsResult
+
     /** The entity has no stored GSTN (null or blank): the header cannot be built, nothing is read. */
     data object GstnUnavailable : ExportSubmissionsResult
 }
 
 /**
- * The CSV export of the submission list (INV-REQ-978, INV-AC-16330). An export carries content facts, so both
- * `submission.view-status` and `doc.view.content` are decided per request through [AuthorityReplica.decide]; a caller
- * without either is refused and neither the source nor the GSTN lookup is called (fail closed); an entity with no
- * stored GSTN gets [ExportSubmissionsResult.GstnUnavailable] and nothing is read. The rows come once from the
- * [SubmissionRowSource], the
- * one [SubmissionFilter.select] applies the filter, and the table, the CSV and the three header values all come from
- * those rows, so they tie back to the summary. generated-by is the acting user ID of the [Principal], never a role
- * (INV-Q-10647, INV-Q-10027).
+ * The CSV export of the submission list (INV-REQ-978, INV-AC-23395). The status key is decided per request through
+ * [AuthorityReplica.decide]: `machine.submissions.read` ([ListingActions.VIEW_STATUS_MACHINE]) for a machine principal,
+ * `submission.view-status` ([ListingActions.VIEW_STATUS]) for every other one; a caller without it is refused and
+ * nothing is read (fail closed). `doc.view.content` is decided for every principal and is not a refusal: without it
+ * the content facts are masked as the list masks them (`ListFactsPolicy.mask`), the row count and totals still come
+ * from all selected rows, and a filter on a masked fact is [ExportSubmissionsResult.MaskedFactFilter]. An entity with
+ * no stored GSTN gets [ExportSubmissionsResult.GstnUnavailable] and nothing is read. The rows come once from the
+ * [SubmissionRowSource], the one [SubmissionFilter.select] applies the filter, and the table, the CSV and the three
+ * header values all come from those rows, so they tie back to the summary. generated-by is the acting user ID of the
+ * [Principal], never a role (INV-Q-10647, INV-Q-10027).
  */
 class ExportSubmissions(
     private val replica: AuthorityReplica,
@@ -60,32 +66,40 @@ class ExportSubmissions(
     fun handle(
         request: ExportSubmissionsRequest,
         deadline: Deadline,
-    ): ExportSubmissionsResult =
-        when {
-            !decide(request, ListingActions.VIEW_STATUS, deadline) -> {
-                ExportSubmissionsResult.Forbidden
+    ): ExportSubmissionsResult {
+        val statusKey =
+            if (request.principal.kind == PrincipalKind.MACHINE) {
+                ListingActions.VIEW_STATUS_MACHINE
+            } else {
+                ListingActions.VIEW_STATUS
             }
-
-            !decide(request, ListingActions.VIEW_CONTENT, deadline) -> {
-                ExportSubmissionsResult.Forbidden
-            }
-
+        if (!decide(request, statusKey, deadline)) {
+            return ExportSubmissionsResult.Forbidden
+        }
+        val mayViewContent = decide(request, ListingActions.VIEW_CONTENT, deadline)
+        return when {
             request.filter.bucket != null && request.filter.bucket !in SERVED_BUCKETS -> {
                 ExportSubmissionsResult.BucketNotServed
+            }
+
+            !mayViewContent && touchesMaskedFact(request.filter) -> {
+                ExportSubmissionsResult.MaskedFactFilter
             }
 
             else -> {
                 gstns
                     .gstnOf(request.tenant, request.entityRef)
                     ?.takeIf { it.isNotBlank() }
-                    ?.let { export(request, it) }
+                    ?.let { export(request, it, mayViewContent) }
                     ?: ExportSubmissionsResult.GstnUnavailable
             }
         }
+    }
 
     private fun export(
         request: ExportSubmissionsRequest,
         gstn: String,
+        mayViewContent: Boolean,
     ): ExportSubmissionsResult {
         val rows = source.rows(request.tenant, request.entityRef, request.periodRef).rows
         val selected =
@@ -102,7 +116,7 @@ class ExportSubmissions(
                 generatedBy = request.principal.id,
                 filter = request.filter.canonical(),
             )
-        val table = SubmissionExport.table(header, selected)
+        val table = SubmissionExport.table(header, selected, mayViewContent)
         return ExportSubmissionsResult.Csv(
             csv = SubmissionExport.csv(table),
             rowCount = table.rowCount,

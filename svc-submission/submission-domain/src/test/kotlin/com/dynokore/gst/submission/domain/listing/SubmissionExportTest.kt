@@ -1,6 +1,8 @@
 package com.dynokore.gst.submission.domain.listing
 
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
+import com.dynokore.gst.submission.domain.register.ListFacts
+import com.dynokore.gst.submission.domain.register.ListFactsPolicy
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -162,5 +164,73 @@ class SubmissionExportTest {
                 "superseded",
             )
         SubmissionExport.COLUMNS.size shouldBe 16
+    }
+
+    private fun factsOf(r: SubmissionRow) =
+        ListFacts(
+            r.documentNumber,
+            r.documentTypeCode,
+            r.direction,
+            r.counterpartyName,
+            r.counterpartyUen,
+            r.taxableAmount,
+            r.gstAmount,
+            r.categoryCodes,
+        )
+
+    @Test
+    fun `INV-AC-23395 g with content allowed the table equals the two-argument table`() {
+        SubmissionExport.table(header, three, true) shouldBe SubmissionExport.table(header, three)
+    }
+
+    @Test
+    fun `INV-AC-23395 h without content the five masked cells are empty exactly where the policy withholds`() {
+        val full = SubmissionExport.table(header, three, true)
+        val masked = SubmissionExport.table(header, three, false)
+        val names = listOf("documentNumber", "counterpartyName", "counterpartyUen", "taxableAmount", "gstAmount")
+        val kept =
+            listOf(
+                "docUuid",
+                "version",
+                "documentTypeCode",
+                "direction",
+                "submissionType",
+                "transactionDate",
+                "state",
+                "superseded",
+            )
+        three.forEachIndexed { r, row ->
+            val served = ListFactsPolicy.mask(factsOf(row), false)
+            val withheld =
+                mapOf(
+                    "documentNumber" to (served.documentNumber == null),
+                    "counterpartyName" to (served.counterpartyName == null),
+                    "counterpartyUen" to (served.counterpartyUen == null),
+                    "taxableAmount" to (served.taxableAmount == null),
+                    "gstAmount" to (served.gstAmount == null),
+                )
+            names.forEach { n ->
+                val i = SubmissionExport.COLUMNS.indexOf(n)
+                (masked.cells[r][i] == "") shouldBe withheld.getValue(n)
+                withheld.getValue(n) shouldBe true
+            }
+            kept.forEach { n ->
+                val i = SubmissionExport.COLUMNS.indexOf(n)
+                masked.cells[r][i] shouldBe full.cells[r][i]
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-23395 i without content the count and totals stay and the csv holds no masked value`() {
+        val full = SubmissionExport.table(header, three, true)
+        val masked = SubmissionExport.table(header, three, false)
+        masked.rowCount shouldBe full.rowCount
+        masked.totalTaxableAmount shouldBe full.totalTaxableAmount
+        masked.totalGstAmount shouldBe full.totalGstAmount
+        val csv = SubmissionExport.csv(masked)
+        csv.contains("Buyer") shouldBe false
+        csv.contains("N-1") shouldBe false
+        csv.contains("201234567A") shouldBe false
     }
 }

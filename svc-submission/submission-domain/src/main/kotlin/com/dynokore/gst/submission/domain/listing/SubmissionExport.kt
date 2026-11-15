@@ -1,5 +1,7 @@
 package com.dynokore.gst.submission.domain.listing
 
+import com.dynokore.gst.submission.domain.register.ListFacts
+import com.dynokore.gst.submission.domain.register.ListFactsPolicy
 import java.math.BigDecimal
 import java.time.Instant
 
@@ -87,6 +89,44 @@ object SubmissionExport {
             totalTaxableAmount = totals.totalTaxableAmount,
             totalGstAmount = totals.totalGstAmount,
         )
+    }
+
+    /**
+     * As [table], for a caller who may or may not view content. When [mayViewContent] is false a cell of a content fact
+     * is the empty text exactly where [ListFactsPolicy.mask] withholds that fact, so the list and the export mask by one
+     * rule; the row count and the totals still come from all rows, as the summary serves them.
+     */
+    fun table(
+        header: ExportHeader,
+        rows: List<SubmissionRow>,
+        mayViewContent: Boolean,
+    ): ExportTable {
+        val full = table(header, rows)
+        return if (mayViewContent) full else full.copy(cells = rows.map(::maskedCellsOf))
+    }
+
+    private fun maskedCellsOf(r: SubmissionRow): List<String> {
+        val facts =
+            ListFacts(
+                documentNumber = r.documentNumber,
+                documentTypeCode = r.documentTypeCode,
+                direction = r.direction,
+                counterpartyName = r.counterpartyName,
+                counterpartyUen = r.counterpartyUen,
+                taxableAmount = r.taxableAmount,
+                gstAmount = r.gstAmount,
+                categoryCodes = r.categoryCodes,
+            )
+        val served = ListFactsPolicy.mask(facts, false)
+        val withheld =
+            mapOf(
+                "documentNumber" to (served.documentNumber == null),
+                "counterpartyName" to (served.counterpartyName == null),
+                "counterpartyUen" to (served.counterpartyUen == null),
+                "taxableAmount" to (served.taxableAmount == null),
+                "gstAmount" to (served.gstAmount == null),
+            )
+        return cellsOf(r).mapIndexed { i, cell -> if (withheld[COLUMNS[i]] == true) "" else cell }
     }
 
     /** RFC 4180 CSV (CRLF) with the header block, an empty line, the column line and one line per row. */
