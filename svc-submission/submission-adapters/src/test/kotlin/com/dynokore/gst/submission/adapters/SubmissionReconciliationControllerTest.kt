@@ -130,10 +130,13 @@ class SubmissionReconciliationControllerTest {
         val source: RecordingSource,
     )
 
-    private fun fixture(type: String): Fixture {
+    private fun fixture(
+        type: String,
+        person: Principal? = null,
+    ): Fixture {
         val replica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
         val caller: Principal =
-            MachinePrincipalFixtures.machine("m1", tenant, MachineEntityCoverage.Entity(entity), type)
+            person ?: MachinePrincipalFixtures.machine("m1", tenant, MachineEntityCoverage.Entity(entity), type)
         val source = RecordingSource(rows)
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
@@ -227,14 +230,15 @@ class SubmissionReconciliationControllerTest {
     }
 
     @Test
-    fun `INV-AC-16328 a machine caller with the granted key is served and a person without a tenant is 401 SRT-003`() {
+    fun `INV-AC-16328 a machine caller with the granted key is served`() {
         reconciliation(fixture(READER)).statusCode.value() shouldBe 200
-        val replica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
-        val source = RecordingSource(rows)
-        val delegate = SubmissionReconciliationController(GetSubmissionReconciliation(replica, source), clock)
-        refused { bound { delegate.reconcile(Principal("holder", PrincipalKind.HUMAN), entity, period) } } shouldBe
-            (401 to "SRT-003")
-        source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16328 a person caller that is not a machine principal is 401 SRT-003 with zero source calls`() {
+        val f = fixture(READER, Principal("holder", PrincipalKind.HUMAN))
+        refused { reconciliation(f) } shouldBe (401 to "SRT-003")
+        f.source.calls shouldBe 0
     }
 
     @Test
