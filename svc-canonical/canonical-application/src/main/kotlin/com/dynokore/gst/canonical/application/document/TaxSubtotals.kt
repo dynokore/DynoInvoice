@@ -35,7 +35,6 @@ sealed interface SubtotalResult {
  */
 object TaxSubtotals {
     private const val SCALE = 2
-    private val HUNDRED = BigDecimal(100)
 
     fun derive(lines: List<TaxedLine>): SubtotalResult {
         val blank = lines.filter { it.categoryCode.isBlank() }.map { it.lineNumber }
@@ -68,7 +67,7 @@ object TaxSubtotals {
     ): String =
         net
             .multiply(percent(rate))
-            .divide(HUNDRED)
+            .divide(BigDecimal(100))
             .setScale(SCALE, RoundingMode.HALF_UP)
             .toPlainString()
 

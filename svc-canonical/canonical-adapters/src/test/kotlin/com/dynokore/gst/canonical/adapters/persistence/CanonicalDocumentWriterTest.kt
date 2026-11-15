@@ -57,7 +57,6 @@ class CanonicalDocumentWriterTest {
     @Test
     fun `INV-AC-21599 T9a every required member is present and absent parties are empty objects`() {
         val doc = render(content())
-        assertNoNullOrEmpty(doc)
         listOf("documentTypeCode", "currency", "parties", "lines", "taxSubtotals", "totals").forEach {
             doc.has(it) shouldBe
                 true

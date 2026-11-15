@@ -5,7 +5,6 @@ import com.dynokore.gst.canonical.application.document.ContentTotals
 import com.dynokore.gst.canonical.application.document.DocumentContent
 import com.dynokore.gst.canonical.application.document.LineTaxFact
 import com.dynokore.gst.canonical.application.document.SubtotalResult
-import com.dynokore.gst.canonical.application.document.TaxSubtotal
 import com.dynokore.gst.canonical.application.document.TaxSubtotals
 import com.dynokore.gst.canonical.application.document.TaxedLine
 import tools.jackson.core.StreamWriteFeature
@@ -37,8 +36,34 @@ class CanonicalDocumentWriter {
                 .map { it.lineNumber }
         if (incomplete.isNotEmpty()) throw IncompleteCanonicalDocument(incomplete)
         require(lineTax.size == content.lines.size) { "lineTax must be index-aligned with the lines" }
-        val subtotals = subtotalsOf(content, lineTax)
-        val lines = linesOf(content, lineTax)
+        val taxed =
+            content.lines.mapIndexed {
+                i,
+                l,
+                ->
+                TaxedLine(l.lineNumber, lineTax[i].categoryCode, lineTax[i].rate, l.lineAmount)
+            }
+        val subtotals =
+            when (val r = TaxSubtotals.derive(taxed)) {
+                is SubtotalResult.Derived -> r.subtotals
+
+                is SubtotalResult.NotDerived -> throw IllegalArgumentException(
+                    "tax subtotals not derived for lines ${r.lineNumbers}",
+                )
+            }
+        val lines =
+            content.lines.mapIndexed { i, l ->
+                val o = linkedMapOf<String, Any>()
+                o["lineNumber"] = l.lineNumber
+                o["description"] = checkNotNull(l.description)
+                o["quantity"] = checkNotNull(l.quantity)
+                o["unitPrice"] = checkNotNull(l.unitPrice)
+                o["lineAmount"] = l.lineAmount
+                o["taxCode"] = lineTax[i].categoryCode
+                l.unitCode?.let { o["unitCode"] = it }
+                o["taxAmount"] = l.taxAmount ?: TaxSubtotals.taxOf(BigDecimal(l.lineAmount), lineTax[i].rate)
+                o
+            }
         val subs =
             subtotals.map {
                 mapOf(
@@ -61,43 +86,6 @@ class CanonicalDocumentWriter {
             )
         return mapper.writeValueAsString(doc)
     }
-
-    private fun subtotalsOf(
-        content: DocumentContent,
-        lineTax: List<LineTaxFact>,
-    ): List<TaxSubtotal> {
-        val taxed =
-            content.lines.mapIndexed {
-                i,
-                l,
-                ->
-                TaxedLine(l.lineNumber, lineTax[i].categoryCode, lineTax[i].rate, l.lineAmount)
-            }
-        return when (val r = TaxSubtotals.derive(taxed)) {
-            is SubtotalResult.Derived -> r.subtotals
-
-            is SubtotalResult.NotDerived -> throw IllegalArgumentException(
-                "tax subtotals not derived for lines ${r.lineNumbers}",
-            )
-        }
-    }
-
-    private fun linesOf(
-        content: DocumentContent,
-        lineTax: List<LineTaxFact>,
-    ): List<Map<String, Any>> =
-        content.lines.mapIndexed { i, l ->
-            val o = linkedMapOf<String, Any>()
-            o["lineNumber"] = l.lineNumber
-            o["description"] = checkNotNull(l.description)
-            o["quantity"] = checkNotNull(l.quantity)
-            o["unitPrice"] = checkNotNull(l.unitPrice)
-            o["lineAmount"] = l.lineAmount
-            o["taxCode"] = lineTax[i].categoryCode
-            l.unitCode?.let { o["unitCode"] = it }
-            o["taxAmount"] = l.taxAmount ?: TaxSubtotals.taxOf(BigDecimal(l.lineAmount), lineTax[i].rate)
-            o
-        }
 
     private fun wrap(
         value: Any,
