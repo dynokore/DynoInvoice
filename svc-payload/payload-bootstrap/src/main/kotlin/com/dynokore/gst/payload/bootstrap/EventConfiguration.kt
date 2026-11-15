@@ -14,7 +14,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(PayloadEvents.entries + PayloadEvents.platformEntries)
+    fun eventCatalogue(): EventCatalogue =
+        EventCatalogue(PayloadEvents.entries + PayloadEvents.platformEntries + PayloadEvents.consumedEntries)
 }
 
 object PayloadEvents {
@@ -48,6 +49,18 @@ object PayloadEvents {
                 setOf(CatalogueEntry.EVERY_SERVICE),
                 contentTopic = false,
                 recordTopic = true,
+                retainedWhileResolvable = false,
+            ),
+        )
+
+    /** The events payload-svc consumes, as the event log catalogues them (topics.yaml); it produces none of them. */
+    val consumedEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                SubmissionTypeDecidedConsumerConfiguration.TYPE,
+                SubmissionTypeDecidedConsumerConfiguration.TOPIC,
+                setOf("submission-svc"),
+                contentTopic = false,
                 retainedWhileResolvable = false,
             ),
         )

@@ -11,17 +11,19 @@ import java.util.UUID
  */
 class JooqTypeDecisionStore(
     private val dsl: DSLContext,
+    private val jobs: JooqBuildJobs,
     private val boundTenant: () -> UUID,
 ) : TypeDecisions {
     private val table = SubmissionTypeDecision.SUBMISSION_TYPE_DECISION
 
-    /** True when a row was newly stored. */
-    fun record(
+    /** True when a row was newly stored; locks the version first, so the other fact's store waits for this commit. */
+    fun store(
         docUuid: UUID,
         version: Int,
         submissionType: String,
-    ): Boolean =
-        dsl
+    ): Boolean {
+        jobs.lockVersion(docUuid, version)
+        return dsl
             .insertInto(table)
             .set(table.TENANT_ID, boundTenant())
             .set(table.DOC_UUID, docUuid)
@@ -29,6 +31,7 @@ class JooqTypeDecisionStore(
             .set(table.SUBMISSION_TYPE, submissionType)
             .onConflictDoNothing()
             .execute() == 1
+    }
 
     override fun exists(
         docUuid: UUID,

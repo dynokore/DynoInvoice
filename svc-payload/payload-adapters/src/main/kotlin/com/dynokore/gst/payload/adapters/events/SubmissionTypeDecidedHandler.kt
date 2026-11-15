@@ -23,13 +23,14 @@ class SubmissionTypeDecidedHandler(
 
     override fun handle(event: Envelope): HandleOutcome {
         val data = parse(event.dataJson)
-        val docUuid = runCatching { UUID.fromString(text(data, "docUuid")) }
-            .getOrElse { throw ContractViolation("docUuid is not a UUID", it) }
+        val docUuid =
+            runCatching { UUID.fromString(text(data, "docUuid")) }
+                .getOrElse { throw ContractViolation("docUuid is not a UUID", it) }
         val version = positiveInt(data, "version")
         positiveInt(data, "docsequence")
         val type = text(data, "submissionType")
         if (type !in TYPES) throw ContractViolation("submissionType is not one of the four types")
-        if (!decisions.record(docUuid, version, type)) return HandleOutcome.IGNORED
+        if (!decisions.store(docUuid, version, type)) return HandleOutcome.IGNORED
         trigger.onDecisionStored(docUuid, version)
         return HandleOutcome.APPLIED
     }
