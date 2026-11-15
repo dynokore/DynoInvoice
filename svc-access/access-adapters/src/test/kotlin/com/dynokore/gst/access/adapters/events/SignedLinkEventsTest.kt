@@ -2,6 +2,7 @@ package com.dynokore.gst.access.adapters.events
 
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
+import com.dynokore.gst.access.application.link.ClientSignatoryConsentCheck
 import com.dynokore.gst.access.application.link.IssueSignedLinkUseCase
 import com.dynokore.gst.access.application.link.LinkPasscodeSetting
 import com.dynokore.gst.access.application.link.PasscodeDigests
@@ -153,7 +154,14 @@ class SignedLinkEventsTest {
             clock,
         )
     private val handler =
-        SignedLinkRequestedHandler(issue, outbox, mapper, setOf("masterdata-svc"))
+        SignedLinkRequestedHandler(
+            issue,
+            outbox,
+            mapper,
+            setOf("masterdata-svc"),
+            ClientSignatoryConsentCheck(RecordingConsents(), clock),
+            clock,
+        )
 
     private fun payload(
         subject: String? = "R1",

@@ -24,6 +24,8 @@ class OutboxLinkMessages(
 ) : LinkMessages {
     private val signedLinkEvents = SignedLinkEventOutbox(outbox, tenants, mapper)
 
+    private val outcomes = SignedLinkOutcomeOutbox(outbox, tenants, mapper)
+
     private val entity = ThreadLocal<EntityRef?>()
 
     /** Runs [block] with every message it requests filed under [under]; the scope ends with the call. */
@@ -42,6 +44,15 @@ class OutboxLinkMessages(
 
     /** `SignedLinkIssued` in the transaction that stores the link (accessSignedLinkIssued). */
     override fun issued(link: SignedLink) = signedLinkEvents.issued(link)
+
+    /** `SignedLinkOutcomeRecorded` for the request [requestEventId], in the transaction of the caller. */
+    fun outcome(
+        requestEventId: String,
+        subjectReference: String,
+        reason: LinkRefusalReason?,
+        under: EntityRef,
+        at: java.time.Instant,
+    ) = outcomes.record(requestEventId, subjectReference, reason, under, at)
 
     override fun request(message: MessageRequest) {
         val under = checkNotNull(entity.get()) { "a message is requested inside filedUnder, under an entity" }

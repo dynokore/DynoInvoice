@@ -15,6 +15,7 @@ object PublishedChannels {
             OutboxLinkMessages.CHANNEL,
             SignedLinkEventOutbox.ISSUED_CHANNEL,
             SignedLinkEventOutbox.INVALIDATED_CHANNEL,
+            SignedLinkOutcomeOutbox.CHANNEL,
             OperatorSessionKeysChangedOutbox.CHANNEL,
         )
 }

@@ -3,6 +3,8 @@ package com.dynokore.gst.access.bootstrap
 import com.dynokore.gst.access.adapters.events.AccessEventCatalogue
 import com.dynokore.gst.access.adapters.events.OutboxLinkMessages
 import com.dynokore.gst.access.adapters.events.SignedLinkRequestedHandler
+import com.dynokore.gst.access.application.consent.ConsentRepository
+import com.dynokore.gst.access.application.link.ClientSignatoryConsentCheck
 import com.dynokore.gst.access.application.link.IssueSignedLinkUseCase
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -38,7 +40,17 @@ class SignedLinkFeed {
         useCase: IssueSignedLinkUseCase,
         messages: OutboxLinkMessages,
         mapper: ObjectMapper,
-    ): EventHandler = SignedLinkRequestedHandler(useCase, messages, mapper, AccessEventCatalogue.signedLinkProducers())
+        consents: ConsentRepository,
+        clock: Clock,
+    ): EventHandler =
+        SignedLinkRequestedHandler(
+            useCase,
+            messages,
+            mapper,
+            AccessEventCatalogue.signedLinkProducers(),
+            ClientSignatoryConsentCheck(consents, clock),
+            clock,
+        )
 
     @Bean
     @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)
