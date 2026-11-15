@@ -8,11 +8,30 @@ import com.dynokore.platform.tenancykernel.TenantId
 /** The state of a whole-tenant export job (INV-REQ-877): it starts REQUESTED and ends READY or FAILED. */
 enum class ExportState { REQUESTED, READY, FAILED }
 
-/** What one export asks for: the tenant and the offboarding it belongs to. */
+/** What an export covers: the whole tenant, or one entity of it. */
+enum class ExportScope { TENANT, ENTITY }
+
+/**
+ * What one export asks for: the tenant, the offboarding it belongs to, the export reference, the scope, the entity
+ * reference (only for scope ENTITY) and the id of the event that requested it.
+ */
 data class ExportRequest(
     val tenant: TenantId,
     val offboardingRef: String,
-)
+    val exportRef: String,
+    val scope: ExportScope,
+    val entityRef: String?,
+    val requestedEventId: String,
+) {
+    init {
+        require(exportRef.isNotBlank()) { "exportRef must not be blank" }
+        require(requestedEventId.isNotBlank()) { "requestedEventId must not be blank" }
+        when (scope) {
+            ExportScope.ENTITY -> require(!entityRef.isNullOrBlank()) { "scope ENTITY needs an entityRef" }
+            ExportScope.TENANT -> require(entityRef == null) { "scope TENANT takes no entityRef" }
+        }
+    }
+}
 
 /** One export job. [manifestRef], [itemCount] and [contents] are set only in READY; [failureReason] only in FAILED. */
 data class ExportJob(

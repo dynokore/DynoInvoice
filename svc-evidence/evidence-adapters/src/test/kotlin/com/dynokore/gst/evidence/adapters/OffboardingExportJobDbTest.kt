@@ -3,8 +3,10 @@ package com.dynokore.gst.evidence.adapters
 import com.dynokore.gst.evidence.adapters.persistence.JooqOffboardingExportJobs
 import com.dynokore.gst.evidence.application.export.ExportJob
 import com.dynokore.gst.evidence.application.export.ExportRequest
+import com.dynokore.gst.evidence.application.export.ExportScope
 import com.dynokore.gst.evidence.application.export.ExportState
 import com.dynokore.platform.tenancykernel.TenantId
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import org.jooq.DSLContext
@@ -61,7 +63,29 @@ class OffboardingExportJobDbTest {
                 }
         }
 
-    private fun register(tenant: UUID): ExportJob = tx(tenant) { it.register(ExportRequest(TenantId(tenant), "OFF-1")) }
+    private fun request(tenant: UUID) =
+        ExportRequest(TenantId(tenant), "OFF-1", "EXP-1", ExportScope.TENANT, null, "EV-1")
+
+    private fun register(tenant: UUID): ExportJob = tx(tenant) { it.register(request(tenant)) }
+
+    private fun columns(
+        tenant: UUID,
+        offboardingRef: String,
+    ): List<String?> =
+        EvidenceDb.superuser().use { c ->
+            c
+                .prepareStatement(
+                    "select export_ref, scope, entity_ref, requested_event_id " +
+                        "from evidence.offboarding_export_job where tenant_id = ? and offboarding_ref = ?",
+                ).use {
+                    it.setObject(1, tenant)
+                    it.setString(2, offboardingRef)
+                    it.executeQuery().use { rs ->
+                        rs.next()
+                        (1..4).map(rs::getString)
+                    }
+                }
+        }
 
     @Test
     fun `INV-AC-22947 the second register for the same offboarding returns the first row and creates none`() {
@@ -127,26 +151,48 @@ class OffboardingExportJobDbTest {
     }
 
     @Test
-    fun `INV-AC-22947 register stores the interim scope, entity, event id and export ref`() {
+    fun `INV-AC-23074 the row holds the request export ref, scope, entity ref and event id`() {
         val t1 = UUID.randomUUID()
         val job = register(t1)
-        EvidenceDb.superuser().use { c ->
-            c
-                .prepareStatement(
-                    "select scope, entity_ref, requested_event_id, export_ref, job_id::text " +
-                        "from evidence.offboarding_export_job where tenant_id = ?",
-                ).use {
-                    it.setObject(1, t1)
-                    it.executeQuery().use { rs ->
-                        rs.next()
-                        rs.getString(1) shouldBe "TENANT"
-                        rs.getString(2) shouldBe null
-                        rs.getString(3) shouldBe "OFF-1"
-                        rs.getString(4) shouldBe "export-" + rs.getString(5)
-                        job.exportRef shouldBe rs.getString(4)
-                    }
-                }
+        columns(t1, "OFF-1") shouldBe listOf("EXP-1", "TENANT", null, "EV-1")
+        job.exportRef shouldBe "EXP-1"
+    }
+
+    @Test
+    fun `INV-AC-23074 the second register returns the first job and the row keeps EXP-1 and EV-1`() {
+        val t1 = UUID.randomUUID()
+        val first = register(t1)
+        val second = tx(t1) { it.register(request(t1).copy(exportRef = "EXP-2", requestedEventId = "EV-2")) }
+        second shouldBe first
+        columns(t1, "OFF-1") shouldBe listOf("EXP-1", "TENANT", null, "EV-1")
+        count(t1) shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-23074 an ENTITY request stores scope ENTITY and its entity ref`() {
+        val t1 = UUID.randomUUID()
+        tx(t1) {
+            it.register(
+                request(t1).copy(
+                    offboardingRef = "OFF-2",
+                    exportRef = "EXP-3",
+                    scope = ExportScope.ENTITY,
+                    entityRef = "E1",
+                    requestedEventId = "EV-3",
+                ),
+            )
         }
+        columns(t1, "OFF-2") shouldBe listOf("EXP-3", "ENTITY", "E1", "EV-3")
+    }
+
+    @Test
+    fun `INV-AC-23074 the request constructor refuses the four malformed requests`() {
+        val t1 = UUID.randomUUID()
+        shouldThrow<IllegalArgumentException> { request(t1).copy(scope = ExportScope.ENTITY) }
+        shouldThrow<IllegalArgumentException> { request(t1).copy(scope = ExportScope.ENTITY, entityRef = " ") }
+        shouldThrow<IllegalArgumentException> { request(t1).copy(entityRef = "E1") }
+        shouldThrow<IllegalArgumentException> { request(t1).copy(exportRef = " ") }
+        shouldThrow<IllegalArgumentException> { request(t1).copy(requestedEventId = "") }
     }
 
     @Test

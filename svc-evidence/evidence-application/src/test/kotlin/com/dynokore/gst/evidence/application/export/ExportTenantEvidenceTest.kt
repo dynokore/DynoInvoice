@@ -19,7 +19,7 @@ class ExportTenantEvidenceTest {
     private val t1 = TenantId(UUID.fromString("abcdef01-2345-6789-abcd-ef0123456789"))
     private val t2 = TenantId(UUID.fromString("abcdef01-2345-6789-abcd-ef0123456790"))
     private val clock = Clock.fixed(Instant.parse("2026-11-15T01:02:03Z"), ZoneOffset.UTC)
-    private val request = ExportRequest(t1, "off-1")
+    private val request = ExportRequest(t1, "off-1", "exp-1", ExportScope.TENANT, null, "ev-1")
     private val sourced =
         listOf(
             PackageContentClass.TRANSMITTED_XML,
@@ -52,7 +52,12 @@ class ExportTenantEvidenceTest {
         ) = job
 
         override fun register(request: ExportRequest) =
-            ExportJob(request.tenant, request.offboardingRef, "x-1", ExportState.REQUESTED).also { job = it }
+            ExportJob(
+                request.tenant,
+                request.offboardingRef,
+                request.exportRef,
+                ExportState.REQUESTED,
+            ).also { job = it }
 
         override fun markReady(
             job: ExportJob,
@@ -208,5 +213,16 @@ class ExportTenantEvidenceTest {
         second shouldBe first
         r.published.size shouldBe 1
         r.jobs.changes shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-23074 an ENTITY request fails with the named reason, no store call and one FAILED result`() {
+        val r = rig(both)
+        val job =
+            r.useCase.execute(ExportRequest(t1, "off-2", "exp-2", ExportScope.ENTITY, "E1", "ev-2"))
+        job.state shouldBe ExportState.FAILED
+        job.failureReason shouldBe "scope ENTITY is not supported"
+        r.stored.size shouldBe 0
+        onlyOneFailed(r).failureReason shouldBe "scope ENTITY is not supported"
     }
 }

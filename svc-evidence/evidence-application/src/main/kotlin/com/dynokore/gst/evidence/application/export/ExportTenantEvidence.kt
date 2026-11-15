@@ -27,12 +27,16 @@ class ExportTenantEvidence(
 ) {
     fun execute(request: ExportRequest): ExportJob {
         val job = jobs.find(request.tenant, request.offboardingRef) ?: jobs.register(request)
-        return if (job.state != ExportState.REQUESTED) job else run(job)
+        return if (job.state != ExportState.REQUESTED) job else run(job, request)
     }
 
-    private fun run(job: ExportJob): ExportJob {
+    private fun run(
+        job: ExportJob,
+        request: ExportRequest,
+    ): ExportJob {
         val outcome =
-            unbound()
+            unsupportedScope(request)
+                ?: unbound()
                 ?: integrityRefusal(job)
                 ?: build(job)
         return when (outcome) {
@@ -40,6 +44,16 @@ class ExportTenantEvidence(
             is Outcome.Stored -> ready(job, outcome)
         }
     }
+
+    /** The use case builds the whole-tenant package only; an entity export fails closed with a named reason. */
+    private fun unsupportedScope(request: ExportRequest): Outcome.Failed? =
+        if (request.scope ==
+            ExportScope.TENANT
+        ) {
+            null
+        } else {
+            Outcome.Failed("scope ${request.scope.name} is not supported")
+        }
 
     private fun unbound(): Outcome.Failed? =
         PackageContentClass.entries
