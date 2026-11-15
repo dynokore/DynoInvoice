@@ -109,7 +109,8 @@ class VersionAggregateIdTest {
     @Test
     fun `INV-AC-22861 the tenant predicate of find hides the aggregateId when the session sees another tenant's row`() {
         handle(t1, d, "\"AGG-2026-0001\"")
-        // the session is bound to t1 (row security lets t1's row through) while the store asks for t2: only the predicate refuses
+        // the session is bound to t1 (row security lets t1's row through) while the store asks for t2:
+        // only the tenant predicate refuses
         val result =
             PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { c ->
                 c.autoCommit = false
