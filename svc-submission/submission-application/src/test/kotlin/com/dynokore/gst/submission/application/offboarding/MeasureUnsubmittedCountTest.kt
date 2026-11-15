@@ -16,7 +16,13 @@ class MeasureUnsubmittedCountTest {
     @Test
     fun `INV-AC-22871 the source receives exactly the tenant passed in one call`() {
         val seen = mutableListOf<TenantId>()
-        MeasureUnsubmittedCount({ t -> seen += t; emptyMap() }, clock).execute(tenant)
+        MeasureUnsubmittedCount(
+            { t ->
+                seen += t
+                emptyMap()
+            },
+            clock,
+        ).execute(tenant)
         seen shouldBe listOf(tenant)
     }
 
