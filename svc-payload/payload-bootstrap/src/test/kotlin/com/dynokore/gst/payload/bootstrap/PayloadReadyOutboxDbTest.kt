@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.PayloadDb
+import com.dynokore.gst.payload.adapters.SignedBindings
 import com.dynokore.gst.payload.adapters.events.OutboxPayloadReadyPublisher
 import com.dynokore.gst.payload.application.payload.PayloadReadyFacts
 import com.dynokore.gst.payload.application.payload.PublishPayloadReady
@@ -93,6 +94,19 @@ class PayloadReadyOutboxDbTest {
                 }
         }
 
+    /** Rows visible to the runtime login with `tenant` bound (signed) and no SQL filter: row-level security alone decides. */
+    private fun visibleAs(tenant: UUID): Int =
+        PayloadDb.connect(PayloadDb.RUNTIME, PayloadDb.RUNTIME_PASSWORD).use { c ->
+            c.autoCommit = false
+            SignedBindings.bind(c, tenant)
+            c.createStatement().use { st ->
+                st.executeQuery("select count(*) from payload.outbox").use { r ->
+                    r.next()
+                    r.getInt(1)
+                }
+            }
+        }
+
     @Test
     fun `INV-AC-22859 the event type is catalogued on its topic and the wiring supplies the publisher`(
         @TempDir dir: Path,
@@ -146,7 +160,8 @@ class PayloadReadyOutboxDbTest {
         val committed = UUID.randomUUID()
         b.scope.bind(TenantId(tenant), actor) { b.runner.inTransaction { b.publish.publish(facts(committed, null)) } }
         rows(tenant).size shouldBe 1
-        rows(UUID.randomUUID()).size shouldBe 0
+        visibleAs(tenant) shouldBe 1
+        visibleAs(UUID.randomUUID()) shouldBe 0
     }
 
     private fun schemaErrors(row: JsonNode): List<String> {
