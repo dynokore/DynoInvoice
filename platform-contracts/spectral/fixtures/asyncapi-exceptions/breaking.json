@@ -1,0 +1,21 @@
+[
+  {
+    "action": "remove",
+    "path": "/channels/oldTopic",
+    "before": {
+      "address": "gst.rules.rule-pack-activated.v1",
+      "messages": {
+        "M": {
+          "payload": {
+            "type": "object",
+            "x-parser-schema-id": "<anonymous-schema-1>"
+          },
+          "x-parser-unique-object-id": "M",
+          "x-parser-message-name": "M"
+        }
+      },
+      "x-parser-unique-object-id": "oldTopic"
+    },
+    "type": "breaking"
+  }
+]

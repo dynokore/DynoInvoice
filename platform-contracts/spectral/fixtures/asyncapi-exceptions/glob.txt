@@ -1,0 +1,2 @@
+# Fixture. Owner ruling 2026-11-15: a wildcard line is refused.
+*

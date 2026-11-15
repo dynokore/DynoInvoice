@@ -1,0 +1,3 @@
+# Fixture. Owner ruling 2026-11-15, but the line before the entry is blank.
+
+{"action":"remove","before":{"address":"gst.rules.rule-pack-activated.v1","messages":{"M":{"payload":{"type":"object","x-parser-schema-id":"<anonymous-schema-1>"},"x-parser-message-name":"M","x-parser-unique-object-id":"M"}},"x-parser-unique-object-id":"oldTopic"},"path":"/channels/oldTopic","type":"breaking"}

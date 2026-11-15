@@ -357,6 +357,7 @@ tool-self-tests:
     - gst_check self-test-forbidden-properties sh spectral/self-test-forbidden-properties.sh
     - gst_check self-test-data-classification sh spectral/self-test-data-classification.sh
     - gst_check self-test-spec-facts sh spectral/self-test-spec-facts.sh
+    - gst_check self-test-asyncapi-exceptions sh spectral/self-test-asyncapi-exceptions.sh
     - gst_check catalogue-vendor-tool-tests python3 -m unittest discover -s catalogue/variation-points -p 'test_*.py' -v
     - gst_check publish-jobs-test python3 -m unittest discover -s ci/tests -p '*_test.py' -v
     - gst_checks_done
@@ -599,6 +600,8 @@ asyncapi-breaking-gate:
     entrypoint: [""]
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  before_script:
+    - apk add --no-cache python3   # spectral/filter-asyncapi-exceptions.py (INV-T-23170)
   script:
     - sh spectral/run-asyncapi-gate.sh "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
 

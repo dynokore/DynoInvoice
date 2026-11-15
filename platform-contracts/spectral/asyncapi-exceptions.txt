@@ -1,0 +1,8 @@
+# spectral/asyncapi-exceptions.txt — exception list of run-asyncapi-gate.sh (the AsyncAPI breaking-change gate).
+# Each entry is ONE recorded, ruled exception: one canonical JSON element (json.dumps, sorted keys,
+# separators "," and ":") exactly as `asyncapi diff <base> <head> -t breaking -f json` prints it,
+# on one line, directly below a comment line "# " that names the ruling key or the owner ruling date.
+# Matching is whole-entry equality (spectral/filter-asyncapi-exceptions.py); no wildcard, no prefix.
+# An entry that no longer matches any change is ignored. Before go-live (owner ruling 2026-11-15)
+# contracts change in place; add an entry only for a removal that ruling permits.
+# No entries yet: the entry of the first removal is added by its own contract task.
