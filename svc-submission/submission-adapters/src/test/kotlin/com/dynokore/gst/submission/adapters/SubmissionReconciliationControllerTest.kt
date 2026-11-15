@@ -133,6 +133,7 @@ class SubmissionReconciliationControllerTest {
     private fun fixture(
         type: String,
         person: Principal? = null,
+        at: Clock = clock,
     ): Fixture {
         val replica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
         val caller: Principal =
@@ -143,17 +144,17 @@ class SubmissionReconciliationControllerTest {
                 check(method.name == "getAttribute") { "unexpected request call ${method.name}" }
                 if (args[0] == MachineTokenFilter.PRINCIPAL_ATTRIBUTE) caller else null
             } as HttpServletRequest
-        val delegate = SubmissionReconciliationController(GetSubmissionReconciliation(replica, source), clock)
+        val delegate = SubmissionReconciliationController(GetSubmissionReconciliation(replica, source), at)
         val controller =
             TransactionsController(
                 ReplayBySelection(replica, { _, _ -> emptyList() }, { _, _, _ -> RequeueOutcome.REQUEUED }),
                 ReplaySingleVersion(replica, { _, _, _ -> null }, { _, _, _ -> RequeueOutcome.REQUEUED }),
-                clock,
+                at,
                 object : ObjectProvider<HttpServletRequest> {
                     override fun getObject(): HttpServletRequest = request
                 },
-                SubmissionListingHandler(ListSubmissions(replica, source), clock),
-                SubmissionSummaryController(SubmissionSummaryQuery(replica, source), clock),
+                SubmissionListingHandler(ListSubmissions(replica, source), at),
+                SubmissionSummaryController(SubmissionSummaryQuery(replica, source), at),
                 delegate,
             )
         return Fixture(controller, delegate, source)
@@ -227,6 +228,19 @@ class SubmissionReconciliationControllerTest {
         }
         view.buckets.first { it.bucket == ReconciliationBucket.SENT_NOT_ACKNOWLEDGED }.count shouldBe 1
         listedDocs(f, ReconciliationBucket.SENT_NOT_ACKNOWLEDGED) shouldBe setOf("00000000-0000-0000-0000-000000000002")
+    }
+
+    @Test
+    fun `INV-AC-16328 the classification instant is the injected clock read by the delegate and shared with the list`() {
+        // V (deadline 2026-11-14) is not yet due at 2026-11-13 and overdue at 2026-11-15; the list and the view agree.
+        fun notAcknowledged(at: Instant): Pair<Int, Int> {
+            val f = fixture(READER, at = Clock.fixed(at, ZoneOffset.UTC))
+            val view = reconciliation(f).body!!
+            val count = view.buckets.first { it.bucket == ReconciliationBucket.SENT_NOT_ACKNOWLEDGED }.count
+            return count to listedDocs(f, ReconciliationBucket.SENT_NOT_ACKNOWLEDGED).size
+        }
+        notAcknowledged(Instant.parse("2026-11-13T00:00:00Z")) shouldBe (1 to 1)
+        notAcknowledged(Instant.parse("2026-11-15T00:00:00Z")) shouldBe (2 to 2)
     }
 
     @Test
