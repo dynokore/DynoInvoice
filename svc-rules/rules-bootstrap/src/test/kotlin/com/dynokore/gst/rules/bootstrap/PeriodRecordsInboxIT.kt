@@ -68,6 +68,7 @@ private const val CLEAN_SETS =
         "service-runtime.workload-identity.callers[1].subject=subject-of-console-bff-alt",
     ],
 )
+@Suppress("LongParameterList") // the collaborators are injected platform beans
 class PeriodRecordsInboxIT(
     @LocalServerPort port: Int,
     @Autowired private val tx: TransactionRunner,
