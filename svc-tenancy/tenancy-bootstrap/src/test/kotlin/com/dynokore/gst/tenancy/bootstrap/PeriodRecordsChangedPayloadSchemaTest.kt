@@ -48,6 +48,7 @@ class PeriodRecordsChangedPayloadSchemaTest {
                         .put("periodStart", it.start.toString())
                         .put("periodEnd", it.end.toString())
                         .put("filingDueDate", it.dueDate.toString())
+                        .put("periodId", checkNotNull(it.periodId).toString())
                 }
                 assertThat(payload).isEqualTo(expected)
             }
