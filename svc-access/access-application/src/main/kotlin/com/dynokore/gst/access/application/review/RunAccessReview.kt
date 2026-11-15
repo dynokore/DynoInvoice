@@ -79,7 +79,14 @@ class RunAccessReviewUseCase(
         cadence: Cadence,
     ): RunAccessReviewOutcome {
         val campaign =
-            ReviewCampaign(campaigns.nextRef(), period, cadence, sources.grants.grantsOfTenant(), actor, clock.instant())
+            ReviewCampaign(
+                campaigns.nextRef(),
+                period,
+                cadence,
+                sources.grants.grantsOfTenant(),
+                actor,
+                clock.instant(),
+            )
         campaigns.insert(campaign)
         audit.record(ReviewAuditEntry(actor.value, "runAccessReview", campaign.ref, null, null))
         return RunAccessReviewOutcome.Opened(campaign)
