@@ -23,7 +23,46 @@ class DocumentVersionNullableDbTest {
         scopePack: String?,
         mappingPack: String?,
         specification: SpecificationVersion?,
-    ) = NewVersion(DocumentKit.defaultCanonical("n"), verdict, scopePack, mappingPack, null, specification, day, "svc")
+        canonical: String = DocumentKit.defaultCanonical("n"),
+    ) = NewVersion(canonical, verdict, scopePack, mappingPack, null, specification, day, "svc")
+
+    /** True when the stored jsonb of [doc] version [version] equals [expected] as jsonb. */
+    private fun storedCanonicalEquals(
+        doc: UUID,
+        version: Int,
+        expected: String,
+    ) = DocumentSql.one(
+        "select canonical = ?::jsonb from canonical.document_version where doc_uuid = ? and version = ?",
+        expected,
+        doc,
+        version,
+    ) == "t"
+
+    private fun jsonEquals(
+        actual: String,
+        expected: String,
+    ) = DocumentSql.one("select ?::jsonb = ?::jsonb", actual, expected) == "t"
+
+    /** Reads the current version of [doc] through the DocumentStore window read and checks its non-derived members. */
+    private fun assertReadThroughStore(
+        doc: UUID,
+        version: Int,
+        canonical: String,
+    ) {
+        val read =
+            kit
+                .asTenant(tenant) {
+                    kit.transaction.inTransaction { kit.store.readWindow(tenant, entity, day, day, 10, null) }
+                }.single { it.docUuid == doc }
+        read.currentVersion shouldBe version
+        read.transactionDate shouldBe day
+        jsonEquals(read.canonical, canonical) shouldBe true
+        kit
+            .asTenant(tenant) { kit.transaction.inTransaction { kit.store.versionKeys(tenant) } }
+            .filter { it.docUuid == doc }
+            .map { it.version }
+            .contains(version) shouldBe true
+    }
 
     private fun row(
         doc: UUID,
@@ -82,34 +121,51 @@ class DocumentVersionNullableDbTest {
     fun `INV-AC-21562 N1 the first version keeps the five derived columns as SQL NULL`() {
         val doc = inserted()
         nullFlags(doc) shouldBe listOf("t", "t", "t", "t", "t")
+        // No column default may exist: a default would turn a plain insert into a derived-looking value.
+        DocumentSql
+            .rows(
+                "select column_name from information_schema.columns where table_schema = 'canonical' and " +
+                    "table_name = 'document_version' and column_default is not null and column_name in " +
+                    "('scope_verdict', 'scope_pack_version', 'mapping_pack_version', 'mde_pack_version', " +
+                    "'specification_version')",
+            ).size shouldBe 0
         val stored = row(doc, 1)
-        stored[5]!!.contains("\"documentNumber\"") shouldBe true
+        storedCanonicalEquals(doc, 1, DocumentKit.defaultCanonical("n")) shouldBe true
         stored[6] shouldBe "svc"
+        assertReadThroughStore(doc, 1, DocumentKit.defaultCanonical("n"))
     }
 
     @Test
     fun `INV-AC-21562 N2 version 2 keeps its derived values by equality`() {
         val doc = inserted()
+        val canonical = DocumentKit.defaultCanonical("n2")
         create(
             doc,
             1,
-            newVersion(ScopeVerdict.IN_SCOPE, "SP-1", "MP-1", SpecificationVersion.SG_PEPPOL_BIS),
+            newVersion(ScopeVerdict.IN_SCOPE, "SP-1", "MP-1", SpecificationVersion.SG_PEPPOL_BIS, canonical),
         ) shouldBe UpdateOutcome.Updated(2)
         val stored = row(doc, 2)
         stored.take(5) shouldBe listOf("IN_SCOPE", "SP-1", "MP-1", null, "SG_PEPPOL_BIS")
         stored[6] shouldBe "svc"
+        storedCanonicalEquals(doc, 2, canonical) shouldBe true
+        assertReadThroughStore(doc, 2, canonical)
     }
 
     @Test
     fun `INV-AC-21562 N3 version 3 keeps a verdict with null pack versions`() {
         val doc = inserted()
         create(doc, 1, newVersion(ScopeVerdict.IN_SCOPE, "SP-1", "MP-1", SpecificationVersion.PINT_SG))
+        val canonical = DocumentKit.defaultCanonical("n3")
         create(
             doc,
             2,
-            newVersion(ScopeVerdict.EXCLUDED_TXN, null, null, null),
+            newVersion(ScopeVerdict.EXCLUDED_TXN, null, null, null, canonical),
         ) shouldBe UpdateOutcome.Updated(3)
-        row(doc, 3).take(5) shouldBe listOf("EXCLUDED_TXN", null, null, null, null)
+        val stored = row(doc, 3)
+        stored.take(5) shouldBe listOf("EXCLUDED_TXN", null, null, null, null)
+        stored[6] shouldBe "svc"
+        storedCanonicalEquals(doc, 3, canonical) shouldBe true
+        assertReadThroughStore(doc, 3, canonical)
     }
 
     @Test
