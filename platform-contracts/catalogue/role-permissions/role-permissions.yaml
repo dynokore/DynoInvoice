@@ -1019,7 +1019,6 @@ permissions:
     row: "Set a variation point"
     cells:
       - {role: platform.engineer, form: SAAS, allowance: PERMITTED}
-      - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
   - key: vp-80.set
     kind: WRITE
     row: "Set a variation point"

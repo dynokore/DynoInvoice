@@ -416,7 +416,7 @@ object RolePermissionsChecker {
             "vp-76.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
             "vp-77.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "vp-78.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
-            "vp-79.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
+            "vp-79.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer")),
             "vp-80.set" to Required(PermissionKind.WRITE, cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator")),
             "vp-81.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "vp-82.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),

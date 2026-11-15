@@ -50,6 +50,14 @@ class RolePermissionsCheckerTest {
     }
 
     @Test
+    fun `INV-T-22820 the restored private cell of vp-79 set is reported`() {
+        val restored =
+            permission(real, "vp-79.set").cells.first { it.role == "platform.engineer" }.copy(role = "deployment.operator", form = DeploymentForm.PRIVATE)
+        val table = withPermission("vp-79.set") { it.copy(cells = it.cells + restored) }
+        assertReported(table, "vp-79.set")
+    }
+
+    @Test
     fun `probe 1 a renamed role is reported`() {
         assertReported(withRole("tenant.admin") { it.copy(key = "tenant.admins") }, "role tenant.admins")
         assertReported(withRole("tenant.admin") { it.copy(key = "tenant.admins") }, "role tenant.admin: missing")

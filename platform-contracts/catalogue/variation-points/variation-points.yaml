@@ -3308,7 +3308,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2761; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-79
   requirement: INV-REQ-3210
-  revision: ca0d1dee-6e8b-4d1b-b791-0134a5df4d98
+  revision: 11876e62-3b42-45ec-a2f7-5ef09e9292ed
   title: "The platform maximum grace window for reviewing a regulatory pack delta is 14 days by default, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -3321,7 +3321,7 @@ variation_points:
   options:
     - "14 days"
     - "another number of days, at least 1"
-  bounds: "At least 1 day; Keel states no upper figure. Bounds VP-57 (INV-REQ-1318). The grace window always ends at the pack's effective date whatever this value (INV-REQ-858). Private form: arming by tax.approver is fixed (INV-REQ-990; INV-REQ-858 b4); the grace window and the activation that proceeds at its end are SaaS-only (INV-REQ-2586 b2); shown read-only on SCR-41.8 in the private form (INV-Q-3218)"
+  bounds: "At least 1 day; Keel states no upper figure. Bounds VP-57 (INV-REQ-1318). The grace window always ends at the pack's effective date whatever this value (INV-REQ-858). Private form: arming by tax.approver is fixed (INV-REQ-990; INV-REQ-858 b4); the grace window and the activation that proceeds at its end are SaaS-only (INV-REQ-2586 b2); shown read-only on SCR-41.8 in the private form (INV-Q-3218); no role sets VP-79 in the private form (owner choice, chat 2026-11-15, option A of the question on the private cell of vp-79.set)"
   status: planned
   status_note: null
   governs:
