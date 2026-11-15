@@ -127,9 +127,9 @@ object EvidenceEvents {
     val offboardingEntries: List<CatalogueEntry> =
         listOf(
             CatalogueEntry(
-                "com.dynokore.gst.tenancy.OffboardingExportRequested.v1",
-                "gst.tenancy.offboarding-export-requested.v1",
-                setOf("tenancy-svc"),
+                OffboardingExportConfiguration.EVENT_TYPE,
+                OffboardingExportConfiguration.TOPIC,
+                setOf(OffboardingExportConfiguration.PRODUCER),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,

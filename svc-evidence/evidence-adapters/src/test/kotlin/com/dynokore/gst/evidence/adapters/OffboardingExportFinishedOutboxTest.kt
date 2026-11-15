@@ -58,13 +58,25 @@ class OffboardingExportFinishedOutboxTest {
 
     private fun rows(): List<Pair<String, String>> =
         EvidenceDb.superuser().use { c ->
-            c.prepareStatement("select type, data::text from ${EvidenceDb.SCHEMA}.outbox where tenant_id = ?").use {
-                it.setObject(1, tenant)
-                it.executeQuery().use { rs ->
-                    generateSequence { if (rs.next()) rs.getString(1) to rs.getString(2) else null }.toList()
+            c
+                .prepareStatement(
+                    "select type, data::text, entity_ref from ${EvidenceDb.SCHEMA}.outbox where tenant_id = ?",
+                ).use {
+                    it.setObject(1, tenant)
+                    it.executeQuery().use { rs ->
+                        generateSequence {
+                            if (rs.next()) {
+                                entities += rs.getString(3)
+                                rs.getString(1) to rs.getString(2)
+                            } else {
+                                null
+                            }
+                        }.toList()
+                    }
                 }
-            }
         }
+
+    private val entities = mutableListOf<String>()
 
     private fun result(
         state: ExportState,
@@ -83,11 +95,18 @@ class OffboardingExportFinishedOutboxTest {
             it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
         }
 
-    /** The contract schema as staged from the pinned platform-contracts bundle; a missing file fails the test. */
+    /**
+     * The contract schema as staged from the pinned platform-contracts bundle (evidence-contract build directory,
+     * `platform-contracts/evidence/<bundle>/schemas`); a missing file fails the test.
+     */
     private fun schemaErrors(data: JsonNode): List<String> {
+        val root = File("../evidence-contract/build/contracts-repo/platform-contracts/evidence")
         val file =
-            File("../evidence-contract/build/contracts-repo/.bundle/service-runtime/schemas")
-                .resolve("offboarding-export-finished-payload.schema.json")
+            root
+                .listFiles { f -> f.isDirectory }
+                .orEmpty()
+                .map { it.resolve("schemas/offboarding-export-finished-payload.schema.json") }
+                .firstOrNull { it.isFile } ?: root.resolve("missing")
         check(file.isFile) { "schema file does not exist: $file" }
         return schemas.getSchema(file.readText()).validate(data).map { it.toString() }
     }
@@ -102,6 +121,8 @@ class OffboardingExportFinishedOutboxTest {
         payload.get("offboardingRef").asString() shouldBe "OFF-1"
         payload.get("exportRef").asString() shouldBe "EXP-1"
         payload.get("state").asString() shouldBe "READY"
+        payload.get("finishedAt").asString() shouldBe "2026-11-15T08:30:00Z"
+        entities.single() shouldBe "00000000-0000-0000-0000-000000000000"
         schemaErrors(payload) shouldBe emptyList()
     }
 

@@ -27,23 +27,35 @@ class OffboardingExportRequestedHandler(
 
     override fun handle(event: Envelope): HandleOutcome {
         val data = parse(event.dataJson)
-        val tenantRef = text(data, "tenantRef") ?: throw ContractViolation("tenantRef is missing or blank")
-        val offboardingRef =
-            text(data, "offboardingRef") ?: throw ContractViolation("offboardingRef is missing or blank")
-        val exportRef = text(data, "exportRef") ?: throw ContractViolation("exportRef is missing or blank")
-        if (tenantRef != event.tenant.toString()) throw ContractViolation("tenantRef differs from the envelope tenant")
+        val offboardingRef = required(data, "offboardingRef")
+        val exportRef = required(data, "exportRef")
+        if (required(data, "tenantRef") != event.tenant.toString()) {
+            throw ContractViolation("tenantRef differs from the envelope tenant")
+        }
+        useCase.execute(request(event, data, offboardingRef, exportRef))
+        return HandleOutcome.APPLIED
+    }
+
+    private fun request(
+        event: Envelope,
+        data: JsonNode,
+        offboardingRef: String,
+        exportRef: String,
+    ): ExportRequest {
         val scope =
             ExportScope.entries.firstOrNull { it.name == text(data, "scope") }
                 ?: throw ContractViolation("scope is missing or unknown")
-        val request =
-            try {
-                ExportRequest(event.tenant, offboardingRef, exportRef, scope, text(data, "entityRef"), event.id.value)
-            } catch (e: IllegalArgumentException) {
-                throw ContractViolation("the request is inconsistent: ${e.message}", e)
-            }
-        useCase.execute(request)
-        return HandleOutcome.APPLIED
+        return try {
+            ExportRequest(event.tenant, offboardingRef, exportRef, scope, text(data, "entityRef"), event.id.value)
+        } catch (e: IllegalArgumentException) {
+            throw ContractViolation("the request is inconsistent: ${e.message}", e)
+        }
     }
+
+    private fun required(
+        data: JsonNode,
+        name: String,
+    ): String = text(data, name) ?: throw ContractViolation("$name is missing or blank")
 
     private fun parse(text: String): JsonNode =
         try {

@@ -24,7 +24,7 @@ import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 
-/** INV-AC-22949: the handler builds the request from the payload and the envelope id; a poison payload writes nothing. */
+/** INV-AC-22949: the handler builds the request from the payload and the envelope id; poison writes nothing. */
 class OffboardingExportRequestedHandlerTest {
     private val tenant = UUID.randomUUID()
     private val registered = mutableListOf<ExportRequest>()
