@@ -103,22 +103,50 @@ class OffboardingExportJobDbTest {
         }
     }
 
+    private fun stored(tenant: UUID): ExportJob = tx(tenant) { it.find(TenantId(tenant), "OFF-1") }!!
+
     @Test
     fun `INV-AC-22947 a READY job moves no more and a FAILED job stays FAILED with the row unchanged`() {
         val t1 = UUID.randomUUID()
         val job = register(t1)
         tx(t1) { it.markReady(job, "s3://m/1", 7, listOf("A")) }
-        val before = rowText(t1)
-        tx(t1) { it.markFailed(job, "late") }.state shouldBe ExportState.READY
-        tx(t1) { it.markReady(job, "s3://m/2", 9, listOf("Z")) }.manifestRef shouldBe "s3://m/1"
-        rowText(t1) shouldBe before
+        val before = stored(t1)
+        val beforeRow = rowText(t1)
+        // the argument job is stale (REQUESTED): the returned job must be the stored one, not the argument
+        tx(t1) { it.markReady(job, "s3://m/2", 9, listOf("Z")) } shouldBe before
+        tx(t1) { it.markFailed(job, "late") } shouldBe before
+        rowText(t1) shouldBe beforeRow
 
         val t2 = UUID.randomUUID()
         val j2 = register(t2)
         tx(t2) { it.markFailed(j2, "no source") }.state shouldBe ExportState.FAILED
-        val failed = rowText(t2)
-        tx(t2) { it.markReady(j2, "s3://m/3", 1, listOf("A")) }.state shouldBe ExportState.FAILED
-        rowText(t2) shouldBe failed
+        val failed = stored(t2)
+        val failedRow = rowText(t2)
+        tx(t2) { it.markReady(j2, "s3://m/3", 1, listOf("A")) } shouldBe failed
+        rowText(t2) shouldBe failedRow
+    }
+
+    @Test
+    fun `INV-AC-22947 register stores the interim scope, entity, event id and export ref`() {
+        val t1 = UUID.randomUUID()
+        val job = register(t1)
+        EvidenceDb.superuser().use { c ->
+            c
+                .prepareStatement(
+                    "select scope, entity_ref, requested_event_id, export_ref, job_id::text " +
+                        "from evidence.offboarding_export_job where tenant_id = ?",
+                ).use {
+                    it.setObject(1, t1)
+                    it.executeQuery().use { rs ->
+                        rs.next()
+                        rs.getString(1) shouldBe "TENANT"
+                        rs.getString(2) shouldBe null
+                        rs.getString(3) shouldBe "OFF-1"
+                        rs.getString(4) shouldBe "export-" + rs.getString(5)
+                        job.exportRef shouldBe rs.getString(4)
+                    }
+                }
+        }
     }
 
     @Test
