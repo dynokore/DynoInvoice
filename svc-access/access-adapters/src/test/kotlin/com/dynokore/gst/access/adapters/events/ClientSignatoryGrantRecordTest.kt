@@ -322,6 +322,7 @@ class ClientSignatoryGrantRecordTest {
         events: List<CapturedEvents.Appended>,
     ) = events.forEach { AuthorityFeedHandler(replica).handle(it.delivered()) }
 
+    @Suppress("LongParameterList") // one parameter per look-alike dimension of the request
     private fun decide(
         replica: Pair<AuthorityReplica, Clock>,
         principal: String = "link:LNK-771A",

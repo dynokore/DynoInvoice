@@ -4,6 +4,7 @@ import com.dynokore.gst.access.adapters.persistence.AuthorityHeadStore
 import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
 import com.dynokore.gst.access.application.grant.RoleGrantState
 import com.dynokore.gst.access.application.link.ClientSignatoryGrants
+import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.link.SignedLink
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -49,8 +50,13 @@ class ClientSignatoryGrantOutbox(
         val version = nextVersion()
         val json =
             payloads
-                .clientSignatoryGrant(link.ref.value, client.value, state, from, link.expiresAt, nextVersion())
-                .toString()
+                .clientSignatoryGrant(
+                    link.ref.value,
+                    client.value,
+                    state,
+                    ValidityWindow(from, link.expiresAt),
+                    nextVersion(),
+                ).toString()
         outbox.append(
             listOf(OutboundEvent(PlatformEventCatalogue.AUTHORITY_CHANGED.eventType, json)),
             EventContexts.forAggregate(tenants.current(), EntityRef.TENANT_WIDE, principal),

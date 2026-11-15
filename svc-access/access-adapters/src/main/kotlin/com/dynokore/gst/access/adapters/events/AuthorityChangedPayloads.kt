@@ -8,6 +8,7 @@ import com.dynokore.gst.access.application.grant.RoleGrantState
 import com.dynokore.gst.access.application.operatorsession.OperatorAccessRecord
 import com.dynokore.gst.access.domain.consent.ConsentStatus
 import com.dynokore.gst.access.domain.consent.ScopeItem
+import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Role
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
@@ -63,14 +64,13 @@ class AuthorityChangedPayloads(
 
     /**
      * The role grant a signatory link stands for (INV-Q-9222 A): the link principal `link:<linkRef>` holds
-     * `client.signatory` at CLIENT_ENTITY scope on [client], valid [from] to [until]; no period span.
+     * `client.signatory` at CLIENT_ENTITY scope on [client], valid in [window]; no period span.
      */
     fun clientSignatoryGrant(
         linkRef: String,
         client: String,
         state: RoleGrantState,
-        from: Instant,
-        until: Instant,
+        window: ValidityWindow,
         authorityVersion: Long,
     ): ObjectNode {
         val root = newRoot()
@@ -83,8 +83,8 @@ class AuthorityChangedPayloads(
         node.put("state", state.name)
         node.put("scopeLevel", CLIENT_ENTITY)
         node.put("scopeRef", client)
-        node.put("validFrom", ISO.format(from.atOffset(ZoneOffset.UTC)))
-        node.put("validUntil", ISO.format(until.atOffset(ZoneOffset.UTC)))
+        node.put("validFrom", ISO.format(window.from.atOffset(ZoneOffset.UTC)))
+        window.until?.let { node.put("validUntil", ISO.format(it.atOffset(ZoneOffset.UTC))) }
         return root
     }
 
