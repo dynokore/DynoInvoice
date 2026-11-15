@@ -1,6 +1,5 @@
-package com.dynokore.gst.access.adapters.incarnation
+package com.dynokore.gst.access.adapters.http
 
-import com.dynokore.gst.access.adapters.http.BumpPermissionCheck
 import com.dynokore.gst.access.domain.role.Permission
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.platform.configresolver.ScopeLevel
@@ -18,6 +17,11 @@ import java.time.Duration
 
 /** The permission key of `bumpAuthorityIncarnation` (INV-Q-10142 A, row "Run the authority incarnation command"). */
 const val AUTHORITY_INCARNATION_BUMP = "authority-incarnation.bump"
+
+/** The caller check of `bumpAuthorityIncarnation`: the permission key, decided per request (INV-Q-10027). */
+fun interface BumpPermissionCheck {
+    fun mayBump(actor: String): Boolean
+}
 
 /**
  * Decides [AUTHORITY_INCARNATION_BUMP] for the acting user ID through `AuthorityReplica.decide` at INSTALLATION scope

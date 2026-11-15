@@ -1,4 +1,4 @@
-package com.dynokore.gst.access.adapters.incarnation
+package com.dynokore.gst.access.adapters.http
 
 import com.dynokore.gst.access.domain.role.Allowance
 import com.dynokore.gst.access.domain.role.Permission
@@ -27,7 +27,7 @@ import java.time.ZoneOffset
  * `authority-incarnation.bump`, decided by `AuthorityReplica.decide`, never by a role name. The replica is fed the
  * permission sets of the catalogue: the key held by one role per form (SAAS and PRIVATE).
  */
-class ReplicaBumpPermissionCheckTest {
+class AuthorityIncarnationPermissionTest {
     private val clock = Clock.fixed(Instant.parse("2026-11-15T01:00:00Z"), ZoneOffset.UTC)
     private val key = AUTHORITY_INCARNATION_BUMP
     private val keyHolderSaas = Role.PLATFORM_ENGINEER.wire

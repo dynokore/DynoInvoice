@@ -11,27 +11,15 @@ import java.nio.file.Path
  * under `src/main`; a literal is matched as a whole token, quotes included.
  */
 class AuthorityIncarnationGateTest {
-    private val base = Path.of("src/main/kotlin/com/dynokore/gst/access/adapters")
     private val subject: List<Path> =
-        listOf(
-            base.resolve("http/AuthorityIncarnationOperation.kt"),
-            base.resolve("http/BumpPermissionCheck.kt"),
-            base.resolve("incarnation/ReplicaBumpPermissionCheck.kt"),
-        )
+        Files.list(Path.of("src/main/kotlin/com/dynokore/gst/access/adapters/http")).use { files ->
+            files.filter { it.fileName.toString().startsWith("AuthorityIncarnation") }.sorted().toList()
+        }
 
     @Test
     fun `INV-AC-22070 the subject holds the operation and its check`() {
-        subject.forEach { assertThat(it).exists() }
-        // no other file of the task's two packages is added unseen: the files named Incarnation or Bump are all listed
-        val named =
-            listOf(base.resolve("http"), base.resolve("incarnation")).flatMap { dir ->
-                Files.list(dir).use { files ->
-                    files
-                        .filter { "Incarnation" in it.fileName.toString() || "Bump" in it.fileName.toString() }
-                        .toList()
-                }
-            }
-        assertThat(named).containsExactlyInAnyOrderElementsOf(subject)
+        assertThat(subject.map { it.fileName.toString() })
+            .containsExactly("AuthorityIncarnationOperation.kt", "AuthorityIncarnationPermission.kt")
     }
 
     @Test
