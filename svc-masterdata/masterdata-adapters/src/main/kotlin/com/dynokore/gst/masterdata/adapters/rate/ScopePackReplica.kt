@@ -13,8 +13,8 @@ import java.time.LocalDate
 object ConsumedRatePackEvents {
     const val RULE_PACK_STAGED = "com.dynokore.gst.platform.RulePackStaged.v1"
     const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
-    const val RULE_PACK_ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
-    const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
+    const val RULE_PACK_ACTIVATED = "com.dynokore.gst.platform.RulePackActivated.v1"
+    const val RULE_PACK_ACTIVATED_TOPIC = "gst.platform.rule-pack-activated.v1"
 
     /** Event type to topic: exactly the two subscriptions of this service for the scope pack replica. */
     val SUBSCRIPTIONS: Map<String, String> =

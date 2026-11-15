@@ -81,8 +81,6 @@ class ScopePackHandlersTest {
         assertThat(RulePackStagedHandler(store, mapper).handle(staged("SCOPE"))).isEqualTo(HandleOutcome.APPLIED)
         assertThat(ConsumedRatePackEvents.RULE_PACK_STAGED).isEqualTo("com.dynokore.gst.platform.RulePackStaged.v1")
         assertThat(ConsumedRatePackEvents.RULE_PACK_STAGED_TOPIC).isEqualTo("gst.platform.rule-pack-staged.v1")
-        assertThat(ConsumedRatePackEvents.RULE_PACK_ACTIVATED).isEqualTo("com.dynokore.gst.rules.RulePackActivated.v1")
-        assertThat(ConsumedRatePackEvents.RULE_PACK_ACTIVATED_TOPIC).isEqualTo("gst.rules.rule-pack-activated.v1")
     }
 
     @Test
@@ -106,11 +104,51 @@ class ScopePackHandlersTest {
         ).isEqualTo(
             setOf(
                 "com.dynokore.gst.platform.RulePackStaged.v1" to "gst.platform.rule-pack-staged.v1",
-                "com.dynokore.gst.rules.RulePackActivated.v1" to "gst.rules.rule-pack-activated.v1",
+                "com.dynokore.gst.platform.RulePackActivated.v1" to "gst.platform.rule-pack-activated.v1",
             ),
         )
         assertThat(ConsumedRatePackEvents.SUBSCRIPTIONS).doesNotContainKey("com.dynokore.gst.rules.RulePackStaged.v1")
         assertThat(ConsumedRatePackEvents.SUBSCRIPTIONS.values).doesNotContain("gst.rules.rule-pack-staged.v1")
+    }
+
+    @Test
+    fun `INV-AC-23121 the platform activated type is handled and the constants carry the platform names`() {
+        val store = Memory()
+        val ok =
+            envelope(
+                ConsumedRatePackEvents.RULE_PACK_ACTIVATED,
+                """{"packIdentifier":"sg-scope","version":"1","effectiveFrom":"2026-01-01"}""",
+            )
+        assertThat(RulePackActivatedHandler(store, mapper).handle(ok)).isEqualTo(HandleOutcome.APPLIED)
+        assertThat(
+            ConsumedRatePackEvents.RULE_PACK_ACTIVATED,
+        ).isEqualTo("com.dynokore.gst.platform.RulePackActivated.v1")
+        assertThat(ConsumedRatePackEvents.RULE_PACK_ACTIVATED_TOPIC).isEqualTo("gst.platform.rule-pack-activated.v1")
+    }
+
+    @Test
+    fun `INV-AC-23121 the old rules type and the look-alike type are refused`() {
+        val handler = RulePackActivatedHandler(Memory(), mapper)
+        val data = """{"packIdentifier":"sg-scope","version":"1","effectiveFrom":"2026-01-01"}"""
+        listOf(
+            "com.dynokore.gst.rules.RulePackActivated.v1",
+            "com.dynokore.gst.platform.RulePackActivatedX.v1",
+        ).forEach {
+            assertThatThrownBy { handler.handle(envelope(it, data)) }
+                .describedAs(it)
+                .isInstanceOf(IllegalArgumentException::class.java)
+                .hasMessage("unexpected $it")
+        }
+    }
+
+    @Test
+    fun `INV-AC-23121 the subscription map has no old activated topic`() {
+        assertThat(ConsumedRatePackEvents.SUBSCRIPTIONS.values).doesNotContain("gst.rules.rule-pack-activated.v1")
+        assertThat(
+            ConsumedRatePackEvents.SUBSCRIPTIONS,
+        ).doesNotContainKey("com.dynokore.gst.rules.RulePackActivated.v1")
+        assertThat(ConsumedRatePackEvents.SUBSCRIPTIONS)
+            .containsEntry("com.dynokore.gst.platform.RulePackActivated.v1", "gst.platform.rule-pack-activated.v1")
     }
 
     @Test
