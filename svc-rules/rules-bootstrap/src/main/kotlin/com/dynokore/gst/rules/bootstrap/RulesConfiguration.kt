@@ -8,7 +8,10 @@ import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
 import com.dynokore.gst.rules.adapters.events.PackReadinessAcknowledgedHandler
 import com.dynokore.gst.rules.adapters.events.PackReadinessEvents
+import com.dynokore.gst.rules.adapters.events.PeriodRecordsChangedEvents
+import com.dynokore.gst.rules.adapters.events.PeriodRecordsChangedHandler
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
+import com.dynokore.gst.rules.adapters.events.StoredLastCompletePeriodPort
 import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
 import com.dynokore.gst.rules.adapters.packs.DirectoryPackSource
 import com.dynokore.gst.rules.adapters.packs.EngineVersion
@@ -29,6 +32,7 @@ import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
 import com.dynokore.gst.rules.adapters.persistence.JooqPackArmingStore
 import com.dynokore.gst.rules.adapters.persistence.JooqPackCurrencyStore
 import com.dynokore.gst.rules.adapters.persistence.JooqPackImportStore
+import com.dynokore.gst.rules.adapters.persistence.JooqPeriodRecordsStore
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.adapters.persistence.PersistedRegulatoryPackStore
@@ -79,7 +83,6 @@ import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.PackFeedPoller
 import com.dynokore.gst.rules.application.PackImportStore
-import com.dynokore.gst.rules.application.PeriodCalendarUnavailableException
 import com.dynokore.gst.rules.application.RateSourcePort
 import com.dynokore.gst.rules.application.RegulatoryPackStore
 import com.dynokore.gst.rules.application.RunDryRun
@@ -321,14 +324,29 @@ class RulesConfiguration {
         clock: Clock,
     ): HistoricalSamplePort = EventHistoricalSamplePort(store, clock)
 
+    /** The period records tenancy-svc published, stored as the read model of the period calendar (INV-T-20226). */
+    @Bean
+    fun jooqPeriodRecordsStore(dsl: DSLContext): JooqPeriodRecordsStore = JooqPeriodRecordsStore(dsl)
+
     /**
-     * The period calendar belongs to tenancy-svc and rules-svc computes no period (INV-T-4974, INV-REQ-1303). Until the
-     * production adapter (INV-T-20226) replaces this binding, a `dryRun` without a body is refused 503 SRT-013.
+     * The period calendar belongs to tenancy-svc and rules-svc computes no period (INV-T-20226, INV-REQ-1303): the last
+     * complete period is read from the stored `PeriodRecordsChanged` records; an entity with no record is refused
+     * 503 SRT-013. A context that supplies its own [LastCompletePeriodPort] (the fixture of the test composition) keeps
+     * that one.
      */
     @Bean
     @ConditionalOnMissingBean(LastCompletePeriodPort::class)
-    fun lastCompletePeriodPort(): LastCompletePeriodPort =
-        LastCompletePeriodPort { _, _ -> throw PeriodCalendarUnavailableException("no period calendar is configured") }
+    fun lastCompletePeriodPort(
+        store: JooqPeriodRecordsStore,
+        transactions: TransactionRunner,
+        clock: Clock,
+    ): LastCompletePeriodPort =
+        // the call comes from the request thread with the tenant bound and no transaction open (ARC-21)
+        StoredLastCompletePeriodPort({ tenant, entityRef ->
+            transactions.inTransaction {
+                store.spans(tenant, entityRef)
+            }
+        }, clock)
 
     /** The version named by a call is read from the registry whatever its status (tenant's own or the platform's). */
     @Bean
@@ -450,6 +468,31 @@ class RulesConfiguration {
             scope,
             dsl,
             DryRunSampleRecordedHandler(store, clock),
+            rebuildRequired,
+            clock,
+        )
+
+    /**
+     * rules-svc is the subscriber of `gst.tenancy.period-records-changed.v1` (platform-contracts event-log/topics.yaml):
+     * the handler replaces the period records of the entity in the consumer's transaction and sends nothing.
+     */
+    @Bean
+    @Suppress("LongParameterList") // the consumer's collaborators are all injected platform beans
+    fun periodRecordsConsumer(
+        reader: EventLogReader,
+        scope: TenantScope,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+        dsl: DSLContext,
+        store: JooqPeriodRecordsStore,
+    ): JdbcInboxConsumer =
+        JdbcInboxConsumer(
+            ConsumerSubscription(RulesEventCatalogue.SERVICE, PeriodRecordsChangedEvents.TOPIC, SCHEMA),
+            EventCatalogue(listOf(PeriodRecordsChangedEvents.entry())),
+            reader,
+            scope,
+            dsl,
+            PeriodRecordsChangedHandler(store, clock),
             rebuildRequired,
             clock,
         )

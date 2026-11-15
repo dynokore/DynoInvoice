@@ -50,6 +50,8 @@ internal object SchemaInspection {
             "dry_run_delta_total",
             "dry_run_sample_page",
             "dry_run_sample_item",
+            "entity_period_set",
+            "entity_period",
             "pack_delta_ack",
             "pack_activation_review",
             "pack_readiness_ack",

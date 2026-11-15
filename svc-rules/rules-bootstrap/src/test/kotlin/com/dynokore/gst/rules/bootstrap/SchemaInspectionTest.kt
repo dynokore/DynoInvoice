@@ -29,6 +29,8 @@ class SchemaInspectionTest {
             Table("rules", "dry_run_delta_total"),
             Table("rules", "dry_run_sample_page"),
             Table("rules", "dry_run_sample_item"),
+            Table("rules", "entity_period_set"),
+            Table("rules", "entity_period"),
         )
     private val holderColumns = SchemaInspection.HOLDER_COLUMNS.map { Column(holder, it, "text") }
     private val good = registry + holder + Table("rules", "outbox")
@@ -89,6 +91,8 @@ class SchemaInspectionTest {
                 "dry_run_delta_total",
                 "dry_run_sample_page",
                 "dry_run_sample_item",
+                "entity_period_set",
+                "entity_period",
                 "pack_import",
                 "pack_currency_state",
                 "pack_delta_ack",

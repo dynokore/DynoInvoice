@@ -910,10 +910,20 @@ class DryRunDefaultCalendarTest(
     }
 
     @Test
-    fun `the default binding is registered when no calendar bean exists and the one bean throws`() {
+    fun `the stored binding is registered when no calendar bean exists and an entity with no record throws`() {
         val beans = context.getBeansOfType(LastCompletePeriodPort::class.java)
         beans.size shouldBe 1
-        val thrown = runCatching { beans.values.single().lastCompletePeriod(TENANT_A, ENTITY_E1) }.exceptionOrNull()
+        beans.values
+            .single()
+            .javaClass.simpleName shouldBe "StoredLastCompletePeriodPort"
+        val tenants = context.getBean(com.dynokore.platform.tenancykernel.TenantContext::class.java)
+        val thrown =
+            runCatching {
+                tenants.bind(
+                    TENANT_A,
+                    "calendar-probe",
+                ) { beans.values.single().lastCompletePeriod(TENANT_A, ENTITY_E1) }
+            }.exceptionOrNull()
         (thrown is PeriodCalendarUnavailableException) shouldBe true
     }
 }

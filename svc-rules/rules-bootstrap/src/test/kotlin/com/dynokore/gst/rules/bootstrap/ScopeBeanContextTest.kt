@@ -83,7 +83,7 @@ class ScopeBeanContextTest {
         runner().run { context ->
             context.startupFailure?.let { throw it }
             context.getBeansOfType(JdbcInboxConsumer::class.java).keys shouldBe
-                setOf("entityProfileConsumer", "dryRunSampleConsumer", "packReadinessConsumer")
+                setOf("entityProfileConsumer", "dryRunSampleConsumer", "packReadinessConsumer", "periodRecordsConsumer")
         }
     }
 }
