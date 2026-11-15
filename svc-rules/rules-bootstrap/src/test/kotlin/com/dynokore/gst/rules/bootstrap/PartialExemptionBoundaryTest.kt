@@ -27,7 +27,6 @@ import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
-private const val FLOW_CONTEXT = "eyJhbGciOiJub25lIn0.eyJmYyI6InQifQ.c2ln"
 private const val PE_PATH = "/internal/v1/rules/documents/evaluations"
 private const val PE_CALLER = "canonical-svc"
 private const val PE_FROM = "2026-01-01"
@@ -196,7 +195,6 @@ class PartialExemptionBoundaryTest(
                 HttpRequest
                     .newBuilder(URI("http://localhost:$localPort$PE_PATH"))
                     .header("Content-Type", "application/json")
-                    .header("X-Flow-Context", FLOW_CONTEXT)
                     .header("X-Workload-Token", "wl-$PE_CALLER")
                     .header("Authorization", USER_PE_TOKEN)
                     .POST(HttpRequest.BodyPublishers.ofString(json))

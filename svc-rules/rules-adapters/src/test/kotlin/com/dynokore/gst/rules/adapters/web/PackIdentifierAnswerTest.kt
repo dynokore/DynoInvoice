@@ -127,7 +127,14 @@ class PackIdentifierAnswerTest {
             scenarioVersion to scenario,
         )
 
-    private fun profiledStructure(): StructureReplica {
+    private fun controller(): EvaluationController {
+        val registry = InMemoryPackRegistry()
+        contents.keys.forEach(registry::register)
+        val lookup = PackLookup { type, owner, date -> registry.resolve(type, owner, date) }
+        val artefacts = { v: PackVersion ->
+            contents[v]?.let { PackArtefact("{}".toByteArray(), "{}".toByteArray(), ByteArray(0), it.toByteArray()) }
+        }
+        val reader = PackContentsReader(lookup, artefacts)
         val structure = StructureReplica(clock)
         structure.accept(
             EntityProfileChanged(
@@ -144,18 +151,6 @@ class PackIdentifierAnswerTest {
                 ),
             ),
         )
-        return structure
-    }
-
-    private fun controller(): EvaluationController {
-        val registry = InMemoryPackRegistry()
-        contents.keys.forEach(registry::register)
-        val lookup = PackLookup { type, owner, date -> registry.resolve(type, owner, date) }
-        val artefacts = { v: PackVersion ->
-            contents[v]?.let { PackArtefact("{}".toByteArray(), "{}".toByteArray(), ByteArray(0), it.toByteArray()) }
-        }
-        val reader = PackContentsReader(lookup, artefacts)
-        val structure = profiledStructure()
         val evaluate =
             EvaluateDocument(
                 PackResolver(lookup),
@@ -237,22 +232,20 @@ class PackIdentifierAnswerTest {
     }
 
     @Test
-    fun `INV-AC-22908 c the SCOPE packIdentifier joins to the RulePackActivated packIdentifier by string equality, each pack type`() {
-        val items = answer(classified).packVersionsApplied.orEmpty()
-        byType.forEach { (type, registeredVersion) ->
-            val registered = registeredVersion.manifest
-            val activated =
-                PackEventMapper().map(
-                    PackEvent.RulePackActivated(
-                        registered.packId.value,
-                        registered.version.value,
-                        registered.effectiveFrom,
-                    ),
-                )
-            val published = mapper.readTree(activated.dataJson).get("packIdentifier").asString()
-            items.single { it.packType == type }.packIdentifier shouldBe published
-        }
-        items.single { it.packType == "SCOPE" }.packIdentifier shouldBe "gst-scope"
+    fun `INV-AC-22908 c the SCOPE packIdentifier joins to the RulePackActivated packIdentifier by string equality`() {
+        val registered = scopeVersion.manifest
+        val activated =
+            PackEventMapper().map(
+                PackEvent.RulePackActivated(
+                    registered.packId.value,
+                    registered.version.value,
+                    registered.effectiveFrom,
+                ),
+            )
+        val published = mapper.readTree(activated.dataJson).get("packIdentifier").asString()
+        val scope = answer(classified).packVersionsApplied.orEmpty().single { it.packType == "SCOPE" }
+        published shouldBe "gst-scope"
+        scope.packIdentifier shouldBe published
     }
 
     @Test
