@@ -43,12 +43,13 @@ class EntityProfileReplayEntityIdDbTest {
     private class Seed(
         val t1: TenantId,
         val t2: TenantId,
-        val i1: UUID,
-        val i2: UUID,
-        val i3: UUID,
-        val group: UUID,
+        val ids: List<UUID>,
         val tag: String,
     ) {
+        val i1 = ids[0]
+        val i2 = ids[1]
+        val i3 = ids[2]
+        val group = ids[3]
         val g1 = "G-1-$tag"
         val g2 = "G-2-$tag"
         val e1 = "E-001-$tag"
@@ -126,7 +127,7 @@ class EntityProfileReplayEntityIdDbTest {
             .set(ENTITY.REF, ref)
             .set(ENTITY.GROUP_ID, group)
             .set(ENTITY.LEGAL_NAME, "Entity $ref")
-            .set(ENTITY.CONSTITUTION, "COMPANY")
+            .set(ENTITY.CONSTITUTION, "PRIVATE_LIMITED")
             .set(ENTITY.CODE, codeOf(ref))
             .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
             .set(ENTITY.STRUCTURE_VERSION, version(dsl))
@@ -148,7 +149,7 @@ class EntityProfileReplayEntityIdDbTest {
     /** T1: E-001 (I1), E-002 (I2), group G-1; T2: E-001 (I3), its own group. Refs carry a tag to stay unique. */
     private fun seed(): Seed {
         val tag = UUID.randomUUID().toString().take(8)
-        val s = Seed(TenantId(UUID.randomUUID()), TenantId(UUID.randomUUID()), id(), id(), id(), id(), tag)
+        val s = Seed(TenantId(UUID.randomUUID()), TenantId(UUID.randomUUID()), List(4) { id() }, tag)
         Db.superuser { dsl ->
             insertTenant(dsl, s.t1, "1$tag")
             insertTenant(dsl, s.t2, "2$tag")
@@ -164,7 +165,7 @@ class EntityProfileReplayEntityIdDbTest {
 
     private fun id() = UUID.randomUUID()
 
-    /** The entity code (at most 10 of A-Z, 0-9): the ref without its dash, then the last four of the ref, upper-case. */
+    /** The entity code (at most 10 of A-Z, 0-9): the ref without its dash, then the last four of the ref. */
     private fun codeOf(ref: String) = ref.take(5).replace("-", "") + ref.takeLast(4).uppercase()
 
     /** The replay of [tenant] read page by page with limit 1 until the cursor is empty. */
@@ -203,7 +204,7 @@ class EntityProfileReplayEntityIdDbTest {
         mapper.readTree(
             """
             {"entityRef":"$ref","changedAttributes":[{"attribute":"partiallyExempt","newValue":"true"}],
-             "effectiveDate":"$effective",
+             "effectiveDate":"$effective","constitution":"PRIVATE_LIMITED",
              "node":{"kind":"ENTITY","parentRef":"$group","retired":false,"name":"Entity $ref","code":"${codeOf(ref)}",
               "profile":[{"attribute":"partiallyExempt","value":"true","effectiveDate":"$effective"}],
               "structureVersion":${structureVersion(tenant, ref)}}}
