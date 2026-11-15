@@ -125,7 +125,9 @@ class PeriodSpanStoreTest {
                 SignedBindings.bind(connection, t1)
                 try {
                     connection.createStatement().use { st ->
-                        st.executeUpdate("update canonical.period_span_version set version = 4 where entity_ref = 'ENT-1'")
+                        st.executeUpdate(
+                            "update canonical.period_span_version set version = 4 where entity_ref = 'ENT-1'",
+                        )
                         st.executeUpdate("delete from canonical.period_span where entity_ref = 'ENT-1'")
                         st.executeUpdate(
                             "insert into canonical.period_span values ('$t1', 'ENT-1', 'BAD', date '2026-04-01', date '2026-03-31')",
