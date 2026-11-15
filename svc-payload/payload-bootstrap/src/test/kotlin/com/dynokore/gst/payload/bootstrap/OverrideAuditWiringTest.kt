@@ -135,7 +135,7 @@ class OverrideAuditWiringTest : OverrideWiringBase() {
         lookAlikeRefused("com.dynokore.gst.platform.auditentryrecorded.v1")
 
     @Test
-    fun `INV-Q-17570 the wired catalogue holds the three payload types, the audit type and the decision type`() {
+    fun `INV-Q-17570 the wired catalogue holds exactly the three payload types and the audit type`() {
         AccessStub().use { stub ->
             withService(localReplica(), stub) { service ->
                 checkNotNull(service.context)
@@ -148,7 +148,6 @@ class OverrideAuditWiringTest : OverrideWiringBase() {
                         "com.dynokore.gst.payload.PayloadRejected.v1",
                         "com.dynokore.gst.payload.RenditionFindingChanged.v1",
                         "com.dynokore.gst.platform.AuditEntryRecorded.v1",
-                        "com.dynokore.gst.submission.SubmissionTypeDecided.v1",
                     )
             }
         }
