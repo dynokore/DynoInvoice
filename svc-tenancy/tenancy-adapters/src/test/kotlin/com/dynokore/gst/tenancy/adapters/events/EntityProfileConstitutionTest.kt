@@ -13,6 +13,7 @@ import com.dynokore.gst.tenancy.application.structure.entityNode
 import com.dynokore.platform.outboxandqueue.ReplayScope
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
@@ -112,6 +113,14 @@ class EntityProfileConstitutionTest {
         withIt.deepCopy().also { it.remove("constitution") } shouldBe without
         withIt.propertyNames().toList() shouldBe
             listOf("entityRef", "changedAttributes", "effectiveDate", "constitution", "node")
+    }
+
+    @Test
+    fun `INV-AC-21394 the pinned schema defines constitution and refuses a value that is not a text`() {
+        val payload = outbox.payload(live(entity("PRIVATE_LIMITED")))
+        valid(payload)
+        payload.put("constitution", 7)
+        SchemaFixture.errors(schema, payload.toString()).shouldNotBeEmpty()
     }
 
     private object NoReader : ReplayReader {
