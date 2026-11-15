@@ -3,7 +3,6 @@ package com.dynokore.gst.access.adapters.http
 import com.dynokore.gst.access.adapters.elevation.CommandKey
 import com.dynokore.gst.access.adapters.elevation.ElevationCommands
 import com.dynokore.gst.access.adapters.persistence.AuthorityIncarnationStore
-import com.dynokore.gst.access.adapters.persistence.Bumped
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
 import com.dynokore.gst.access.contract.model.AuthorityIncarnationResponse
@@ -43,11 +42,10 @@ class AuthorityIncarnationOperationTest {
 
         override fun start() = value
 
-        override fun bump(): Bumped {
+        override fun bump(): Long {
             bumps++
-            val previous = value
             value = maxOf(value + 1, clock.instant().epochSecond)
-            return Bumped(previous, value)
+            return value
         }
     }
 

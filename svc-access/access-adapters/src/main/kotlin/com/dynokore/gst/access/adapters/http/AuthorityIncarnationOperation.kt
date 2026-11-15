@@ -37,17 +37,18 @@ class AuthorityIncarnationOperation(
         if (!permission.mayBump(actor)) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val id = CommandKey(IdentityRef(actor), idempotencyKey, "POST bumpAuthorityIncarnation")
         return commands.once(id, null, commands.reader(AuthorityIncarnationResponse::class.java)) {
-            val bumped = store.bump()
+            val previous = store.current()
+            val raised = store.bump()
             audit.record(
                 GrantAuditEntry(
                     actor = actor,
                     action = "bumpAuthorityIncarnation",
                     scope = "installation",
-                    reason = "previousIncarnation=${bumped.previous} incarnation=${bumped.incarnation}",
+                    reason = "previousIncarnation=$previous incarnation=$raised",
                     priorStateJson = null,
                 ),
             )
-            Reply(HttpStatus.OK, AuthorityIncarnationResponse(bumped.incarnation, bumped.previous))
+            Reply(HttpStatus.OK, AuthorityIncarnationResponse(raised, previous))
         }
     }
 }
