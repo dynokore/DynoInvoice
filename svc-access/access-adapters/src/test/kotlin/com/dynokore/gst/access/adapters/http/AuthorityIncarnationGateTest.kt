@@ -11,15 +11,22 @@ import java.nio.file.Path
  * under `src/main`; a literal is matched as a whole token, quotes included.
  */
 class AuthorityIncarnationGateTest {
-    private val root: Path = generateSequence(Path.of("").toAbsolutePath()) { it.parent }.first { Files.exists(it.resolve("settings.gradle.kts")) }
+    private val root: Path =
+        generateSequence(Path.of("").toAbsolutePath()) {
+            it.parent
+        }.first { Files.exists(it.resolve("settings.gradle.kts")) }
     private val base = root.resolve("access-adapters/src/main/kotlin/com/dynokore/gst/access/adapters")
-    private val named = listOf(base.resolve("http/AuthorityIncarnationOperation.kt"), base.resolve("http/BumpPermissionCheck.kt"))
+    private val named =
+        listOf(base.resolve("http/AuthorityIncarnationOperation.kt"), base.resolve("http/BumpPermissionCheck.kt"))
 
     /** Every `.kt` under any module `src/main`, skipping build, .git, .gradle and .gradle-cache. */
     private fun mainSources(top: Path): List<Path> =
         Files.walk(top).use { w ->
-            w.filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") && "/src/main/" in it.toString().replace('\\', '/') }
-                .filter { p -> top.relativize(p).none { it.toString() in SKIPPED } }
+            w
+                .filter {
+                    Files.isRegularFile(it) && it.toString().endsWith(".kt") &&
+                        "/src/main/" in it.toString().replace('\\', '/')
+                }.filter { p -> top.relativize(p).none { it.toString() in SKIPPED } }
                 .toList()
         }
 
@@ -34,7 +41,14 @@ class AuthorityIncarnationGateTest {
     private fun gitAdded(top: Path): List<String> {
         if (top != root) return emptyList()
         return runCatching {
-            val pb = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=A", "origin/main").directory(top.toFile()).redirectErrorStream(true).start()
+            val pb =
+                ProcessBuilder(
+                    "git",
+                    "diff",
+                    "--name-only",
+                    "--diff-filter=A",
+                    "origin/main",
+                ).directory(top.toFile()).redirectErrorStream(true).start()
             val out = pb.inputStream.bufferedReader().readLines()
             if (pb.waitFor() == 0) out.filter { inSubject(it) } else emptyList()
         }.getOrDefault(emptyList())
@@ -54,7 +68,10 @@ class AuthorityIncarnationGateTest {
         try {
             val dir = Files.createDirectories(tmp.resolve("m/src/main/kotlin/x/incarnation"))
             val f = dir.resolve("Extra.kt")
-            Files.writeString(f, "val r = \"platform.engineer\"\nimport com.dynokore.platform.serviceruntime.replica.AuthorityReplica\n")
+            Files.writeString(
+                f,
+                "val r = \"platform.engineer\"\nimport com.dynokore.platform.serviceruntime.replica.AuthorityReplica\n",
+            )
             val other = Files.createDirectories(tmp.resolve("m/src/main/kotlin/x/other")).resolve("Ok.kt")
             Files.writeString(other, "val r = 1")
             val found = subjectOf(tmp)
