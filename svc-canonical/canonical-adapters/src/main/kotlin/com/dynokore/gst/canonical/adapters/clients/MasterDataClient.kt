@@ -61,9 +61,14 @@ sealed interface MasterDataAnswer<out T> {
     ) : MasterDataAnswer<Nothing>
 }
 
-/** The counterparty the resolution found; `partyRef` is null when the owner answered without a counterparty. */
+/**
+ * The counterparty the resolution found; `partyRef` is null when the owner answered without a counterparty.
+ * `approvedSchemes` and `arcsGstChargeAgreed` are the scheme facts of the answer, null when the owner sent none.
+ */
 data class ResolvedCounterparty(
     val partyRef: String?,
+    val approvedSchemes: List<String>? = null,
+    val arcsGstChargeAgreed: Boolean? = null,
 )
 
 /**
@@ -104,7 +109,13 @@ class MasterDataClient(
             if (body == null) {
                 MasterDataAnswer.Unavailable("${MasterDataEdge.EDGE}: empty body")
             } else {
-                MasterDataAnswer.Answered(ResolvedCounterparty(body.counterparty?.partyRef))
+                MasterDataAnswer.Answered(
+                    ResolvedCounterparty(
+                        body.counterparty?.partyRef,
+                        body.approvedSchemes?.map { it.scheme },
+                        body.arcsGstChargeAgreed,
+                    ),
+                )
             }
         }
 
