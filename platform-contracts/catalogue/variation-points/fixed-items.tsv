@@ -1,0 +1,10 @@
+id	title
+FIXED-01	whether an in-scope document is submitted, and its due date
+FIXED-02	treating Access Point success as acknowledgement
+FIXED-03	a readiness verdict without draining
+FIXED-04	go-live without trigger coverage and certification
+FIXED-05	a filing fact without the IRAS reference
+FIXED-06	a tenant's own reading of an uncertain regulation, held in regulatory packs pending an open question
+FIXED-07	customer-written rules or code
+FIXED-08	disabling deadline or coverage alerts (carried by INV-REQ-1114)
+FIXED-09	one person alone for an identity triple change, a break-glass unlock or a mapping approval (carried by INV-REQ-1007 and the separation rules it cites)
