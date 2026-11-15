@@ -14,16 +14,16 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import tools.jackson.databind.ObjectMapper
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
-import com.networknt.schema.SpecificationVersion as SchemaDialect
+import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import tools.jackson.databind.ObjectMapper
 import java.io.File
 import java.nio.file.Path
 import java.time.OffsetDateTime
@@ -298,7 +298,7 @@ class HoldDocumentOutboxDbTest {
     private fun schemaErrors(data: String): List<String> {
         val schema = schemaText()
         val registry =
-            SchemaRegistry.withDefaultDialect(SchemaDialect.DRAFT_2020_12) {
+            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
                 it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
             }
         return registry.getSchema(schema).validate(mapper.readTree(data)).map { it.toString() }
@@ -341,7 +341,11 @@ class HoldDocumentOutboxDbTest {
         val ok = insert(t)
         val tooLong = insert(t)
         b.stage(t, heldEvent(ok, "x".repeat(40)))
-        b.payloadsOf(t, ok).single().get("partyRef").asString() shouldBe "x".repeat(40)
+        b
+            .payloadsOf(t, ok)
+            .single()
+            .get("partyRef")
+            .asString() shouldBe "x".repeat(40)
         shouldThrow<IllegalArgumentException> { b.stage(t, heldEvent(tooLong, "x".repeat(41))) }
         b.payloadsOf(t, tooLong).size shouldBe 0
     }
