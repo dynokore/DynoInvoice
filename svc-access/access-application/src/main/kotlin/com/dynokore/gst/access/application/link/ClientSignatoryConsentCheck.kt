@@ -33,10 +33,10 @@ class ClientSignatoryConsentCheck(
         consentRef: String,
         clientRef: String,
     ): ConsentCheck {
-        val ref = runCatching { ConsentRef(consentRef) }.getOrNull()
-        val client = runCatching { EntityRef(clientRef) }.getOrNull()
-        val consent = if (ref == null || client == null) null else consents.find(ref)
-        val live = consent != null && consent.isLiveOn(LocalDate.now(clock)) && consent.client == client
-        return if (live) ConsentCheck.Live(checkNotNull(ref), checkNotNull(client)) else ConsentCheck.NotLive
+        val ref = runCatching { ConsentRef(consentRef) }.getOrNull() ?: return ConsentCheck.NotLive
+        val client = runCatching { EntityRef(clientRef) }.getOrNull() ?: return ConsentCheck.NotLive
+        val consent = consents.find(ref) ?: return ConsentCheck.NotLive
+        val live = consent.isLiveOn(LocalDate.now(clock))
+        return if (live && consent.client == client) ConsentCheck.Live(ref, client) else ConsentCheck.NotLive
     }
 }

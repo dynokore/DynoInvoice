@@ -53,10 +53,10 @@ class TokenPinsTest {
         assertThat(bundleFindings(toml, MERGE_COMMIT, openapi)).isEmpty()
         // probes: the bundle of f4cb676f has no issueAccessToken; a look-alike suffix of another length differs
         assertThat(bundleFindings(toml.replace(MERGE_COMMIT.take(SHORT), "f4cb676f"), MERGE_COMMIT, openapi))
-            .containsExactly("bundle suffix is not ba848fd1")
+            .containsExactly("bundle suffix is not 13426051")
         // probe: the previous pin 21fc1bf0 fails
         assertThat(bundleFindings(toml.replace(MERGE_COMMIT.take(SHORT), "21fc1bf0"), MERGE_COMMIT, openapi))
-            .containsExactly("bundle suffix is not ba848fd1")
+            .containsExactly("bundle suffix is not 13426051")
         assertThat(bundleFindings(toml, MERGE_COMMIT, openapi.replace("issueAccessToken", "x")))
             .containsExactly("operation issueAccessToken is absent")
     }
@@ -72,7 +72,7 @@ class TokenPinsTest {
     }
 
     private companion object {
-        const val MERGE_COMMIT = "ba848fd1"
+        const val MERGE_COMMIT = "13426051"
         const val SHORT = 8
     }
 }

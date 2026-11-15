@@ -304,7 +304,7 @@ class SignedLinkOutcomeTest {
     }
 
     @Test
-    fun `INV-AC-2766 an SMS-only installation with no mobile number is refused with MOBILE_NUMBER_REQUIRED`() {
+    fun `INV-AC-2766 an SMS-only installation with no mobile number refuses with MOBILE_NUMBER_REQUIRED and nothing else`() {
         setting = LinkPasscodeSetting(5, smsOnly = true)
         gatewayBound = true
         refusedWith(payload(mobile = null), "MOBILE_NUMBER_REQUIRED")
@@ -357,10 +357,7 @@ class SignedLinkOutcomeTest {
         handler.handle(envelope(payload(), id))
         val row = captured.appended.single { it.event.type == SignedLinkOutcomeOutbox.TYPE }
         assertEquals("ISSUED", mapper.readTree(row.event.dataJson).get("outcome").asString())
-        assertEquals(
-            setOf("requestEventId", "subjectReference", "outcome", "occurredAt"),
-            properties(row.event.dataJson),
-        )
+        assertEquals(setOf("requestEventId", "subjectReference", "outcome", "occurredAt"), properties(row.event.dataJson))
         assertEquals(now, Instant.parse(mapper.readTree(row.event.dataJson).get("occurredAt").asString()))
         val schema =
             checkNotNull(
@@ -378,10 +375,7 @@ class SignedLinkOutcomeTest {
     fun `a refusal payload carries a reasonCode and validates against the contract schema`() {
         setting = LinkPasscodeSetting(5, smsOnly = true)
         handler.handle(envelope(payload(mobile = null)))
-        val json =
-            captured.appended
-                .single { it.event.type == SignedLinkOutcomeOutbox.TYPE }
-                .event.dataJson
+        val json = captured.appended.single { it.event.type == SignedLinkOutcomeOutbox.TYPE }.event.dataJson
         val schema =
             checkNotNull(
                 javaClass.classLoader.getResourceAsStream(
