@@ -167,7 +167,7 @@ class RolePermissionsTest {
         }
     }
 
-    /** The `set_by` of VP-NN on main, grouped by equal holders (INV-T-10132, INV-Q-10127 A). */
+    /** The `set_by` of VP-NN on main by holders (INV-T-10132, INV-Q-10127 A); VP-79 SaaS only (INV-T-22820). */
     private val vpHolders: Map<Int, Set<String>> =
         mapOf(
             *vpGroup(
@@ -180,13 +180,13 @@ class RolePermissionsTest {
             ),
             *vpGroup(setOf("integration.engineer"), listOf(26, 34, 35, 38, 47, 48, 49, 55, 56, 67, 71)),
             *vpGroup(setOf("entity.admin"), listOf(21, 22, 23, 24, 25, 27, 51, 53, 60, 61)),
-            *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 79, 80)),
+            *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 80)),
             *vpGroup(setOf("client.signatory"), listOf(4, 10, 11, 12, 13)),
             *vpGroup(setOf("security.officer"), listOf(5, 8, 44, 63)),
             *vpGroup(setOf("tax.operator"), listOf(30)),
             *vpGroup(setOf("commercial.admin"), listOf(45)),
             *vpGroup(setOf("deployment.operator"), listOf(52)),
-        )
+        ) + (79 to setOf("platform.engineer"))
 
     private fun vpGroup(
         holders: Set<String>,
@@ -588,19 +588,6 @@ class RolePermissionsTest {
     }
 
     @Test
-    fun `INV-AC-22752 vp-79 set is held by platform engineer in SaaS only and has no private cell`() {
-        assertEquals(PermissionKind.WRITE, RolePermissions.kind("vp-79.set"))
-        assertEquals(y, cell(saas, "platform.engineer", "vp-79.set"))
-        assertNull(cell(privateForm, "deployment.operator", "vp-79.set"))
-        assertNull(cell(privateForm, "platform.engineer", "vp-79.set"))
-        assertTrue(OperationRoles.rolesFor(privateForm, "vp-79.set").isEmpty())
-        assertEquals(mapOf("platform.engineer" to y), OperationRoles.rolesFor(saas, "vp-79.set"))
-        // the siblings keep their private cell
-        assertEquals(y, cell(privateForm, "deployment.operator", "vp-78.set"))
-        assertEquals(y, cell(privateForm, "deployment.operator", "vp-80.set"))
-    }
-
-    @Test
     fun `vp keys outside 01 to 82 are absent`() {
         assertNull(RolePermissions.kind("vp-83.set"))
         assertNull(RolePermissions.kind("vp-0.set"))
@@ -728,5 +715,30 @@ class RegulatoryPackAcknowledgeRolePermissionsTest {
         assertNull(RolePermissions.kind("regulatory-pack.acknowledges"))
         assertEquals(setOf("tax.approver"), holders(saas))
         assertEquals(emptySet<String>(), holders(privateForm))
+    }
+}
+
+class Vp79RolePermissionsTest {
+    private val saas = DeploymentForm.SAAS
+    private val privateForm = DeploymentForm.PRIVATE
+    private val y = RoleAllowance.PERMITTED
+
+    private fun cell(
+        form: DeploymentForm,
+        role: String,
+        key: String,
+    ) = RolePermissions.cells(form)[role]?.get(key)
+
+    @Test
+    fun `INV-AC-22752 vp-79 set is held by platform engineer in SaaS only and has no private cell`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind("vp-79.set"))
+        assertEquals(y, cell(saas, "platform.engineer", "vp-79.set"))
+        assertNull(cell(privateForm, "deployment.operator", "vp-79.set"))
+        assertNull(cell(privateForm, "platform.engineer", "vp-79.set"))
+        assertTrue(OperationRoles.rolesFor(privateForm, "vp-79.set").isEmpty())
+        assertEquals(mapOf("platform.engineer" to y), OperationRoles.rolesFor(saas, "vp-79.set"))
+        // the siblings keep their private cell
+        assertEquals(y, cell(privateForm, "deployment.operator", "vp-78.set"))
+        assertEquals(y, cell(privateForm, "deployment.operator", "vp-80.set"))
     }
 }
