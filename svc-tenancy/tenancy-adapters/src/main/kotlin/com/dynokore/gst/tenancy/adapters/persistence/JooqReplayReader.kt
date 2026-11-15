@@ -44,6 +44,8 @@ data class ReplayNode(
     val node: StructureNodeState,
     /** The effective_from of the entry with the greatest recorded_at (ties: the greater effective_from), if any. */
     val profileEffectiveDate: LocalDate?,
+    /** The id of the row in tenancy.entity; set for an ENTITY node only (INV-AC-21529). */
+    val entityId: UUID? = null,
 )
 
 /** The position after a state: the kind and ref of the last state returned (kinds in the order of [KINDS]). */
@@ -233,7 +235,7 @@ class JooqReplayReader(
                     e.structureVersion.column("structure_version"),
                 )
             val node = entityNode(entity, profileOf(entity))
-            ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, node, greatest[entity.id])
+            ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, node, greatest[entity.id], entity.id)
         }
     }
 

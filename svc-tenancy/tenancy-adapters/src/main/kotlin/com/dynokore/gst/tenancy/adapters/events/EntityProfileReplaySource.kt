@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.adapters.events
 import com.dynokore.gst.tenancy.adapters.persistence.ReplayCursor
 import com.dynokore.gst.tenancy.adapters.persistence.ReplayNode
 import com.dynokore.gst.tenancy.adapters.persistence.ReplayReader
+import com.dynokore.gst.tenancy.application.structure.NodeType
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.ReplayPage
 import com.dynokore.platform.outboxandqueue.ReplayScope
@@ -53,6 +54,8 @@ class EntityProfileReplaySource(
         val state = row.node
         val root = mapper.createObjectNode()
         root.put("entityRef", row.ref)
+        // The id of the tenancy.entity row, as the live path writes it; an ENTITY node only, absent otherwise.
+        if (row.type == NodeType.ENTITY) row.entityId?.let { root.put("entityId", it.toString()) }
         val attributes = root.putArray("changedAttributes")
         state.profile.forEach {
             val item = attributes.addObject()
