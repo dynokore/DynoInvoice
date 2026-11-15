@@ -346,7 +346,8 @@ private object SeededMigration {
 private val json = JsonMapper.builder().build()
 
 private fun nodeOf(dataJson: String): StructureNodeState {
-    val node = json.readTree(dataJson)["node"]
+    val root = json.readTree(dataJson)
+    val node = root["node"]
     return StructureNodeState(
         NodeType.valueOf(node["kind"].asString()),
         node["parentRef"]?.asString(),
@@ -364,6 +365,8 @@ private fun nodeOf(dataJson: String): StructureNodeState {
             com.dynokore.gst.tenancy.domain.Environment
                 .valueOf(it)
         },
+        // INV-AC-21394: the entity constitution is the top-level member of EntityProfileChanged, not part of node
+        root["constitution"]?.asString(),
     )
 }
 
@@ -542,7 +545,9 @@ class ReplayStateSourceTest {
                 for (state in states) {
                     val ref = state.aggregateKey
                     val replayed = nodeOf(state.dataJson)
-                    assertThat(replayed).isEqualTo(env.profile.inTx { env.queries.node(ref)!!.node })
+                    // OrganisationStructureChanged carries no constitution (INV-AC-21394 adds it to EntityProfileChanged only)
+                    assertThat(replayed)
+                        .isEqualTo(env.profile.inTx { env.queries.node(ref)!!.node }.copy(constitution = null))
                     assertThat(replayed.structureVersion).isEqualTo(storedVersion(env, ref))
                     assertThat(replayed.structureVersion).isEqualTo(lastLiveVersion(env, ref))
                     assertThat(state.docSequence).isNull()
