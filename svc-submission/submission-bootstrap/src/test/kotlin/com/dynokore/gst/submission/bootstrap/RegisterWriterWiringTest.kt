@@ -113,7 +113,7 @@ class RegisterWriterWiringTest {
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
-        SubmissionEvents.topicByType.size shouldBe 7
+        SubmissionEvents.topicByType.size shouldBe 8
         SubmissionEvents.PAYLOAD_READY_TOPIC shouldBe "gst.payload.payload-ready.v1"
         BreakGlassFeed.TOPIC shouldBe "gst.platform.break-glass-session-changed.v1"
     }

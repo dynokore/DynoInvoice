@@ -133,8 +133,8 @@ class JobRuntimeCompositionTest {
         context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
         val definitions = context.getBean(JobRuntime::class.java).registered()
         definitions.map { it.name }.toSet() shouldBe
-            setOf("backlog-evaluation", "compliance-evaluation", "waiting-sweep")
-        definitions.size shouldBe 3
+            setOf("backlog-evaluation", "compliance-evaluation", "unsubmitted-count-measurement", "waiting-sweep")
+        definitions.size shouldBe 4
         val definition = definitions.single { it.name == "waiting-sweep" }
         definition.ownerService shouldBe "submission-svc"
         definition.entityScope shouldBe JobEntityScope.PLATFORM
@@ -174,8 +174,9 @@ class JobRuntimeCompositionTest {
                     JobRuntimeConfiguration.WAITING_SWEEP.schedule.cron,
                     context.environment.getProperty("inv.compliance-evaluation.cron"),
                     context.environment.getProperty("inv.backlog-evaluation.cron"),
+                    context.environment.getProperty("inv.unsubmitted-count.cron"),
                 )
-            context.cronTasks().size shouldBe 3
+            context.cronTasks().size shouldBe 4
         }
     }
 
