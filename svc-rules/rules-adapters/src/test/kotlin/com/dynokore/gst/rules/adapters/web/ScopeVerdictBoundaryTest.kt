@@ -241,7 +241,8 @@ class ScopeVerdictBoundaryTest {
         date: String = "2026-04-01",
         extra: String = "",
         entity: String = "E1",
-    ): EvaluationResult = checkNotNull(f.controller.evaluateDocument(request(code, date, extra, entity)).body)
+    ): EvaluationResult =
+        checkNotNull(f.controller.evaluateDocument("flow-context", request(code, date, extra, entity)).body)
 
     private val purchase = ""","direction":"PURCHASE""""
 

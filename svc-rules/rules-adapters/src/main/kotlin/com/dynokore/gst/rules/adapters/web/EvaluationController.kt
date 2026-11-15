@@ -68,10 +68,14 @@ open class EvaluationController(
 ) : EvaluationApi {
     private val creditNotes = CreditNoteCoding(DocumentCoder(packs, packs, packs))
 
-    override fun evaluateDocument(evaluateDocumentRequest: EvaluateDocumentRequest): ResponseEntity<EvaluationResult> =
-        ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = false))
+    // xFlowContext is verified by the runtime filter, not here (INV-T-9254)
+    override fun evaluateDocument(
+        xFlowContext: String,
+        evaluateDocumentRequest: EvaluateDocumentRequest,
+    ): ResponseEntity<EvaluationResult> = ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = false))
 
     override fun evaluatePreIssuanceDraft(
+        xFlowContext: String,
         evaluateDocumentRequest: EvaluateDocumentRequest,
     ): ResponseEntity<EvaluationResult> = ResponseEntity.ok(evaluated(evaluateDocumentRequest, draft = true))
 
@@ -329,7 +333,11 @@ open class EvaluationController(
         entry.signNormalised,
         (classification as? Classification.InvoiceData)?.cancellation ?: false,
         entry,
-        PackVersionApplied(entry.applied.packType.value, entry.applied.version.value),
+        PackVersionApplied(
+            packType = entry.applied.packType.value,
+            version = entry.applied.version.value,
+            packIdentifier = entry.applied.packId.value,
+        ),
     )
 
     private fun scopeVersionAt(
@@ -341,7 +349,13 @@ open class EvaluationController(
                 PackTypes.SCOPE,
                 tenant,
                 date,
-            )?.let { PackVersionApplied(PackTypes.SCOPE.value, it.version.value) }
+            )?.let {
+                PackVersionApplied(
+                    packType = PackTypes.SCOPE.value,
+                    version = it.version.value,
+                    packIdentifier = it.packId.value,
+                )
+            }
 
     private fun classificationTrace(entry: ClassificationTraceEntry): Map<String, Any> =
         mapOf(
@@ -467,7 +481,9 @@ open class EvaluationController(
         date: TransactionDate,
     ): List<PackVersionApplied> =
         listOf(PackTypes.MAPPING, PackTypes.CODE_CATALOGUE, PackTypes.SCENARIO).mapNotNull { type ->
-            packs.versionAt(type, tenant, date)?.let { PackVersionApplied(type.value, it.version.value) }
+            packs.versionAt(type, tenant, date)?.let {
+                PackVersionApplied(packType = type.value, version = it.version.value, packIdentifier = it.packId.value)
+            }
         }
 
     @Suppress("LongParameterList", "LongMethod") // the answer is assembled from the parts of one evaluation

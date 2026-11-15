@@ -33,6 +33,7 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 private val TENANT_CL: TenantId = TenantId.of("0c000000-0000-0000-0000-00000000000c")
+private const val FLOW_CONTEXT = "eyJhbGciOiJub25lIn0.eyJmYyI6InQifQ.c2ln"
 private const val USER_CL_TOKEN = "Bearer token-user-cl"
 private const val CL_CALLER = "canonical-svc"
 private const val CL_DRAFT_CALLER = "payload-svc"
@@ -206,6 +207,7 @@ class ClassificationBoundaryTest(
                 HttpRequest
                     .newBuilder(URI("http://localhost:$localPort$path"))
                     .header("Content-Type", "application/json")
+                    .header("X-Flow-Context", FLOW_CONTEXT)
                     .header("X-Workload-Token", "wl-" + if (path == CL_PATH_DRAFT) CL_DRAFT_CALLER else CL_CALLER)
                     .header("Authorization", USER_CL_TOKEN)
                     .POST(HttpRequest.BodyPublishers.ofString(json))
