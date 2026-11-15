@@ -31,6 +31,8 @@ data class StructureNodeState(
     val profile: List<ProfileEntry> = emptyList(),
     /** INV-Q-9032 A: set on a TENANT node only, from the stored tenant attribute; null (absent) on every other kind. */
     val environment: com.dynokore.gst.tenancy.domain.Environment? = null,
+    /** The entity's stored constitution, set on an ENTITY node only; null (absent in the event) on every other kind. */
+    val constitution: String? = null,
 )
 
 /** One structure change, raised in the command transaction that makes it. */

@@ -60,6 +60,7 @@ class EntityProfileReplaySource(
             item.put("newValue", it.value)
         }
         root.put("effectiveDate", checkNotNull(row.profileEffectiveDate) { "a profile state has an entry" }.toString())
+        state.constitution?.let { root.put("constitution", it) }
         val node = root.putObject("node")
         node.put("kind", state.kind.name)
         state.parentRef?.let { node.put("parentRef", it) }

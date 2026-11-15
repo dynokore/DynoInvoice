@@ -309,6 +309,7 @@ fun entityNode(
     entity.uen,
     entity.gstn,
     profile,
+    constitution = entity.constitution,
 )
 
 fun unitNode(unit: BusinessUnitRecord) =

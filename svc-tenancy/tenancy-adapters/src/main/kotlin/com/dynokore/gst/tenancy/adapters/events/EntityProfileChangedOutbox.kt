@@ -44,6 +44,7 @@ class EntityProfileChangedOutbox(
             item.put("newValue", it.newValue)
         }
         root.put("effectiveDate", change.effectiveDate.toString())
+        change.node.constitution?.let { root.put("constitution", it) }
         val node = root.putObject("node")
         val state = change.node
         node.put("kind", state.kind.name)
