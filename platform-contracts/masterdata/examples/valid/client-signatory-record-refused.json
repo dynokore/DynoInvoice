@@ -1,0 +1,8 @@
+{
+  "signatoryRef": "SIG-31",
+  "clientRef": "CLI-204",
+  "linkStatus": {
+    "state": "REFUSED",
+    "reasonCode": "CONSENT_NOT_LIVE"
+  }
+}

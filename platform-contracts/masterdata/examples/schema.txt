@@ -29,3 +29,6 @@
 ../openapi.yaml#/components/schemas/ConnectionHealth connection-health-*.json
 ../openapi.yaml#/components/schemas/ImportRatesRequest import-rates-request-*.json
 ../schemas/master-data-resolved-payload.schema.json master-data-resolved-*.json
+../openapi.yaml#/components/schemas/RecordClientSignatoryRequest record-client-signatory-request-*.json
+../openapi.yaml#/components/schemas/ClientSignatoryRecord client-signatory-record-*.json
+../schemas/signed-link-requested-payload.schema.json signed-link-requested-*.json

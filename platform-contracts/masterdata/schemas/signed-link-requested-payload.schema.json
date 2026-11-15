@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://platform-contracts.invoice.internal/masterdata/schemas/signed-link-requested-payload.schema.json",
   "title": "SignedLinkRequestedPayload",
-  "description": "Payload of the SignedLinkRequested event (catalogued in model/architecture/events.yaml, INV-NOTE-3 §19.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "description": "Payload of the SignedLinkRequested event (catalogued in model/architecture/events.yaml, INV-NOTE-3 \u00a719.8; class: domain). Authored by INV-T-2853 (T9). Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
   "type": "object",
   "properties": {
     "purpose": {
@@ -36,6 +36,46 @@
       "type": "string",
       "description": "When the requested link must expire.",
       "format": "date-time"
+    },
+    "linkKind": {
+      "type": "string",
+      "enum": [
+        "counterparty",
+        "clientSignatory"
+      ],
+      "description": "Which kind of signed link is requested."
+    },
+    "clientRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The client the link concerns (clientSignatory)."
+    },
+    "consentRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The agent consent the link concerns (clientSignatory)."
+    },
+    "signatoryRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The recorded signatory the link is for (clientSignatory)."
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "EMAIL",
+        "SMS"
+      ],
+      "description": "How the link is delivered."
+    },
+    "sourceRecordId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Identifier of the record that caused the request."
     }
   },
   "required": [

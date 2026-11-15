@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.22.0
+  version: 1.23.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -1809,6 +1809,63 @@ paths:
                 $ref: '../service-runtime/schemas/error-envelope.schema.json'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/masterdata/client-signatories:
+    post:
+      operationId: recordClientSignatory
+      summary: Record a client together with its signatory and send the signatory a consent link
+      description: >-
+        Request command to console-bff (services.yaml masterdata-svc
+        `provides`; INV-FLOW-255 step 1, INV-REQ-899). The actor records a
+        client with the person who authorises its agent consent (the
+        signatory, `client.signatory`) and the reference of the consent. The
+        service stores the client and signatory and emits
+        `SignedLinkRequested` with `linkKind` clientSignatory; the link itself
+        is issued by access-svc on that event, never by a direct call (DR-11).
+        `linkStatus` reports the state of that link: PENDING until access-svc
+        has answered, then ISSUED, or REFUSED with a `reasonCode`. A repeat
+        with the same `clientRef` and `signatoryEmail` returns the existing
+        record. The runtime check is the scoped permission key
+        `client-signatory.record` decided per request by
+        AuthorityReplica.decide; `x-operation.role` is the published role
+        text only (INV-Q-17446, A).
+      tags: [counterparty-requests]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->masterdata-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-899]
+      x-operation:
+        role: agent.operator
+        scope: tenant
+        precondition: "The consent named by consentRef exists for the client (INV-FLOW-255 step 1)."
+        reversibility: UNDOABLE
+        repeatKey: "(clientRef, signatoryEmail) — a repeat returns the existing record."
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordClientSignatoryRequest'
+            examples:
+              default:
+                value: { clientRef: "CLI-204", signatoryName: "Tan Wei Ming", signatoryEmail: "wm.tan@example.com.sg", consentRef: "CNS-77", signatoryMobile: "+6591234567" }
+      responses:
+        '201':
+          description: The recorded client signatory.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientSignatoryRecord'
+              examples:
+                default:
+                  value: { signatoryRef: "SIG-31", clientRef: "CLI-204", linkStatus: { state: "PENDING" } }
+        '400':
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     IdempotencyKey:
@@ -1820,6 +1877,32 @@ components:
         type: string
         format: uuid
   schemas:
+    RecordClientSignatoryRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        clientRef: { type: string, minLength: 1, maxLength: 40 }
+        signatoryName: { type: string, minLength: 1, maxLength: 200 }
+        signatoryEmail: { type: string, format: email, maxLength: 254 }
+        signatoryMobile: { type: string, pattern: '^\+[1-9][0-9]{6,14}$' }
+        consentRef: { type: string, minLength: 1, maxLength: 64 }
+      required: [clientRef, signatoryName, signatoryEmail, consentRef]
+    ClientSignatoryRecord:
+      type: object
+      properties:
+        signatoryRef: { type: string, maxLength: 64 }
+        clientRef: { type: string, maxLength: 40 }
+        linkStatus:
+          type: object
+          properties:
+            state:
+              type: string
+              enum: [PENDING, ISSUED, REFUSED]
+            reasonCode:
+              type: string
+              enum: [MOBILE_NUMBER_REQUIRED, CONSENT_NOT_LIVE, RECIPIENT_INVALID, EXPIRY_INVALID]
+          required: [state]
+      required: [signatoryRef, clientRef, linkStatus]
     ApprovedScheme:
       type: object
       description: One approved scheme status item (INV-REQ-2433); `scheme` is a scenario-pack value, so not an enum.

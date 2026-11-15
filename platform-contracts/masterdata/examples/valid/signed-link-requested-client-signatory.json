@@ -1,0 +1,14 @@
+{
+  "purpose": "client-signatory-consent",
+  "subjectReference": "CNS-77",
+  "recipient": {
+    "email": "wm.tan@example.com.sg"
+  },
+  "expiry": "2026-12-01T00:00:00Z",
+  "linkKind": "clientSignatory",
+  "clientRef": "CLI-204",
+  "consentRef": "CNS-77",
+  "signatoryRef": "SIG-31",
+  "channel": "EMAIL",
+  "sourceRecordId": "SIG-31"
+}
