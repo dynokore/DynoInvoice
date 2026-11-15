@@ -705,20 +705,6 @@ topics:
     subscribers:
       - console-bff
       - notification-svc
-  - topic: gst.rules.rule-pack-activated.v1
-    event_type: com.dynokore.gst.rules.RulePackActivated.v1
-    content_topic: false
-    record_topic: false
-    retained_while_resolvable: false
-    producers:
-      - rules-svc
-    subscribers:
-      - masterdata-svc
-      - notification-svc
-      - payload-svc
-      - reconciliation-svc
-      - submission-svc
-      - tenancy-svc
   - topic: gst.rules.rule-pack-staged.v1
     event_type: com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
@@ -1936,7 +1922,6 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.platform.RulePackActivated.v1
       - com.dynokore.gst.platform.RulePackStaged.v1
-      - com.dynokore.gst.rules.RulePackActivated.v1
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
@@ -1953,7 +1938,6 @@ replay_topics:
       - com.dynokore.gst.platform.RulePackActivated.v1
       - com.dynokore.gst.platform.RulePackStaged.v1
       - com.dynokore.gst.rules.PackCurrencyChanged.v1
-      - com.dynokore.gst.rules.RulePackActivated.v1
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
@@ -1967,7 +1951,6 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.platform.RulePackActivated.v1
       - com.dynokore.gst.platform.RulePackStaged.v1
-      - com.dynokore.gst.rules.RulePackActivated.v1
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
@@ -1981,7 +1964,6 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.platform.RulePackActivated.v1
       - com.dynokore.gst.platform.RulePackStaged.v1
-      - com.dynokore.gst.rules.RulePackActivated.v1
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
@@ -1995,7 +1977,6 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.platform.RulePackActivated.v1
       - com.dynokore.gst.platform.RulePackStaged.v1
-      - com.dynokore.gst.rules.RulePackActivated.v1
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
@@ -2009,7 +1990,6 @@ replay_topics:
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.platform.RulePackActivated.v1
       - com.dynokore.gst.platform.RulePackStaged.v1
-      - com.dynokore.gst.rules.RulePackActivated.v1
       - com.dynokore.gst.rules.RulePackStaged.v1
     content_topic: false
     record_topic: false
