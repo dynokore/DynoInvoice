@@ -66,5 +66,11 @@ class JooqPeriodSpans(
             .where(PERIOD_SPAN.TENANT_ID.eq(tenantId))
             .and(PERIOD_SPAN.ENTITY_REF.eq(entityRef))
             .orderBy(PERIOD_SPAN.PERIOD_START, PERIOD_SPAN.PERIOD_REF)
-            .fetch { PeriodSpan(it[PERIOD_SPAN.PERIOD_REF]!!, it[PERIOD_SPAN.PERIOD_START]!!, it[PERIOD_SPAN.PERIOD_END]!!) }
+            .fetch {
+                PeriodSpan(
+                    it[PERIOD_SPAN.PERIOD_REF]!!,
+                    it[PERIOD_SPAN.PERIOD_START]!!,
+                    it[PERIOD_SPAN.PERIOD_END]!!,
+                )
+            }
 }
