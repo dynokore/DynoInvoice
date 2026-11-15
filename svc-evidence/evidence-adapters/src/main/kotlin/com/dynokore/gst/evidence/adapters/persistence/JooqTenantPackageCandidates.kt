@@ -15,6 +15,7 @@ import org.jooq.DSLContext
 import org.jooq.Field
 import org.jooq.Table
 import java.security.MessageDigest
+import java.util.HexFormat
 import java.util.UUID
 
 /** The content of one tenant read is larger than the configured limit; nothing is returned (fail closed). */
@@ -37,9 +38,7 @@ class JooqTenantPackageCandidates(
         require(maxBytes > 0) { "maxBytes must be positive" }
     }
 
-    private class Chain(
-        val contentClass: PackageContentClass,
-        val table: Table<*>,
+    private class Columns(
         val tenant: Field<UUID?>,
         val entity: Field<String?>,
         val period: Field<String?>,
@@ -47,43 +46,57 @@ class JooqTenantPackageCandidates(
         val content: Field<ByteArray?>,
     )
 
+    private class Chain(
+        val contentClass: PackageContentClass,
+        val table: Table<*>,
+        val columns: Columns,
+    )
+
     private val chains =
         listOf(
             Chain(
                 PackageContentClass.TRANSMITTED_XML,
                 EVIDENCE_PAYLOAD,
-                EVIDENCE_PAYLOAD.TENANT_ID,
-                EVIDENCE_PAYLOAD.ENTITY_REF,
-                EVIDENCE_PAYLOAD.PERIOD_REF,
-                EVIDENCE_PAYLOAD.SEQ,
-                EVIDENCE_PAYLOAD.CONTENT,
+                Columns(
+                    EVIDENCE_PAYLOAD.TENANT_ID,
+                    EVIDENCE_PAYLOAD.ENTITY_REF,
+                    EVIDENCE_PAYLOAD.PERIOD_REF,
+                    EVIDENCE_PAYLOAD.SEQ,
+                    EVIDENCE_PAYLOAD.CONTENT,
+                ),
             ),
             Chain(
                 PackageContentClass.ACKNOWLEDGEMENTS,
                 ACKNOWLEDGEMENT,
-                ACKNOWLEDGEMENT.TENANT_ID,
-                ACKNOWLEDGEMENT.ENTITY_REF,
-                ACKNOWLEDGEMENT.PERIOD_REF,
-                ACKNOWLEDGEMENT.SEQ,
-                ACKNOWLEDGEMENT.CONTENT,
+                Columns(
+                    ACKNOWLEDGEMENT.TENANT_ID,
+                    ACKNOWLEDGEMENT.ENTITY_REF,
+                    ACKNOWLEDGEMENT.PERIOD_REF,
+                    ACKNOWLEDGEMENT.SEQ,
+                    ACKNOWLEDGEMENT.CONTENT,
+                ),
             ),
             Chain(
                 PackageContentClass.DECISION_TRACES,
                 DECISION_TRACE,
-                DECISION_TRACE.TENANT_ID,
-                DECISION_TRACE.ENTITY_REF,
-                DECISION_TRACE.PERIOD_REF,
-                DECISION_TRACE.SEQ,
-                DECISION_TRACE.CONTENT,
+                Columns(
+                    DECISION_TRACE.TENANT_ID,
+                    DECISION_TRACE.ENTITY_REF,
+                    DECISION_TRACE.PERIOD_REF,
+                    DECISION_TRACE.SEQ,
+                    DECISION_TRACE.CONTENT,
+                ),
             ),
             Chain(
                 PackageContentClass.AUDIT_LOG,
                 AUDIT_LOG,
-                AUDIT_LOG.TENANT_ID,
-                AUDIT_LOG.ENTITY_REF,
-                AUDIT_LOG.PERIOD_REF,
-                AUDIT_LOG.SEQ,
-                AUDIT_LOG.CONTENT,
+                Columns(
+                    AUDIT_LOG.TENANT_ID,
+                    AUDIT_LOG.ENTITY_REF,
+                    AUDIT_LOG.PERIOD_REF,
+                    AUDIT_LOG.SEQ,
+                    AUDIT_LOG.CONTENT,
+                ),
             ),
         )
 
@@ -97,22 +110,22 @@ class JooqTenantPackageCandidates(
     ): List<PackageCandidate> {
         val candidates = mutableListOf<PackageCandidate>()
         var total = 0L
+        val c = chain.columns
         dsl
-            .select(chain.entity, chain.period, chain.seq, chain.content)
+            .select(c.entity, c.period, c.seq, c.content)
             .from(chain.table)
-            .where(chain.tenant.eq(tenant.value))
-            
-            .orderBy(chain.entity, chain.period, chain.seq)
+            .where(c.tenant.eq(tenant.value))
+            .orderBy(c.entity, c.period, c.seq)
             .fetchSize(FETCH_SIZE)
             .fetchLazy()
             .use { cursor ->
                 for (row in cursor) {
-                    val bytes = checkNotNull(row.get(chain.content)) { "chain content is null" }
+                    val bytes = checkNotNull(row.get(c.content)) { "chain content is null" }
                     total += bytes.size
                     if (total > maxBytes) throw PackageSizeRefusal(chain.contentClass, maxBytes)
-                    val entity = checkNotNull(row.get(chain.entity))
-                    val period = checkNotNull(row.get(chain.period))
-                    val name = "${checkNotNull(row.get(chain.seq))}-${scopeDigest(entity, period)}"
+                    val entity = checkNotNull(row.get(c.entity))
+                    val period = checkNotNull(row.get(c.period))
+                    val name = "${checkNotNull(row.get(c.seq))}-${scopeDigest(entity, period)}"
                     candidates +=
                         PackageCandidate(
                             tenant,
@@ -138,7 +151,7 @@ class JooqTenantPackageCandidates(
             digest.update(entity.toByteArray(Charsets.UTF_8))
             digest.update(0)
             digest.update(period.toByteArray(Charsets.UTF_8))
-            return digest.digest().joinToString("") { "%02x".format(it) }.take(DIGEST_HEX)
+            return digest.digest().let { HexFormat.of().formatHex(it) }.take(DIGEST_HEX)
         }
     }
 }

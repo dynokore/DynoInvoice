@@ -50,8 +50,9 @@ class TenantPackageCandidatesDbTest {
             entities.forEach { entity ->
                 for (seq in 1..rows) {
                     dsl.execute(
-                        "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, content, " +
-                            "content_hash, recorded_at) values (gen_random_uuid(), ?, ?, '2026-Q1', ?, 'T', ?, ?, now())",
+                        "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +
+                            "content, content_hash, recorded_at) " +
+                            "values (gen_random_uuid(), ?, ?, '2026-Q1', ?, 'T', ?, ?, now())",
                         tenant,
                         entity,
                         seq.toLong(),
@@ -92,7 +93,7 @@ class TenantPackageCandidatesDbTest {
     fun `INV-AC-22948 the reader names the same seq under two entities differently`() {
         fixture()
         val names = read(t1).filter { it.item.contentClass == PackageContentClass.AUDIT_LOG }.map { it.item.name }
-        names.filter { it.startsWith("1-") }.size shouldBe 2
+        names.count { it.startsWith("1-") } shouldBe 2
         names.toSet().size shouldBe 4
     }
 

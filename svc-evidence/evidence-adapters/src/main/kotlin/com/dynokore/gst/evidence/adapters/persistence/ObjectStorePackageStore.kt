@@ -35,7 +35,13 @@ class ObjectStorePackageStore(
                 .plusYears(retention.years.toLong())
                 .toInstant()
         check(MANIFEST in files.paths) { "the package has no $MANIFEST" }
-        files.paths.forEach { path -> store.put(ObjectKey(prefix + path), checkNotNull(files.bytes(path)) { "the package lists $path without bytes" }, retainUntil) }
+        files.paths.forEach { path ->
+            store.put(
+                ObjectKey(prefix + path),
+                checkNotNull(files.bytes(path)) { "the package lists $path without bytes" },
+                retainUntil,
+            )
+        }
         return "$scheme://$prefix$MANIFEST"
     }
 
