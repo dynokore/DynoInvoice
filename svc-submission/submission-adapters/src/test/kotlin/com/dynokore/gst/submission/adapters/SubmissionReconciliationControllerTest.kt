@@ -231,7 +231,7 @@ class SubmissionReconciliationControllerTest {
     }
 
     @Test
-    fun `INV-AC-16328 the classification instant is the injected clock read by the delegate and shared with the list`() {
+    fun `INV-AC-16328 the classification instant is the injected clock and is shared with the list`() {
         // V (deadline 2026-11-14) is not yet due at 2026-11-13 and overdue at 2026-11-15; the list and the view agree.
         fun notAcknowledged(at: Instant): Pair<Int, Int> {
             val f = fixture(READER, at = Clock.fixed(at, ZoneOffset.UTC))
