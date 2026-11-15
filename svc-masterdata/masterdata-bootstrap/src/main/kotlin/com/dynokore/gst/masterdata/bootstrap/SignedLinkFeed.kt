@@ -3,7 +3,9 @@ package com.dynokore.gst.masterdata.bootstrap
 import com.dynokore.gst.masterdata.adapters.events.ConsumedSignedLinkEvents
 import com.dynokore.gst.masterdata.adapters.events.SignedLinkInvalidatedHandler
 import com.dynokore.gst.masterdata.adapters.events.SignedLinkIssuedHandler
+import com.dynokore.gst.masterdata.adapters.events.SignedLinkOutcomeRecordedHandler
 import com.dynokore.gst.masterdata.adapters.persistence.JooqLinkBindings
+import com.dynokore.gst.masterdata.application.clientsignatory.ApplyLinkOutcome
 import com.dynokore.gst.masterdata.application.request.CounterpartyRequests
 import com.dynokore.gst.masterdata.application.request.SubmitCounterpartyDetails
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -46,6 +48,33 @@ class SignedLinkFeed {
         bindings: JooqLinkBindings,
         mapper: ObjectMapper,
     ) = SignedLinkInvalidatedHandler(tx, submit, bindings, mapper)
+
+    @Bean
+    fun signedLinkOutcomeRecordedHandler(
+        outcomes: ApplyLinkOutcome,
+        mapper: ObjectMapper,
+    ) = SignedLinkOutcomeRecordedHandler(outcomes, mapper)
+
+    @Bean
+    @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)
+    @Suppress("LongParameterList")
+    fun signedLinkOutcomeRecordedConsumer(
+        catalogue: EventCatalogue,
+        reader: EventLogReader,
+        scope: TenantScope,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+        signedLinkOutcomeRecordedHandler: SignedLinkOutcomeRecordedHandler,
+    ): JdbcInboxConsumer =
+        consumer(
+            ConsumedSignedLinkEvents.SIGNED_LINK_OUTCOME_RECORDED_TOPIC,
+            catalogue,
+            reader,
+            scope,
+            rebuildRequired,
+            clock,
+            signedLinkOutcomeRecordedHandler,
+        )
 
     @Bean
     @ConditionalOnBean(EventLogReader::class, TenantScope::class, RebuildRequiredSink::class)

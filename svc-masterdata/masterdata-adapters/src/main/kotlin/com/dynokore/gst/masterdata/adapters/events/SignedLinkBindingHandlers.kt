@@ -1,6 +1,11 @@
 package com.dynokore.gst.masterdata.adapters.events
 
 import com.dynokore.gst.masterdata.adapters.persistence.JooqLinkBindings
+import com.dynokore.gst.masterdata.application.clientsignatory.ApplyLinkOutcome
+import com.dynokore.gst.masterdata.application.clientsignatory.LinkRefusalReason
+import com.dynokore.gst.masterdata.application.clientsignatory.LinkState
+import com.dynokore.gst.masterdata.application.clientsignatory.LinkStatus
+import com.dynokore.gst.masterdata.application.clientsignatory.OutcomeResult
 import com.dynokore.gst.masterdata.application.request.CounterpartyRequests
 import com.dynokore.gst.masterdata.application.request.SubmitCounterpartyDetails
 import com.dynokore.platform.outboxandqueue.ContractViolation
@@ -19,19 +24,23 @@ object ConsumedSignedLinkEvents {
     const val SIGNED_LINK_ISSUED_TOPIC = "gst.access.signed-link-issued.v1"
     const val SIGNED_LINK_INVALIDATED = "com.dynokore.gst.access.SignedLinkInvalidated.v1"
     const val SIGNED_LINK_INVALIDATED_TOPIC = "gst.access.signed-link-invalidated.v1"
+    const val SIGNED_LINK_OUTCOME_RECORDED = "com.dynokore.gst.access.SignedLinkOutcomeRecorded.v1"
+    const val SIGNED_LINK_OUTCOME_RECORDED_TOPIC = "gst.access.signed-link-outcome-recorded.v1"
 
     /** The asyncapi channels these consumers implement (operations.tsv lists them). */
     const val ISSUED_CHANNEL = "accessSignedLinkIssued"
     const val INVALIDATED_CHANNEL = "accessSignedLinkInvalidated"
+    const val OUTCOME_RECORDED_CHANNEL = "accessSignedLinkOutcomeRecorded"
 
     /** The emitting service of both events. */
     const val EMITTER = "access-svc"
 
-    /** Event type to topic: exactly the two subscriptions of this service for the link bindings. */
+    /** Event type to topic: the subscriptions of this service for the link bindings and the link outcome. */
     val SUBSCRIPTIONS: Map<String, String> =
         mapOf(
             SIGNED_LINK_ISSUED to SIGNED_LINK_ISSUED_TOPIC,
             SIGNED_LINK_INVALIDATED to SIGNED_LINK_INVALIDATED_TOPIC,
+            SIGNED_LINK_OUTCOME_RECORDED to SIGNED_LINK_OUTCOME_RECORDED_TOPIC,
         )
 
     /** The published form of a linkRef (access payload schemas). */
@@ -39,7 +48,7 @@ object ConsumedSignedLinkEvents {
     const val SUBJECT_MAX = 40
 }
 
-private fun JsonNode.text(name: String): String =
+internal fun JsonNode.text(name: String): String =
     this[name]?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() }
         ?: throw ContractViolation("payload member $name is required")
 
@@ -117,6 +126,48 @@ class SignedLinkInvalidatedHandler(
             submit.applyInvalidated(linkRef, at)
             bindings.recordEvent(linkRef, event.id.toString())
             HandleOutcome.APPLIED
+        }
+    }
+}
+
+/**
+ * SignedLinkOutcomeRecorded (INV-Q-17431, INV-T-17443): finds the client signatory whose stored `requestEventId` is the
+ * event's and sets its link status to ISSUED, or to REFUSED with the event's `reasonCode`. Only a PENDING record
+ * changes, so a repeat or a stale outcome changes nothing; an event for an unknown request id changes no record and is
+ * a handled no-op (IGNORED). A payload that does not match the contract is a [ContractViolation] (parked, never
+ * dropped).
+ */
+class SignedLinkOutcomeRecordedHandler(
+    private val outcomes: ApplyLinkOutcome,
+    private val mapper: ObjectMapper,
+) : EventHandler {
+    override fun handle(event: Envelope): HandleOutcome {
+        require(event.type == ConsumedSignedLinkEvents.SIGNED_LINK_OUTCOME_RECORDED) { "unexpected ${event.type}" }
+        val data = mapper.readTree(event.dataJson)
+        val requestEventId = data.text("requestEventId")
+        data.text("subjectReference")
+        data.instant("occurredAt")
+        val status =
+            when (val outcome = data.text("outcome")) {
+                "ISSUED" -> {
+                    LinkStatus(LinkState.ISSUED)
+                }
+
+                "REFUSED" -> {
+                    val code = data.text("reasonCode")
+                    val reason =
+                        LinkRefusalReason.entries.firstOrNull { it.name == code }
+                            ?: throw ContractViolation("reasonCode $code is not a known reason")
+                    LinkStatus(LinkState.REFUSED, reason)
+                }
+
+                else -> {
+                    throw ContractViolation("outcome $outcome is not ISSUED or REFUSED")
+                }
+            }
+        return when (outcomes.apply(requestEventId, status)) {
+            OutcomeResult.APPLIED -> HandleOutcome.APPLIED
+            OutcomeResult.NO_CHANGE, OutcomeResult.UNKNOWN_REQUEST -> HandleOutcome.IGNORED
         }
     }
 }

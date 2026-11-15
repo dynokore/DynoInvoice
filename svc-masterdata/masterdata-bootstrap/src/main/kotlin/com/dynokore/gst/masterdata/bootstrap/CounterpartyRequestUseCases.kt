@@ -1,12 +1,19 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.events.ClientSignatoryLinkOutbox
 import com.dynokore.gst.masterdata.adapters.events.SignedLinkRequestedOutbox
 import com.dynokore.gst.masterdata.adapters.http.LinkSubmissionAudit
+import com.dynokore.gst.masterdata.adapters.persistence.JooqClientSignatories
 import com.dynokore.gst.masterdata.adapters.persistence.JooqCounterpartyRequests
 import com.dynokore.gst.masterdata.adapters.persistence.JooqLinkBindings
 import com.dynokore.gst.masterdata.adapters.registry.PolicySendMethod
+import com.dynokore.gst.masterdata.application.clientsignatory.ApplyLinkOutcome
+import com.dynokore.gst.masterdata.application.clientsignatory.ClientSignatories
+import com.dynokore.gst.masterdata.application.clientsignatory.ClientSignatoryLinkPublisher
+import com.dynokore.gst.masterdata.application.clientsignatory.RecordClientSignatory
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
+import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.gst.masterdata.application.request.CounterpartyRequests
 import com.dynokore.gst.masterdata.application.request.LinkBindings
 import com.dynokore.gst.masterdata.application.request.LinkValidityLimits
@@ -183,4 +190,35 @@ class CounterpartyRequestUseCases {
         publisher: MasterDataResolvedPublisher,
         audit: SubmissionAudit,
     ) = SubmitCounterpartyDetails(tx, stores, parties, clock, publisher, audit)
+
+    @Bean
+    fun clientSignatories(
+        dsl: DSLContext,
+        clock: Clock,
+    ): ClientSignatories = JooqClientSignatories(dsl, clock)
+
+    @Bean
+    fun clientSignatoryLinkPublisher(
+        outbox: OutboxWriter,
+        mapper: ObjectMapper,
+        tenants: TenantContext,
+    ): ClientSignatoryLinkPublisher = ClientSignatoryLinkOutbox(outbox, mapper, tenants)
+
+    /** `recordClientSignatory` (INV-T-17443): `client-signatory.record` is decided per request through the replica. */
+    @Bean
+    @Suppress("LongParameterList")
+    fun recordClientSignatory(
+        tx: TransactionRunner,
+        store: ClientSignatories,
+        permission: TenantPermission,
+        limits: LinkValidityLimits,
+        clock: Clock,
+        publisher: ClientSignatoryLinkPublisher,
+    ) = RecordClientSignatory(tx, store, permission, limits, clock, publisher)
+
+    @Bean
+    fun applyLinkOutcome(
+        tx: TransactionRunner,
+        store: ClientSignatories,
+    ) = ApplyLinkOutcome(tx, store)
 }

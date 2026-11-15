@@ -18,8 +18,9 @@ object PublishedChannels {
     /**
      * The asyncapi channels of other services this build consumes, each through an idempotent consumer of the link
      * bindings (`SignedLinkIssued`, `SignedLinkInvalidated` of access-svc) and the held-documents replica
-     * (`DocumentHeld`, `DocumentReleased` of canonical-svc). The contract gate holds these `done`
-     * exactly as the published ones: [IMPLEMENTED] is the union.
+     * (`DocumentHeld`, `DocumentReleased` of canonical-svc). `SignedLinkOutcomeRecorded` is consumed too but is not
+     * a channel of the masterdata contract yet, so it is not listed here (INV-T-17443 gap). The contract gate holds
+     * these `done` exactly as the published ones: [IMPLEMENTED] is the union.
      */
     val CONSUMED: Set<String> =
         setOf(

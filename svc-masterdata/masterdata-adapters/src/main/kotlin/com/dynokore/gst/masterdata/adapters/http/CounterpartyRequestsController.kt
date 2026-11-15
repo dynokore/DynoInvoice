@@ -1,10 +1,14 @@
 package com.dynokore.gst.masterdata.adapters.http
 
+import com.dynokore.gst.masterdata.application.clientsignatory.RecordClientSignatory
+import com.dynokore.gst.masterdata.application.clientsignatory.RecordClientSignatoryCommand
 import com.dynokore.gst.masterdata.application.request.CounterpartyDetails
 import com.dynokore.gst.masterdata.application.request.SubmitCounterpartyDetails
 import com.dynokore.gst.masterdata.application.request.SubmitOutcome
 import com.dynokore.gst.masterdata.contract.api.CounterpartyRequestsApi
+import com.dynokore.gst.masterdata.contract.model.ClientSignatoryRecord
 import com.dynokore.gst.masterdata.contract.model.Counterparty
+import com.dynokore.gst.masterdata.contract.model.RecordClientSignatoryRequest
 import com.dynokore.gst.masterdata.contract.model.SubmitCounterpartyDetailsRequest
 import com.dynokore.gst.masterdata.domain.counterparty.PostalAddress
 import com.dynokore.gst.masterdata.domain.request.LinkPrincipal
@@ -35,7 +39,32 @@ open class CounterpartyRequestsController(
     private val submit: SubmitCounterpartyDetails,
     private val principals: ObjectProvider<EndUserPrincipalResolver>,
     private val tenants: TenantContext,
+    private val recordClientSignatory: RecordClientSignatory,
 ) : CounterpartyRequestsApi {
+    /**
+     * `recordClientSignatory` (INV-T-17443, INV-REQ-899): the use case decides `client-signatory.record` first and a
+     * denied caller gets 403 SRT-004 with nothing stored; the caller is the actor bound to the request.
+     */
+    override fun recordClientSignatory(
+        idempotencyKey: UUID,
+        recordClientSignatoryRequest: RecordClientSignatoryRequest,
+    ): ResponseEntity<ClientSignatoryRecord> {
+        val caller =
+            tenants.currentActor()?.takeIf { it.isNotBlank() } ?: throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+        val outcome =
+            recordClientSignatory.handle(
+                RecordClientSignatoryCommand(
+                    caller = caller,
+                    clientRef = recordClientSignatoryRequest.clientRef,
+                    signatoryName = recordClientSignatoryRequest.signatoryName,
+                    signatoryEmail = recordClientSignatoryRequest.signatoryEmail,
+                    signatoryMobile = recordClientSignatoryRequest.signatoryMobile,
+                    consentRef = recordClientSignatoryRequest.consentRef,
+                ),
+            )
+        return ClientSignatoryMapping.answer(outcome)
+    }
+
     override fun submitCounterpartyDetails(
         requestId: String,
         idempotencyKey: UUID,

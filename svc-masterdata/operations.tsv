@@ -27,6 +27,7 @@ operation	confirmNetworkRegistration	INV-T-4946	done
 operation	listRegisterSuggestions	INV-T-4946	done
 operation	confirmRegisterSuggestion	INV-T-4946	done
 operation	exportGapReport	INV-T-4944	done
+operation	recordClientSignatory	INV-T-17443	done
 channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-18775	done
 channel	masterdataSignedLinkRequested	INV-T-4945	open
