@@ -4,6 +4,7 @@ import com.dynokore.gst.submission.application.offboarding.MeasureUnsubmittedCou
 import com.dynokore.gst.submission.application.offboarding.MeasuredTenantSource
 import com.dynokore.gst.submission.application.offboarding.UnsubmittedCountsByEntity
 import com.dynokore.gst.submission.application.queue.TenantTransactions
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -46,6 +47,7 @@ class UnsubmittedCountMeasurementJobTest {
         val type: String,
         val data: String,
         val boundTenant: TenantId?,
+        val entity: EntityRef,
     )
 
     /** One scope: a current-tenant binding, a transaction that commits the buffered events only when it returns. */
@@ -97,7 +99,7 @@ class UnsubmittedCountMeasurementJobTest {
                     context: EventContext,
                 ): List<Envelope> {
                     if (!inTransaction) appendedOutsideTransaction++
-                    events.forEach { buffer += Written(context.tenant, it.type, it.dataJson, current) }
+                    events.forEach { buffer += Written(context.tenant, it.type, it.dataJson, current, context.entity) }
                     return emptyList()
                 }
             }
@@ -156,6 +158,7 @@ class UnsubmittedCountMeasurementJobTest {
             it.type shouldBe "com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1"
             SubmissionEvents.topicByType[it.type] shouldBe "gst.submission.unsubmitted-document-count-measured.v1"
             it.data shouldBe expectedByTenant.getValue(it.tenant)
+            it.entity shouldBe EntityRef.TENANT_WIDE
         }
     }
 
