@@ -237,20 +237,22 @@ class PackIdentifierAnswerTest {
     }
 
     @Test
-    fun `INV-AC-22908 c the SCOPE packIdentifier joins to the RulePackActivated packIdentifier by string equality`() {
-        val registered = scopeVersion.manifest
-        val activated =
-            PackEventMapper().map(
-                PackEvent.RulePackActivated(
-                    registered.packId.value,
-                    registered.version.value,
-                    registered.effectiveFrom,
-                ),
-            )
-        val published = mapper.readTree(activated.dataJson).get("packIdentifier").asString()
-        val scope = answer(classified).packVersionsApplied.orEmpty().single { it.packType == "SCOPE" }
-        published shouldBe "gst-scope"
-        scope.packIdentifier shouldBe published
+    fun `INV-AC-22908 c the SCOPE packIdentifier joins to the RulePackActivated packIdentifier, each type`() {
+        val items = answer(classified).packVersionsApplied.orEmpty()
+        byType.forEach { (type, registeredVersion) ->
+            val registered = registeredVersion.manifest
+            val activated =
+                PackEventMapper().map(
+                    PackEvent.RulePackActivated(
+                        registered.packId.value,
+                        registered.version.value,
+                        registered.effectiveFrom,
+                    ),
+                )
+            val published = mapper.readTree(activated.dataJson).get("packIdentifier").asString()
+            items.single { it.packType == type }.packIdentifier shouldBe published
+        }
+        items.single { it.packType == "SCOPE" }.packIdentifier shouldBe "gst-scope"
     }
 
     @Test
