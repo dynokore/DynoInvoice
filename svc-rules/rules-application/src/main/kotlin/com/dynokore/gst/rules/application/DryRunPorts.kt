@@ -112,3 +112,11 @@ interface DryRunDeltaStore {
     /** The stored run, or null for an id that does not exist. */
     fun find(dryRunId: String): StoredDryRun?
 }
+
+/**
+ * A scoped permission decision by AuthorityReplica.decide for the key `pack.dry-run` (INV-AC-22855); never a role name.
+ * One key serves every pack kind. [mayDryRun] answers whether the acting user ID holds it.
+ */
+fun interface DryRunPermissionPort {
+    fun mayDryRun(user: String): Boolean
+}

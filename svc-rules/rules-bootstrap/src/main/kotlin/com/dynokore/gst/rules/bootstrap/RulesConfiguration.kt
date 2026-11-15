@@ -51,6 +51,7 @@ import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.DryRunDeltaStore
+import com.dynokore.gst.rules.application.DryRunPermissionPort
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.HolderCopyPort
@@ -497,6 +498,27 @@ class RulesConfiguration {
             decision.allowed
         }
 
+    /**
+     * The scoped permission `pack.dry-run` of `dryRun`, decided by `AuthorityReplica.decideTenant` for the caller's
+     * tenant (INV-Q-10027): never a role name. A decision that is not answered from the local replica, and a context
+     * with no replica, is the 503 SRT-013 of the contract. It has no caller yet (INV-T-22819).
+     */
+    @Bean
+    fun dryRunPermissionPort(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): DryRunPermissionPort =
+        DryRunPermissionPort { user ->
+            val decision =
+                replica.ifAvailable?.decideTenant(
+                    tenants.current(),
+                    Principal(user, PrincipalKind.HUMAN),
+                    PACK_DRY_RUN,
+                ) ?: throw unavailable("the permission decision is not available")
+            if (decision.source != DecisionSource.LOCAL) throw unavailable("the permission decision is not available")
+            decision.allowed
+        }
+
     @Bean
     fun approveRegulatoryPack(
         store: RegulatoryPackStore,
@@ -630,6 +652,7 @@ class RulesConfiguration {
         const val PACK_SOURCE_DIRECTORY = "rules.pack-source.directory"
         const val REGULATORY_PACK_IMPORT_VERIFY = "regulatory-pack.import-verify"
         const val REGULATORY_PACK_APPROVE = "regulatory-pack.approve"
+        const val PACK_DRY_RUN = "pack.dry-run"
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
         const val ACCESS_URL_PROPERTY = "rules.access-svc-url"
         const val SCHEMA = "rules"
