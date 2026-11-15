@@ -238,3 +238,7 @@ exportRef	property	schemas/offboarding-export-requested-payload.schema.json	INV-
 scope	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
 entityRef	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
 requestedAt	property	schemas/offboarding-export-requested-payload.schema.json	INV-REQ-877
+# INV-T-21519: optional entityId member of the EntityProfileChanged payload (INV-REQ-479)
+entityId	property	schemas/entity-profile-changed-payload.schema.json	INV-REQ-479
+# INV-T-21519: optional periodId member of each PeriodRecordsChanged period item (INV-REQ-479)
+periodId	property	schemas/period-records-changed-payload.schema.json	INV-REQ-479

@@ -41,6 +41,11 @@
       "description": "Date the changed profile takes effect.",
       "format": "date"
     },
+    "entityId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Optional. The identifier svc-tenancy holds for the entity named by entityRef; absent is valid."
+    },
     "constitution": {
       "type": "string",
       "enum": [

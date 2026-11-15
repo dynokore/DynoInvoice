@@ -26,6 +26,11 @@
             "type": "string",
             "description": "Reference of the period record."
           },
+          "periodId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional. The identifier of the period record in force that periodRef names; absent is valid."
+          },
           "periodStart": {
             "type": "string",
             "format": "date",
