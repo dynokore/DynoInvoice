@@ -28,6 +28,7 @@ data class RecordDocumentCommand(
     val localPostingTimestamp: LocalDateTime? = null,
     val sourceTimeZone: String? = null,
     val lines: List<RecordLine> = emptyList(),
+    val content: DocumentContent? = null,
 )
 
 /** Builds the result text of a recorded document; implemented outside this service. */
