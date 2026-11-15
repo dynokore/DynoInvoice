@@ -37,7 +37,10 @@ class OffboardingExportJobDbTest {
         EvidenceDb.superuser().use { c ->
             c.prepareStatement("select count(*) from evidence.offboarding_export_job where tenant_id = ?").use {
                 it.setObject(1, tenant)
-                it.executeQuery().use { rs -> rs.next(); rs.getInt(1) }
+                it.executeQuery().use { rs ->
+                    rs.next()
+                    rs.getInt(1)
+                }
             }
         }
 
@@ -45,12 +48,16 @@ class OffboardingExportJobDbTest {
         EvidenceDb.superuser().use { c ->
             c
                 .prepareStatement(
-                    "select state || '|' || coalesce(finished_at::text, '') || '|' || coalesce(manifest_uri, '') || '|' || " +
-                        "coalesce(item_count::text, '') || '|' || coalesce(failure_reason, '') " +
+                    "select state || '|' || coalesce(finished_at::text, '') || '|' || " +
+                        "coalesce(manifest_uri, '') || '|' || coalesce(item_count::text, '') || '|' || " +
+                        "coalesce(failure_reason, '') " +
                         "from evidence.offboarding_export_job where tenant_id = ?",
                 ).use {
                     it.setObject(1, tenant)
-                    it.executeQuery().use { rs -> rs.next(); rs.getString(1) }
+                    it.executeQuery().use { rs ->
+                        rs.next()
+                        rs.getString(1)
+                    }
                 }
         }
 

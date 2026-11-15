@@ -94,10 +94,10 @@ class JooqOffboardingExportJobs(
 
     private fun toJob(r: Record): ExportJob =
         ExportJob(
-            tenant = TenantId(r.get(t.TENANT_ID)!!),
-            offboardingRef = r.get(t.OFFBOARDING_REF)!!,
-            exportRef = r.get(t.EXPORT_REF)!!,
-            state = ExportState.valueOf(r.get(t.STATE)!!),
+            tenant = TenantId(checkNotNull(r.get(t.TENANT_ID))),
+            offboardingRef = checkNotNull(r.get(t.OFFBOARDING_REF)),
+            exportRef = checkNotNull(r.get(t.EXPORT_REF)),
+            state = ExportState.valueOf(checkNotNull(r.get(t.STATE))),
             manifestRef = r.get(t.MANIFEST_URI),
             itemCount = r.get(t.ITEM_COUNT)?.toInt(),
             contents = r.get(t.CONTENTS)?.filterNotNull().orEmpty(),

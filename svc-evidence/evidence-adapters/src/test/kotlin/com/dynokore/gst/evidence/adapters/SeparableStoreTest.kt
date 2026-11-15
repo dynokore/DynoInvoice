@@ -65,6 +65,8 @@ class SeparableStoreTest {
             "integrity_run.period_digest" to "sha256:" + "a".repeat(HASH_LENGTH),
             "integrity_failure.evidence_type" to "PAYLOAD",
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
+            "offboarding_export_job.scope" to "TENANT",
+            "offboarding_export_job.state" to "REQUESTED",
             "job_run.status" to "SUCCEEDED",
             "job_run.trigger" to "SCHEDULED",
             "job_pause.paused_until" to OffsetDateTime.of(2026, 3, 21, 10, 15, 30, 123_000_000, ZoneOffset.UTC),
