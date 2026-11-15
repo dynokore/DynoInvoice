@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events submission-svc may emit (INV-REQ-815 behaviour 2): the seven of model/architecture/events.yaml it
+ * The events submission-svc may emit (INV-REQ-815 behaviour 2): the eight of model/architecture/events.yaml it
  * produces, each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type.
  * The catalogue also lists the one event it consumes, produced by payload-svc, so the consumer can read its topic.
  */
@@ -35,6 +35,7 @@ object SubmissionEvents {
             "ComplianceAlertValuesMeasured" to "gst.submission.compliance-alert-values-measured.v1",
             "DocumentCodeRaised" to "gst.submission.document-code-raised.v1",
             "SubmissionTypeDecided" to "gst.submission.submission-type-decided.v1",
+            "UnsubmittedDocumentCountMeasured" to "gst.submission.unsubmitted-document-count-measured.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
     val entries: List<CatalogueEntry> =

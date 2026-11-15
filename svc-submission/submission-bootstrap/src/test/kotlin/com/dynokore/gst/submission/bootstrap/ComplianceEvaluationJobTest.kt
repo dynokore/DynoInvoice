@@ -274,7 +274,7 @@ class ComplianceEvaluationJobTest {
     }
 
     @Test
-    fun `INV-AC-12837 the catalogue holds exactly the seven pairs and refuses look-alike types`(
+    fun `INV-AC-12837 the catalogue holds exactly the eight pairs and refuses look-alike types`(
         @TempDir dir: Path,
     ) = fixture(dir) { f ->
         SubmissionEvents.topicByType shouldBe
@@ -286,6 +286,8 @@ class ComplianceEvaluationJobTest {
                 TYPE to "gst.submission.compliance-alert-values-measured.v1",
                 "com.dynokore.gst.submission.DocumentCodeRaised.v1" to "gst.submission.document-code-raised.v1",
                 "com.dynokore.gst.submission.SubmissionTypeDecided.v1" to "gst.submission.submission-type-decided.v1",
+                "com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1" to
+                    "gst.submission.unsubmitted-document-count-measured.v1",
             )
         val writer = f.context.getBean(OutboxWriter::class.java)
         listOf(

@@ -1,6 +1,9 @@
 package com.dynokore.gst.submission.acceptance
 
+import com.dynokore.gst.submission.application.offboarding.EntityCount
+import com.dynokore.gst.submission.application.offboarding.UnsubmittedCountMeasurement
 import com.dynokore.gst.submission.bootstrap.SubmissionEvents
+import com.dynokore.gst.submission.bootstrap.UnsubmittedCountMeasurementJob
 import com.networknt.schema.SchemaRegistry
 import com.networknt.schema.SchemaRegistryConfig
 import com.networknt.schema.SpecificationVersion
@@ -16,6 +19,7 @@ import org.yaml.snakeyaml.Yaml
 import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.node.ObjectNode
 import java.io.File
+import java.time.Instant
 
 /**
  * A test per published channel (INV-T-5964): the sample payload of each channel of `asyncapi.yaml` validates against
@@ -67,6 +71,11 @@ class EventPayloadContractTest {
             "DocumentCodeRaised" to
                 """{"docUuid":"0b0e9a43-6d3c-4f6e-9f0a-3f2a6a1c9d11","version":1,"entityRef":"E-001","periodRef":"2026Q1",
                 |"code":"SUB-001"}
+                """.trimMargin(),
+            "UnsubmittedDocumentCountMeasured" to
+                """{"measuredAt":"2026-11-15T08:00:00Z","unsubmittedDocumentCount":5,
+                |"entities":[{"entityRef":"E1","unsubmittedDocumentCount":3},
+                |{"entityRef":"E2","unsubmittedDocumentCount":2}]}
                 """.trimMargin(),
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
@@ -139,6 +148,29 @@ class EventPayloadContractTest {
             val bad = mapper.readTree(sample.replace(Regex("\"$member\":[^,]+"), "\"$member\":$value"))
             errors("BacklogValuesMeasured", bad.toString()).shouldNotBeEmpty()
         }
+    }
+
+    @Test
+    @DisplayName(
+        "INV-AC-23028 the payload the measurement job writes validates against the schema of the pinned contract " +
+            "and does not validate without measuredAt",
+    )
+    fun unsubmittedDocumentCountMeasuredJobPayload() {
+        val measurement =
+            UnsubmittedCountMeasurement(
+                Instant.parse("2026-11-15T08:00:00Z"),
+                5,
+                listOf(EntityCount("E1", 3), EntityCount("E2", 2)),
+            )
+        val written = UnsubmittedCountMeasurementJob.data(measurement)
+        errors("UnsubmittedDocumentCountMeasured", written).shouldBeEmpty()
+        mapper.readTree(written) shouldBe mapper.readTree(samples.getValue("UnsubmittedDocumentCountMeasured"))
+        val without = mapper.readTree(written).also { (it as ObjectNode).remove("measuredAt") }
+        errors("UnsubmittedDocumentCountMeasured", without.toString()).shouldNotBeEmpty()
+        errors(
+            "UnsubmittedDocumentCountMeasured",
+            UnsubmittedCountMeasurementJob.data(measurement.copy(entities = emptyList(), total = 0)),
+        ).shouldBeEmpty()
     }
 
     @Test
