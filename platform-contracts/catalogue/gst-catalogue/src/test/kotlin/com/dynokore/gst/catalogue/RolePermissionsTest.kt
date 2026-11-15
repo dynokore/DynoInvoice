@@ -794,3 +794,22 @@ class PackDryRunRolePermissionsTest {
         assertEquals(3, OperationRoles.rolesFor(saas, key).size)
     }
 }
+
+class ClientSignatoryRecordKeyTest {
+    private val key = "client-signatory.record"
+    private val forms = listOf(DeploymentForm.SAAS, DeploymentForm.PRIVATE)
+
+    @Test
+    fun `INV-AC-17458 client signatory record is WRITE and held only by agent operator WITHIN_SCOPE in both forms`() {
+        assertEquals(PermissionKind.WRITE, RolePermissions.kind(key))
+        forms.forEach { form ->
+            val holders =
+                RolePermissions.cells(form).mapNotNull { (role, perms) -> perms[key]?.let { role to it } }.toMap()
+            val expected = mapOf("agent.operator" to RoleAllowance.WITHIN_SCOPE)
+            assertEquals(setOf("agent.operator"), holders.keys, "$form")
+            assertEquals(expected, holders, "$form")
+            assertEquals(expected, OperationRoles.rolesFor(form, key), "$form")
+        }
+        assertNull(RolePermissions.kind("client-signatory.records"))
+    }
+}

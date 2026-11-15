@@ -1413,3 +1413,9 @@ permissions:
     cells:
       - {role: tax.operator, form: SAAS, allowance: PERMITTED}
       - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
+  - key: client-signatory.record
+    kind: WRITE
+    row: "Record the client and send the signatory a consent link"
+    cells:
+      - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
+      - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
