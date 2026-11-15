@@ -44,6 +44,8 @@ object PayloadContext {
             "gst.bindings.secret-store.mount-root=$mountRoot",
             // the base URL of access-svc (INV-T-17184): the bean of the override wiring refuses to start without it
             "payload.access-svc-url=http://localhost:9",
+            "gst.bindings.telemetry-export=bundled-otel",
+            "gst.bindings.telemetry-export-otlp-endpoint=http://telemetry-export.invalid:4318",
         )
 
     private fun base(mountRoot: Path): ApplicationContextRunner =

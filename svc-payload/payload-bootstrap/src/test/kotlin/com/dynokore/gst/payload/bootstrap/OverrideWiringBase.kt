@@ -25,11 +25,14 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
-import com.dynokore.platform.serviceruntime.replica.Grant
+import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
 import com.dynokore.platform.serviceruntime.replica.ReplicaFallback
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
+import com.dynokore.platform.serviceruntime.replica.RoleGrant
+import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.sun.net.httpserver.HttpServer
@@ -74,9 +77,15 @@ open class OverrideWiringBase {
         override fun close() = server.stop(0)
     }
 
+    /** The test role of one action: a grant of one action never permits another. */
+    protected fun roleOf(action: String): String = "role-of-$action"
+
+    protected val roleMap: OperationRoleMap =
+        OperationRoleMap { key -> mapOf(roleOf(key) to CellAllowance.PERMITTED) }
+
     /** A replica whose snapshot is complete: a grant of [action] for [user] on E-001, LOCAL. */
     protected fun localReplica(vararg grants: Pair<String, String>): AuthorityReplica {
-        val replica = AuthorityReplica(Clock.systemUTC())
+        val replica = AuthorityReplica(Clock.systemUTC(), roleMap)
         replica.onSnapshotComplete(0)
         grants.forEachIndexed { index, (user, action) ->
             replica.accept(
@@ -84,9 +93,10 @@ open class OverrideWiringBase {
                     tenant,
                     user,
                     index + 1L,
-                    AuthorityRecord.GrantRecord(
-                        "E-001",
-                        listOf(Grant(action, ScopeLevel.ENTITY, "E-001", Instant.EPOCH)),
+                    AuthorityRecord.RoleGrantRecord(
+                        "g${index + 1}",
+                        RoleGrantState.ACTIVE,
+                        RoleGrant(roleOf(action), GrantScope.ENTITY, "E-001", Instant.EPOCH),
                     ),
                 ),
             )

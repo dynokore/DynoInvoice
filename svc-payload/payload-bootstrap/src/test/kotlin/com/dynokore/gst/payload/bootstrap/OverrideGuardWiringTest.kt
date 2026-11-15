@@ -26,10 +26,8 @@ import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.serviceruntime.replica.AuthorityVerdict
 import com.dynokore.platform.serviceruntime.replica.AuthorizationRequest
 import com.dynokore.platform.serviceruntime.replica.FallbackResult
-import com.dynokore.platform.serviceruntime.replica.Grant
 import com.dynokore.platform.serviceruntime.replica.PrincipalState
 import com.dynokore.platform.serviceruntime.replica.ReplicaFallback
-import com.dynokore.platform.serviceruntime.replica.ScopeLevel
 import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import com.sun.net.httpserver.HttpServer
@@ -73,6 +71,7 @@ class OverrideGuardWiringTest : OverrideWiringBase() {
             } else {
                 AuthorityReplica(
                     Clock.systemUTC(),
+                    roleMap,
                     fallback =
                         ReplicaFallback<AuthorizationRequest, AuthorityVerdict> { _, _ ->
                             FallbackResult.Found(AuthorityVerdict(true))

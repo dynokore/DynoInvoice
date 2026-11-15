@@ -183,7 +183,7 @@ class OutboxOverrideAuditTest {
     }
 
     @Test
-    fun `a request counts one audit entry and a release counts two`() {
+    fun `INV-AC-23217 a request counts one audit entry and a release counts two`() {
         request(ReleaseOutcome.AwaitsSecond, "U-1").shouldBeInstanceOf<OverrideResult.AwaitsSecond>()
         audits() shouldBe 1
         audits("requested") shouldBe 1
