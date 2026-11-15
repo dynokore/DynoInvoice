@@ -46,6 +46,9 @@ inv:
     # INV-Q-14316 A: the retry window of the planner (VP-48 retry_boundary) until the tenant values are read through
     # PolicyReader (a later slice). A positive integer; a missing, zero or negative value fails the start.
     retry-boundary-minutes: 240 # provisional
+    # INV-T-22769: minutes after acceptance at which a version still unacknowledged is overdue. No fallback: an unset
+    # INV_SUBMISSION_ACK_THRESHOLD_MINUTES fails the start (12-factor, factor III).
+    ack-threshold-minutes: ${INV_SUBMISSION_ACK_THRESHOLD_MINUTES}
     job-scheduling.enabled: true # INV-Q-16793 A: fire the registered jobs on their cron; tests set it false (SubmissionContext)
   filing:
     # The business zone in which a filing instant becomes a calendar date (ISO 8601; coordinator ruling round z, 2026-11-12, INV-T-20948): no default in code, a missing or invalid zone id fails the start.

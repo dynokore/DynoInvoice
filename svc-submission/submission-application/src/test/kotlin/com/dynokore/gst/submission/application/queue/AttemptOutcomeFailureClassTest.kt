@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.queue
 
+import com.dynokore.gst.submission.application.drain.SafetyMarginAnswer
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.retry.DeadLetterReason
 import com.dynokore.gst.submission.domain.retry.FailureResult
@@ -137,6 +138,11 @@ class AttemptOutcomeFailureClassTest {
             queue,
             SubmissionQueue(tenants, runner, store(row), versions, queue),
             noReporting,
+            AcknowledgementDeadlines(
+                { _, _ -> AcknowledgementBasis(null, SafetyMarginAnswer.Unavailable) },
+                ZoneOffset.UTC,
+                Duration.ofMinutes(120),
+            ),
         )
 
     private val timeout = TransportResult.TransientFailure("SUB-001", "timeout".toByteArray())

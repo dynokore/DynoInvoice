@@ -2,11 +2,16 @@ package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.catalogue.GstErrorCatalogue
 import com.dynokore.gst.submission.adapters.events.OutboxSubmissionFailedPublisher
+import com.dynokore.gst.submission.adapters.persistence.JooqAcknowledgementInputs
 import com.dynokore.gst.submission.adapters.persistence.JooqDueTenantSource
 import com.dynokore.gst.submission.adapters.persistence.JooqFailureCodes
 import com.dynokore.gst.submission.adapters.persistence.JooqWaitingTenantSource
 import com.dynokore.gst.submission.adapters.queue.ConfiguredRetryBoundary
 import com.dynokore.gst.submission.adapters.queue.RandomJitter
+import com.dynokore.gst.submission.application.drain.SafetyMargins
+import com.dynokore.gst.submission.application.filing.FilingDueDates
+import com.dynokore.gst.submission.application.queue.AcknowledgementDeadlines
+import com.dynokore.gst.submission.application.queue.AcknowledgementInputs
 import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
 import com.dynokore.gst.submission.application.queue.DefaultFailureReporting
 import com.dynokore.gst.submission.application.queue.DueRetryRunner
@@ -38,15 +43,19 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
+import java.time.Duration
+import java.time.ZoneId
 
 /** `inv.submission.*` of application.yaml: no default in code. */
 @ConfigurationProperties("inv.submission")
 data class SubmissionProperties(
     val retryBoundaryMinutes: Int,
+    val ackThresholdMinutes: Int,
 ) {
     init {
         // Spring Boot binds an absent Int as 0, so a missing key, a 0 and a negative value all fail the start.
         require(retryBoundaryMinutes > 0) { "inv.submission.retry-boundary-minutes must be greater than 0" }
+        require(ackThresholdMinutes > 0) { "inv.submission.ack-threshold-minutes must be greater than 0" }
     }
 }
 
@@ -125,8 +134,28 @@ class OutcomeConfiguration(
         queue: WorkQueue,
         submissions: SubmissionQueue,
         failures: FailureReporting,
+        deadlines: AcknowledgementDeadlines,
     ): AttemptOutcomeApplier =
-        AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue, submissions, failures)
+        AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue, submissions, failures, deadlines)
+
+    @Bean
+    fun acknowledgementInputs(
+        dsl: DSLContext,
+        dueDates: FilingDueDates,
+        margins: SafetyMargins,
+    ): AcknowledgementInputs = JooqAcknowledgementInputs(dsl, dueDates, margins)
+
+    @Bean
+    fun acknowledgementDeadlines(
+        inputs: AcknowledgementInputs,
+        filing: FilingProperties,
+        properties: SubmissionProperties,
+    ): AcknowledgementDeadlines =
+        AcknowledgementDeadlines(
+            inputs,
+            ZoneId.of(filing.businessZone),
+            Duration.ofMinutes(properties.ackThresholdMinutes.toLong()),
+        )
 
     @Bean
     fun sentRecovery(

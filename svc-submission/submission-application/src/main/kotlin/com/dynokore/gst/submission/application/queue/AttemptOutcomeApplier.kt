@@ -34,6 +34,7 @@ class AttemptOutcomeApplier(
     private val queue: WorkQueue,
     private val submissions: SubmissionQueue,
     private val failures: FailureReporting,
+    private val deadlines: AcknowledgementDeadlines,
 ) {
     fun apply(
         dispatch: Dispatch,
@@ -97,7 +98,14 @@ class AttemptOutcomeApplier(
         check(decision.transitions.isEmpty() && decision.signals.isEmpty()) {
             "AP accepted ${dispatch.docUuid} version ${dispatch.version}: unexpected decision $decision"
         }
-        store.recordAccepted(scope.current(), dispatch.docUuid, dispatch.version, now)
+        val tenant = scope.current()
+        store.recordAccepted(tenant, dispatch.docUuid, dispatch.version, now)
+        store.recordAcknowledgementDeadline(
+            tenant,
+            dispatch.docUuid,
+            dispatch.version,
+            deadlines.at(tenant, dispatch.docUuid, now),
+        )
     }
 
     private fun rejected(

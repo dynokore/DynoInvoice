@@ -5,6 +5,7 @@ import com.dynokore.gst.submission.adapters.persistence.jooq.tables.SubmissionAt
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.WorkQueue
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.records.SubmissionAttemptRecord
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.records.SubmissionRecord
+import com.dynokore.gst.submission.application.queue.AcknowledgementDeadlines
 import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
 import com.dynokore.gst.submission.application.queue.DespatchCycle
 import com.dynokore.gst.submission.application.queue.DueRetryRunner
@@ -85,6 +86,7 @@ class OutcomeFixture(
     val scope: TenantTransactions = context.getBean(TenantTransactions::class.java)
     val realDueTenants: DueTenantSource = context.getBean(DueTenantSource::class.java)
     private val bean: FailureReporting = context.getBean(FailureReporting::class.java)
+    private val deadlines: AcknowledgementDeadlines = context.getBean(AcknowledgementDeadlines::class.java)
     private val boundaries = RetryBoundarySource { _, _ -> boundary }
     private val jitter = JitterSource { 0.0 }
 
@@ -99,7 +101,7 @@ class OutcomeFixture(
         over: SubmissionStore = store,
         releasing: SubmissionQueue = queue,
         failures: FailureReporting = bean,
-    ) = AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, releasing, failures)
+    ) = AttemptOutcomeApplier(clock, boundaries, jitter, scope, over, workQueue, releasing, failures, deadlines)
 
     fun recovery() = SentRecovery(clock, scope, store, workQueue, sent)
 
