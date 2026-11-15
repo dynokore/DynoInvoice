@@ -67,24 +67,65 @@ class VpSetPermissionTest {
         replica.observeHead(version.get())
     }
 
-    private fun feed(
-        replica: AuthorityReplica,
-        who: String,
+    private data class Held(
+        val role: String,
+        val scope: GrantScope,
+        val ref: String?,
+        val until: Instant?,
+    )
+
+    private data class Rec(
+        val tenant: TenantId,
+        val state: RoleGrantState,
+        val grantRef: String?,
+    )
+
+    private data class Ask(
+        val who: String,
+        val entity: String,
+        val level: ScopeLevel,
+        val tenant: TenantId,
+    )
+
+    private fun held(
         role: String,
         scope: GrantScope,
         ref: String?,
+        until: Instant? = null,
+    ) = Held(role, scope, ref, until)
+
+    private fun signed(
+        ref: String,
+        until: Instant? = null,
+    ) = held("client.signatory", GrantScope.CLIENT_ENTITY, ref, until)
+
+    private fun rec(
         inTenant: TenantId = tenant,
         state: RoleGrantState = RoleGrantState.ACTIVE,
-        until: Instant? = null,
-        grantRef: String = "$role/$scope/$ref",
+        grantRef: String? = null,
+    ) = Rec(inTenant, state, grantRef)
+
+    private fun ask(
+        who: String = signatory,
+        entity: String = cli1,
+        level: ScopeLevel = ScopeLevel.CLIENT_ENTITY,
+        inTenant: TenantId = tenant,
+    ) = Ask(who, entity, level, inTenant)
+
+    private fun feed(
+        replica: AuthorityReplica,
+        who: String,
+        held: Held,
+        record: Rec = rec(),
     ) {
-        val grant = RoleGrant(role, scope, ref, Instant.now().minusSeconds(DAY), until)
+        val grant = RoleGrant(held.role, held.scope, held.ref, Instant.now().minusSeconds(DAY), held.until)
+        val ref = record.grantRef ?: "${held.role}/${held.scope}/${held.ref}"
         replica.accept(
             AuthorityChanged(
-                inTenant,
+                record.tenant,
                 who,
                 version.incrementAndGet(),
-                AuthorityRecord.RoleGrantRecord(grantRef, state, grant),
+                AuthorityRecord.RoleGrantRecord(ref, record.state, grant),
             ),
         )
         current(replica)
@@ -93,12 +134,10 @@ class VpSetPermissionTest {
     private fun decide(
         replica: AuthorityReplica,
         action: String,
-        who: String = signatory,
-        entity: String = cli1,
-        level: ScopeLevel = ScopeLevel.CLIENT_ENTITY,
-        inTenant: TenantId = tenant,
+        ask: Ask = ask(),
     ): Triple<Boolean, DecisionSource, DecisionReason> {
-        val request = AuthorizationRequest(inTenant, Principal(who, PrincipalKind.HUMAN), entity, action, level = level)
+        val principal = Principal(ask.who, PrincipalKind.HUMAN)
+        val request = AuthorizationRequest(ask.tenant, principal, ask.entity, action, level = ask.level)
         val d: AuthorityDecision = replica.decide(request, Deadline.after(Duration.ofSeconds(5), clock))
         return Triple(d.allowed, d.source, d.reason)
     }
@@ -119,13 +158,13 @@ class VpSetPermissionTest {
     fun `the holder of client signatory at CLIENT_ENTITY on CLI-2201 is allowed for vp-11 and vp-13 only on CLI-2201`(
         @TempDir dir: Path,
     ) = serve(dir) { replica ->
-        feed(replica, signatory, "client.signatory", GrantScope.CLIENT_ENTITY, cli1)
+        feed(replica, signatory, signed(cli1))
         for (action in listOf("vp-11.set", "vp-13.set")) {
             decide(replica, action) shouldBe granted
-            decide(replica, action, entity = cli2) shouldBe refused
-            decide(replica, action, level = ScopeLevel.TENANT) shouldBe refused
-            decide(replica, action, level = ScopeLevel.ENTITY) shouldBe refused
-            decide(replica, action, inTenant = otherTenant) shouldBe refused
+            decide(replica, action, ask(entity = cli2)) shouldBe refused
+            decide(replica, action, ask(level = ScopeLevel.TENANT)) shouldBe refused
+            decide(replica, action, ask(level = ScopeLevel.ENTITY)) shouldBe refused
+            decide(replica, action, ask(inTenant = otherTenant)) shouldBe refused
         }
     }
 
@@ -133,36 +172,28 @@ class VpSetPermissionTest {
     fun `a grant of another tenant, an expired grant and a removed grant are each refused`(
         @TempDir dir: Path,
     ) = serve(dir) { replica ->
-        feed(replica, signatory, "client.signatory", GrantScope.CLIENT_ENTITY, cli1, inTenant = otherTenant)
+        feed(replica, signatory, signed(cli1), rec(inTenant = otherTenant))
         decide(replica, "vp-11.set") shouldBe refused
 
         val lapsed = "link:LNK-771C"
-        feed(replica, lapsed, "client.signatory", GrantScope.CLIENT_ENTITY, cli1, until = Instant.now().minusSeconds(60))
-        decide(replica, "vp-13.set", who = lapsed) shouldBe refused
+        feed(replica, lapsed, signed(cli1, Instant.now().minusSeconds(60)))
+        decide(replica, "vp-13.set", ask(lapsed)) shouldBe refused
 
         val removed = "link:LNK-771D"
-        feed(replica, removed, "client.signatory", GrantScope.CLIENT_ENTITY, cli1, grantRef = "g1")
-        decide(replica, "vp-13.set", who = removed) shouldBe granted
-        feed(
-            replica,
-            removed,
-            "client.signatory",
-            GrantScope.CLIENT_ENTITY,
-            cli1,
-            state = RoleGrantState.REMOVED,
-            grantRef = "g1",
-        )
-        decide(replica, "vp-13.set", who = removed) shouldBe refused
+        feed(replica, removed, signed(cli1), rec(grantRef = "g1"))
+        decide(replica, "vp-13.set", ask(removed)) shouldBe granted
+        feed(replica, removed, signed(cli1), rec(state = RoleGrantState.REMOVED, grantRef = "g1"))
+        decide(replica, "vp-13.set", ask(removed)) shouldBe refused
     }
 
     @Test
     fun `INV-AC-2224 the look-alike principals and keys are refused`(
         @TempDir dir: Path,
     ) = serve(dir) { replica ->
-        feed(replica, signatory, "client.signatory", GrantScope.CLIENT_ENTITY, cli1)
+        feed(replica, signatory, signed(cli1))
         for (who in listOf("link:LNK-771B", "LNK-771A", "link:lnk-771a", "link:LNK-771A ")) {
-            decide(replica, "vp-11.set", who = who) shouldBe refused
-            decide(replica, "vp-13.set", who = who) shouldBe refused
+            decide(replica, "vp-11.set", ask(who)) shouldBe refused
+            decide(replica, "vp-13.set", ask(who)) shouldBe refused
         }
         for (action in listOf("vp-11.set ", "VP-11.set", "vp-11.sets", "vp-1.set", "vp-14.set")) {
             decide(replica, action) shouldBe refused
@@ -175,10 +206,10 @@ class VpSetPermissionTest {
     ) = serve(dir) { replica ->
         for ((i, role) in listOf("tenant.admin", "tax.approver", "client.signatory2", "Client.Signatory").withIndex()) {
             val who = "link:LNK-90$i"
-            feed(replica, who, role, GrantScope.CLIENT_ENTITY, cli1)
-            feed(replica, who, role, GrantScope.TENANT, tenant.toString())
-            decide(replica, "vp-11.set", who = who) shouldBe refused
-            decide(replica, "vp-13.set", who = who) shouldBe refused
+            feed(replica, who, held(role, GrantScope.CLIENT_ENTITY, cli1))
+            feed(replica, who, held(role, GrantScope.TENANT, tenant.toString()))
+            decide(replica, "vp-11.set", ask(who)) shouldBe refused
+            decide(replica, "vp-13.set", ask(who)) shouldBe refused
         }
     }
 
@@ -193,7 +224,7 @@ class VpSetPermissionTest {
     fun `a stale replica is DEGRADED and refused for a holder`(
         @TempDir dir: Path,
     ) = serve(dir) { replica ->
-        feed(replica, signatory, "client.signatory", GrantScope.CLIENT_ENTITY, cli1)
+        feed(replica, signatory, signed(cli1))
         decide(replica, "vp-13.set") shouldBe granted
         replica.onDisconnected()
         Thread.sleep(replica.lagBound.toMillis() + MARGIN_MS)
@@ -204,7 +235,7 @@ class VpSetPermissionTest {
     fun `a stale replica is decided by the fallback and FALLBACK allows`(
         @TempDir dir: Path,
     ) = serve(dir, AuthorityFallback { _, _ -> FallbackResult.Found(AuthorityVerdict(true)) }) { replica ->
-        feed(replica, signatory, "client.signatory", GrantScope.CLIENT_ENTITY, cli1)
+        feed(replica, signatory, signed(cli1))
         replica.onDisconnected()
         Thread.sleep(replica.lagBound.toMillis() + MARGIN_MS)
         decide(replica, "vp-11.set") shouldBe Triple(true, DecisionSource.FALLBACK, DecisionReason.GRANTED)
