@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A), INV-T-16273 appends two (INV-Q-16272 A).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A), INV-T-16273 appends two (INV-Q-16272 A), INV-T-22584 appends one (counterparty-request.send).
      */
     val addedRows: List<String> =
         listOf(
@@ -138,6 +138,7 @@ object RolePermissionsChecker {
             "Connection registry and health: Access Point, Check GST Register, directory, rate sources",
             "Test a connection",
             "Rotate credentials with an overlap window",
+            "Send counterparty self-service requests for the group",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -485,6 +486,7 @@ object RolePermissionsChecker {
             ),
             "calendar-pack-delta.view" to Required(PermissionKind.READ, cells(permitted, saasForm, "tax.approver") + cells(permitted, privateForm, "tax.approver")),
             "exchange-rate.import" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(permitted, privateForm, "deployment.operator")),
+            "counterparty-request.send" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "exchange-rate.enter" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "connection.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
             "connection.view" to

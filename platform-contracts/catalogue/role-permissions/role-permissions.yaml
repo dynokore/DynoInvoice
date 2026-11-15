@@ -1407,3 +1407,9 @@ permissions:
       - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
       - {role: tax.approver, form: SAAS, allowance: PERMITTED}
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: counterparty-request.send
+    kind: WRITE
+    row: "Send counterparty self-service requests for the group"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
