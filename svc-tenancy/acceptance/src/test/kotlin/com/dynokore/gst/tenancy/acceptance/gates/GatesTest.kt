@@ -5,6 +5,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.io.File
 
+@Suppress("LargeClass") // one case per gate probe; the cases share the contract fixtures
 class GatesTest {
     private val openapi =
         """
@@ -411,6 +412,59 @@ class GatesTest {
             (copy != table) shouldBe true
             val findings = run(copy)
             check(findings.any { name in it.subject }) { "probe '$probe' gave no finding naming $name: $findings" }
+        }
+    }
+
+    @Test
+    @Suppress("LongMethod") // the real-table checks and the five look-alike probes of one criterion
+    fun `INV-AC-23424 the table lists OffboardingExportRequested against its producer and the gate fails closed`() {
+        val root = File(checkNotNull(System.getProperty("gst.repo.root")) { "gst.repo.root is unset" })
+        val contract = File(checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is unset" })
+        val adapters = File(root, "tenancy-adapters/src/main").walkTopDown().filter { it.isFile }.toList()
+        val skipped = setOf("build", ".git", ".gradle", ".gradle-cache")
+        val tests =
+            root
+                .walkTopDown()
+                .onEnter { it.name !in skipped }
+                .filter { it.isFile && it.extension == "kt" }
+                .filter { "/src/test/" in it.path || "/src/integrationTest/" in it.path }
+                .toList()
+        val spec = File(contract, "openapi.yaml").readText()
+        val async = File(contract, "asyncapi.yaml").readText()
+        val table = File(root, OperationsGate.NAME).readText()
+        val code =
+            OperationsGate.Code(
+                OperationsGate.overrides(adapters),
+                OperationsGate.stubs(adapters),
+                OperationsGate.classNames(tests),
+            )
+
+        fun run(t: String) = OperationsGate.check(spec, async, t, code)
+
+        val name = "OffboardingExportRequested"
+        val rows = table.split("\n").map { it.split("\t") }.filter { it.firstOrNull() == name }
+        rows.size shouldBe 1
+        val cells = rows.single()
+        cells[1] shouldBe "channel"
+        cells[2] shouldBe "INV-T-22966"
+        cells[2] shouldBe Assignments.channels[name]
+        (cells[3] in setOf("pending", "done")) shouldBe true
+        run(table).shouldBeEmpty()
+        val row = cells.joinToString("\t") + "\n"
+        table.split("\n").count { it == row.trimEnd() } shouldBe 1
+        val probes =
+            mapOf(
+                "row removed" to table.replace(row, "") to name,
+                "row twice" to table.replace(row, row + row) to name,
+                "task cell INV-T-22885" to table.replace(row, row.replace("INV-T-22966", "INV-T-22885")) to name,
+                "name ${name}X" to table.replace(row, row.replace(name, name + "X")) to name + "X",
+                "kind operation" to table.replace(row, row.replace("\tchannel\t", "\toperation\t")) to name,
+            )
+        for ((probeAndCopy, used) in probes) {
+            val (probe, copy) = probeAndCopy
+            (copy != table) shouldBe true
+            val findings = run(copy)
+            check(findings.any { used in it.subject }) { "probe '$probe' gave no finding naming $used: $findings" }
         }
     }
 }

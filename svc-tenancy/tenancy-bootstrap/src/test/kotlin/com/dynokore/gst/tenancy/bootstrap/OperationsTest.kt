@@ -52,7 +52,11 @@ class OperationsTest {
         fun newTenant(): TenantId {
             val contract = "C-${UUID.randomUUID()}"
             val ref = TenantRefs.refOfContract(contract)
-            tenantsApi.createTenant(UUID.randomUUID(), CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref))
+            tenantsApi.createTenant(
+                FIXED_FLOW_CONTEXT,
+                UUID.randomUUID(),
+                CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref),
+            )
             return TenantRefs.idOf(ref)
         }
 
@@ -148,6 +152,7 @@ class OperationsTest {
             val contract = "C-${UUID.randomUUID()}"
             val response =
                 env.tenantsApi.createTenant(
+                    FIXED_FLOW_CONTEXT,
                     UUID.randomUUID(),
                     CreateTenantRequest(contract, "Tenant", "PLAN-A", dataRegion = "SG"),
                 )
@@ -163,6 +168,7 @@ class OperationsTest {
             val contract = "C-${UUID.randomUUID()}"
             val response =
                 env.tenantsApi.createTenant(
+                    FIXED_FLOW_CONTEXT,
                     UUID.randomUUID(),
                     CreateTenantRequest(contract, "Tenant", "PLAN-A"),
                 )
@@ -179,6 +185,7 @@ class OperationsTest {
             val region64 = "r".repeat(64)
             val stored =
                 env.tenantsApi.createTenant(
+                    FIXED_FLOW_CONTEXT,
                     UUID.randomUUID(),
                     CreateTenantRequest(ok, "Tenant", "PLAN-A", dataRegion = region64),
                 )
@@ -188,6 +195,7 @@ class OperationsTest {
             assertThat(
                 refusal {
                     env.tenantsApi.createTenant(
+                        FIXED_FLOW_CONTEXT,
                         UUID.randomUUID(),
                         CreateTenantRequest(bad, "Tenant", "PLAN-A", dataRegion = "r".repeat(65)),
                     )
@@ -203,11 +211,13 @@ class OperationsTest {
             val contract = "C-${UUID.randomUUID()}"
             val first =
                 env.tenantsApi.createTenant(
+                    FIXED_FLOW_CONTEXT,
                     UUID.randomUUID(),
                     CreateTenantRequest(contract, "Tenant", "PLAN-A", dataRegion = "SG"),
                 )
             val again =
                 env.tenantsApi.createTenant(
+                    FIXED_FLOW_CONTEXT,
                     UUID.randomUUID(),
                     CreateTenantRequest(contract, "Tenant", "PLAN-A", dataRegion = "EU"),
                 )
@@ -222,8 +232,8 @@ class OperationsTest {
         run { env ->
             val contract = "C-${UUID.randomUUID()}"
             val request = CreateTenantRequest(contract, "Tenant", "PLAN-A")
-            val first = env.tenantsApi.createTenant(UUID.randomUUID(), request)
-            val again = env.tenantsApi.createTenant(UUID.randomUUID(), request)
+            val first = env.tenantsApi.createTenant(FIXED_FLOW_CONTEXT, UUID.randomUUID(), request)
+            val again = env.tenantsApi.createTenant(FIXED_FLOW_CONTEXT, UUID.randomUUID(), request)
             assertThat(first.statusCode.value()).isEqualTo(201)
             assertThat(again.body).isEqualTo(first.body)
             assertThat(first.body!!.tenantRef).isEqualTo(TenantRefs.refOfContract(contract))
@@ -234,7 +244,7 @@ class OperationsTest {
                     tenantRef = UUID.randomUUID().toString(),
                 )
             assertThat(
-                tenancyRefusal { env.tenantsApi.createTenant(UUID.randomUUID(), other) },
+                tenancyRefusal { env.tenantsApi.createTenant(FIXED_FLOW_CONTEXT, UUID.randomUUID(), other) },
             ).isEqualTo(TenancyErrorCode.TENANT_NOT_CREATED)
         }
     }

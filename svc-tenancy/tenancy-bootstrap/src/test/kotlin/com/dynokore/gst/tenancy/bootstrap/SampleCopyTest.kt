@@ -125,6 +125,7 @@ class SampleCopyTest {
             val contract = "C-${UUID.randomUUID()}"
             val ref = TenantRefs.refOfContract(contract)
             env.tenantsApi.createTenant(
+                FIXED_FLOW_CONTEXT,
                 UUID.randomUUID(),
                 CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref),
             )

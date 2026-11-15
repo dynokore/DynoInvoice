@@ -62,7 +62,11 @@ class TenantNodePublicationTest {
         val contract = "C-${UUID.randomUUID()}"
         val ref = TenantRefs.refOfContract(contract)
         captured.envelopes.clear()
-        tenantsApi.createTenant(UUID.randomUUID(), CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref))
+        tenantsApi.createTenant(
+            FIXED_FLOW_CONTEXT,
+            UUID.randomUUID(),
+            CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref),
+        )
         return ref to TenantRefs.idOf(ref)
     }
 
@@ -112,6 +116,7 @@ class TenantNodePublicationTest {
             val contract = scalar("select count(*) from tenancy.tenant where ref = ?", ref)
             assertThat(contract).isEqualTo(1)
             env.tenantsApi.createTenant(
+                FIXED_FLOW_CONTEXT,
                 UUID.randomUUID(),
                 CreateTenantRequest(
                     BoundaryFixture.asSuperuser { c ->

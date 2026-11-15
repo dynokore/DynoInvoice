@@ -82,6 +82,7 @@ open class TenantsController(
     private val serviceCaller: ServiceCaller,
 ) : TenantsApi {
     override fun createTenant(
+        xFlowContext: String,
         idempotencyKey: UUID,
         createTenantRequest: CreateTenantRequest,
     ): ResponseEntity<TenantResponse> {
@@ -150,6 +151,7 @@ open class TenantsController(
      * generated one of service-runtime (x-sync-edge); this method names no caller.
      */
     override fun closeTenant(
+        xFlowContext: String,
         tenantRef: String,
         idempotencyKey: UUID,
         closeTenantRequest: CloseTenantRequest,

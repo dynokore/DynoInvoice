@@ -147,6 +147,7 @@ class OffboardingHttpTest {
                 .newBuilder(URI.create("http://localhost:$port$path"))
                 .header("Content-Type", "application/json")
                 .header("Idempotency-Key", key)
+                .header("X-Flow-Context", FIXED_FLOW_CONTEXT)
                 .header("X-Workload-Token", "token-$workload")
                 .apply { if (endUser) header("Authorization", "Bearer ${EntityFactsIdentity.TOKEN}") }
                 .POST(HttpRequest.BodyPublishers.ofString(body))

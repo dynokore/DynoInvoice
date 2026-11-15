@@ -54,6 +54,9 @@ internal fun day(text: String): LocalDate = LocalDate.parse(text)
 /** The business date of the writer's clock: a policy value is effective from today or later, never earlier. */
 internal val TODAY: LocalDate = LocalDate.now(ZoneId.of("Asia/Singapore"))
 
+// The fixed X-Flow-Context value the tests pass to createTenant and closeTenant; nothing verifies it at this pin.
+internal const val FIXED_FLOW_CONTEXT = "flow.context.fixture"
+
 internal fun figure(text: String) = BigDecimal(text)
 
 internal fun gstReturn(
@@ -106,7 +109,11 @@ internal class ProfileEnv(
     fun <T> withTenant(block: (TenantId) -> T): T {
         val contract = "C-${UUID.randomUUID()}"
         val ref = TenantRefs.refOfContract(contract)
-        tenantsApi.createTenant(UUID.randomUUID(), CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref))
+        tenantsApi.createTenant(
+            FIXED_FLOW_CONTEXT,
+            UUID.randomUUID(),
+            CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref),
+        )
         val tenant = TenantRefs.idOf(ref)
         return inTenant(tenant) { block(tenant) }
     }

@@ -108,7 +108,11 @@ class EnvironmentSeparationTest {
         val env = ProfileEnv(context)
         val contract = "C-${UUID.randomUUID()}"
         val ref = TenantRefs.refOfContract(contract)
-        env.tenantsApi.createTenant(UUID.randomUUID(), CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref))
+        env.tenantsApi.createTenant(
+            FIXED_FLOW_CONTEXT,
+            UUID.randomUUID(),
+            CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref),
+        )
         val production = TenantRefs.idOf(ref)
         val workspace =
             env.inTenant(production) {

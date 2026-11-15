@@ -141,6 +141,7 @@ class TenantOpenGoLiveTest {
     }
 
     @Test
+    @Suppress("LongMethod") // the added flow-context argument pushes the case one line over the limit
     fun `INV-AC-8139 createTenant stores SCHEDULED, openTenant opens once and refuses CLOSED with 409`() {
         lifecycleRun { l ->
             val contract = "C-${UUID.randomUUID()}"
@@ -148,7 +149,11 @@ class TenantOpenGoLiveTest {
             val otherContract = "C-${UUID.randomUUID()}"
             val otherRef = TenantRefs.refOfContract(otherContract)
             for ((c, r) in listOf(contract to ref, otherContract to otherRef)) {
-                l.env.tenantsApi.createTenant(UUID.randomUUID(), CreateTenantRequest(c, "Tenant $c", "PLAN-A", r))
+                l.env.tenantsApi.createTenant(
+                    FIXED_FLOW_CONTEXT,
+                    UUID.randomUUID(),
+                    CreateTenantRequest(c, "Tenant $c", "PLAN-A", r),
+                )
             }
             val id = TenantRefs.idOf(ref)
             val other = TenantRefs.idOf(otherRef)
@@ -222,6 +227,7 @@ class TenantOpenGoLiveTest {
             val contract = "C-${UUID.randomUUID()}"
             val ref = TenantRefs.refOfContract(contract)
             l.env.tenantsApi.createTenant(
+                FIXED_FLOW_CONTEXT,
                 UUID.randomUUID(),
                 CreateTenantRequest(contract, "Tenant $contract", "PLAN-A", ref),
             )
