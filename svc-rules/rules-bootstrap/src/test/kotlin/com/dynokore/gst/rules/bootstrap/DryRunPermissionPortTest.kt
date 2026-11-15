@@ -36,6 +36,7 @@ private const val LOOK_ALIKE_KEY = "regulatory-pack.approve"
  * real `AuthorityReplica`, with the roles read from the generated `OperationRoles` map (no role literal here). The
  * deployment form is fixed per context, so the cases live in one base class run by a SAAS and a PRIVATE subclass.
  */
+@Suppress("AbstractClassCanBeConcreteClass") // JUnit must not run the base itself: only the two form subclasses
 abstract class DryRunPermissionPortCases(
     private val form: DeploymentForm,
     private val replica: AuthorityReplica,
@@ -103,7 +104,8 @@ abstract class DryRunPermissionPortCases(
 
     @Test
     fun `INV-AC-22855 a role absent from the pack dry-run map and present for regulatory-pack approve gets false`() {
-        val outside = OperationRoles.rolesFor(form, LOOK_ALIKE_KEY).keys - OperationRoles.rolesFor(form, DRY_RUN_KEY).keys
+        val dryRunRoles = OperationRoles.rolesFor(form, DRY_RUN_KEY).keys
+        val outside = OperationRoles.rolesFor(form, LOOK_ALIKE_KEY).keys - dryRunRoles
         check(outside.isNotEmpty()) { "$form: no role holds $LOOK_ALIKE_KEY and not $DRY_RUN_KEY" }
         for (role in outside) {
             val user = "u-" + UUID.randomUUID()
