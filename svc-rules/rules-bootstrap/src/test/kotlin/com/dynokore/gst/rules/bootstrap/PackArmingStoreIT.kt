@@ -500,6 +500,44 @@ class PackArmingStoreIT(
     }
 
     @Test
+    fun `INV-AC-22940 an unknown failure reason reads as VERIFICATION_FAILED and the text is stored verbatim`() {
+        val v = version()
+        val h = Harness()
+        h.answer(v, "i-1", "FAILED", TICK_1, "unknown reason")
+        h.consumer.pollOnce().applied shouldBe 1
+        answers(v)["i-1"] shouldBe
+            StoredReadiness("i-1", ReadinessOutcome.Failed(ReadinessFailure.VERIFICATION_FAILED, "unknown reason"))
+        scalar("select failure_reason from rules.pack_readiness_ack where pack_version = ?", v) shouldBe
+            "unknown reason"
+        // a blank and a very long reason are stored as sent, never refused
+        h.answer(v, "i-2", "FAILED", TICK_1, "   ")
+        h.answer(v, "i-3", "FAILED", TICK_1, "x".repeat(5000))
+        h.consumer.pollOnce().applied shouldBe 2
+        scalar(
+            "select failure_reason from rules.pack_readiness_ack where pack_version = ? and instance = 'i-2'",
+            v,
+        ) shouldBe
+            "   "
+        scalar(
+            "select length(failure_reason)::text from rules.pack_readiness_ack where pack_version = ? and instance = 'i-3'",
+            v,
+        ) shouldBe "5000"
+    }
+
+    @Test
+    fun `INV-AC-22940 an answer of the same time as the stored one changes nothing and keeps the stored row`() {
+        val v = version()
+        val h = Harness()
+        h.answer(v, "i-1", "LOADED", TICK_1)
+        h.consumer.pollOnce().applied shouldBe 1
+        val before = scalar("select to_jsonb(t)::text from rules.pack_readiness_ack t where pack_version = ?", v)
+        h.answer(v, "i-1", "FAILED", TICK_1, "COMPILE_FAILED")
+        h.consumer.pollOnce().ignored shouldBe 1
+        answers(v)["i-1"] shouldBe StoredReadiness("i-1", ReadinessOutcome.Loaded)
+        scalar("select to_jsonb(t)::text from rules.pack_readiness_ack t where pack_version = ?", v) shouldBe before
+    }
+
+    @Test
     fun `INV-AC-22940 a readiness payload without the instance field stores nothing`() {
         val v = version()
         val h = Harness()

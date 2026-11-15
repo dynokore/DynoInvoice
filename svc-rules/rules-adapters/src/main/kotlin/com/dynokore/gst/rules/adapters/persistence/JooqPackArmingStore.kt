@@ -187,7 +187,7 @@ class JooqPackArmingStore(
             .set(PACK_READINESS_ACK.OUTCOME, DSL.excluded(PACK_READINESS_ACK.OUTCOME))
             .set(PACK_READINESS_ACK.FAILURE_REASON, DSL.excluded(PACK_READINESS_ACK.FAILURE_REASON))
             .set(PACK_READINESS_ACK.RECEIVED_AT, DSL.excluded(PACK_READINESS_ACK.RECEIVED_AT))
-            .where(PACK_READINESS_ACK.RECEIVED_AT.le(DSL.excluded(PACK_READINESS_ACK.RECEIVED_AT)))
+            .where(PACK_READINESS_ACK.RECEIVED_AT.lt(DSL.excluded(PACK_READINESS_ACK.RECEIVED_AT)))
             .execute() > 0
 
     /** Tenant-bound; the first row stays: a second call changes nothing, not even the acknowledging user. */

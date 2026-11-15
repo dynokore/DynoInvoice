@@ -51,7 +51,7 @@ create table rules.pack_readiness_ack (
     pack_version   text        not null check (pack_version !~ '^\s*$'),
     instance       text        not null check (instance !~ '^\s*$'),
     outcome        text        not null check (outcome in ('LOADED', 'FAILED')),
-    failure_reason text        null check (failure_reason is null or failure_reason !~ '^\s*$'),
+    failure_reason text        null,
     received_at    timestamptz not null,
     primary key (pack_type, pack_version, instance),
     check (outcome = 'FAILED' or failure_reason is null)

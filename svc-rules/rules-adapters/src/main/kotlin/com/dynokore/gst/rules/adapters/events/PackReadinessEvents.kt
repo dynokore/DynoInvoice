@@ -32,7 +32,8 @@ object PackReadinessEvents {
  * (the pack type), `version`, `instance`, `outcome` (LOADED or FAILED) and, for FAILED, `failureReason`. A payload that
  * lacks a required field, or holds one of the wrong type or value, is a [ContractViolation]: nothing is stored. The
  * latest answer of an instance wins; the order is the envelope's `time`, and an answer older than the stored one
- * changes nothing ([HandleOutcome.IGNORED]).
+ * changes nothing ([HandleOutcome.IGNORED]); an answer of the same time keeps the stored row. The reason text is
+ * never a ground for refusing an answer.
  */
 class PackReadinessAcknowledgedHandler(
     private val store: JooqPackArmingStore,
@@ -62,7 +63,8 @@ class PackReadinessAcknowledgedHandler(
 
     private fun optionalText(node: JsonNode): String {
         if (!node.isString) bad("failureReason is not a string")
-        return node.asString().also { if (it.isBlank() || it.length > MAX_TEXT) bad("failureReason is blank or long") }
+        // the reason text is stored verbatim and never a ground for refusing the answer
+        return node.asString()
     }
 
     private fun parse(text: String): JsonNode =
