@@ -101,7 +101,9 @@ class RecordClientSignatoryTest {
     private val world = World()
     private var holders = setOf(OPERATOR to RecordClientSignatory.PERMISSION_KEY)
     private val permission = TenantPermission { person, key -> (person to key) in holders }
-    private val record = RecordClientSignatory(world, world.store, permission, LIMITS, FIXED, world.publisher)
+    private var tenantDays: Long? = null
+    private val record =
+        RecordClientSignatory(world, world.store, permission, LIMITS, { tenantDays }, FIXED, world.publisher)
     private val applyOutcome = ApplyLinkOutcome(world, world.store)
 
     private fun command(
@@ -128,11 +130,56 @@ class RecordClientSignatoryTest {
         assertEquals(eventId, stored.requestEventId)
         assertEquals("CLI-204", event.clientRef)
         assertEquals("CNS-77", event.consentRef)
-        assertEquals("CNS-77", event.subjectReference)
+        assertEquals(stored.signatoryRef, event.subjectReference)
         assertEquals("EMAIL", event.channel)
         assertEquals("client-signatory-consent", event.purpose)
         assertEquals("+6591234567", event.mobileNumber)
         assertEquals(NOW.plus(Duration.ofDays(7)), event.expiry)
+    }
+
+    @Test
+    fun `INV-AC-17444 channel is EMAIL with and without a mobile number and the mobile travels only as recipient`() {
+        recorded(record.handle(command(email = "a@example.com.sg", mobile = "+6591234567")))
+        recorded(record.handle(command(email = "b@example.com.sg", mobile = null)))
+        assertEquals(listOf("EMAIL", "EMAIL"), world.outbox.map { it.second.channel })
+        assertEquals(listOf("+6591234567", null), world.outbox.map { it.second.mobileNumber })
+    }
+
+    @Test
+    fun `INV-AC-17444 two signatories of one consent get two subjectReference values equal to their record ids`() {
+        recorded(record.handle(command(email = "a@example.com.sg")))
+        recorded(record.handle(command(email = "b@example.com.sg")))
+        val refs = world.outbox.map { it.second.subjectReference }
+        assertEquals(2, refs.toSet().size)
+        assertEquals(world.records.keys.toList(), refs)
+    }
+
+    @Test
+    fun `INV-AC-17444 a consentRef of 64 characters gives a subjectReference of at most 40 characters`() {
+        recorded(record.handle(command(consentRef = "C".repeat(64))))
+        val request = world.outbox.single().second
+        assertTrue(request.subjectReference.length <= 40)
+        assertEquals("C".repeat(64), request.consentRef)
+    }
+
+    @Test
+    fun `INV-AC-17444 the tenant validity of 3 days sets the expiry to the clock plus 3 days`() {
+        tenantDays = 3
+        recorded(record.handle(command()))
+        assertEquals(
+            NOW.plus(Duration.ofDays(3)),
+            world.outbox
+                .single()
+                .second.expiry,
+        )
+    }
+
+    @Test
+    fun `INV-AC-17444 a null effective validity refuses the request and stores nothing`() {
+        tenantDays = 31
+        assertEquals(RecordClientSignatoryOutcome.InvalidValidity, record.handle(command()))
+        assertTrue(world.records.isEmpty())
+        assertTrue(world.outbox.isEmpty())
     }
 
     @Test
@@ -182,6 +229,7 @@ class RecordClientSignatoryTest {
                 },
                 permission,
                 LIMITS,
+                { null },
                 FIXED,
                 world.publisher,
             )

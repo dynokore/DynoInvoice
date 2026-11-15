@@ -233,6 +233,7 @@ class HeldDocumentFeedTest {
             .containsExactlyInAnyOrder(
                 "accessSignedLinkIssued",
                 "accessSignedLinkInvalidated",
+                "accessSignedLinkOutcomeRecorded",
                 "canonicalDocumentHeld",
                 "canonicalDocumentReleased",
             )

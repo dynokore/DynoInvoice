@@ -38,3 +38,4 @@ channel	canonicalDocumentReleased	INV-T-21336	done
 channel	masterdataIdentityTripleCorrected	INV-T-8017	done
 channel	masterdataIdentityTripleChanged	INV-T-17823	done
 channel	masterdataExampleHappened	PLACEHOLDER	open
+channel	accessSignedLinkOutcomeRecorded	INV-T-17443	done

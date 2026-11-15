@@ -2,6 +2,7 @@ package com.dynokore.gst.masterdata.application.clientsignatory
 
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.gst.masterdata.application.request.LinkValidityLimits
+import com.dynokore.gst.masterdata.application.request.TenantLinkValidity
 import com.dynokore.gst.masterdata.domain.request.LinkValidity
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.Clock
@@ -115,11 +116,13 @@ sealed interface RecordClientSignatoryOutcome {
  * same transaction, writes SignedLinkRequested to the outbox (DR-11: never a call to access-svc). The permission
  * `client-signatory.record` is decided first, per request, through [TenantPermission] (INV-Q-10027, INV-Q-17446 A).
  */
+@Suppress("LongParameterList")
 class RecordClientSignatory(
     private val tx: TransactionRunner,
     private val store: ClientSignatories,
     private val permission: TenantPermission,
     private val limits: LinkValidityLimits,
+    private val tenantValidity: TenantLinkValidity,
     private val clock: Clock,
     private val publisher: ClientSignatoryLinkPublisher,
 ) {
@@ -167,7 +170,7 @@ class RecordClientSignatory(
 
     private fun existingOrNew(clean: Clean): RecordClientSignatoryOutcome {
         val existing = store.findByClientAndEmail(clean.clientRef, clean.email)
-        val validity = LinkValidity.effective(limits.defaultDays, limits.maxDays, null)
+        val validity = LinkValidity.effective(limits.defaultDays, limits.maxDays, tenantValidity.days())
         return when {
             existing != null -> RecordClientSignatoryOutcome.Recorded(existing, false)
             validity == null -> RecordClientSignatoryOutcome.InvalidValidity
@@ -208,7 +211,7 @@ class RecordClientSignatory(
         signatoryRef = record.signatoryRef,
         sourceRecordId = record.signatoryRef,
         purpose = PURPOSE,
-        subjectReference = record.consentRef,
+        subjectReference = record.signatoryRef,
         email = record.email,
         mobileNumber = record.mobile,
         channel = CHANNEL,

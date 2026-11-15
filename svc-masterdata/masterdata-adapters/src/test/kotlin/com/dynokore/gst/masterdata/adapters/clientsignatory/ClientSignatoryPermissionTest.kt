@@ -110,6 +110,7 @@ class ClientSignatoryPermissionTest {
                     override val defaultDays = 7L
                     override val maxDays = 30L
                 },
+                { null },
                 clock,
                 { request ->
                     events += request.sourceRecordId

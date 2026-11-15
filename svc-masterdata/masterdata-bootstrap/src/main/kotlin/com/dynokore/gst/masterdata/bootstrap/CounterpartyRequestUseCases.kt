@@ -212,9 +212,10 @@ class CounterpartyRequestUseCases {
         store: ClientSignatories,
         permission: TenantPermission,
         limits: LinkValidityLimits,
+        tenantValidity: TenantLinkValidity,
         clock: Clock,
         publisher: ClientSignatoryLinkPublisher,
-    ) = RecordClientSignatory(tx, store, permission, limits, clock, publisher)
+    ) = RecordClientSignatory(tx, store, permission, limits, tenantValidity, clock, publisher)
 
     @Bean
     fun applyLinkOutcome(
