@@ -519,7 +519,8 @@ class PackArmingStoreIT(
         ) shouldBe
             "   "
         scalar(
-            "select length(failure_reason)::text from rules.pack_readiness_ack where pack_version = ? and instance = 'i-3'",
+            "select length(failure_reason)::text from rules.pack_readiness_ack " +
+                "where pack_version = ? and instance = 'i-3'",
             v,
         ) shouldBe "5000"
     }
