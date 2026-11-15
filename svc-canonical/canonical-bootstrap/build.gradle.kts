@@ -27,7 +27,17 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.jsonSchemaValidator)
     testImplementation(testFixtures(project(":canonical-adapters")))
     testImplementation(project(":canonical-application"))
     testImplementation(project(":canonical-domain"))
+}
+
+// The tests of the published CanonicalVersionCreated schema read the staged contract documents (INV-T-22849).
+tasks.withType<Test>().configureEach {
+    val contractDir =
+        project(":canonical-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/canonical/${libs.versions.platformContractsBundle.get()}",
+        )
+    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
 }

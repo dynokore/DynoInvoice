@@ -24,15 +24,21 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import java.io.File
 import java.nio.file.Path
 import java.time.LocalDate
 import java.util.UUID
+import com.networknt.schema.SpecificationVersion as SchemaDialect
 
 /**
  * The CanonicalVersionCreated outbox row against a real database (P109): the CanonicalVersionWriter over the jOOQ
@@ -43,9 +49,16 @@ class CanonicalVersionCreatedOutboxDbTest {
     private val actor = SignedBindings.ACTOR
     private val type = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
     private val canonical =
-        """{"documentNumber":"n","lines":{"value":[],"classification":"content"},""" +
-            """"taxSubtotals":{"value":[],"classification":"content"},""" +
-            """"parties":{"value":{"supplier":{},"buyer":{}},"classification":"content"}}"""
+        listOf(
+            """{"documentTypeCode":{"value":"380","classification":"NONE"},"currency":{"value":"SGD","cla""",
+            """ssification":"NONE"},"parties":{"value":{"supplier":{"identifierScheme":"UEN","identifierV""",
+            """alue":"201912345A"},"buyer":{"identifierScheme":"UEN","identifierValue":"201912345A"}},"cl""",
+            """assification":"IDENTIFYING"},"lines":{"value":[{"lineNumber":1,"description":"Consulting",""",
+            """"quantity":1,"unitPrice":"100.00","lineAmount":"100.00","taxCode":"SR","taxAmount":"9.00"}""",
+            """],"classification":"NONE"},"taxSubtotals":{"value":[{"taxCode":"SR","taxableAmount":"100.0""",
+            """0","taxAmount":"9.00"}],"classification":"NONE"},"totals":{"value":{"totalExcludingTax":"1""",
+            """00.00","totalTax":"9.00","totalIncludingTax":"109.00"},"classification":"NONE"}}""",
+        ).joinToString("")
 
     private class Boundary(
         context: ApplicationContext,
@@ -203,6 +216,43 @@ class CanonicalVersionCreatedOutboxDbTest {
         aggregateOf(tenant, e) shouldBe null
         rowsOf(other, d).size shouldBe 0
         aggregateOf(other, d) shouldBe null
+    }
+
+    /** The published schema of the pinned bundle; a missing property or file fails the test. */
+    private fun schemaErrors(data: String): List<String> {
+        val dir = File(checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" })
+        val schema = File(dir, "schemas/canonical-version-created-payload.schema.json").readText()
+        val registry =
+            SchemaRegistry.withDefaultDialect(SchemaDialect.DRAFT_2020_12) {
+                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+            }
+        return registry
+            .getSchema(
+                schema,
+            ).validate(
+                tools.jackson.databind
+                    .ObjectMapper()
+                    .readTree(data),
+            ).map { it.toString() }
+    }
+
+    @Test
+    fun `INV-AC-22848 the topic of the type is catalogued and the row validates against the published schema`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        CanonicalEvents.topicByType[type] shouldBe "gst.canonical.canonical-version-created.v1"
+        val tenant = UUID.randomUUID()
+        val d = UUID.randomUUID()
+        b.scope.bind(TenantId(tenant), actor) {
+            b.runner.inTransaction { b.writer.createFirst(newDocument(tenant, d), facts(d, 1, "AGG-2026-0001")) }
+        }
+        val row = rowsOf(tenant, d).single()
+        row[1]!!.let { schemaErrors(it).shouldBeEmpty() }
+        val without =
+            tools.jackson.databind.ObjectMapper().readTree(row[1]!!).also {
+                (it as tools.jackson.databind.node.ObjectNode).remove("traceReference")
+            }
+        schemaErrors(without.toString()).shouldNotBeEmpty()
     }
 
     @Test
