@@ -45,8 +45,20 @@ class ObjectStorePackageStoreTest {
             ),
         )
 
-    private fun store(memory: Memory) =
-        ObjectStorePackageStore(memory, "s3", Clock.fixed(now, ZoneOffset.UTC), RetentionPeriod(5))
+    private var supplied = 0
+
+    private fun store(
+        memory: Memory,
+        scheme: String = "s3",
+        years: Int = 5,
+    ) = ObjectStorePackageStore(
+        memory,
+        scheme,
+        Clock.fixed(now, ZoneOffset.UTC),
+    ) {
+        supplied++
+        RetentionPeriod(years)
+    }
 
     @Test
     fun `INV-AC-22948 the store writes every file under the prefix of T1 and OFF-1 and reads the bytes back`() {
@@ -75,5 +87,23 @@ class ObjectStorePackageStoreTest {
         shouldThrow<IllegalArgumentException> { store(memory).store(t1, "../OFF-1", files) }
         shouldThrow<IllegalArgumentException> { store(memory).store(t1, "a/b", files) }
         memory.objects.isEmpty() shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-22948 retainUntil is the instant plus the supplied years and the supplier is called once per store`() {
+        val memory = Memory()
+        val subject = store(memory, years = 7)
+        subject.store(t1, "OFF-1", files)
+        memory.retention.size shouldBe files.paths.size
+        memory.retention.values.toSet() shouldBe setOf(Instant.parse("2033-11-15T00:00:00Z"))
+        supplied shouldBe 1
+        subject.store(t1, "OFF-2", files)
+        supplied shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-22948 the manifest reference starts with the scheme passed to the constructor`() {
+        val ref = store(Memory(), scheme = "gcs").store(t1, "OFF-1", files)
+        ref.startsWith("gcs://exports/offboarding/${t1.value}/OFF-1/") shouldBe true
     }
 }
