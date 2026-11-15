@@ -1,5 +1,5 @@
 .gradle/
 .kotlin/
 *.hprof
-build/
+/build/
 /*/build/
