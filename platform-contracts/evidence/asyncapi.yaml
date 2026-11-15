@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: evidence events
-  version: 1.2.0
+  version: 1.3.0
   description: >-
     Every event evidence produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -43,6 +43,11 @@ channels:
     messages:
       ArchiveVolumeMeasured:
         $ref: '#/components/messages/ArchiveVolumeMeasured'
+  evidenceOffboardingExportFinished:
+    address: 'gst.evidence.offboarding-export-finished.v1'
+    messages:
+      OffboardingExportFinished:
+        $ref: '#/components/messages/OffboardingExportFinished'
   evidenceExampleHappened:
     address: 'gst.evidence.example-happened.v1'
     messages:
@@ -70,6 +75,13 @@ operations:
       $ref: '#/channels/evidenceArchiveVolumeMeasured'
     messages:
       - $ref: '#/channels/evidenceArchiveVolumeMeasured/messages/ArchiveVolumeMeasured'
+  publishOffboardingExportFinished:
+    action: send
+    description: OffboardingExportFinished — [ (INV-REQ-49, INV-REQ-956, INV-REQ-877).
+    channel:
+      $ref: '#/channels/evidenceOffboardingExportFinished'
+    messages:
+      - $ref: '#/channels/evidenceOffboardingExportFinished/messages/OffboardingExportFinished'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -116,6 +128,16 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/archive-volume-measured-payload.schema.json'
+    OffboardingExportFinished:
+      name: com.dynokore.gst.evidence.OffboardingExportFinished.v1
+      title: OffboardingExportFinished
+      summary: OffboardingExportFinished — [.
+      description: >-
+        Event OffboardingExportFinished (INV-REQ-49, INV-REQ-956, INV-REQ-877; class: domain). Emitted by: evidence-svc. Consumed by: tenancy-svc.
+        Delivery: At-least-once. "
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/offboarding-export-finished-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.evidence.ExampleHappened.v1
       title: ExampleHappened

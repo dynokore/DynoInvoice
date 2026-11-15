@@ -91,3 +91,10 @@ generateSubjectAccessExport	operation	openapi.yaml	INV-REQ-885
 SubjectAccessExport.itemCount	schema_property	openapi.yaml	INV-REQ-885
 SubjectAccessExport.recordClasses	schema_property	openapi.yaml	INV-REQ-885
 getEvidenceExport.EVD-002	operation_error_code	openapi.yaml	INV-REQ-650
+tenantRef	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+offboardingRef	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+exportRef	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+state	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+contents	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+finishedAt	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+failureReason	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877

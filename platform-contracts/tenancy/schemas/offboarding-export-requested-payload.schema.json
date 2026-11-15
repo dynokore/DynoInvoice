@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/tenancy/schemas/offboarding-export-requested-payload.schema.json",
+  "title": "OffboardingExportRequestedPayload",
+  "description": "t Conditional presence is stated here, not modelled with oneOf or anyOf. Within a major version this schema is additive-only (API-41): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "tenantRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The tenant being offboarded."
+    },
+    "offboardingRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The offboarding record to move from REQUESTED to COMPLETED or FAILED."
+    },
+    "exportRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "Identifies this export; the result event carries it back."
+    },
+    "scope": {
+      "type": "string",
+      "enum": [
+        "TENANT",
+        "ENTITY"
+      ],
+      "description": "Whether the whole tenant or one entity is exported."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The entity of an entity-scope export. Absent for scope TENANT."
+    },
+    "requestedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the export was requested."
+    }
+  },
+  "required": [
+    "tenantRef",
+    "offboardingRef",
+    "exportRef",
+    "scope",
+    "requestedAt"
+  ],
+  "additionalProperties": true
+}
