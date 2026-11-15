@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.adapters.PayloadDb
 import com.dynokore.gst.payload.adapters.events.OutboxPayloadReadyPublisher
 import com.dynokore.gst.payload.application.payload.PayloadReadyFacts
 import com.dynokore.gst.payload.application.payload.PublishPayloadReady
@@ -13,8 +14,6 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import org.jooq.DSLContext
-import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
@@ -42,7 +41,6 @@ class PayloadReadyOutboxDbTest {
     ) {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
-        val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val publish: PublishPayloadReady = context.getBean(PublishPayloadReady::class.java)
         val ctx: ApplicationContext = context
     }
@@ -73,19 +71,26 @@ class PayloadReadyOutboxDbTest {
         val data: JsonNode,
     )
 
-    private fun Boundary.rows(tenant: UUID): Map<String, Row> =
-        scope.bind(TenantId(tenant), actor) {
-            runner.inTransaction {
-                dsl
-                    .select(DSL.field("doc_uuid"), DSL.field("docsequence"), DSL.field("data", String::class.java))
-                    .from(DSL.table("outbox"))
-                    .where(DSL.field("type").eq(OutboxPayloadReadyPublisher.EVENT_TYPE))
-                    .fetch()
-                    .associate { r ->
-                        val data = mapper.readTree(r.get(2, String::class.java))
-                        r.get(0).toString() to Row((r.get(1) as Number).toLong(), data)
+    /** The PayloadReady rows of one tenant, read as the database owner with an explicit tenant filter. */
+    private fun rows(tenant: UUID): Map<String, Row> =
+        PayloadDb.superuser().use { c ->
+            c
+                .prepareStatement(
+                    "select doc_uuid, docsequence, data::text from payload.outbox where tenant_id = ? and type = ?",
+                ).use { p ->
+                    p.setObject(1, tenant)
+                    p.setString(2, OutboxPayloadReadyPublisher.EVENT_TYPE)
+                    p.executeQuery().use { r ->
+                        buildMap {
+                            while (r.next()) {
+                                put(
+                                    r.getObject(1).toString(),
+                                    Row(r.getLong(2), mapper.readTree(r.getString(3))),
+                                )
+                            }
+                        }
                     }
-            }
+                }
         }
 
     @Test
@@ -109,7 +114,7 @@ class PayloadReadyOutboxDbTest {
                 b.publish.publish(facts(e, null))
             }
         }
-        val rows = b.rows(tenant)
+        val rows = rows(tenant)
         val rd = rows.getValue(d.toString())
         rd.data["docUuid"].asString() shouldBe d.toString()
         rd.data["version"].asInt() shouldBe 1
@@ -137,19 +142,11 @@ class PayloadReadyOutboxDbTest {
                 }
             }
         }
-        b
-            .rows(tenant)
-            .values
-            .toList()
-            .shouldBeEmpty()
+        rows(tenant).size shouldBe 0
         val committed = UUID.randomUUID()
         b.scope.bind(TenantId(tenant), actor) { b.runner.inTransaction { b.publish.publish(facts(committed, null)) } }
-        b.rows(tenant).size shouldBe 1
-        b
-            .rows(UUID.randomUUID())
-            .values
-            .toList()
-            .shouldBeEmpty()
+        rows(tenant).size shouldBe 1
+        rows(UUID.randomUUID()).size shouldBe 0
     }
 
     private fun schemaErrors(row: JsonNode): List<String> {
@@ -175,7 +172,7 @@ class PayloadReadyOutboxDbTest {
         b.scope.bind(TenantId(tenant), actor) {
             b.runner.inTransaction { b.publish.publish(facts(d, "AGG-2026-0001")) }
         }
-        val data = b.rows(tenant).getValue(d.toString()).data
+        val data = rows(tenant).getValue(d.toString()).data
         schemaErrors(data).shouldBeEmpty()
         val without = data.deepCopy() as ObjectNode
         without.remove("payloadSha256")
