@@ -5,6 +5,7 @@ import com.dynokore.gst.payload.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.payload.adapters.events.SubmissionTypeDecidedHandler
 import com.dynokore.gst.payload.adapters.persistence.JooqBuildInputs
 import com.dynokore.gst.payload.adapters.persistence.JooqBuildJobs
+import com.dynokore.gst.payload.adapters.persistence.JooqCanonicalInputStore
 import com.dynokore.gst.payload.adapters.persistence.JooqTypeDecisionStore
 import com.dynokore.gst.payload.adapters.persistence.JooqVersionFactsStore
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.EventDeadLetter.Companion.EVENT_DEAD_LETTER
@@ -74,6 +75,7 @@ class SubmissionTypeDecidedConsumerTest {
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val decisions: JooqTypeDecisionStore = context.getBean(JooqTypeDecisionStore::class.java)
         val inputs: JooqBuildInputs = context.getBean(JooqBuildInputs::class.java)
+        val canonicalInputs: JooqCanonicalInputStore = context.getBean(JooqCanonicalInputStore::class.java)
         val facts: JooqVersionFactsStore = context.getBean(JooqVersionFactsStore::class.java)
         val jobs: JooqBuildJobs = context.getBean(JooqBuildJobs::class.java)
         val trigger: BuildTrigger = context.getBean(BuildTrigger::class.java)
@@ -355,7 +357,7 @@ class SubmissionTypeDecidedConsumerTest {
                 versions,
                 scope,
                 dsl,
-                CanonicalVersionCreatedHandler(RecordVersionFacts(facts)),
+                CanonicalVersionCreatedHandler(RecordVersionFacts(facts), canonicalInputs, trigger),
                 RebuildRequiredSink { },
                 Clock.systemUTC(),
             )

@@ -1,7 +1,10 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.events.CanonicalVersionCreatedHandler
+import com.dynokore.gst.payload.adapters.persistence.JooqBuildJobs
+import com.dynokore.gst.payload.adapters.persistence.JooqCanonicalInputStore
 import com.dynokore.gst.payload.adapters.persistence.JooqVersionFactsStore
+import com.dynokore.gst.payload.application.build.BuildTrigger
 import com.dynokore.gst.payload.application.version.RecordVersionFacts
 import com.dynokore.gst.payload.application.version.VersionFactsRecorder
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -33,6 +36,14 @@ class VersionFactsConsumerConfiguration {
         tenants: TenantContext,
     ): JooqVersionFactsStore = JooqVersionFactsStore(dsl) { tenants.current().value }
 
+    /** The write side of the canonical input; it shares the version lock of the decision consumer slice. */
+    @Bean
+    fun canonicalInputStore(
+        dsl: DSLContext,
+        jobs: JooqBuildJobs,
+        tenants: TenantContext,
+    ): JooqCanonicalInputStore = JooqCanonicalInputStore(dsl, jobs) { tenants.current().value }
+
     /** INV-Q-10834 A: until the product binds an incident sink, a consumer that needs a rebuild is logged at ERROR. */
     @Bean
     @ConditionalOnMissingBean(RebuildRequiredSink::class)
@@ -48,6 +59,8 @@ class VersionFactsConsumerConfiguration {
         clock: Clock,
         dsl: DSLContext,
         recorder: VersionFactsRecorder,
+        inputs: JooqCanonicalInputStore,
+        trigger: BuildTrigger,
     ): JdbcInboxConsumer =
         JdbcInboxConsumer(
             ConsumerSubscription(CONSUMER, TOPIC, SCHEMA),
@@ -55,7 +68,7 @@ class VersionFactsConsumerConfiguration {
             reader,
             scope,
             dsl,
-            CanonicalVersionCreatedHandler(RecordVersionFacts(recorder)),
+            CanonicalVersionCreatedHandler(RecordVersionFacts(recorder), inputs, trigger),
             rebuildRequired,
             clock,
         )

@@ -1,7 +1,9 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.events.CanonicalVersionCreatedHandler
+import com.dynokore.gst.payload.adapters.persistence.JooqCanonicalInputStore
 import com.dynokore.gst.payload.adapters.persistence.JooqVersionFactsStore
+import com.dynokore.gst.payload.application.build.BuildTrigger
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.EventDeadLetter.Companion.EVENT_DEAD_LETTER
 import com.dynokore.gst.payload.application.version.RecordVersionFacts
 import com.dynokore.gst.payload.domain.version.VersionFacts
@@ -78,7 +80,11 @@ class VersionFactsConsumerTest {
                 log,
                 scope,
                 dsl,
-                CanonicalVersionCreatedHandler(RecordVersionFacts(store)),
+                CanonicalVersionCreatedHandler(
+                    RecordVersionFacts(store),
+                    context.getBean(JooqCanonicalInputStore::class.java),
+                    context.getBean(BuildTrigger::class.java),
+                ),
                 RebuildRequiredSink { },
                 Clock.systemUTC(),
             )

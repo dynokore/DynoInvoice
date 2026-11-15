@@ -1,6 +1,11 @@
 package com.dynokore.gst.payload.adapters
 
+import com.dynokore.gst.payload.adapters.events.CanonicalInputWriter
 import com.dynokore.gst.payload.adapters.events.CanonicalVersionCreatedHandler
+import com.dynokore.gst.payload.application.build.BuildInputs
+import com.dynokore.gst.payload.application.build.BuildJobs
+import com.dynokore.gst.payload.application.build.BuildTrigger
+import com.dynokore.gst.payload.application.build.TypeDecisions
 import com.dynokore.gst.payload.application.version.RecordVersionFacts
 import com.dynokore.gst.payload.application.version.VersionFactsRecorder
 import com.dynokore.gst.payload.domain.version.VersionFacts
@@ -34,8 +39,27 @@ class CanonicalVersionCreatedHandlerTest {
         ): Boolean = rows.putIfAbsent(docUuid to version, facts) == null
     }
 
+    private class Inputs : CanonicalInputWriter {
+        val rows = mutableSetOf<Pair<UUID, Int>>()
+
+        override fun store(
+            docUuid: UUID,
+            version: Int,
+            canonicalDocument: String,
+            direction: String?,
+            counterpartyOnNetwork: Boolean?,
+        ): Boolean = rows.add(docUuid to version)
+    }
+
     private val memory = Memory()
-    private val handler = CanonicalVersionCreatedHandler(RecordVersionFacts(memory))
+    private val inputs = Inputs()
+    private val trigger =
+        BuildTrigger(
+            BuildInputs { d, v -> (d to v) in inputs.rows },
+            TypeDecisions { _, _ -> false },
+            BuildJobs { _, _ -> false },
+        )
+    private val handler = CanonicalVersionCreatedHandler(RecordVersionFacts(memory), inputs, trigger)
 
     private fun event(data: String) =
         Envelope(

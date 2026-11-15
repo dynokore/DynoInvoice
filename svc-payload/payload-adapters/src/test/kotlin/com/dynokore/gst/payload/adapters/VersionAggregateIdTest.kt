@@ -1,6 +1,11 @@
 package com.dynokore.gst.payload.adapters
 
+import com.dynokore.gst.payload.adapters.events.CanonicalInputWriter
 import com.dynokore.gst.payload.adapters.events.CanonicalVersionCreatedHandler
+import com.dynokore.gst.payload.application.build.BuildInputs
+import com.dynokore.gst.payload.application.build.BuildJobs
+import com.dynokore.gst.payload.application.build.BuildTrigger
+import com.dynokore.gst.payload.application.build.TypeDecisions
 import com.dynokore.gst.payload.adapters.persistence.JooqVersionFactsStore
 import com.dynokore.gst.payload.application.version.RecordVersionFacts
 import com.dynokore.gst.payload.domain.version.VersionFacts
@@ -52,7 +57,7 @@ class VersionAggregateIdTest {
         val data =
             """{"docUuid":"$doc","version":1,${member?.let { "\"aggregateId\":$it," }.orEmpty()}""" +
                 """"canonicalDocument":{"currency":{"value":"SGD"},"totals":{"value":{"totalIncludingTax":"10.00"}}}}"""
-        CanonicalVersionCreatedHandler(RecordVersionFacts(store)).handle(envelope(tenant, doc, data))
+        CanonicalVersionCreatedHandler(RecordVersionFacts(store), NO_INPUT, NO_TRIGGER).handle(envelope(tenant, doc, data))
     }
 
     private fun envelope(
@@ -128,5 +133,10 @@ class VersionAggregateIdTest {
     fun `INV-AC-22861 VersionFacts refuses a blank aggregateId`() {
         shouldThrow<IllegalArgumentException> { VersionFacts("E-1", null, " ") }
         VersionFacts("E-1", null).aggregateId shouldBe null
+    }
+
+    private companion object {
+        val NO_INPUT = CanonicalInputWriter { _, _, _, _, _ -> false }
+        val NO_TRIGGER = BuildTrigger(BuildInputs { _, _ -> false }, TypeDecisions { _, _ -> false }, BuildJobs { _, _ -> false })
     }
 }
