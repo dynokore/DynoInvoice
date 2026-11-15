@@ -94,9 +94,8 @@ class TransactionsRefusalAdvice {
  * operation answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
 @RestController
-// TooManyFunctions: one controller per generated interface (OpenAPI Generator pattern, ruled);
-// LongParameterList: one constructor argument per use case or delegate of the generated interface.
-@Suppress("TooManyFunctions", "LongParameterList")
+@Suppress("TooManyFunctions") // one controller per generated interface (OpenAPI Generator pattern, ruled)
+@Suppress("LongParameterList") // one constructor argument per use case or delegate of the generated interface
 open class TransactionsController(
     private val replay: ReplayBySelection,
     private val replayOne: ReplaySingleVersion,
