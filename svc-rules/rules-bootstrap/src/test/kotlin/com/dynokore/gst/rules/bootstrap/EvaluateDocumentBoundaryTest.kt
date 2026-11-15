@@ -48,6 +48,7 @@ import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
+private const val FLOW_CONTEXT = "eyJhbGciOiJub25lIn0.eyJmYyI6InQifQ.c2ln"
 private const val PLATFORM_TENANT = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 private const val PATH_DOCUMENT = "/internal/v1/rules/documents/evaluations"
 private const val PATH_DRAFT = "/internal/v1/rules/pre-issuance-drafts/evaluations"
@@ -284,6 +285,7 @@ class EvaluateDocumentBoundaryTest(
             HttpRequest
                 .newBuilder(URI("http://localhost:$port$path"))
                 .header("Content-Type", "application/json")
+                .header("X-Flow-Context", FLOW_CONTEXT)
                 .POST(HttpRequest.BodyPublishers.ofString(json))
         workload?.let { request.header("X-Workload-Token", it) }
         authorization?.let { request.header("Authorization", it) }
