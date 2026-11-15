@@ -11,6 +11,7 @@ import com.dynokore.gst.consoleBff.application.session.OperatorSession
 import com.dynokore.gst.consoleBff.application.session.OperatorSessionUseCase
 import com.dynokore.gst.consoleBff.application.session.SessionRow
 import com.dynokore.gst.consoleBff.application.session.SessionStore
+import com.dynokore.platform.tenancykernel.TenantId
 import com.sun.net.httpserver.HttpServer
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.AfterEach
@@ -37,7 +38,7 @@ class AccessOperatorSessionClientTest {
 
     private val seen = CopyOnWriteArrayList<Seen>()
 
-    @Volatile private var status = 200
+    @Volatile private var status = 201
 
     @Volatile private var reply: String = ""
     private val server =
@@ -58,8 +59,16 @@ class AccessOperatorSessionClientTest {
             }
             start()
         }
-    private val secret = "SECRET-OPERATOR-TOKEN-4155"
     private val tenant = "22222222-2222-2222-2222-222222222222"
+
+    private fun jwt(payload: String) =
+        "e30." +
+            java.util.Base64
+                .getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(payload.toByteArray()) + ".sig"
+
+    private val secret = jwt("""{"tenant_id":"$tenant"}""")
     private var counter = 0L
     private val client =
         AccessOperatorSessionClient(RestClient.builder(), "http://127.0.0.1:${server.address.port}", {
@@ -106,8 +115,8 @@ class AccessOperatorSessionClientTest {
 
     @Test
     fun `INV-AC-23363 the open posts tenantRef and caseId only with a fresh Idempotency-Key and no other header`() {
-        answer(200, ok())
-        answer(200, ok())
+        answer(201, ok())
+        answer(201, ok())
         seen.map { it.method } shouldBe listOf("POST", "POST")
         seen.map { it.path }.toSet() shouldBe setOf("/internal/v1/access/operator-sessions")
         seen[0].body shouldBe """{"tenantRef":"$tenant","caseId":"CASE-77"}"""
@@ -118,30 +127,99 @@ class AccessOperatorSessionClientTest {
 
     @Test
     fun `INV-AC-23363 the answer carries token, expiresAt and contentMode`() {
-        answer(200, ok("ELEVATED")) shouldBe
-            AccessAnswer.Opened(secret, Instant.parse("2026-11-15T10:15:00Z"), ContentMode.ELEVATED)
+        answer(201, ok("ELEVATED")) shouldBe
+            AccessAnswer.Opened(
+                secret,
+                Instant.parse("2026-11-15T10:15:00Z"),
+                ContentMode.ELEVATED,
+                TenantId.fromClaim(tenant),
+            )
     }
 
     @Test
     fun `INV-AC-23363 a contentMode that is neither MASKED nor ELEVATED is stored as MASKED`() {
         for (mode in listOf("FUTURE", "", "elevated", "Masked")) {
-            (answer(200, ok(mode)) as AccessAnswer.Opened).contentMode shouldBe ContentMode.MASKED
+            (answer(201, ok(mode)) as AccessAnswer.Opened).contentMode shouldBe ContentMode.MASKED
         }
-        (answer(200, """{"token":"$secret","expiresAt":"2026-11-15T10:15:00Z"}""") as AccessAnswer.Opened)
+        (answer(201, """{"token":"$secret","expiresAt":"2026-11-15T10:15:00Z"}""") as AccessAnswer.Opened)
             .contentMode shouldBe ContentMode.MASKED
     }
 
     @Test
-    fun `INV-AC-23363 403, 404 and 400 are refusals and a 5xx or an unusable answer is a failure`() {
-        answer(403, """{"title":"no"}""") shouldBe AccessAnswer.Refused(403)
-        answer(404, """{"title":"no"}""") shouldBe AccessAnswer.Refused(404)
-        answer(400, """{"title":"no"}""") shouldBe AccessAnswer.Refused(400)
-        answer(503, """{"title":"down"}""") shouldBe AccessAnswer.Failed
-        answer(200, "not json $secret") shouldBe AccessAnswer.Failed
-        answer(200, ok(expiresAt = "yesterday")) shouldBe AccessAnswer.Failed
-        answer(200, """{"expiresAt":"2026-11-15T10:15:00Z"}""") shouldBe AccessAnswer.Failed
-        answer(200, ok(token = "t".repeat(8193))) shouldBe AccessAnswer.Failed
-        (answer(200, ok(token = "t".repeat(8192))) is AccessAnswer.Opened) shouldBe true
+    fun `INV-AC-23363 each of 400, 401, 403, 404, 409 is a refusal with that status`() {
+        for (code in listOf(400, 401, 403, 404, 409)) {
+            answer(code, """{"title":"no"}""") shouldBe AccessAnswer.Refused(code)
+        }
+    }
+
+    @Test
+    fun `INV-AC-23363 each of 408, 429, 500, 503 is a failure`() {
+        for (code in listOf(408, 429, 500, 503)) {
+            answer(code, """{"title":"x"}""") shouldBe AccessAnswer.Failed
+        }
+        seen.size shouldBe 4
+    }
+
+    @Test
+    fun `INV-AC-23363 a connection failure and a timeout are failures`() {
+        server.stop(0)
+        client.open(tenant, "CASE-77") shouldBe AccessAnswer.Failed
+        val slow =
+            HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0).apply {
+                createContext("/") { Thread.sleep(1500) }
+                start()
+            }
+        try {
+            val factory =
+                org.springframework.http.client
+                    .JdkClientHttpRequestFactory()
+            factory.setReadTimeout(java.time.Duration.ofMillis(200))
+            AccessOperatorSessionClient(
+                RestClient.builder().requestFactory(factory),
+                "http://127.0.0.1:${slow.address.port}",
+            ).open(tenant, "CASE-77") shouldBe AccessAnswer.Failed
+        } finally {
+            slow.stop(0)
+        }
+    }
+
+    @Test
+    fun `INV-AC-23363 an unusable 201 answer is a failure`() {
+        answer(201, "not json $secret") shouldBe AccessAnswer.Failed
+        answer(201, ok(expiresAt = "not-a-date")) shouldBe AccessAnswer.Failed
+        answer(201, """{"token":"$secret"}""") shouldBe AccessAnswer.Failed
+        answer(201, """{"expiresAt":"2026-11-15T10:15:00Z"}""") shouldBe AccessAnswer.Failed
+        answer(201, ok(token = "t".repeat(8193))) shouldBe AccessAnswer.Failed
+        answer(200, ok()) shouldBe AccessAnswer.Failed
+    }
+
+    @Test
+    fun `INV-AC-23363 a token without a usable tenant_id claim is a failure and tenant_id is read from the claim`() {
+        val platform = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+        for (bad in listOf(
+            "e30.e30.sig".replace(
+                "e30.e30",
+                "e30." +
+                    java.util.Base64
+                        .getUrlEncoder()
+                        .withoutPadding()
+                        .encodeToString("{}".toByteArray()),
+            ),
+            "e30." +
+                java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(
+                    """{"tenant_id":"abc"}""".toByteArray(),
+                ) +
+                ".s",
+            jwt("""{"tenant_id":"$platform"}"""),
+            jwt("not json"),
+            "two.segments",
+            "a.!!!.c",
+        )) {
+            answer(201, ok(token = bad)) shouldBe AccessAnswer.Failed
+            logged().contains(bad) shouldBe false
+        }
+        (answer(201, ok()) as AccessAnswer.Opened).tenantId shouldBe TenantId.fromClaim(tenant)
+        (answer(201, ok(token = jwt("""{"tenant_id":"${tenant.uppercase()}"}"""))) is AccessAnswer.Opened) shouldBe true
     }
 
     @Test
@@ -186,14 +264,14 @@ class AccessOperatorSessionClientTest {
                 override fun instant() = now
             }
         val use = OperatorSessionUseCase(store, client, clock)
-        status = 200
+        status = 201
         reply = ok()
         use.open("h", tenant, "CASE-77") shouldBe
             OpenOperatorSessionResult.Opened(Instant.parse("2026-11-15T10:15:00Z"), ContentMode.MASKED)
         status = 500
         reply = """{"detail":"echo $secret"}"""
         use.open("h", tenant, "CASE-78") shouldBe OpenOperatorSessionResult.Unavailable
-        status = 200
+        status = 201
         reply = "garbage $secret"
         use.open("h", tenant, "CASE-79") shouldBe OpenOperatorSessionResult.Unavailable
         now = Instant.parse("2026-11-15T10:15:00Z")

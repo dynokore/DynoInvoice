@@ -5,6 +5,7 @@ import com.dynokore.gst.consoleBff.adapters.clients.access.model.OperatorSession
 import com.dynokore.gst.consoleBff.application.session.AccessAnswer
 import com.dynokore.gst.consoleBff.application.session.AccessOperatorSessions
 import com.dynokore.gst.consoleBff.application.session.ContentMode
+import com.dynokore.platform.tenancykernel.TenantId
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -12,8 +13,10 @@ import org.springframework.http.MediaType
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
+import tools.jackson.databind.json.JsonMapper
 import java.time.DateTimeException
 import java.time.OffsetDateTime
+import java.util.Base64
 import java.util.UUID
 
 /**
@@ -49,12 +52,12 @@ class AccessOperatorSessionClient(
                     .header(IDEMPOTENCY_KEY, idempotencyKeys().toString())
                     .body(body)
                     .retrieve()
-                    .body(Reply::class.java)
-            answerOf(reply)
+                    .toEntity(Reply::class.java)
+            if (reply.statusCode.value() == CREATED) answerOf(reply.body) else AccessAnswer.Failed
         } catch (e: RestClientResponseException) {
             val status = e.statusCode.value()
             LOG.warn("access-svc openOperatorSession answered status {}", status)
-            if (status in CLIENT_ERRORS) AccessAnswer.Refused(status) else AccessAnswer.Failed
+            if (status in CLIENT_ERRORS && status !in RETRYABLE) AccessAnswer.Refused(status) else AccessAnswer.Failed
         } catch (e: RestClientException) {
             // the message of a deserialisation failure can quote the body, which holds the token: class name only
             LOG.warn("access-svc openOperatorSession failed: {}", e.javaClass.name)
@@ -65,13 +68,33 @@ class AccessOperatorSessionClient(
     private fun answerOf(reply: Reply?): AccessAnswer {
         val bearer = reply?.token
         val expiresAt = reply?.expiresAt?.let(::parseInstant)
-        return if (bearer.isNullOrEmpty() || bearer.length > MAX_TOKEN_LENGTH || expiresAt == null) {
+        val tenant = if (bearer.isNullOrEmpty() || bearer.length > MAX_TOKEN_LENGTH) null else tenantOfClaim(bearer)
+        return if (tenant == null || expiresAt == null) {
             LOG.warn("access-svc openOperatorSession answer unusable")
             AccessAnswer.Failed
         } else {
-            AccessAnswer.Opened(bearer, expiresAt.toInstant(), contentModeOf(reply.contentMode))
+            AccessAnswer.Opened(checkNotNull(bearer), expiresAt.toInstant(), contentModeOf(reply.contentMode), tenant)
         }
     }
+
+    /**
+     * The tenant of the `tenant_id` claim of [token]. No signature is checked: the value only chooses the tenant that
+     * the stored row is bound to, and the services that receive the token verify it. Anything unusable gives null.
+     */
+    @Suppress("TooGenericExceptionCaught", "SwallowedException")
+    private fun tenantOfClaim(token: String): TenantId? =
+        try {
+            val parts = token.split('.')
+            if (parts.size < JWT_SEGMENTS) {
+                null
+            } else {
+                val node = MAPPER.readTree(Base64.getUrlDecoder().decode(parts[1]))
+                val claim = node?.get("tenant_id")
+                if (claim == null || !claim.isString) null else TenantId.fromClaim(claim.asString())
+            }
+        } catch (e: RuntimeException) {
+            null
+        }
 
     private fun parseInstant(text: String): OffsetDateTime? =
         try {
@@ -108,7 +131,13 @@ class AccessOperatorSessionClient(
                 .openOperatorSessionRequestConfig(UUID(0, 0), OperatorSessionRequest("t", "c"))
                 .path
 
+        private const val CREATED = 201
+        private const val JWT_SEGMENTS = 3
+        private val MAPPER = JsonMapper()
         private val CLIENT_ERRORS = 400..499
+
+        /** Request timeout and too many requests: retryable, so not a refusal (RFC 9110, RFC 6585). */
+        private val RETRYABLE = setOf(408, 429)
         private val LOG: Logger = LoggerFactory.getLogger(AccessOperatorSessionClient::class.java)
     }
 }

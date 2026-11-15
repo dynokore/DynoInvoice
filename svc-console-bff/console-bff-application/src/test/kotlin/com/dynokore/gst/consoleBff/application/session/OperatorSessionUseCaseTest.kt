@@ -1,5 +1,6 @@
 package com.dynokore.gst.consoleBff.application.session
 
+import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.time.Clock
@@ -73,7 +74,8 @@ class OperatorSessionUseCaseTest {
     private val clock = MovingClock(t0)
     private val consoleRow = SessionRow(hash, "p1", "11111111-1111-1111-1111-111111111111", 1, t0, t0)
 
-    private fun opened(mode: ContentMode = ContentMode.MASKED) = AccessAnswer.Opened(secret, expires, mode)
+    private fun opened(mode: ContentMode = ContentMode.MASKED) =
+        AccessAnswer.Opened(secret, expires, mode, TenantId.fromClaim(tenant))
 
     private fun useCase(
         store: Store,
@@ -167,13 +169,28 @@ class OperatorSessionUseCaseTest {
     }
 
     @Test
-    fun `INV-AC-23363 a tenant that is not a uuid is refused before any call`() {
+    fun `INV-AC-23363 an empty or 65 code point tenantRef is refused before any call and 64 is accepted`() {
         val access = Access(opened())
         val store = Store(consoleRow, clock)
-        for (bad in listOf("", "t-1", "2222", "22222222-2222-2222-2222-22222222222")) {
+        val sup = String(Character.toChars(0x1F600))
+        for (bad in listOf("", "a".repeat(65), sup.repeat(65))) {
             useCase(store, access).open(hash, bad, "CASE-77") shouldBe OpenOperatorSessionResult.InvalidTenant
         }
         access.calls shouldBe emptyList()
+        useCase(store, access).open(hash, sup.repeat(64), "CASE-77") shouldBe
+            OpenOperatorSessionResult.Opened(expires, ContentMode.MASKED)
+        access.calls shouldBe listOf(sup.repeat(64) to "CASE-77")
+    }
+
+    @Test
+    fun `INV-AC-23363 tenantRef reaches the port unchanged and the stored tenant is the one of the answer`() {
+        for (ref in listOf("TEN-7B1004", "Ten-AbC", " x ")) {
+            val access = Access(opened())
+            val store = Store(consoleRow, clock)
+            useCase(store, access).open(hash, ref, "CASE-77")
+            access.calls shouldBe listOf(ref to "CASE-77")
+            store.row?.operator?.tenantId shouldBe tenant
+        }
     }
 
     @Test
@@ -197,7 +214,8 @@ class OperatorSessionUseCaseTest {
         val access = Access(opened())
         val use = useCase(store, access)
         use.open(hash, tenant, "CASE-1")
-        access.answer = AccessAnswer.Opened("second", expires.plusSeconds(60), ContentMode.ELEVATED)
+        access.answer =
+            AccessAnswer.Opened("second", expires.plusSeconds(60), ContentMode.ELEVATED, TenantId.fromClaim(tenant))
         use.open(hash, tenant, "CASE-2")
         use.current(hash)?.token shouldBe "second"
         access.calls.map { it.second } shouldBe listOf("CASE-1", "CASE-2")

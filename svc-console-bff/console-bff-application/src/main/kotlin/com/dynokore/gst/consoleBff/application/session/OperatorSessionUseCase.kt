@@ -1,8 +1,8 @@
 package com.dynokore.gst.consoleBff.application.session
 
+import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Clock
 import java.time.Instant
-import java.util.UUID
 
 /** The answer of access-svc's `openOperatorSession`; [Opened] holds the bearer value, so its [toString] redacts it. */
 sealed interface AccessAnswer {
@@ -10,8 +10,10 @@ sealed interface AccessAnswer {
         val bearer: String,
         val expiresAt: Instant,
         val contentMode: ContentMode,
+        val tenantId: TenantId,
     ) : AccessAnswer {
-        override fun toString(): String = "Opened(expiresAt=$expiresAt, contentMode=$contentMode, bearer=<redacted>)"
+        override fun toString(): String =
+            "Opened(tenantId=$tenantId, expiresAt=$expiresAt, contentMode=$contentMode, bearer=<redacted>)"
     }
 
     /** A refusal of access-svc (400, 403, 404 ...), by HTTP status only. */
@@ -68,9 +70,9 @@ class OperatorSessionUseCase(
     ): OpenOperatorSessionResult =
         when {
             !CaseReference.isValid(caseId) -> OpenOperatorSessionResult.InvalidCaseReference
-            !isUuid(tenantRef) -> OpenOperatorSessionResult.InvalidTenant
+            !isTenantRef(tenantRef) -> OpenOperatorSessionResult.InvalidTenant
             store.find(sessionHash) == null -> OpenOperatorSessionResult.NoConsoleSession
-            else -> call(sessionHash, tenantRef.lowercase(), checkNotNull(caseId))
+            else -> call(sessionHash, tenantRef, checkNotNull(caseId))
         }
 
     private fun call(
@@ -81,15 +83,14 @@ class OperatorSessionUseCase(
         when (val answer = access.open(tenant, caseId)) {
             is AccessAnswer.Refused -> OpenOperatorSessionResult.Refused(answer.status)
             AccessAnswer.Failed -> OpenOperatorSessionResult.Unavailable
-            is AccessAnswer.Opened -> attach(sessionHash, tenant, answer)
+            is AccessAnswer.Opened -> attach(sessionHash, answer)
         }
 
     private fun attach(
         sessionHash: String,
-        tenant: String,
         answer: AccessAnswer.Opened,
     ): OpenOperatorSessionResult {
-        val operator = OperatorSession(tenant, answer.bearer, answer.expiresAt, answer.contentMode)
+        val operator = OperatorSession(answer.tenantId.toString(), answer.bearer, answer.expiresAt, answer.contentMode)
         return if (store.attachOperatorSession(sessionHash, operator)) {
             OpenOperatorSessionResult.Opened(answer.expiresAt, answer.contentMode)
         } else {
@@ -104,6 +105,11 @@ class OperatorSessionUseCase(
     fun current(sessionHash: String): OperatorSession? =
         store.find(sessionHash)?.operator?.takeIf { it.expiresAt.isAfter(clock.instant()) }
 
-    private fun isUuid(value: String): Boolean =
-        runCatching { UUID.fromString(value) }.getOrNull()?.toString() == value.lowercase()
+    /** The schema holds `maxLength: 64` and an opaque reference: no format test, only empty and too long refuse. */
+    private fun isTenantRef(value: String): Boolean =
+        value.isNotEmpty() && value.codePointCount(0, value.length) <= MAX_TENANT_REF
+
+    private companion object {
+        const val MAX_TENANT_REF = 64
+    }
 }
