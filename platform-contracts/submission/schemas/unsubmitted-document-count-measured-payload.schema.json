@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/unsubmitted-document-count-measured-payload.schema.json",
+  "title": "UnsubmittedDocumentCountMeasuredPayload",
+  "description": "Payload of the UnsubmittedDocumentCountMeasured event (class: domain), which gives tenancy-svc the count of unsubmitted in-scope documents of a tenant for the offboarding check (INV-REQ-956, INV-REQ-49). The counted set is the documents whose obligation-register entry has inScope true and which have no submission. The tenant is the tenant bound to the event envelope, so the payload has no tenant member. The event is the state of the count at measuredAt (state transfer); a consumer keeps the event with the greatest measuredAt. Every measured tenant is sent on every run of the producer job, so the absence of a recent event means the feed is not current. An entity with no unsubmitted document is absent from entities and counts 0. One entityRef appears at most once in entities; JSON Schema cannot express uniqueness by one member, so the producer test and the consumer enforce it. Within a major version this schema is additive-only (API-41): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "measuredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "The instant the producer read the obligation register."
+    },
+    "unsubmittedDocumentCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The number of unsubmitted in-scope documents of the whole tenant."
+    },
+    "entities": {
+      "type": "array",
+      "maxItems": 1000,
+      "description": "The unsubmitted in-scope documents per entity. An entity with no unsubmitted document is absent and counts 0. One entityRef appears at most once.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "entityRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "The entity the documents belong to."
+          },
+          "unsubmittedDocumentCount": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The number of unsubmitted in-scope documents of this entity."
+          }
+        },
+        "required": ["entityRef", "unsubmittedDocumentCount"],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": ["measuredAt", "unsubmittedDocumentCount", "entities"],
+  "additionalProperties": true
+}

@@ -256,3 +256,8 @@ getLatestReadinessCheck	operation	openapi.yaml	INV-REQ-500
 getLatestReadinessCheck.SRT-005	operation_error_code	openapi.yaml	INV-REQ-500
 # INV-T-22806 (INV-REQ-439). Optional aggregate reference member of the SubmissionDespatched payload.
 aggregateId	property	schemas/submission-despatched-payload.schema.json	INV-REQ-439
+# INV-T-22880 (INV-REQ-956). Payload members of UnsubmittedDocumentCountMeasured. No row for the event name (INV-Q-16129): the job event-log-topics-drift-check pins it.
+measuredAt	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
+unsubmittedDocumentCount	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
+entities	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
+entityRef	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956

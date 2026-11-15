@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: submission events
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Every event submission produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -73,6 +73,11 @@ channels:
     messages:
       PeriodFilingStatusChanged:
         $ref: '#/components/messages/PeriodFilingStatusChanged'
+  submissionUnsubmittedDocumentCountMeasured:
+    address: 'gst.submission.unsubmitted-document-count-measured.v1'
+    messages:
+      UnsubmittedDocumentCountMeasured:
+        $ref: '#/components/messages/UnsubmittedDocumentCountMeasured'
   submissionExampleHappened:
     address: 'gst.submission.example-happened.v1'
     messages:
@@ -146,6 +151,13 @@ operations:
       $ref: '#/channels/submissionPeriodFilingStatusChanged'
     messages:
       - $ref: '#/channels/submissionPeriodFilingStatusChanged/messages/PeriodFilingStatusChanged'
+  publishUnsubmittedDocumentCountMeasured:
+    action: send
+    description: UnsubmittedDocumentCountMeasured — the count of unsubmitted in-scope documents of a tenant, for the offboarding check of tenancy-svc (INV-REQ-956, INV-REQ-49).
+    channel:
+      $ref: '#/channels/submissionUnsubmittedDocumentCountMeasured'
+    messages:
+      - $ref: '#/channels/submissionUnsubmittedDocumentCountMeasured/messages/UnsubmittedDocumentCountMeasured'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -267,6 +279,19 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/period-filing-status-changed-payload.schema.json'
+    UnsubmittedDocumentCountMeasured:
+      name: com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1
+      title: UnsubmittedDocumentCountMeasured
+      summary: UnsubmittedDocumentCountMeasured — the count of unsubmitted in-scope documents of a tenant at a point in time.
+      description: >-
+        Event UnsubmittedDocumentCountMeasured (INV-REQ-956, INV-REQ-49; class: domain).
+        Emitted by: submission-svc. Consumed by: tenancy-svc. Delivery: At-least-once.
+        It is the state of the count of one tenant at measuredAt (state transfer); a consumer keeps the event with the
+        greatest measuredAt. Every measured tenant is sent on every run of the producer job, so the absence of a recent
+        event means the feed is not current.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/unsubmitted-document-count-measured-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.submission.ExampleHappened.v1
       title: ExampleHappened
