@@ -40,13 +40,16 @@ sealed interface CloseAccessReviewOutcome {
  */
 class CloseAccessReviewUseCase(
     private val tx: TransactionRunner,
-    private val campaigns: ReviewCampaigns,
-    private val outcomes: ReviewOutcomes,
+    private val stores: ReviewStores,
     private val acks: SoleOperatorAcks,
     private val revocations: ReviewRevocations,
     private val audit: ReviewAudit,
     private val clock: Clock,
 ) {
+    private val campaigns get() = stores.campaigns
+    private val outcomes get() = stores.outcomes
+
+
     fun handle(
         actor: IdentityRef,
         campaignRef: String,

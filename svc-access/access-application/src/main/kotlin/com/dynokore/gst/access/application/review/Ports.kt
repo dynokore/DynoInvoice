@@ -78,3 +78,16 @@ data class ReviewAuditEntry(
 fun interface ReviewAudit {
     fun record(entry: ReviewAuditEntry)
 }
+
+/** The read ports `runAccessReview` consults (kept together to bound the constructor, detekt LongParameterList). */
+class ReviewSources(
+    val availability: Vp05Availability,
+    val cadences: ReviewCadenceSource,
+    val grants: ReviewGrantSource,
+)
+
+/** The stores `closeAccessReview` reads and writes. */
+class ReviewStores(
+    val campaigns: ReviewCampaigns,
+    val outcomes: ReviewOutcomes,
+)

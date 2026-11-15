@@ -124,9 +124,15 @@ class ReviewTest {
             check(!revokeFails) { "revocation failed" }
         }
     private val run =
-        RunAccessReviewUseCase(tx, { vp05 }, cadences, { tenantGrants }, campaigns, { audits += it }, clock)
+        RunAccessReviewUseCase(
+            tx,
+            ReviewSources({ vp05 }, cadences, { tenantGrants }),
+            campaigns,
+            { audits += it },
+            clock,
+        )
     private val close =
-        CloseAccessReviewUseCase(tx, campaigns, outcomes, acks, revocations, { audits += it }, clock)
+        CloseAccessReviewUseCase(tx, ReviewStores(campaigns, outcomes), acks, revocations, { audits += it }, clock)
 
     private fun rec(
         a: IdentityRef,
@@ -225,10 +231,16 @@ class ReviewTest {
         rec(bob, c, GrantRef("g1"), ReviewDecision.REVOKE)
         rec(alice, c, GrantRef("g2"), ReviewDecision.KEEP)
         assertTrue(revoked.isEmpty())
-        assertEquals(CloseAccessReviewOutcome.Recorded(CampaignStatus.CLOSED), rec(alice, c, GrantRef("g3"), ReviewDecision.REVOKE))
+        assertEquals(
+            CloseAccessReviewOutcome.Recorded(CampaignStatus.CLOSED),
+            rec(alice, c, GrantRef("g3"), ReviewDecision.REVOKE),
+        )
         assertEquals(listOf(setOf(GrantRef("g1"), GrantRef("g3"))), revoked)
         // a repeated final outcome calls nothing again
-        assertEquals(CloseAccessReviewOutcome.Repeated(CampaignStatus.CLOSED), rec(alice, c, GrantRef("g3"), ReviewDecision.REVOKE))
+        assertEquals(
+            CloseAccessReviewOutcome.Repeated(CampaignStatus.CLOSED),
+            rec(alice, c, GrantRef("g3"), ReviewDecision.REVOKE),
+        )
         assertEquals(1, revoked.size)
     }
 
@@ -252,7 +264,10 @@ class ReviewTest {
         assertEquals(2, outcomeRows.size)
         assertNull(outcomes.find(c, GrantRef("g3")))
         revokeFails = false
-        assertEquals(CloseAccessReviewOutcome.Recorded(CampaignStatus.CLOSED), rec(alice, c, GrantRef("g3"), ReviewDecision.KEEP))
+        assertEquals(
+            CloseAccessReviewOutcome.Recorded(CampaignStatus.CLOSED),
+            rec(alice, c, GrantRef("g3"), ReviewDecision.KEEP),
+        )
     }
 
     @Test

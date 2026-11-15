@@ -38,9 +38,7 @@ sealed interface RunAccessReviewOutcome {
  */
 class RunAccessReviewUseCase(
     private val tx: TransactionRunner,
-    private val availability: Vp05Availability,
-    private val cadences: ReviewCadenceSource,
-    private val grants: ReviewGrantSource,
+    private val sources: ReviewSources,
     private val campaigns: ReviewCampaigns,
     private val audit: ReviewAudit,
     private val clock: Clock,
@@ -64,8 +62,8 @@ class RunAccessReviewUseCase(
         actor: IdentityRef,
         period: PeriodLabel,
     ): RunAccessReviewOutcome {
-        val planned = availability.current() == VpAvailability.PLANNED
-        val answer = if (planned) CadenceAnswer.QUARTERLY else cadences.current()
+        val planned = sources.availability.current() == VpAvailability.PLANNED
+        val answer = if (planned) CadenceAnswer.QUARTERLY else sources.cadences.current()
         return when {
             planned && period is PeriodLabel.Month -> RunAccessReviewOutcome.MonthlyUnavailable
             answer == CadenceAnswer.UNREADABLE -> RunAccessReviewOutcome.CadenceNotReadable
@@ -81,7 +79,7 @@ class RunAccessReviewUseCase(
         cadence: Cadence,
     ): RunAccessReviewOutcome {
         val campaign =
-            ReviewCampaign(campaigns.nextRef(), period, cadence, grants.grantsOfTenant(), actor, clock.instant())
+            ReviewCampaign(campaigns.nextRef(), period, cadence, sources.grants.grantsOfTenant(), actor, clock.instant())
         campaigns.insert(campaign)
         audit.record(ReviewAuditEntry(actor.value, "runAccessReview", campaign.ref, null, null))
         return RunAccessReviewOutcome.Opened(campaign)
