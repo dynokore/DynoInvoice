@@ -3,10 +3,13 @@ package com.dynokore.gst.submission.bootstrap
 import com.dynokore.gst.submission.application.gstn.EntityGstns
 import com.dynokore.gst.submission.application.listing.ExportSubmissionsRequest
 import com.dynokore.gst.submission.application.listing.ExportSubmissionsResult
+import com.dynokore.gst.submission.application.listing.GetSubmissionReconciliation
 import com.dynokore.gst.submission.application.listing.ListSubmissions
 import com.dynokore.gst.submission.application.listing.ListSubmissionsRequest
 import com.dynokore.gst.submission.application.listing.ListSubmissionsResult
 import com.dynokore.gst.submission.application.listing.SourceRead
+import com.dynokore.gst.submission.application.listing.SubmissionReconciliationRequest
+import com.dynokore.gst.submission.application.listing.SubmissionReconciliationResult
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
 import com.dynokore.gst.submission.application.listing.SubmissionSummaryQuery
 import com.dynokore.gst.submission.application.listing.SubmissionSummaryRequest
@@ -108,5 +111,17 @@ class ListingConfigurationTest {
         wired.handle(request, deadline) shouldBe ExportSubmissionsResult.Forbidden
         source.calls shouldBe 0
         lookups shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-22764 the getSubmissionReconciliation bean exists and refuses a denied caller without reading`() {
+        val replica = AuthorityReplica(clock, OperationRoleMap { emptyMap() })
+        val source = RecordingSource()
+        val request = SubmissionReconciliationRequest(tenant, stranger, "E1", "P1", clock.instant())
+
+        val wired: GetSubmissionReconciliation = ListingConfiguration().getSubmissionReconciliation(replica, source)
+
+        wired.handle(request, deadline) shouldBe SubmissionReconciliationResult.Forbidden
+        source.calls shouldBe 0
     }
 }

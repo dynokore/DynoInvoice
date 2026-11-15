@@ -3,6 +3,7 @@ package com.dynokore.gst.submission.bootstrap
 import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionRowSource
 import com.dynokore.gst.submission.application.gstn.EntityGstns
 import com.dynokore.gst.submission.application.listing.ExportSubmissions
+import com.dynokore.gst.submission.application.listing.GetSubmissionReconciliation
 import com.dynokore.gst.submission.application.listing.ListSubmissions
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
 import com.dynokore.gst.submission.application.listing.SubmissionSummaryQuery
@@ -33,6 +34,12 @@ class ListingConfiguration {
         replica: AuthorityReplica,
         source: SubmissionRowSource,
     ): SubmissionSummaryQuery = SubmissionSummaryQuery(replica, source)
+
+    @Bean
+    fun getSubmissionReconciliation(
+        replica: AuthorityReplica,
+        source: SubmissionRowSource,
+    ): GetSubmissionReconciliation = GetSubmissionReconciliation(replica, source)
 
     @Bean
     fun exportSubmissions(
