@@ -25,24 +25,29 @@ class EntityConstitutionReader {
         tenant: TenantId,
     ): EntityConstitutionFact? {
         val data = parse(dataJson)
-        val constitution = data.get(CONSTITUTION)?.takeIf { !it.isNull } ?: return null
-        if (!constitution.isString || constitution.asString().isBlank()) {
-            throw ContractViolation("$CONSTITUTION is not a non-blank text")
-        }
+        val constitution = constitution(data) ?: return null
         if (tenant.isPlatform) throw ContractViolation("the envelope carries no tenantid")
-        val entityRef =
-            data.get(ENTITY_REF)?.takeIf { it.isString && it.asString().isNotBlank() }?.asString()
-                ?: throw ContractViolation("$ENTITY_REF is missing or not a non-blank text")
-        val version =
-            data
-                .get(NODE)
-                ?.get(STRUCTURE_VERSION)
-                ?.takeIf { it.isIntegralNumber && it.canConvertToLong() }
-                ?.asLong()
-                ?.takeIf { it >= 1 }
-                ?: throw ContractViolation("$NODE.$STRUCTURE_VERSION is missing, not an integer or below 1")
-        return EntityConstitutionFact(tenant.value, entityRef, constitution.asString(), version)
+        return EntityConstitutionFact(tenant.value, entityRef(data), constitution, version(data))
     }
+
+    private fun constitution(data: JsonNode): String? {
+        val node = data.get(CONSTITUTION)?.takeIf { !it.isNull } ?: return null
+        return node.takeIf { it.isString && it.asString().isNotBlank() }?.asString()
+            ?: throw ContractViolation("$CONSTITUTION is not a non-blank text")
+    }
+
+    private fun entityRef(data: JsonNode): String =
+        data.get(ENTITY_REF)?.takeIf { it.isString && it.asString().isNotBlank() }?.asString()
+            ?: throw ContractViolation("$ENTITY_REF is missing or not a non-blank text")
+
+    private fun version(data: JsonNode): Long =
+        data
+            .get(NODE)
+            ?.get(STRUCTURE_VERSION)
+            ?.takeIf { it.isIntegralNumber && it.canConvertToLong() }
+            ?.asLong()
+            ?.takeIf { it >= 1 }
+            ?: throw ContractViolation("$NODE.$STRUCTURE_VERSION is missing, not an integer or below 1")
 
     private fun parse(text: String): JsonNode =
         try {
