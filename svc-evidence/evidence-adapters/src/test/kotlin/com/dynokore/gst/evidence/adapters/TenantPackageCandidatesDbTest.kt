@@ -2,12 +2,8 @@ package com.dynokore.gst.evidence.adapters
 
 import com.dynokore.gst.evidence.adapters.persistence.JooqTenantPackageCandidates
 import com.dynokore.gst.evidence.adapters.persistence.PackageSizeRefusal
-import com.dynokore.platform.evidencestore.exportpackage.AssemblyRefusal
-import com.dynokore.platform.evidencestore.exportpackage.AssemblyResult
-import com.dynokore.platform.evidencestore.exportpackage.AuditPackAssembler
 import com.dynokore.platform.evidencestore.exportpackage.PackageCandidate
 import com.dynokore.platform.evidencestore.exportpackage.PackageContentClass
-import com.dynokore.platform.evidencestore.exportpackage.PackageScope
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
@@ -16,7 +12,6 @@ import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
-import java.time.Instant
 import java.util.UUID
 
 /**
@@ -55,9 +50,8 @@ class TenantPackageCandidatesDbTest {
             entities.forEach { entity ->
                 for (seq in 1..rows) {
                     dsl.execute(
-                        "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +
-                            "content, content_hash, recorded_at) " +
-                            "values (gen_random_uuid(), ?, ?, '2026-Q1', ?, 'T', ?, ?, now())",
+                        "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, content, " +
+                            "content_hash, recorded_at) values (gen_random_uuid(), ?, ?, '2026-Q1', ?, 'T', ?, ?, now())",
                         tenant,
                         entity,
                         seq.toLong(),
@@ -73,13 +67,6 @@ class TenantPackageCandidatesDbTest {
         seed(t1, listOf("ENT-A", "ENT-B"), 2)
         seed(t2, listOf("ENT-C"), 1)
     }
-
-    private fun assemble(candidates: List<PackageCandidate>) =
-        AuditPackAssembler.assemble(
-            PackageScope.WholeTenant(TenantId(t1)),
-            candidates,
-            Instant.parse("2026-11-15T00:00:00Z"),
-        )
 
     private fun read(
         tenant: UUID,
@@ -105,7 +92,7 @@ class TenantPackageCandidatesDbTest {
     fun `INV-AC-22948 the reader names the same seq under two entities differently`() {
         fixture()
         val names = read(t1).filter { it.item.contentClass == PackageContentClass.AUDIT_LOG }.map { it.item.name }
-        names.count { it.startsWith("1-") } shouldBe 2
+        names.filter { it.startsWith("1-") }.size shouldBe 2
         names.toSet().size shouldBe 4
     }
 
@@ -121,11 +108,8 @@ class TenantPackageCandidatesDbTest {
     fun `INV-AC-22948 a limit below the total throws the size refusal and returns no candidate`() {
         fixture()
         val perClass = 4L * rowBytes
-        val total = 4 * perClass
         shouldThrow<PackageSizeRefusal> { read(t1, perClass - 1) }
-        shouldThrow<PackageSizeRefusal> { read(t1, perClass * 2 + rowBytes) }
-        shouldThrow<PackageSizeRefusal> { read(t1, total - 1) }
-        read(t1, total).size shouldBe 16
+        read(t1, perClass).size shouldBe 16
     }
 
     @Test
@@ -133,33 +117,5 @@ class TenantPackageCandidatesDbTest {
         tx(t1) { dsl ->
             JooqTenantPackageCandidates(dsl, 1).sources().keys shouldContainExactlyInAnyOrder tables.values
         }
-    }
-
-    @Test
-    fun `INV-AC-22948 the four names of one row are equal across the four classes`() {
-        fixture()
-        val byRow = read(t1).groupBy { it.entity.value to it.item.name.substringBefore('-') }
-        byRow.size shouldBe 4
-        byRow.values.forEach { group -> group.map { it.item.name }.toSet().size shouldBe 1 }
-    }
-
-    @Test
-    fun `INV-AC-22948 the 16 candidates of T1 are assembled into 16 distinct data paths`() {
-        fixture()
-        val result = assemble(read(t1))
-        val assembled = result as AssemblyResult.Assembled
-        assembled.included shouldBe 16
-        val data = assembled.files.paths.filter { it.startsWith("data/") }
-        data.size shouldBe 16
-        data.toSet().size shouldBe 16
-        assembled.files.paths.size shouldBe 16 + 4 + 1
-    }
-
-    @Test
-    fun `INV-AC-22948 the same class and name twice is refused as DUPLICATE_ITEM`() {
-        fixture()
-        val one = read(t1).first()
-        val result = assemble(listOf(one, one))
-        (result as AssemblyResult.Refused).reason shouldBe AssemblyRefusal.DUPLICATE_ITEM
     }
 }

@@ -13,14 +13,13 @@ import java.time.ZoneOffset
  * [ExportPackageStore] over the write-once [ObjectStore]: every file of the package is put under
  * `exports/offboarding/<tenantId>/<offboardingRef>/` and the manifest reference returned is `<scheme>://` plus the key
  * of `manifest-sha256.txt`. [scheme] is that of the configured object store. The objects are retained for [retention]
- * years from [clock]; [retention] is read at each call. The tenant remains obliged to produce records to IRAS
- * (INV-REQ-877).
+ * years from [clock] (the tenant remains obliged to produce records to IRAS, INV-REQ-877).
  */
 class ObjectStorePackageStore(
     private val store: ObjectStore,
     private val scheme: String,
     private val clock: Clock,
-    private val retention: () -> RetentionPeriod,
+    private val retention: RetentionPeriod,
 ) : ExportPackageStore {
     override fun store(
         tenant: TenantId,
@@ -33,16 +32,10 @@ class ObjectStorePackageStore(
             clock
                 .instant()
                 .atZone(ZoneOffset.UTC)
-                .plusYears(retention().years.toLong())
+                .plusYears(retention.years.toLong())
                 .toInstant()
         check(MANIFEST in files.paths) { "the package has no $MANIFEST" }
-        files.paths.forEach { path ->
-            store.put(
-                ObjectKey(prefix + path),
-                checkNotNull(files.bytes(path)) { "the package lists $path without bytes" },
-                retainUntil,
-            )
-        }
+        files.paths.forEach { path -> store.put(ObjectKey(prefix + path), checkNotNull(files.bytes(path)) { "the package lists $path without bytes" }, retainUntil) }
         return "$scheme://$prefix$MANIFEST"
     }
 
