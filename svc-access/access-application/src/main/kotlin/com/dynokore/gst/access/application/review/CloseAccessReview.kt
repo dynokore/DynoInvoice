@@ -49,7 +49,6 @@ class CloseAccessReviewUseCase(
     private val campaigns get() = stores.campaigns
     private val outcomes get() = stores.outcomes
 
-
     fun handle(
         actor: IdentityRef,
         campaignRef: String,
