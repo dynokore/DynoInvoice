@@ -128,10 +128,9 @@ class DryRunCalls(
         packRef: String,
         window: DryRunWindow?,
     ): DryRunStarted {
-        // the scoped permission `pack.dry-run` is the first statement: before the sample adapter, the pack lookup (so an
-        // unknown ref answers like a known one), the capacity and any write (INV-AC-22796)
-        val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
-        if (!permission.mayDryRun(actor)) throw refusedDryRun()
+        // the scoped permission `pack.dry-run` is the first statement: before the sample adapter, the pack lookup
+        // (so an unknown ref answers like a known one), the capacity and any write (INV-AC-22796)
+        val actor = permitted()
         val run = runs.ifAvailable ?: throw unavailable("the historical sample is not available: no sample adapter")
         val tenant = tenants.current()
         val target = transactions.inTransaction { targetOf(packRef, tenant) }
@@ -203,6 +202,13 @@ class DryRunCalls(
         } finally {
             capacity.release()
         }
+    }
+
+    /** The acting user ID, once `pack.dry-run` is decided for it; a caller without the key is refused 403 SRT-004. */
+    private fun permitted(): String {
+        val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
+        if (!permission.mayDryRun(actor)) throw refusedDryRun()
+        return actor
     }
 
     /** The 403 SRT-004 of a caller without the key; the detail names no person and no pack. */

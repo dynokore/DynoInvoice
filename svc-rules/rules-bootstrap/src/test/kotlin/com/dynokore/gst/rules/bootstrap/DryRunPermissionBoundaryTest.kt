@@ -55,7 +55,8 @@ class DryRunPermissionFixtures {
 /**
  * INV-AC-22796 (INV-REQ-957): `dryRun` is gated by the scoped key `pack.dry-run`, for a pack of either kind, decided by
  * the real `AuthorityReplica` on real PostgreSQL; the roles are read from the generated `OperationRoles` map (no role
- * literal here). The deployment form is fixed per context, so the cases live in one base class run for SAAS and PRIVATE.
+ * literal here). The deployment form is fixed per context, so the cases live in one base class run for SAAS and
+ * PRIVATE.
  * The use case receives a call when the sample is released at the end of its run (`FixtureHistoricalSamplePort`).
  */
 @Suppress("AbstractClassCanBeConcreteClass", "TooManyFunctions") // JUnit runs only the two form subclasses
@@ -112,7 +113,7 @@ abstract class DryRunPermissionCases(
         return user
     }
 
-    /** One ARMED mapping pack of tenant A in force since yesterday, so that a candidate has a pack to be compared with. */
+    /** One ARMED mapping pack of tenant A in force since yesterday: the pack a candidate is compared with. */
     private fun currentPack() {
         val held = "select count(*) from rules.pack_registry where pack_version like 'cur-22796%'"
         if (value(tenant, held) == 1L) return
@@ -189,7 +190,9 @@ abstract class DryRunPermissionCases(
         val ref = mappingRef()
         val user = newUser(role)
         val answer = call(ref, user)
-        withClue("$form $role: ${answer.body()}") { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
+        withClue("$form $role: ${answer.body()}") {
+            (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true
+        }
         useCaseCalls(1) shouldBe 1
     }
 
@@ -201,8 +204,9 @@ abstract class DryRunPermissionCases(
     }
 
     @Test
-    fun `INV-AC-22796 a role absent from the pack dry-run map and present for regulatory-pack approve is refused 403`() {
-        val outside = OperationRoles.rolesFor(form, LOOK_ALIKE_KEY).keys - OperationRoles.rolesFor(form, DRY_RUN_KEY).keys
+    fun `INV-AC-22796 a role absent from the pack dry-run map and present for regulatory-pack approve is refused`() {
+        val granted = OperationRoles.rolesFor(form, DRY_RUN_KEY).keys
+        val outside = OperationRoles.rolesFor(form, LOOK_ALIKE_KEY).keys - granted
         check(outside.isNotEmpty()) { "$form: no role holds $LOOK_ALIKE_KEY and not $DRY_RUN_KEY" }
         val ref = mappingRef()
         for (role in outside) {
@@ -212,7 +216,7 @@ abstract class DryRunPermissionCases(
     }
 
     @Test
-    fun `INV-AC-22796 a caller with no grant is refused 403 SRT-004 for a regulatory pack, a mapping pack and an unknown ref`() {
+    fun `INV-AC-22796 a caller with no grant is refused 403 SRT-004 for each of three refs`() {
         val refs = listOf(regulatoryRef(), mappingRef(), unknownRef())
         val before = snapshot()
         val user = newUser()

@@ -58,7 +58,9 @@ private val OWNED_BY_THE_RUN =
 
 /** Counts the calls of the allowing test permission port (the permission is not what these tests assert). */
 object DryRunPermissionProbe {
-    val calls = java.util.concurrent.atomic.AtomicInteger()
+    val calls =
+        java.util.concurrent.atomic
+            .AtomicInteger()
 }
 
 /** An allowing [DryRunPermissionPort] for the contexts whose assertions are not about the permission (INV-T-22819). */
