@@ -30,7 +30,7 @@ class AuthorityIncarnationGateTest {
                 .toList()
         }
 
-    /** Files this task adds: the named pair, anything under an `incarnation/` directory, and the git-added `.kt` under src/main. */
+    /** Files this task adds: the named pair, any `incarnation/` directory, and the git-added `.kt` under src/main. */
     private fun subjectOf(top: Path): List<Path> {
         val all = mainSources(top)
         val byDir = all.filter { p -> top.relativize(p).any { it.toString() == "incarnation" } }
