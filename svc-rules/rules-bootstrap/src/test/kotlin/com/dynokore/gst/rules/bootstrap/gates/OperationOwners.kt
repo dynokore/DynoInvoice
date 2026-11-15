@@ -32,7 +32,6 @@ internal object OperationOwners {
             "operation\tgetDryRun\tINV-T-4974",
             "operation\tlistActiveRegulatoryPacks\tINV-T-9880",
             "channel\tgst.rules.rule-pack-staged.v1\tINV-T-4976",
-            "channel\tgst.rules.rule-pack-activated.v1\tINV-T-4977",
             "channel\tgst.rules.pack-currency-changed.v1\tINV-T-4976",
             "channel\tgst.rules.example-happened.v1\tnone",
         )

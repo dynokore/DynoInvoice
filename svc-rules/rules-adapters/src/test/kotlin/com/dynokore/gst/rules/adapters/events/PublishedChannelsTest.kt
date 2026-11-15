@@ -18,9 +18,6 @@ import java.time.LocalDate
 class PublishedChannelsTest {
     private val mapper = PackEventMapper()
 
-    private fun channelOf(type: String): String =
-        ContractFiles.channelAddresses.keys.single { ContractFiles.message(it).first == type }
-
     @Test
     fun `channel rulesRulePackStaged carries a payload that validates against its schema`() {
         val event =
@@ -42,10 +39,37 @@ class PublishedChannelsTest {
     }
 
     @Test
-    fun `channel rulesRulePackActivated carries a payload that validates against its schema`() {
+    fun `INV-AC-23119 channel platformRulePackActivated carries a payload that validates against its schema`() {
         val event = mapper.map(PackEvent.RulePackActivated("scope-pack", "2026.4", LocalDate.of(2026, 4, 1)))
-        event.type shouldBe ContractFiles.message("rulesRulePackActivated").first
-        ContractFiles.errors("rulesRulePackActivated", event.dataJson).shouldBeEmpty()
+        event.type shouldBe ContractFiles.platformType("RulePackActivated")
+        event.type shouldBe "com.dynokore.gst.platform.RulePackActivated.v1"
+        RulesEventCatalogue.TOPICS.getValue(event.type) shouldBe ContractFiles.platformAddress("RulePackActivated")
+        RulesEventCatalogue.TOPICS.getValue(event.type) shouldBe "gst.platform.rule-pack-activated.v1"
+        ContractFiles.platformErrors("rule-pack-activated-payload.schema.json", event.dataJson).shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-23119 the catalogue entry of the activated event is not retained`() {
+        RulesEventCatalogue
+            .entries()
+            .single { it.eventType == RulesEventCatalogue.RULE_PACK_ACTIVATED }
+            .retainedWhileResolvable shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-23119 the rules-namespace type and a look-alike are not published channels`() {
+        val published = ContractFiles.channelAddresses.keys.map { ContractFiles.message(it).first }
+        published.contains("com.dynokore.gst.rules.RulePackActivated.v1") shouldBe false
+        published.contains("com.dynokore.gst.platform.RulePackActivatedX.v1") shouldBe false
+        ContractFiles.channelAddresses.values.contains("gst.rules.rule-pack-activated.v1") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-23119 the emission guard accepts the platform type and refuses the old type and the look-alike`() {
+        val guard = EmissionGuard(RulesEventCatalogue.catalogue(), RulesEventCatalogue.SERVICE)
+        guard.require("com.dynokore.gst.platform.RulePackActivated.v1")
+        shouldThrow<EmissionNotPermitted> { guard.require("com.dynokore.gst.rules.RulePackActivated.v1") }
+        shouldThrow<EmissionNotPermitted> { guard.require("com.dynokore.gst.platform.RulePackActivatedX.v1") }
     }
 
     @Test
@@ -67,7 +91,9 @@ class PublishedChannelsTest {
 
     @Test
     fun `a payload that breaks its schema is reported, so the checks above can fail`() {
-        ContractFiles.errors("rulesRulePackActivated", """{"packIdentifier":"p"}""").shouldNotBeEmpty()
+        ContractFiles
+            .platformErrors("rule-pack-activated-payload.schema.json", """{"packIdentifier":"p","version":"1"}""")
+            .shouldNotBeEmpty()
         ContractFiles
             .platformErrors(
                 "pack-currency-changed-payload.schema.json",
@@ -78,14 +104,21 @@ class PublishedChannelsTest {
     @Test
     fun `every channel of the document has a test above and every catalogued event is a channel of it`() {
         ContractFiles.channelAddresses.keys.toSet() shouldBe
-            setOf("rulesRulePackStaged", "rulesRulePackActivated", "rulesPackCurrencyChanged", "rulesExampleHappened")
-        // the activated event keeps its rules channel; the other two are platform events (INV-T-4976 option A)
-        val platform = setOf(RulesEventCatalogue.RULE_PACK_STAGED, RulesEventCatalogue.PACK_CURRENCY_CHANGED)
-        RulesEventCatalogue.TOPICS.filterKeys { it !in platform }.forEach { (type, topic) ->
-            ContractFiles.channelAddresses.getValue(channelOf(type)) shouldBe topic
-        }
+            setOf("rulesRulePackStaged", "rulesPackCurrencyChanged", "rulesExampleHappened")
+        // all three catalogued events are platform events (INV-T-4976 option A; INV-T-23126)
+        val platform =
+            setOf(
+                RulesEventCatalogue.RULE_PACK_STAGED,
+                RulesEventCatalogue.RULE_PACK_ACTIVATED,
+                RulesEventCatalogue.PACK_CURRENCY_CHANGED,
+            )
+        RulesEventCatalogue.TOPICS.keys shouldBe platform
         platform shouldBe
-            setOf(ContractFiles.platformType("RulePackStaged"), ContractFiles.platformType("PackCurrencyChanged"))
+            setOf(
+                ContractFiles.platformType("RulePackStaged"),
+                ContractFiles.platformType("RulePackActivated"),
+                ContractFiles.platformType("PackCurrencyChanged"),
+            )
     }
 
     @Test

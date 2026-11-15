@@ -41,7 +41,7 @@ class ServedArtefactScanTest {
 
     @Test
     fun `INV-AC-2182 probe - the same name in a copy of another schema file fails`() {
-        val other = pinned.keys.first { it.endsWith("rule-pack-activated-payload.schema.json") }
+        val other = pinned.keys.first { it.endsWith(".schema.json") && it != ServedArtefactScan.ALLOWED }
         val member = "\"signature\": {\"type\": \"string\"},"
         val text = pinned.getValue(other).replaceFirst("\"properties\": {", "\"properties\": {$member")
         (text != pinned.getValue(other)) shouldBe true

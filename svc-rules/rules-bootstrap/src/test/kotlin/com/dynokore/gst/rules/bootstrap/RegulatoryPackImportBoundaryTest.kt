@@ -553,7 +553,7 @@ class RegulatoryPackImportBoundaryTest(
                 it.execute(
                     "insert into rules.outbox (id, topic, type, source, subject, event_time, tenant_id, entity_ref, " +
                         "instance_id, correlation_id, causation_id, data) values ('probe-" + UUID.randomUUID() +
-                        "', 't', 'com.dynokore.gst.rules.RulePackActivated.v1', '/gst/rules-svc', 's', now(), '" +
+                        "', 't', 'com.dynokore.gst.platform.RulePackActivated.v1', '/gst/rules-svc', 's', now(), '" +
                         tenant + "', 'e', 'i', 'c', 'c', '{}'::jsonb)",
                 )
             }
