@@ -184,12 +184,19 @@ class PackArmingStoreIT(
             version,
         )
 
+    // The rows of the platform-class event, compared field by field: type, topic, platform tenant and platform entity.
     private fun outboxRows(version: String) =
         scalar(
-            "select count(*)::text from rules.outbox where type = 'com.dynokore.gst.rules.RulePackActivated.v1' " +
+            "select count(*)::text from rules.outbox where type = 'com.dynokore.gst.platform.RulePackActivated.v1' " +
+                "and topic = 'gst.platform.rule-pack-activated.v1' and tenant_id = ?::uuid and entity_ref = ? " +
                 "and subject = ?",
+            TenantId.PLATFORM.value.toString(),
+            EntityRef.PLATFORM.toString(),
             "$PACK_TYPE@$version",
         )
+
+    private fun domainTypeOutboxRows() =
+        scalar("select count(*)::text from rules.outbox where type = 'com.dynokore.gst.rules.RulePackActivated.v1'")
 
     // (a) the tenant function
 
@@ -369,6 +376,7 @@ class PackArmingStoreIT(
                 "$it:${it == one}:2026-12-01"
             }
         outboxRows(v) shouldBe "1"
+        domainTypeOutboxRows() shouldBe "0"
         store.find(PACK_TYPE, v)?.status shouldBe PackStatus.ARMED
         // an armed pack is not armed a second time, and nothing changes
         val armed = snapshot()
