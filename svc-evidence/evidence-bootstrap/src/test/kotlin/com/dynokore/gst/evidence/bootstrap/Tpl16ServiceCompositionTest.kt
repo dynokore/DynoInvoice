@@ -36,7 +36,7 @@ class Tpl16ServiceCompositionTest {
             val entries =
                 EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries +
                     EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries +
-                    EvidenceEvents.sealingEntries
+                    EvidenceEvents.sealingEntries + EvidenceEvents.offboardingEntries
             catalogueTypes(context) shouldBe entries.map { it.eventType }.toSet()
         }
     }

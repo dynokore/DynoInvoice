@@ -51,21 +51,23 @@ class OperationsGateTest {
             tsv
                 .lines()
                 .map { it.split('\t') }
-                .filter { it.size == 3 && it[0] == "operation" && it[2] != "UNASSIGNED" && it[1] !in stubs }
-                .map { it[2] }
+                .filter {
+                    it.size == 3 && it[0] in setOf("operation", "channel") && it[2] != "UNASSIGNED" &&
+                        it[1] !in stubs
+                }.map { it[2] }
                 .toSet()
         assignedAndLive.containsAll(doneText!!.lines().filter { it.isNotBlank() }) shouldBe true
     }
 
     @Test
-    fun `INV-AC-22873 the offboarding export finished channel is a contract channel and an UNASSIGNED row`() {
+    fun `INV-AC-22873 the offboarding export finished channel is a contract channel and an assigned row`() {
         val topic = "gst.evidence.offboarding-export-finished.v1"
         val rows = OperationsGate.parse(tsv)
         val channelRows = rows.filter { it.kind == "channel" }
         val row = rows.filter { it.id == topic }
         row.size shouldBe 1
         row.single().kind shouldBe "channel"
-        row.single().task shouldBe "UNASSIGNED"
+        row.single().task shouldBe "INV-T-22956" // assigned by INV-T-22956 (was UNASSIGNED at INV-T-22886)
         OperationsGate.contractOperations(openapi).size shouldBe 23
         OperationsGate.contractChannels(asyncapi) shouldBe channelRows.map { it.id }.toSet()
         channelRows.size shouldBe 5
