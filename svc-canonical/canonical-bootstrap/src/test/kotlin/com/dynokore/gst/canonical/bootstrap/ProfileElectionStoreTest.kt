@@ -58,7 +58,10 @@ class ProfileElectionStoreTest {
     private fun Boundary.schemesAs(
         tenant: UUID,
         on: LocalDate,
-    ): List<String> = scope.bind(TenantId(tenant), actor) { runner.inTransaction { store.electedSchemesOf(tenant, "E1", on) } }
+    ): List<String> =
+        scope.bind(TenantId(tenant), actor) {
+            runner.inTransaction { store.electedSchemesOf(tenant, "E1", on) }
+        }
 
     private fun basis(
         value: String,
@@ -114,6 +117,7 @@ class ProfileElectionStoreTest {
     ) = run(dir) { b ->
         val t1 = UUID.randomUUID()
         b.applyAs(t1, 1, basis("INVOICE_DATE", jan)) shouldBe true
+
         fun sqlState(sql: String): String? =
             CanonicalDb.connect(CanonicalDb.RUNTIME, CanonicalDb.RUNTIME_PASSWORD).use { connection ->
                 connection.autoCommit = false
@@ -128,8 +132,14 @@ class ProfileElectionStoreTest {
                 }
             }
         sqlState(
-            "insert into canonical.profile_election values ('$t1', 'E1', 'purchaseDateBasis', date '2026-02-01', 'BAD', 1)",
+            "insert into canonical.profile_election " +
+                "values ('$t1', 'E1', 'purchaseDateBasis', date '2026-02-01', 'BAD', 1)",
         ) shouldBe "23514"
+        // the tenant policy refuses a row of another tenant bound session (row level security, not the query)
+        sqlState(
+            "insert into canonical.profile_election " +
+                "values ('${UUID.randomUUID()}', 'E1', 'purchaseDateBasis', date '2026-02-01', 'INVOICE_DATE', 1)",
+        ) shouldBe "42501"
         sqlState("delete from canonical.profile_election where entity_ref = 'E1'") shouldBe "42501"
         b.basisAs(t1, t1, jan) shouldBe DateBasis.INVOICE_DATE
     }
