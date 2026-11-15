@@ -407,3 +407,7 @@ approveRegulatoryPack	operation	openapi.yaml	INV-REQ-489
 RegulatoryPack.status.APPROVED	schema_enum_value	openapi.yaml	INV-REQ-489
 # INV-T-22907 (INV-REQ-771): the optional packIdentifier of an applied pack version; the requirement cell is the first INV-REQ of x-requirements of evaluateDocument, whose answer carries the schema.
 PackVersionApplied.packIdentifier	schema_property	openapi.yaml	INV-REQ-957
+acknowledgePackDelta.SRT-008	operation_error_code	openapi.yaml	INV-REQ-957
+armRegulatoryPack.SRT-008	operation_error_code	openapi.yaml	INV-REQ-957
+acknowledgePackDelta.409	operation_response	openapi.yaml	INV-REQ-957
+armRegulatoryPack.409	operation_response	openapi.yaml	INV-REQ-957

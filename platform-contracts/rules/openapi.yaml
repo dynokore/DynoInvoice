@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 2.1.0
+  version: 2.2.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1037,10 +1037,11 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [SRT-008]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-G.8, FR-G.9]
       x-operation:
-        role: tax.approver
+        kind: PERMISSION
+        permission: regulatory-pack.acknowledge
         scope: tenant
         precondition: "Regulatory pack published; grace window open (FR-G.9)."
         reversibility: UNDOABLE
@@ -1065,6 +1066,9 @@ paths:
               examples:
                 default:
                   value: { packType: "SCOPE", version: "2026.4", status: "ACKNOWLEDGED" }
+        '409':
+          description: The pack is not published or its grace window is closed (SRT-008).
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/{packType}/{version}/arming:
@@ -1084,10 +1088,11 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
       x-timeout: 2000
-      x-error-codes: [RUL-005]
+      x-error-codes: [RUL-005, SRT-008]
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AB.10, FR-K.7, RUL-005]
       x-operation:
-        role: tax.approver
+        kind: PERMISSION
+        permission: regulatory-pack.arm
         scope: tenant
         precondition: "All instances acknowledged (FR-K.7); private form only (FR-AB.10)."
         reversibility: COMPENSABLE
@@ -1122,6 +1127,9 @@ paths:
               examples:
                 default:
                   value: { packType: "SCOPE", version: "2026.4", status: "ARMED", effectiveFrom: "2026-04-01" }
+        '409':
+          description: The pack is not APPROVED or not every instance has acknowledged it (SRT-008).
+          $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/{packType}/{version}/approval:

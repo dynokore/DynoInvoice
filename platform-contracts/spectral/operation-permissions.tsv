@@ -13,3 +13,5 @@ masterdata	getConnectionHealth	connection-health.view
 tenancy	recordMigrationCutover	migration-cutover.record
 tenancy	getMigrationCutover	migration-cutover.view
 tenancy	recordRenditionResponsibility	entity-config.manage
+rules	acknowledgePackDelta	regulatory-pack.acknowledge
+rules	armRegulatoryPack	regulatory-pack.arm
