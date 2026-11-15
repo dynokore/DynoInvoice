@@ -362,6 +362,23 @@ class OffboardTenant(
                 "retentionCustodyHolder is required"
             }
 
+            // INV-Q-22844 A: a value of length zero is a shape failure (400); whitespace-only stays 409 TNC-009.
+            holder.name.isEmpty() -> {
+                "retentionCustodyHolder.name must not be empty"
+            }
+
+            holder.contactEmail.isEmpty() -> {
+                "retentionCustodyHolder.contactEmail must not be empty"
+            }
+
+            request.unsubmittedOverride?.statement?.isEmpty() == true -> {
+                "unsubmittedOverride.statement must not be empty"
+            }
+
+            request.unsubmittedOverride?.acknowledgedBy?.isEmpty() == true -> {
+                "unsubmittedOverride.acknowledgedBy must not be empty"
+            }
+
             holder.name.length > OffboardingRules.HOLDER_NAME_MAX -> {
                 "retentionCustodyHolder.name is too long"
             }
