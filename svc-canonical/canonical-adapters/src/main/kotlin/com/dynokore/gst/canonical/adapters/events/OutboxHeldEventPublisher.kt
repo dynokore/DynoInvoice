@@ -2,6 +2,7 @@ package com.dynokore.gst.canonical.adapters.events
 
 import com.dynokore.gst.canonical.application.document.HeldEvent
 import com.dynokore.gst.canonical.application.document.HeldEventPublisher
+import com.dynokore.gst.canonical.application.document.PARTY_REF_MAX_LENGTH
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DocUuid
@@ -24,6 +25,10 @@ class OutboxHeldEventPublisher(
     private val causation: () -> CausationId,
 ) : HeldEventPublisher {
     override fun stage(event: HeldEvent) {
+        event.partyRef?.let {
+            require(it.isNotBlank()) { "partyRef must not be blank" }
+            require(it.length <= PARTY_REF_MAX_LENGTH) { "partyRef is longer than $PARTY_REF_MAX_LENGTH characters" }
+        }
         val key = event.docUuid.toString()
         outbox.appendSequenced(
             TYPE,
@@ -56,6 +61,7 @@ class OutboxHeldEventPublisher(
             members["postingTimestamp"] = json(DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(it))
         }
         event.invoiceIssuedOrReceived?.let { members["invoiceIssuedOrReceived"] = it.toString() }
+        event.partyRef?.let { members["partyRef"] = json(it) }
         return members.entries.joinToString(",", "{", "}") { (name, value) -> "${json(name)}:$value" }
     }
 

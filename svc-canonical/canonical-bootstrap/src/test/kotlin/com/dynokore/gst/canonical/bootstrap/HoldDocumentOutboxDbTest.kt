@@ -14,12 +14,17 @@ import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import tools.jackson.databind.ObjectMapper
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.SpecificationVersion as SchemaDialect
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import java.io.File
 import java.nio.file.Path
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -255,5 +260,101 @@ class HoldDocumentOutboxDbTest {
         runtimeRefusal(t, "update canonical.document set hold_reasons = hold_reasons") shouldBe null
         runtimeRefusal(t, "update canonical.document set posting_timestamp = now()") shouldBe "42501"
         runtimeRefusal(t, "update canonical.document set document_date = current_date") shouldBe "42501"
+    }
+
+    private fun heldEvent(
+        doc: UUID,
+        partyRef: String?,
+    ) = HeldEvent(
+        docUuid = doc,
+        holdReasons = reasons,
+        entityRef = "E-001",
+        direction = com.dynokore.gst.canonical.domain.document.Direction.SALE,
+        documentDate = java.time.LocalDate.parse("2026-03-20"),
+        prescribedPeriodRef = "2026-Q1",
+        postingTimestamp = null,
+        invoiceIssuedOrReceived = null,
+        partyRef = partyRef,
+    )
+
+    private fun Boundary.stage(
+        tenant: UUID,
+        event: HeldEvent,
+    ) = scope.bind(TenantId(tenant), actor) { runner.inTransaction { publisher.stage(event) } }
+
+    private fun Boundary.payloadsOf(
+        tenant: UUID,
+        doc: UUID,
+    ) = read(tenant, "select data::text from canonical.outbox where doc_uuid = ?::uuid order by seq", doc.toString())
+        .map { mapper.readTree(it.single()!!) }
+
+    private val mapper = ObjectMapper()
+
+    private fun schemaText(): String {
+        val dir = File(checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" })
+        return File(dir, "schemas/document-held-payload.schema.json").readText()
+    }
+
+    private fun schemaErrors(data: String): List<String> {
+        val schema = schemaText()
+        val registry =
+            SchemaRegistry.withDefaultDialect(SchemaDialect.DRAFT_2020_12) {
+                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+            }
+        return registry.getSchema(schema).validate(mapper.readTree(data)).map { it.toString() }
+    }
+
+    @Test
+    fun `INV-AC-21342 the payload carries partyRef exactly when the event has one and both validate`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val t = UUID.randomUUID()
+        val withRef = insert(t)
+        val without = insert(t)
+        b.stage(t, heldEvent(withRef, "P1"))
+        b.stage(t, heldEvent(without, null))
+
+        val declared = mapper.readTree(schemaText()).get("properties").get("partyRef")
+        declared.get("maxLength").intValue() shouldBe 40
+        val first = b.payloadsOf(t, withRef).single()
+        first.get("partyRef").asString() shouldBe "P1"
+        first.get("partyRef").isString shouldBe true
+        first.get("docUuid").asString() shouldBe withRef.toString()
+        first.get("entityRef").asString() shouldBe "E-001"
+        first.get("direction").asString() shouldBe "SALE"
+        first.get("documentDate").asString() shouldBe "2026-03-20"
+        first.get("prescribedPeriodRef").asString() shouldBe "2026-Q1"
+        first.get("holdReasons").values().map { it.asString() } shouldBe reasons
+        first.has("postingTimestamp") shouldBe false
+        schemaErrors(first.toString()) shouldBe emptyList()
+
+        val second = b.payloadsOf(t, without).single()
+        second.has("partyRef") shouldBe false
+        schemaErrors(second.toString()) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-21342 a partyRef of 40 characters is written and one of 41 is refused with no row`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val t = UUID.randomUUID()
+        val ok = insert(t)
+        val tooLong = insert(t)
+        b.stage(t, heldEvent(ok, "x".repeat(40)))
+        b.payloadsOf(t, ok).single().get("partyRef").asString() shouldBe "x".repeat(40)
+        shouldThrow<IllegalArgumentException> { b.stage(t, heldEvent(tooLong, "x".repeat(41))) }
+        b.payloadsOf(t, tooLong).size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-21342 a blank partyRef is refused before any row is appended`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val t = UUID.randomUUID()
+        listOf("", " ", "   ").forEach { blank ->
+            val d = insert(t)
+            shouldThrow<IllegalArgumentException> { b.stage(t, heldEvent(d, blank)) }
+            b.payloadsOf(t, d).size shouldBe 0
+        }
     }
 }
