@@ -15,14 +15,17 @@ enum class ScopeVerdict { IN_SCOPE, EXCLUDED_TXN, OUT_OF_SCOPE }
 /** `document_version.specification_version`: the specification family. */
 enum class SpecificationVersion { PINT_SG, SG_PEPPOL_BIS }
 
-/** The content of one immutable version. [canonical] is the canonical document as JSON text, stored as received. */
+/**
+ * The content of one immutable version. [canonical] is the canonical document as JSON text, stored as received. A
+ * derived member that is null is not yet derived.
+ */
 data class NewVersion(
     val canonical: String,
-    val scopeVerdict: ScopeVerdict,
-    val scopePackVersion: String,
-    val mappingPackVersion: String,
+    val scopeVerdict: ScopeVerdict?,
+    val scopePackVersion: String?,
+    val mappingPackVersion: String?,
     val mdePackVersion: String?,
-    val specificationVersion: SpecificationVersion,
+    val specificationVersion: SpecificationVersion?,
     val transactionDate: LocalDate,
     val createdBy: String,
 )

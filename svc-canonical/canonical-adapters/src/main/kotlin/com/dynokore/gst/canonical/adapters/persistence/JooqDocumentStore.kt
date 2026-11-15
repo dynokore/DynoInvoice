@@ -91,11 +91,11 @@ class JooqDocumentStore(
             .set(DOCUMENT_VERSION.ENTITY_ID, key.entityId)
             .set(DOCUMENT_VERSION.PARTITION_DATE, partitionDate)
             .set(DOCUMENT_VERSION.CANONICAL, DSL.`val`(version.canonical).cast(SQLDataType.JSONB))
-            .set(DOCUMENT_VERSION.SCOPE_VERDICT, version.scopeVerdict.name)
+            .set(DOCUMENT_VERSION.SCOPE_VERDICT, version.scopeVerdict?.name)
             .set(DOCUMENT_VERSION.SCOPE_PACK_VERSION, version.scopePackVersion)
             .set(DOCUMENT_VERSION.MAPPING_PACK_VERSION, version.mappingPackVersion)
             .set(DOCUMENT_VERSION.MDE_PACK_VERSION, version.mdePackVersion)
-            .set(DOCUMENT_VERSION.SPECIFICATION_VERSION, version.specificationVersion.name)
+            .set(DOCUMENT_VERSION.SPECIFICATION_VERSION, version.specificationVersion?.name)
             .set(DOCUMENT_VERSION.CREATED_BY, version.createdBy)
             .execute()
         // C-6 and the shape are checked here, in the transaction that writes the version: a throw rolls all of it back.

@@ -84,7 +84,7 @@ class DocumentStorageTest {
         version["mde_pack_version"] shouldBe Triple("character varying", "32", "YES")
         listOf("scope_pack_version", "mapping_pack_version").forEach {
             version[it] shouldBe
-                Triple("character varying", "32", "NO")
+                Triple("character varying", "32", "YES") // nullable since INV-AC-21562: null is not yet derived
         }
     }
 

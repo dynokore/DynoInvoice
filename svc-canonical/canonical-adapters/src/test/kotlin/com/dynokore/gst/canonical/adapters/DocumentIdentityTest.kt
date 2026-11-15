@@ -172,12 +172,12 @@ class DocumentIdentityTest {
     }
 
     @Test
-    fun `pack version lengths and nullability are enforced`() {
+    fun `pack version lengths are enforced and a null pack version is accepted (INV-AC-21562)`() {
         val doc = UUID.randomUUID()
         DocumentSql.execute(insertDocument(docUuid = doc, number = "H-1"))
         val pack33 = VersionValues(scopePack = "'${"x".repeat(33)}'")
         refusal(insertVersion(doc, tenant, entity, "2026-03-15", pack33)) shouldBe "22001"
-        refusal(insertVersion(doc, tenant, entity, "2026-03-15", VersionValues(scopePack = "null"))) shouldBe "23502"
+        refusal(insertVersion(doc, tenant, entity, "2026-03-15", VersionValues(scopePack = "null"))) shouldBe null
         val pack32 = VersionValues(scopePack = "'${"x".repeat(32)}'")
         refusal(insertVersion(doc, tenant, entity, "2026-03-15", pack32)) shouldBe null
         refusal(insertVersion(doc, tenant, entity, "2026-03-15", VersionValues(mdePack = "null"))) shouldBe null
