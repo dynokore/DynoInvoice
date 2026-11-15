@@ -14,14 +14,16 @@ import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.ResilientEdge
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
-import org.springframework.mock.env.MockEnvironment
 import org.springframework.web.client.RestClient
+import java.nio.file.Path
 
 /** INV-AC-21475: the scope evaluation beans of the record chain (the client beans are INV-T-21416's, faked here). */
 class ScopeEvaluationConfigurationTest {
@@ -41,20 +43,10 @@ class ScopeEvaluationConfigurationTest {
     // not annotated: a @Configuration nested here would be found by the component scan of the full-context tests
     class Collaborators {
         @Bean
-        fun rulesClient(): RulesClient =
-            RulesClient(
-                RestClient.builder(),
-                Registry(),
-                MockEnvironment().withProperty(RulesEdge.URL_PROPERTY, "http://127.0.0.1:1"),
-            )
+        fun registry(): ResilienceRegistry = Registry()
 
         @Bean
-        fun masterDataClient(): MasterDataClient =
-            MasterDataClient(
-                RestClient.builder(),
-                MockEnvironment().withProperty(MasterDataEdge.URL_PROPERTY, "http://127.0.0.1:1"),
-                Registry(),
-            )
+        fun builder(): RestClient.Builder = RestClient.builder()
 
         @Bean
         fun dsl(): DSLContext = DSL.using(SQLDialect.POSTGRES)
@@ -70,10 +62,14 @@ class ScopeEvaluationConfigurationTest {
     }
 
     private val runner =
-        ApplicationContextRunner().withUserConfiguration(
-            Collaborators::class.java,
-            ScopeEvaluationConfiguration::class.java,
-        )
+        ApplicationContextRunner()
+            .withUserConfiguration(
+                Collaborators::class.java,
+                ScopeEvaluationConfiguration::class.java,
+            ).withPropertyValues(
+                "${RulesEdge.URL_PROPERTY}=http://127.0.0.1:1",
+                "${MasterDataEdge.URL_PROPERTY}=http://127.0.0.1:1",
+            )
 
     @Test
     fun `INV-AC-21475 the context starts with exactly one ScopeEvaluation bean of class ScopeEvaluationService`() {
@@ -91,5 +87,43 @@ class ScopeEvaluationConfigurationTest {
             context.getBeansOfType(CounterpartySchemeSource::class.java).size shouldBe 1
             context.getBeansOfType(SchemeElections::class.java).size shouldBe 1
         }
+    }
+
+    private fun messages(failure: Throwable?): String =
+        generateSequence(failure) { it.cause }.joinToString(" | ") { it.message.orEmpty() }
+
+    @Test
+    fun `INV-AC-21475 the full context holds exactly one RulesClient and one MasterDataClient`(
+        @TempDir mount: Path,
+    ) {
+        CanonicalContext.offline(mount).run { context ->
+            context.startupFailure shouldBe null
+            context.getBeansOfType(RulesClient::class.java).size shouldBe 1
+            context.getBeansOfType(MasterDataClient::class.java).size shouldBe 1
+            context.getBeansOfType(ScopeEvaluation::class.java).size shouldBe 1
+        }
+    }
+
+    @Test
+    fun `INV-AC-21475 a context without the rules url fails to start naming the key`(
+        @TempDir mount: Path,
+    ) {
+        CanonicalContext
+            .offline(
+                mount,
+            ).withPropertyValues("${RulesEdge.URL_PROPERTY}=\${'$'}{CANONICAL_RULES_SVC_URL}")
+            .run {
+                messages(it.startupFailure) shouldContain RulesEdge.URL_PROPERTY
+            }
+    }
+
+    @Test
+    fun `INV-AC-21475 a context without the masterdata url fails to start naming the key`(
+        @TempDir mount: Path,
+    ) {
+        CanonicalContext
+            .offline(mount)
+            .withPropertyValues("${MasterDataEdge.URL_PROPERTY}=\${'$'}{CANONICAL_MASTERDATA_SVC_URL}")
+            .run { messages(it.startupFailure) shouldContain MasterDataEdge.URL_PROPERTY }
     }
 }

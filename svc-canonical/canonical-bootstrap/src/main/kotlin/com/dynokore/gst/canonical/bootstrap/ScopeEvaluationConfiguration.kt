@@ -11,16 +11,35 @@ import com.dynokore.gst.canonical.application.document.LineEvaluator
 import com.dynokore.gst.canonical.application.document.SchemeElections
 import com.dynokore.gst.canonical.application.document.ScopeEvaluation
 import com.dynokore.gst.canonical.application.document.ScopeEvaluationService
+import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
+import org.springframework.web.client.RestClient
 
 /**
  * INV-REQ-479 (INV-AC-358 slice): the scope evaluation of the record chain. The rules and masterdata client beans are
- * not declared here (INV-T-21416 wires them); the jOOQ context is the one of the open transaction.
+ * declared here with the beans they need (the RestClient.Builder and the ResilienceRegistry of service-runtime, the
+ * Environment); their URLs are required, with no default (twelve-factor); the jOOQ context is the one of the open
+ * transaction.
  */
 @Configuration(proxyBeanMethods = false)
 class ScopeEvaluationConfiguration {
+    @Bean
+    fun rulesClient(
+        builder: RestClient.Builder,
+        registry: ResilienceRegistry,
+        environment: Environment,
+    ): RulesClient = RulesClient(builder, registry, environment)
+
+    @Bean
+    fun masterDataClient(
+        builder: RestClient.Builder,
+        registry: ResilienceRegistry,
+        environment: Environment,
+    ): MasterDataClient = MasterDataClient(builder, environment, registry)
+
     @Bean
     fun lineEvaluator(client: RulesClient): LineEvaluator = RulesLineEvaluator(client)
 

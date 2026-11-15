@@ -35,3 +35,7 @@ logging.structured.format.console: ecs # STK-35
 gst:
   service: canonical-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+canonical:
+  # required, no default (twelve-factor config): RulesEdge.baseUrl and MasterDataEdge.baseUrl refuse a missing value
+  rules-svc-url: ${CANONICAL_RULES_SVC_URL}
+  masterdata-svc-url: ${CANONICAL_MASTERDATA_SVC_URL}

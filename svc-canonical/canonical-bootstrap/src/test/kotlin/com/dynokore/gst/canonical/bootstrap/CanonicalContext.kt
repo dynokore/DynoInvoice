@@ -36,6 +36,8 @@ object CanonicalContext {
             "spring.datasource.username=canonical_runtime",
             "service-runtime.workload-identity.audience=canonical-svc",
             "gst.service=canonical-svc",
+            "canonical.rules-svc-url=http://localhost:9",
+            "canonical.masterdata-svc-url=http://localhost:9",
             "gst.instance-id=canonical-svc-0",
             "service-runtime.pool.profile=minimal",
             "service-runtime.modules.schema=canonical",
