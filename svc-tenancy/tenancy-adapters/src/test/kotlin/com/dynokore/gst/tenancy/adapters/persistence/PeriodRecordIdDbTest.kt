@@ -43,10 +43,19 @@ class PeriodRecordIdDbTest {
         val tenant: TenantId,
         val entity: UUID,
         val history: UUID,
-        val i0: UUID,
-        val i1: UUID,
-        val i2: UUID,
-        val i3: UUID,
+        val ids: List<UUID>,
+    ) {
+        val i0 get() = ids[0]
+        val i1 get() = ids[1]
+        val i2 get() = ids[2]
+        val i3 get() = ids[3]
+    }
+
+    private class Rec(
+        val id: UUID,
+        val ref: String,
+        val start: LocalDate,
+        val state: String,
     )
 
     private fun context(id: TenantId) =
@@ -68,25 +77,22 @@ class PeriodRecordIdDbTest {
         dsl: DSLContext,
         tenant: TenantId,
         entity: UUID,
-        id: UUID,
-        ref: String,
-        start: LocalDate,
-        state: String,
+        rec: Rec,
     ) {
         dsl
             .insertInto(PERIOD_RECORD)
-            .set(PERIOD_RECORD.ID, id)
+            .set(PERIOD_RECORD.ID, rec.id)
             .set(PERIOD_RECORD.TENANT_ID, tenant.value)
             .set(PERIOD_RECORD.ENTITY_ID, entity)
-            .set(PERIOD_RECORD.PERIOD_REF, ref)
-            .set(PERIOD_RECORD.PERIOD_START, start)
-            .set(PERIOD_RECORD.PERIOD_END, start.plusMonths(3).minusDays(1))
+            .set(PERIOD_RECORD.PERIOD_REF, rec.ref)
+            .set(PERIOD_RECORD.PERIOD_START, rec.start)
+            .set(PERIOD_RECORD.PERIOD_END, rec.start.plusMonths(3).minusDays(1))
             .set(PERIOD_RECORD.RETURN_FORM, "F5")
-            .set(PERIOD_RECORD.DUE_DATE, start.plusMonths(4))
+            .set(PERIOD_RECORD.DUE_DATE, rec.start.plusMonths(4))
             .set(PERIOD_RECORD.KINDS, "")
             .set(PERIOD_RECORD.IRREGULAR, false)
             .set(PERIOD_RECORD.CONFIRMATION_STATE, "UNCONFIRMED")
-            .set(PERIOD_RECORD.RECORD_STATE, state)
+            .set(PERIOD_RECORD.RECORD_STATE, rec.state)
             .set(PERIOD_RECORD.RECORDED_AT, OffsetDateTime.now(ZoneOffset.UTC))
             .execute()
     }
@@ -95,16 +101,7 @@ class PeriodRecordIdDbTest {
     private fun seed(): Seed {
         val tag = UUID.randomUUID().toString().take(8)
         val tenant = TenantId(UUID.randomUUID())
-        val s =
-            Seed(
-                tenant,
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-                UUID.randomUUID(),
-            )
+        val s = Seed(tenant, UUID.randomUUID(), UUID.randomUUID(), List(4) { UUID.randomUUID() })
         Db.superuser { dsl ->
             dsl
                 .insertInto(TENANT)
@@ -127,49 +124,67 @@ class PeriodRecordIdDbTest {
                 .set(TENANT_GROUP.STRUCTURE_VERSION, version(dsl))
                 .set(TENANT_GROUP.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
                 .execute()
-            dsl
-                .insertInto(ENTITY)
-                .set(ENTITY.ID, s.entity)
-                .set(ENTITY.TENANT_ID, tenant.value)
-                .set(ENTITY.REF, "e-$tag")
-                .set(ENTITY.GROUP_ID, group)
-                .set(ENTITY.LEGAL_NAME, "Entity")
-                .set(ENTITY.CONSTITUTION, "COMPANY")
-                .set(ENTITY.CODE, "E$tag".uppercase())
-                .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
-                .set(ENTITY.STRUCTURE_VERSION, version(dsl))
-                .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                .execute()
-            dsl
-                .insertInto(FILING_FREQUENCY_HISTORY)
-                .set(FILING_FREQUENCY_HISTORY.ID, s.history)
-                .set(FILING_FREQUENCY_HISTORY.TENANT_ID, tenant.value)
-                .set(FILING_FREQUENCY_HISTORY.ENTITY_ID, s.entity)
-                .set(FILING_FREQUENCY_HISTORY.EFFECTIVE_FROM, P3_START)
-                .set(FILING_FREQUENCY_HISTORY.FREQUENCY, "QUARTERLY")
-                .set(FILING_FREQUENCY_HISTORY.IRAS_APPROVAL_REFERENCE, "IRAS-1")
-                .set(FILING_FREQUENCY_HISTORY.STATE, "PENDING")
-                .set(FILING_FREQUENCY_HISTORY.RECORDED_AT, OffsetDateTime.now(ZoneOffset.UTC))
-                .execute()
-            insertRecord(dsl, tenant, s.entity, s.i0, "P1", P1_START, "SUPERSEDED")
-            insertRecord(dsl, tenant, s.entity, s.i1, "P1", P1_START, "IN_FORCE")
-            insertRecord(dsl, tenant, s.entity, s.i2, "P2", P2_START, "IN_FORCE")
-            dsl
-                .insertInto(PROPOSED_PERIOD)
-                .set(PROPOSED_PERIOD.ID, s.i3)
-                .set(PROPOSED_PERIOD.TENANT_ID, tenant.value)
-                .set(PROPOSED_PERIOD.ENTITY_ID, s.entity)
-                .set(PROPOSED_PERIOD.HISTORY_ID, s.history)
-                .set(PROPOSED_PERIOD.PERIOD_REF, "P3")
-                .set(PROPOSED_PERIOD.PERIOD_START, P3_START)
-                .set(PROPOSED_PERIOD.PERIOD_END, P3_START.plusMonths(3).minusDays(1))
-                .set(PROPOSED_PERIOD.RETURN_FORM, "F5")
-                .set(PROPOSED_PERIOD.DUE_DATE, P3_START.plusMonths(4))
-                .set(PROPOSED_PERIOD.KINDS, "")
-                .set(PROPOSED_PERIOD.IRREGULAR, false)
-                .execute()
+            insertHistory(dsl, s, group, tag)
+            insertRows(dsl, s)
         }
         return s
+    }
+
+    private fun insertHistory(
+        dsl: DSLContext,
+        s: Seed,
+        group: UUID,
+        tag: String,
+    ) {
+        val tenant = s.tenant
+        dsl
+            .insertInto(ENTITY)
+            .set(ENTITY.ID, s.entity)
+            .set(ENTITY.TENANT_ID, tenant.value)
+            .set(ENTITY.REF, "e-$tag")
+            .set(ENTITY.GROUP_ID, group)
+            .set(ENTITY.LEGAL_NAME, "Entity")
+            .set(ENTITY.CONSTITUTION, "COMPANY")
+            .set(ENTITY.CODE, "E$tag".uppercase())
+            .set(ENTITY.LIFECYCLE_STATE, "DRAFT")
+            .set(ENTITY.STRUCTURE_VERSION, version(dsl))
+            .set(ENTITY.CREATED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .execute()
+        dsl
+            .insertInto(FILING_FREQUENCY_HISTORY)
+            .set(FILING_FREQUENCY_HISTORY.ID, s.history)
+            .set(FILING_FREQUENCY_HISTORY.TENANT_ID, tenant.value)
+            .set(FILING_FREQUENCY_HISTORY.ENTITY_ID, s.entity)
+            .set(FILING_FREQUENCY_HISTORY.EFFECTIVE_FROM, P3_START)
+            .set(FILING_FREQUENCY_HISTORY.FREQUENCY, "QUARTERLY")
+            .set(FILING_FREQUENCY_HISTORY.IRAS_APPROVAL_REFERENCE, "IRAS-1")
+            .set(FILING_FREQUENCY_HISTORY.STATE, "PENDING")
+            .set(FILING_FREQUENCY_HISTORY.RECORDED_AT, OffsetDateTime.now(ZoneOffset.UTC))
+            .execute()
+    }
+
+    private fun insertRows(
+        dsl: DSLContext,
+        s: Seed,
+    ) {
+        val tenant = s.tenant
+        insertRecord(dsl, tenant, s.entity, Rec(s.i0, "P1", P1_START, "SUPERSEDED"))
+        insertRecord(dsl, tenant, s.entity, Rec(s.i1, "P1", P1_START, "IN_FORCE"))
+        insertRecord(dsl, tenant, s.entity, Rec(s.i2, "P2", P2_START, "IN_FORCE"))
+        dsl
+            .insertInto(PROPOSED_PERIOD)
+            .set(PROPOSED_PERIOD.ID, s.i3)
+            .set(PROPOSED_PERIOD.TENANT_ID, tenant.value)
+            .set(PROPOSED_PERIOD.ENTITY_ID, s.entity)
+            .set(PROPOSED_PERIOD.HISTORY_ID, s.history)
+            .set(PROPOSED_PERIOD.PERIOD_REF, "P3")
+            .set(PROPOSED_PERIOD.PERIOD_START, P3_START)
+            .set(PROPOSED_PERIOD.PERIOD_END, P3_START.plusMonths(3).minusDays(1))
+            .set(PROPOSED_PERIOD.RETURN_FORM, "F5")
+            .set(PROPOSED_PERIOD.DUE_DATE, P3_START.plusMonths(4))
+            .set(PROPOSED_PERIOD.KINDS, "")
+            .set(PROPOSED_PERIOD.IRREGULAR, false)
+            .execute()
     }
 
     private fun publish(
@@ -326,7 +341,11 @@ class PeriodRecordIdDbTest {
 }
 
 private fun randomHex(bytes: Int): String =
-    ByteArray(bytes).also { java.security.SecureRandom().nextBytes(it) }.joinToString("") { "%02x".format(it) }
+    ByteArray(bytes).also { java.security.SecureRandom().nextBytes(it) }.let {
+        java.util.HexFormat
+            .of()
+            .formatHex(it)
+    }
 
 // CI-FAST: a loaded CI host can need more than the 60 s Testcontainers default for initdb and its restart; a failed
 // start is retried with a fresh container, and the throwaway test database skips fsync.
