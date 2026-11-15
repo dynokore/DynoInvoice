@@ -14,7 +14,8 @@ import java.util.UUID
 /**
  * Reads a `PeriodRecordsChanged` event into the complete [PeriodSpanSet] of an entity (INV-AC-358, ruling INV-Q-21406
  * A: event-carried state transfer). The tenant comes only from the envelope `tenantid` (CloudEvents attribute), never
- * from the data; the ordering version is the payload member `version`. The member `filingDueDate` is not read; the optional `periodId` of a period is kept (INV-AC-21535).
+ * from the data; the ordering version is the payload member `version`. The member `filingDueDate` is not read; the
+ * optional `periodId` of a period is kept (INV-AC-21535).
  *
  * Fails closed with [ContractViolation] (dead letter): a missing or blank `entityRef`, a missing, non-integer or
  * below-1 `version`, a missing or empty `periods`, a period without `periodRef`, `periodStart` or `periodEnd`, a date
@@ -48,7 +49,7 @@ class PeriodRecordsReader {
         return PeriodSpan(text(node, PERIOD_REF), start, end)
     }
 
-    /** The optional `periodId`: absent (or JSON null) is null; a value that is not a canonical lower-case uuid fails. */
+    /** The optional `periodId`: absent or JSON null is null; a value that is no canonical lower-case uuid fails. */
     private fun periodId(node: JsonNode): UUID? {
         val member = node.get(PERIOD_ID)?.takeUnless { it.isNull } ?: return null
         val text = member.takeIf { it.isString }?.asString()
