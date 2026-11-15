@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * INV-AC-22934 through the real inbox consumer on the tables of schema `payload` over PostgreSQL (P109). Only the
- * event-log read is a list in memory. The canonical input rows are inserted by the test (their write side is INV-T-22937).
+ * event-log read is a list in memory. The test inserts the canonical input rows (INV-T-22937 owns their write side).
  */
 class SubmissionTypeDecidedConsumerTest {
     private val actor = "svc:payload-svc"
@@ -113,10 +113,8 @@ class SubmissionTypeDecidedConsumerTest {
         tenant: TenantId,
         eventId: String,
         doc: UUID,
-        type: String = "TYPE_2",
-        version: Int = 1,
         docsequence: Boolean = true,
-        typeJson: String = "\"$type\"",
+        typeJson: String = "\"TYPE_2\"",
     ): String {
         val sequence = if (docsequence) """"docsequence":3,""" else ""
         val envelope =
@@ -134,7 +132,7 @@ class SubmissionTypeDecidedConsumerTest {
                 instanceId = "submission-svc-0",
                 correlation = CorrelationId("corr-1"),
                 causation = CausationId("cause-1"),
-                dataJson = """{"docUuid":"$doc","version":$version,$sequence"submissionType":$typeJson}""",
+                dataJson = """{"docUuid":"$doc","version":1,$sequence"submissionType":$typeJson}""",
             )
         return json.write(envelope)
     }
@@ -145,14 +143,16 @@ class SubmissionTypeDecidedConsumerTest {
         version: Int = 1,
     ) {
         PayloadDb.superuser().use { c ->
-            c.prepareStatement(
-                "insert into payload.canonical_input(tenant_id, doc_uuid, version, canonical_document) values (?, ?, ?, '{}'::jsonb)",
-            ).use { st ->
-                st.setObject(1, tenant.value)
-                st.setObject(2, doc)
-                st.setInt(3, version)
-                st.executeUpdate()
-            }
+            c
+                .prepareStatement(
+                    "insert into payload.canonical_input(tenant_id, doc_uuid, version, canonical_document) " +
+                        "values (?, ?, ?, '{}'::jsonb)",
+                ).use { st ->
+                    st.setObject(1, tenant.value)
+                    st.setObject(2, doc)
+                    st.setInt(3, version)
+                    st.executeUpdate()
+                }
         }
     }
 
@@ -173,18 +173,26 @@ class SubmissionTypeDecidedConsumerTest {
     private fun jobs(
         tenant: TenantId,
         doc: UUID,
-    ): Int = count("select count(*) from payload.work_queue where tenant_id = ? and partition_key = ?", tenant.value, doc.toString())
+    ): Int =
+        count(
+            "select count(*) from payload.work_queue where tenant_id = ? and partition_key = ?",
+            tenant.value,
+            doc.toString(),
+        )
 
     private fun storedType(
         tenant: TenantId,
         doc: UUID,
     ): String? =
         PayloadDb.superuser().use { c ->
-            c.prepareStatement("select submission_type from payload.submission_type_decision where tenant_id = ? and doc_uuid = ?").use { st ->
-                st.setObject(1, tenant.value)
-                st.setObject(2, doc)
-                st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
-            }
+            c
+                .prepareStatement(
+                    "select submission_type from payload.submission_type_decision where tenant_id = ? and doc_uuid = ?",
+                ).use { st ->
+                    st.setObject(1, tenant.value)
+                    st.setObject(2, doc)
+                    st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
+                }
         }
 
     @Test
@@ -214,7 +222,7 @@ class SubmissionTypeDecidedConsumerTest {
     ) = run(dir) { t1 ->
         storeInput(t1, d1)
         log.add(decided(t1, "ev-1", d1))
-        log.add(decided(t1, "ev-2", d1, type = "TYPE_3")) // another event for the same version, another type
+        log.add(decided(t1, "ev-2", d1, typeJson = "\"TYPE_3\"")) // another event for the same version, another type
         consumer().pollOnce() shouldBe PollResult(applied = 1, ignored = 1, duplicates = 0, stale = 0, deadLettered = 0)
         storedType(t1, d1) shouldBe "TYPE_2"
         jobs(t1, d1) shouldBe 1
@@ -224,7 +232,7 @@ class SubmissionTypeDecidedConsumerTest {
     fun `INV-AC-22934 unknown type is dead lettered`(
         @TempDir dir: Path,
     ) = run(dir) { t1 ->
-        log.add(decided(t1, "ev-1", d1, type = "TYPE_9"))
+        log.add(decided(t1, "ev-1", d1, typeJson = "\"TYPE_9\""))
         log.add(decided(t1, "ev-2", d2, typeJson = "2")) // a number is not text
         consumer().pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 2)
         storedType(t1, d1) shouldBe null
@@ -279,9 +287,14 @@ class SubmissionTypeDecidedConsumerTest {
         val firstCommitted = AtomicLong(0)
         val lockReturned = AtomicLong(0)
         val failure = arrayOfNulls<Throwable>(2)
+
+        fun thread(
+            index: Int,
+            body: () -> Unit,
+        ) = Thread { runCatching(body).onFailure { failure[index] = it } }
         val first =
-            Thread {
-                runCatching {
+            thread(0) {
+                run {
                     tx(t1) {
                         decisions.store(d1, 1, "TYPE_2")
                         trigger.onDecisionStored(d1, 1)
@@ -290,11 +303,11 @@ class SubmissionTypeDecidedConsumerTest {
                         Thread.sleep(800) // the second transaction is now blocked in lockVersion
                         firstCommitted.set(System.nanoTime())
                     }
-                }.onFailure { failure[0] = it }
+                }
             }
         val second =
-            Thread {
-                runCatching {
+            thread(1) {
+                run {
                     decisionStored.await(10, TimeUnit.SECONDS)
                     tx(t1) {
                         secondCalled.countDown()
@@ -303,14 +316,11 @@ class SubmissionTypeDecidedConsumerTest {
                         storeInput(t1, d1)
                         trigger.onInputStored(d1, 1)
                     }
-                }.onFailure { failure[1] = it }
+                }
             }
-        first.start()
-        second.start()
-        first.join(30_000)
-        second.join(30_000)
-        failure[0] shouldBe null
-        failure[1] shouldBe null
+        listOf(first, second).forEach { it.start() }
+        listOf(first, second).forEach { it.join(30_000) }
+        failure.toList() shouldBe listOf(null, null)
         firstCommitted.get() shouldNotBe 0L
         (lockReturned.get() >= firstCommitted.get()) shouldBe true
         jobs(t1, d1) shouldBe 1
@@ -325,13 +335,22 @@ class SubmissionTypeDecidedConsumerTest {
         log.add(decided(t1, "ev-1", d1))
         val created =
             decided(t1, "ev-1", d1)
-                .replace(SubmissionTypeDecidedConsumerConfiguration.TYPE, "com.dynokore.gst.canonical.CanonicalVersionCreated.v1")
-                .replace(""""submissionType":"TYPE_2"""", """"canonicalDocument":{"totals":{"value":{"totalIncludingTax":"1.00"}}}""")
+                .replace(
+                    SubmissionTypeDecidedConsumerConfiguration.TYPE,
+                    "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
+                ).replace(
+                    """"submissionType":"TYPE_2"""",
+                    """"canonicalDocument":{"totals":{"value":{"totalIncludingTax":"1.00"}}}""",
+                )
         versions.add(created)
         consumer(name).pollOnce()
         val factsConsumer =
             JdbcInboxConsumer(
-                ConsumerSubscription(name, VersionFactsConsumerConfiguration.TOPIC, VersionFactsConsumerConfiguration.SCHEMA),
+                ConsumerSubscription(
+                    name,
+                    VersionFactsConsumerConfiguration.TOPIC,
+                    VersionFactsConsumerConfiguration.SCHEMA,
+                ),
                 catalogue,
                 versions,
                 scope,

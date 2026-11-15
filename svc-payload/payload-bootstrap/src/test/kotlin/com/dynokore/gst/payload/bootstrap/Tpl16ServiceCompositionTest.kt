@@ -41,7 +41,8 @@ class Tpl16ServiceCompositionTest {
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:payload-svc"
             catalogueTypes(context) shouldBe
-                PayloadEvents.entries.map { it.eventType }.toSet() + "com.dynokore.gst.platform.AuditEntryRecorded.v1"
+                PayloadEvents.entries.map { it.eventType }.toSet() + "com.dynokore.gst.platform.AuditEntryRecorded.v1" +
+                SubmissionTypeDecidedConsumerConfiguration.TYPE
         }
     }
 
