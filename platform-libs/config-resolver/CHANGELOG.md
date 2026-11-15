@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.0.10] - 2026-11-15
+### Changed
+- Version step only (G-DVS, INV-T-23150): depends on `outbox-and-queue` 6.26.0 (`UnsubmittedDocumentCountMeasured` joins the tenant-wide domain events; INV-AC-23149); no code change.
+
 ## [6.0.9] - 2026-11-15
 ### Changed
 - Version step only: depends on `outbox-and-queue` 6.25.0 (`RulePackActivated` joins the platform event set; INV-AC-23118, INV-T-23125); no code change.

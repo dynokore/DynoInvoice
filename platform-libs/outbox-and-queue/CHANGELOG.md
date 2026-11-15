@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.26.0] - 2026-11-15
+### Added
+- `UnsubmittedDocumentCountMeasured` (`com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1`) joins the closed exact-type set of domain events that may carry the tenant-wide entity (`allowsTenantWide`), with `AccessPointRouteChanged` and `PlanLimitExceeded`; it stays a domain event and still needs a real tenant; look-alike types stay refused (delegated ruling of tooling `gap23031-gap.md` option A; INV-AC-23149, INV-T-23150).
+
 ## [6.25.0] - 2026-11-15
 ### Added
 - `RulePackActivated` joins the closed platform event set of `Envelope` (`isPlatformType`; twenty-five names); the same name in the `com.dynokore.gst.rules` namespace stays a domain type (coordinator ruling, design question raised at the body of INV-T-22942 option B; tooling `gap22942-gap.md`; INV-AC-23118, INV-T-23125).

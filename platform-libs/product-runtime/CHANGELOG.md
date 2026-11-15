@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.21.1] - 2026-11-15
+### Changed
+- Version step only (G-DVS, INV-T-23150): depends on `outbox-and-queue` 6.26.0 (`UnsubmittedDocumentCountMeasured` joins the tenant-wide domain events; INV-AC-23149); no code change.
+
 ## [2.21.0] - 2026-11-15
 ### Added
 - `PlatformEventCatalogue.RULE_PACK_ACTIVATED` (`gst.platform.rule-pack-activated.v1`) and its place in `ALL` (coordinator ruling, design question raised at the body of INV-T-22942 option B; tooling `gap22942-gap.md`; INV-AC-23118, INV-T-23125).
