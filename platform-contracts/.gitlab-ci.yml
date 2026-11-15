@@ -279,6 +279,7 @@ invoice-docs-checks:
     - gst_check sync-edge-allowlist-check python3 spectral/check-sync-edges.py /tmp/invoice-docs/model/architecture/sync-edges.yaml .
     - gst_check entity-ref-check python3 spectral/check-entity-ref.py .
     - gst_check degraded-allow-check python3 spectral/check-degraded-allow.py .
+    - gst_check scope-exclusion-check python3 spectral/check-scope-exclusions.py .
     - gst_check reversibility-floor-check python3 spectral/check-reversibility-floor.py .
     - gst_check no-typed-confirmation-check python3 spectral/check-no-typed-confirmation.py .
     - gst_check compensation-cost-check python3 spectral/check-compensation-cost.py .
@@ -339,6 +340,7 @@ tool-self-tests:
     - gst_check self-test-sync-edges sh spectral/self-test-sync-edges.sh
     - gst_check self-test-entity-ref sh spectral/self-test-entity-ref.sh
     - gst_check self-test-degraded-allow sh spectral/self-test-degraded-allow.sh
+    - gst_check self-test-scope-exclusions sh spectral/self-test-scope-exclusions.sh
     - gst_check self-test-reversibility-floor sh spectral/self-test-reversibility-floor.sh
     - gst_check self-test-no-typed-confirmation sh spectral/self-test-no-typed-confirmation.sh
     - gst_check self-test-compensation-cost sh spectral/self-test-compensation-cost.sh
