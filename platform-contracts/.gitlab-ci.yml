@@ -207,6 +207,7 @@ contract-rules:
       }
     - gst_check spec-facts-ratchet gst_spec_facts_ratchet
     - gst_check error-code-catalogue-check python3 spectral/check-error-code-catalogue.py .
+    - gst_check error-code-status-check python3 spectral/check-error-code-status.py .
     - gst_check audited-operations-check python3 spectral/check-audited-operations.py .
     - gst_check operation-permissions-check python3 spectral/check-operation-permissions.py .
     - gst_check flow-resumption-check python3 spectral/check-flow-resumption.py .
@@ -349,6 +350,7 @@ tool-self-tests:
     - gst_check self-test-timeouts sh spectral/self-test-timeouts.sh
     - gst_check self-test-required-identifiers sh spectral/self-test-required-identifiers.sh
     - gst_check self-test-error-code-catalogue sh spectral/self-test-error-code-catalogue.sh
+    - gst_check self-test-error-code-status sh spectral/self-test-error-code-status.sh
     - gst_check self-test-audited-operations sh spectral/self-test-audited-operations.sh
     - gst_check self-test-flow-resumption sh spectral/self-test-flow-resumption.sh
     - gst_check self-test-hold-release-kinds sh spectral/self-test-hold-release-kinds.sh
