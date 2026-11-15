@@ -356,8 +356,15 @@ class BoundaryTestConfiguration {
     fun testDelegationProbe(): DelegationProbe =
         DelegationProbe { target, _ -> target.level == com.dynokore.platform.configresolver.ScopeLevel.CLIENT_ENTITY }
 
-    /** The stand-in for the owning service's floor (INV-Q-3140): no value may take effect before 2026-01-01. */
+    /**
+     * The stand-in for the owning service's floor (INV-Q-3140): no value may take effect before 2026-01-01. It is
+     * primary over the service's own [com.dynokore.gst.tenancy.adapters.policy.TenancyBackdatingFloor] so the VP-62
+     * tests keep their fixed floor; `test.backdating-stub=false` removes it, and the context then holds the service's
+     * floor alone (BackdatingFloorWiringTest, INV-AC-16774).
+     */
     @Bean
+    @Primary
+    @ConditionalOnProperty(name = ["test.backdating-stub"], havingValue = "true", matchIfMissing = true)
     fun testBackdatingFloor(): BackdatingFloor = BackdatingFloor { _, _ -> LocalDate.of(2026, 1, 1) }
 
     @Bean

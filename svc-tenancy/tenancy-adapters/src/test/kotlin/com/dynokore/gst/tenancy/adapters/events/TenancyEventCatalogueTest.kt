@@ -59,4 +59,17 @@ class TenancyEventCatalogueTest {
         catalogue.find("com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v2") shouldBe null
         catalogue.find("com.dynokore.gst.submission.UnsubmittedDocumentCountMeasure.v1") shouldBe null
     }
+
+    @Test
+    fun `INV-AC-16774 the catalogue lists SubmissionDespatched as consumed from submission-svc by equality`() {
+        catalogue.find("com.dynokore.gst.submission.SubmissionDespatched.v1") shouldBe
+            CatalogueEntry(
+                "com.dynokore.gst.submission.SubmissionDespatched.v1",
+                "gst.submission.submission-despatched.v1",
+                setOf("submission-svc"),
+                contentTopic = false,
+            )
+        catalogue.find("com.dynokore.gst.submission.SubmissionDespatched.v2") shouldBe null
+        catalogue.find("com.dynokore.gst.submission.SubmissionDespatch.v1") shouldBe null
+    }
 }

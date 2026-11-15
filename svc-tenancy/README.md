@@ -53,6 +53,17 @@ SANDBOX, else PRODUCTION (INV-Q-11905 A). The operations `loadCredential`, `reco
 refuse with TNC-005, TNC-006 and TNC-007 (422); the two sample operations are decided by the permission keys
 `sample-copy.approve` and `sample-copy.request` through `AuthorityReplica.decideTenant`, never by a role name.
 
+## Backdating floor of VP-62 (INV-Q-16675 A, INV-AC-16774)
+
+`tenancy.despatch_fact` is the replica of `SubmissionDespatched` (topic `gst.submission.submission-despatched.v1`): one
+row per tenant and entity ref with `first_despatched_at` and `doc_uuid`, and no other column. An event without
+`entityref` or `tenantid` is dead-lettered by the shared envelope reader. The inbox consumer of its own (`SubmissionDespatchedConsumerConfiguration`) reads envelope
+attributes only and keeps the first fact. `TenancyBackdatingFloor`, wired by `BackdatingFloorConfiguration`, binds the
+config-resolver port `BackdatingFloor` for the key of `TenancyVariationPoints.NON_BUSINESS_DAY_RULE` and the levels
+ENTITY and CLIENT_ENTITY: it answers the `obligation_start_date` of the latest OBLIGATION_START row of the entity, and
+null (back-dating refused) when the replica holds a fact for the entity, for every other key and
+level, an unknown entity, an entity without that row, and on any exception (fail closed).
+
 ## Secrets (STK-29)
 
 `tenancy/period-list-cursor-key` (at least 32 bytes) signs the `listPeriodRecords` cursor (HMAC-SHA256, INV-Q-16673); it is read
