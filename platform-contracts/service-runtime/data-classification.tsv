@@ -75,3 +75,6 @@ schemas/pack-currency-changed-payload.schema.json	packIdentifier	NONE
 schemas/pack-currency-changed-payload.schema.json	packVersion	NONE
 schemas/pack-currency-changed-payload.schema.json	daysToEffectiveDate	NONE
 schemas/pack-currency-changed-payload.schema.json	daysSinceLastReached	NONE
+schemas/rule-pack-activated-payload.schema.json	packIdentifier	NONE
+schemas/rule-pack-activated-payload.schema.json	version	NONE
+schemas/rule-pack-activated-payload.schema.json	effectiveFrom	NONE

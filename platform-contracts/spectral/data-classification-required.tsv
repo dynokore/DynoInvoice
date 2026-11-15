@@ -28,3 +28,4 @@ service-runtime	schemas/authority-head-observed-payload.schema.json
 submission	schemas/backlog-values-measured-payload.schema.json
 service-runtime	schemas/rule-pack-staged-payload.schema.json
 service-runtime	schemas/pack-currency-changed-payload.schema.json
+service-runtime	schemas/rule-pack-activated-payload.schema.json

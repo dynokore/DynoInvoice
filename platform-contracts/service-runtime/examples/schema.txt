@@ -21,3 +21,4 @@
 ../schemas/authority-head-observed-payload.schema.json authority-head-observed-*.json
 ../schemas/rule-pack-staged-payload.schema.json rule-pack-staged-payload-*.json
 ../schemas/pack-currency-changed-payload.schema.json pack-currency-changed-payload-*.json
+../schemas/rule-pack-activated-payload.schema.json rule-pack-activated-payload-*.json
