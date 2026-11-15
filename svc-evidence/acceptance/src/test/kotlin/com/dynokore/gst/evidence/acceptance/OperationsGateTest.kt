@@ -45,7 +45,7 @@ class OperationsGateTest {
     @Test
     fun `the real table covers the real contract`() {
         OperationsGate.contractOperations(openapi).size shouldBe 23
-        OperationsGate.contractChannels(asyncapi).size shouldBe 4
+        OperationsGate.contractChannels(asyncapi).size shouldBe 5
         run(done = doneText).shouldBeEmpty()
         val assignedAndLive =
             tsv
@@ -55,6 +55,20 @@ class OperationsGateTest {
                 .map { it[2] }
                 .toSet()
         assignedAndLive.containsAll(doneText!!.lines().filter { it.isNotBlank() }) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-22873 the offboarding export finished channel is a contract channel and an UNASSIGNED row`() {
+        val topic = "gst.evidence.offboarding-export-finished.v1"
+        val rows = OperationsGate.parse(tsv)
+        val channelRows = rows.filter { it.kind == "channel" }
+        val row = rows.filter { it.id == topic }
+        row.size shouldBe 1
+        row.single().kind shouldBe "channel"
+        row.single().task shouldBe "UNASSIGNED"
+        OperationsGate.contractOperations(openapi).size shouldBe 23
+        OperationsGate.contractChannels(asyncapi) shouldBe channelRows.map { it.id }.toSet()
+        channelRows.size shouldBe 5
     }
 
     @Test
