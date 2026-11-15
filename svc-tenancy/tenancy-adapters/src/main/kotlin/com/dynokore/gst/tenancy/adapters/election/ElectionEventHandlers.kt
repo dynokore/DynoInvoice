@@ -19,8 +19,8 @@ object ConsumedElectionEvents {
     const val ACCESS_POINT_ROUTE_CHANGED_TOPIC = "gst.transport.access-point-route-changed.v1"
     const val RULE_PACK_STAGED = "com.dynokore.gst.platform.RulePackStaged.v1"
     const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
-    const val RULE_PACK_ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
-    const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
+    const val RULE_PACK_ACTIVATED = "com.dynokore.gst.platform.RulePackActivated.v1"
+    const val RULE_PACK_ACTIVATED_TOPIC = "gst.platform.rule-pack-activated.v1"
 
     /** Event type to topic: exactly the three subscriptions of this service for the elections. */
     val SUBSCRIPTIONS: Map<String, String> =

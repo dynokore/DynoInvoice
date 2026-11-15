@@ -1,11 +1,17 @@
 package com.dynokore.gst.tenancy.bootstrap
 
+import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackDecoder
 import com.dynokore.gst.tenancy.adapters.calendar.CalendarPackStagedHandler
+import com.dynokore.gst.tenancy.adapters.certification.ConsumedCertificationEvents
+import com.dynokore.gst.tenancy.adapters.certification.RulePackActivatedCertificationHandler
 import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
+import com.dynokore.gst.tenancy.adapters.election.RulePackActivatedHandler
 import com.dynokore.gst.tenancy.adapters.election.RulePackStagedHandler
 import com.dynokore.gst.tenancy.adapters.election.UnrecordedEntityFacts
 import com.dynokore.gst.tenancy.adapters.events.TenancyEventCatalogue
+import com.dynokore.gst.tenancy.application.certification.CertifiedEntityDirectory
+import com.dynokore.gst.tenancy.application.certification.MarkCertificationStale
 import com.dynokore.gst.tenancy.application.election.ScopePackStore
 import com.dynokore.gst.tenancy.application.period.CalendarPackReplica
 import com.dynokore.gst.tenancy.contract.model.RateSourceElectionRequest
@@ -14,7 +20,9 @@ import com.dynokore.gst.tenancy.domain.ElectionKind
 import com.dynokore.gst.tenancy.domain.FactAnswer
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.InboxConsumer
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
@@ -235,6 +243,95 @@ class ElectionReplicasTest {
         }.exceptionOrNull()
             ?.message
 
+    private fun activatedHandlers(env: ProfileEnv): Map<String, EventHandler> {
+        val mapper = JsonMapper.builder().build()
+        val ctx = env.context
+        return mapOf(
+            "election" to RulePackActivatedHandler(ctx.getBean(ScopePackStore::class.java), mapper),
+            "calendar" to CalendarPackActivatedHandler(ctx.getBean(CalendarPackReplica::class.java), mapper),
+            "certification" to
+                RulePackActivatedCertificationHandler(
+                    ctx.getBean(CertifiedEntityDirectory::class.java),
+                    ctx.getBean(TenantContext::class.java),
+                    ctx.getBean(TransactionRunner::class.java),
+                    ctx.getBean(MarkCertificationStale::class.java),
+                    mapper,
+                    "identity:USR-C1",
+                ),
+        )
+    }
+
+    @Test
+    fun `INV-AC-23120 the activated constants and the subscriptions equal the platform names`() {
+        assertThat(ConsumedElectionEvents.RULE_PACK_ACTIVATED)
+            .isEqualTo("com.dynokore.gst.platform.RulePackActivated.v1")
+        assertThat(ConsumedElectionEvents.RULE_PACK_ACTIVATED_TOPIC).isEqualTo("gst.platform.rule-pack-activated.v1")
+        assertThat(CalendarPackActivatedHandler.ACTIVATED).isEqualTo("com.dynokore.gst.platform.RulePackActivated.v1")
+        assertThat(ConsumedCertificationEvents.RULE_PACK_ACTIVATED)
+            .isEqualTo("com.dynokore.gst.platform.RulePackActivated.v1")
+        assertThat(ConsumedCertificationEvents.RULE_PACK_ACTIVATED_TOPIC)
+            .isEqualTo("gst.platform.rule-pack-activated.v1")
+        // the election map on main with the activated entry replaced, compared as a set of pairs
+        assertThat(
+            ConsumedElectionEvents.SUBSCRIPTIONS.entries
+                .map { it.key to it.value }
+                .toSet(),
+        ).isEqualTo(
+            setOf(
+                "com.dynokore.gst.transport.AccessPointRouteChanged.v1" to
+                    "gst.transport.access-point-route-changed.v1",
+                "com.dynokore.gst.platform.RulePackStaged.v1" to "gst.platform.rule-pack-staged.v1",
+                "com.dynokore.gst.platform.RulePackActivated.v1" to "gst.platform.rule-pack-activated.v1",
+            ),
+        )
+        assertThat(
+            ConsumedElectionEvents.SUBSCRIPTIONS,
+        ).doesNotContainKey("com.dynokore.gst.rules.RulePackActivated.v1")
+        assertThat(ConsumedElectionEvents.SUBSCRIPTIONS.values).doesNotContain("gst.rules.rule-pack-activated.v1")
+        assertThat(ConsumedCertificationEvents.TOPICS)
+            .isEqualTo(
+                setOf(
+                    "gst.platform.rule-pack-activated.v1",
+                    "gst.masterdata.identity-triple-changed.v1",
+                    "gst.platform.certification-mark-requested.v1",
+                ),
+            )
+        assertThat(ConsumedCertificationEvents.TOPICS).doesNotContain("gst.rules.rule-pack-activated.v1")
+    }
+
+    @Test
+    fun `INV-AC-23120 the old rules-namespace type is refused as unexpected by the three handlers`() {
+        run { _, env ->
+            activatedHandlers(env).forEach { (name, handler) ->
+                assertThat(refusal(handler, "com.dynokore.gst.rules.RulePackActivated.v1"))
+                    .describedAs(name)
+                    .isEqualTo("unexpected com.dynokore.gst.rules.RulePackActivated.v1")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-23120 the look-alike platform type is refused as unexpected by the three handlers`() {
+        run { _, env ->
+            activatedHandlers(env).forEach { (name, handler) ->
+                assertThat(refusal(handler, "com.dynokore.gst.platform.RulePackActivatedX.v1"))
+                    .describedAs(name)
+                    .isEqualTo("unexpected com.dynokore.gst.platform.RulePackActivatedX.v1")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-23120 the platform type is not refused as unexpected by the three handlers`() {
+        run { _, env ->
+            activatedHandlers(env).forEach { (name, handler) ->
+                assertThat(refusal(handler, "com.dynokore.gst.platform.RulePackActivated.v1") ?: "")
+                    .describedAs(name)
+                    .doesNotStartWith("unexpected ")
+            }
+        }
+    }
+
     @Test
     fun `INV-AC-22371 the staged constants and the subscription equal the platform names`() {
         assertThat(ConsumedElectionEvents.RULE_PACK_STAGED).isEqualTo("com.dynokore.gst.platform.RulePackStaged.v1")
@@ -250,7 +347,7 @@ class ElectionReplicasTest {
                 "com.dynokore.gst.transport.AccessPointRouteChanged.v1" to
                     "gst.transport.access-point-route-changed.v1",
                 "com.dynokore.gst.platform.RulePackStaged.v1" to "gst.platform.rule-pack-staged.v1",
-                "com.dynokore.gst.rules.RulePackActivated.v1" to "gst.rules.rule-pack-activated.v1",
+                "com.dynokore.gst.platform.RulePackActivated.v1" to "gst.platform.rule-pack-activated.v1",
             ),
         )
         assertThat(ConsumedElectionEvents.SUBSCRIPTIONS).doesNotContainKey("com.dynokore.gst.rules.RulePackStaged.v1")
@@ -302,13 +399,13 @@ class ElectionReplicasTest {
                 .containsExactlyInAnyOrder(
                     "com.dynokore.gst.transport.AccessPointRouteChanged.v1",
                     "com.dynokore.gst.platform.RulePackStaged.v1",
-                    "com.dynokore.gst.rules.RulePackActivated.v1",
+                    "com.dynokore.gst.platform.RulePackActivated.v1",
                 )
             assertThat(ConsumedElectionEvents.SUBSCRIPTIONS.values)
                 .containsExactlyInAnyOrder(
                     "gst.transport.access-point-route-changed.v1",
                     "gst.platform.rule-pack-staged.v1",
-                    "gst.rules.rule-pack-activated.v1",
+                    "gst.platform.rule-pack-activated.v1",
                 )
             val catalogue = TenancyEventCatalogue.load()
             ConsumedElectionEvents.SUBSCRIPTIONS.forEach { (type, topic) ->

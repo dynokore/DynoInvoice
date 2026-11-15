@@ -155,7 +155,7 @@ class CertifySandboxTest {
             env.withEntity { tenant, entity ->
                 e.passed(entity)
                 e.rulePackActivated(tenant, topic = "gst.rules.rule-pack-activated.v2")
-                e.rulePackActivated(tenant, topic = "gst.rules.rule-pack-activated.v1 ")
+                e.rulePackActivated(tenant, topic = "gst.platform.rule-pack-activated.v1 ")
                 e.poll(PACK_CONSUMER)
                 assertThat(e.state(entity)).isEqualTo("CURRENT" to null)
                 assertThat(e.stored(entity)).isEmpty()
@@ -348,7 +348,7 @@ class CertifySandboxTest {
             assertThat(ConsumedCertificationEvents.TOPICS)
                 .isEqualTo(
                     setOf(
-                        "gst.rules.rule-pack-activated.v1",
+                        "gst.platform.rule-pack-activated.v1",
                         "gst.masterdata.identity-triple-changed.v1",
                         "gst.platform.certification-mark-requested.v1",
                     ),

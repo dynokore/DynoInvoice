@@ -20,8 +20,8 @@ import tools.jackson.databind.ObjectMapper
 /** The inbox subscriptions this service adds for the re-certification triggers (INV-Q-16401 A), by exact name. */
 object ConsumedCertificationEvents {
     const val RULE_PACK_ACTIVATED_CONSUMER = "tenancy-svc-certification-rule-pack-activated"
-    const val RULE_PACK_ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
-    const val RULE_PACK_ACTIVATED_TOPIC = "gst.rules.rule-pack-activated.v1"
+    const val RULE_PACK_ACTIVATED = "com.dynokore.gst.platform.RulePackActivated.v1"
+    const val RULE_PACK_ACTIVATED_TOPIC = "gst.platform.rule-pack-activated.v1"
     const val IDENTITY_TRIPLE_CHANGED_CONSUMER = "tenancy-svc-certification-identity-triple-changed"
     const val IDENTITY_TRIPLE_CHANGED = "com.dynokore.gst.masterdata.IdentityTripleChanged.v1"
     const val IDENTITY_TRIPLE_CHANGED_TOPIC = "gst.masterdata.identity-triple-changed.v1"

@@ -91,6 +91,6 @@ class CalendarPackActivatedHandler(
     }
 
     companion object {
-        const val ACTIVATED = "com.dynokore.gst.rules.RulePackActivated.v1"
+        const val ACTIVATED = "com.dynokore.gst.platform.RulePackActivated.v1"
     }
 }
