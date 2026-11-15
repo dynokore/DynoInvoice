@@ -249,9 +249,13 @@ class ClientSignatoryGrantRecordTest {
 
     @Test
     fun `INV-AC-926 the role is written from Role CLIENT_SIGNATORY wire, never as a string literal`() {
-        val dir = java.nio.file.Path.of("src/main/kotlin/com/dynokore/gst/access/adapters/events")
+        val dir =
+            java.nio.file.Path
+                .of("src/main/kotlin/com/dynokore/gst/access/adapters/events")
         listOf("AuthorityChangedPayloads.kt", "ClientSignatoryGrantOutbox.kt").forEach {
-            val text = java.nio.file.Files.readString(dir.resolve(it))
+            val text =
+                java.nio.file.Files
+                    .readString(dir.resolve(it))
             assertTrue(!text.contains("\"${Role.CLIENT_SIGNATORY.wire}\""), "$it writes the role as a literal")
         }
         assertTrue(
