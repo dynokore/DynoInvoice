@@ -3,6 +3,7 @@ package com.dynokore.gst.tenancy.bootstrap
 import com.dynokore.gst.tenancy.adapters.certification.IssuanceModeCertificationMark
 import com.dynokore.gst.tenancy.adapters.election.ElectionValueConstraints
 import com.dynokore.gst.tenancy.adapters.events.EntityProfileChangedOutbox
+import com.dynokore.gst.tenancy.adapters.persistence.JooqEntityIdLookup
 import com.dynokore.gst.tenancy.adapters.persistence.JooqPhaseAssessmentStore
 import com.dynokore.gst.tenancy.adapters.policy.ImplementationDateConstraints
 import com.dynokore.gst.tenancy.adapters.policy.PolicyGroupElectionReader
@@ -37,7 +38,13 @@ class StatusUseCases {
         outbox: OutboxWriter,
         mapper: ObjectMapper,
         mark: MarkCertificationStale,
-    ): EntityProfileChangePublisher = IssuanceModeCertificationMark(EntityProfileChangedOutbox(outbox, mapper), mark)
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): EntityProfileChangePublisher =
+        IssuanceModeCertificationMark(
+            EntityProfileChangedOutbox(outbox, mapper, JooqEntityIdLookup(dsl, tenants)::lookup),
+            mark,
+        )
 
     @Bean
     fun phaseAssessmentStore(
