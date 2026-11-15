@@ -248,6 +248,20 @@ class ClientSignatoryGrantRecordTest {
     }
 
     @Test
+    fun `INV-AC-926 the role is written from Role CLIENT_SIGNATORY wire, never as a string literal`() {
+        val dir = java.nio.file.Path.of("src/main/kotlin/com/dynokore/gst/access/adapters/events")
+        listOf("AuthorityChangedPayloads.kt", "ClientSignatoryGrantOutbox.kt").forEach {
+            val text = java.nio.file.Files.readString(dir.resolve(it))
+            assertTrue(!text.contains("\"${Role.CLIENT_SIGNATORY.wire}\""), "$it writes the role as a literal")
+        }
+        assertTrue(
+            java.nio.file.Files
+                .readString(dir.resolve("AuthorityChangedPayloads.kt"))
+                .contains("Role.CLIENT_SIGNATORY.wire"),
+        )
+    }
+
+    @Test
     fun `INV-AC-926 a counterparty link issued on the event publishes no role record`() {
         issued(command(consent = null, client = null, envelope = EntityRef("E-ENV"), eventId = "ev-1"))
         assertTrue(grantEvents().isEmpty())
@@ -298,9 +312,11 @@ class ClientSignatoryGrantRecordTest {
                 "system:access-svc",
                 clock,
             )
-        assertThrows(IllegalStateException::class.java) {
-            messages.filedUnder(WireEntityRef("CLI-2201")) { use.handle(command()) }
-        }
+        val thrown =
+            assertThrows(IllegalStateException::class.java) {
+                messages.filedUnder(WireEntityRef("CLI-2201")) { use.handle(command()) }
+            }
+        assertEquals("injected failure of the version draw", thrown.message)
         assertTrue(stored.isEmpty())
         assertTrue(captured.appended.isEmpty())
     }
