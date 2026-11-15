@@ -12,6 +12,8 @@ import com.dynokore.gst.canonical.application.document.CanonicalVersionWriter
 import com.dynokore.gst.canonical.application.document.RoutingDirection
 import com.dynokore.gst.canonical.application.document.RoutingFactsData
 import com.dynokore.gst.canonical.application.document.RoutingNetworkPath
+import com.dynokore.gst.canonical.application.document.SelfBillingAssignmentData
+import com.dynokore.gst.canonical.application.document.SelfBillingSubmissionType
 import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.DocumentState
 import com.dynokore.gst.canonical.domain.document.NewDocument
@@ -30,10 +32,14 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
 import java.io.File
 import java.nio.file.Path
 import java.time.LocalDate
@@ -47,6 +53,7 @@ import com.networknt.schema.SpecificationVersion as SchemaDialect
  */
 class CanonicalVersionCreatedOutboxDbTest {
     private val actor = SignedBindings.ACTOR
+    private val mapper = ObjectMapper()
     private val type = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
     private val canonical =
         listOf(
@@ -160,7 +167,7 @@ class CanonicalVersionCreatedOutboxDbTest {
     )
 
     private fun members(data: String): Map<String, String> =
-        tools.jackson.databind.ObjectMapper().readTree(data).let { node ->
+        mapper.readTree(data).let { node ->
             node.propertyNames().asSequence().associateWith { node.get(it).toString() }
         }
 
@@ -218,22 +225,113 @@ class CanonicalVersionCreatedOutboxDbTest {
         aggregateOf(other, d) shouldBe null
     }
 
-    /** The published schema of the pinned bundle; a missing property or file fails the test. */
-    private fun schemaErrors(data: String): List<String> {
+    /** The published schema text of the pinned bundle; an unset property or a missing file fails the test. */
+    private fun schemaText(): String {
         val dir = File(checkNotNull(System.getProperty("gst.contract.dir")) { "gst.contract.dir is not set" })
-        val schema = File(dir, "schemas/canonical-version-created-payload.schema.json").readText()
+        return File(dir, "schemas/canonical-version-created-payload.schema.json").readText()
+    }
+
+    private fun schemaErrors(data: String): List<String> {
         val registry =
             SchemaRegistry.withDefaultDialect(SchemaDialect.DRAFT_2020_12) {
                 it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
             }
-        return registry
-            .getSchema(
-                schema,
-            ).validate(
-                tools.jackson.databind
-                    .ObjectMapper()
-                    .readTree(data),
-            ).map { it.toString() }
+        return registry.getSchema(schemaText()).validate(mapper.readTree(data)).map { it.toString() }
+    }
+
+    /** The enum list of a `routingFacts` member as the published schema defines it; empty or absent fails. */
+    private fun routingEnum(member: String): List<String> =
+        mapper
+            .readTree(schemaText())
+            .get("properties")
+            .get("routingFacts")
+            .get("properties")
+            .get(member)
+            .get("enum")
+            .values()
+            .map { it.asString() }
+            .also { it.shouldNotBeEmpty() }
+
+    private fun noNullOrEmptyObject(node: JsonNode) {
+        node.isNull shouldBe false
+        if (node.isObject) {
+            node.size() shouldNotBe 0
+            node.properties().forEach { noNullOrEmptyObject(it.value) }
+        }
+    }
+
+    /** Writes one version with [routing]; checks the row's routingFacts against the facts and the published schema. */
+    private fun checkRouting(
+        b: Boundary,
+        tenant: UUID,
+        routing: RoutingFactsData,
+    ) {
+        val d = UUID.randomUUID()
+        b.scope.bind(TenantId(tenant), actor) {
+            b.runner.inTransaction { b.writer.createFirst(newDocument(tenant, d), facts(d, 1, null, routing)) }
+        }
+        val data = rowsOf(tenant, d).single()[1]!!
+        val row = mapper.readTree(data)
+        row.get("routingFacts") shouldBe mapper.valueToTree<JsonNode>(expectedRouting(routing))
+        noNullOrEmptyObject(row.get("routingFacts"))
+        schemaErrors(data).shouldBeEmpty()
+        val lower = row.deepCopy() as ObjectNode
+        (lower.get("routingFacts") as ObjectNode).put("direction", routing.direction.name.lowercase())
+        schemaErrors(lower.toString()).shouldNotBeEmpty()
+    }
+
+    /** The members the facts hold, written here independently of the publisher; the enum names as text. */
+    private fun expectedRouting(routing: RoutingFactsData): Map<String, Any> =
+        buildMap {
+            put("direction", routing.direction.name)
+            put("networkPath", routing.networkPath.name)
+            routing.counterpartyOnNetwork?.let { put("counterpartyOnNetwork", it) }
+            routing.debitNote?.let { put("debitNote", it) }
+            routing.selfBillingAssignment?.let {
+                put(
+                    "selfBillingAssignment",
+                    mapOf(
+                        "direction" to it.direction.name,
+                        "submissionType" to it.submissionType.name,
+                    ),
+                )
+            }
+        }
+
+    @Test
+    fun `INV-AC-23004 the three shapes of routing facts are written as given and validate`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val tenant = UUID.randomUUID()
+        val sale = RoutingFactsData(RoutingDirection.SALE, RoutingNetworkPath.ISSUED_VIA_NETWORK)
+        val selfBilling =
+            RoutingFactsData(
+                RoutingDirection.PURCHASE,
+                RoutingNetworkPath.NOT_ON_NETWORK,
+                selfBillingAssignment =
+                    SelfBillingAssignmentData(RoutingDirection.PURCHASE, SelfBillingSubmissionType.TYPE_3),
+            )
+        val relay =
+            RoutingFactsData(
+                RoutingDirection.SALE,
+                RoutingNetworkPath.RELAY_ISSUANCE,
+                counterpartyOnNetwork = true,
+                debitNote = true,
+            )
+        listOf(sale, selfBilling, relay).forEach { checkRouting(b, tenant, it) }
+    }
+
+    @Test
+    fun `INV-AC-23004 every direction and every networkPath of the published schema is written and validates`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val tenant = UUID.randomUUID()
+        routingEnum("direction").forEach {
+            checkRouting(b, tenant, RoutingFactsData(RoutingDirection.valueOf(it), RoutingNetworkPath.NOT_ON_NETWORK))
+        }
+        routingEnum("networkPath").forEach {
+            checkRouting(b, tenant, RoutingFactsData(RoutingDirection.SALE, RoutingNetworkPath.valueOf(it)))
+        }
     }
 
     @Test
@@ -249,8 +347,8 @@ class CanonicalVersionCreatedOutboxDbTest {
         val row = rowsOf(tenant, d).single()
         row[1]!!.let { schemaErrors(it).shouldBeEmpty() }
         val without =
-            tools.jackson.databind.ObjectMapper().readTree(row[1]!!).also {
-                (it as tools.jackson.databind.node.ObjectNode).remove("traceReference")
+            mapper.readTree(row[1]!!).also {
+                (it as ObjectNode).remove("traceReference")
             }
         schemaErrors(without.toString()).shouldNotBeEmpty()
     }
