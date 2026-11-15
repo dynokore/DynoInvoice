@@ -180,4 +180,41 @@ class AcknowledgementDeadlineStoreDbTest {
         asTenant(other) { inputs.of(TenantId(other), doc) } shouldBe none
         asked.size shouldBe 0
     }
+
+    @Test
+    fun `INV-AC-22761 the tenant condition of the deadline write holds without row level security`() {
+        val bypassRole = "submission_test_bypass"
+        val bypassPassword = "submission_test_bypass_pw"
+        SubmissionDb.superuser().use { su ->
+            su.createStatement().use { st ->
+                st.execute(
+                    "do \$\$ begin if not exists (select 1 from pg_roles where rolname = '$bypassRole') then " +
+                        "create role $bypassRole login nosuperuser bypassrls password '$bypassPassword'; " +
+                        "end if; end \$\$",
+                )
+                st.execute("grant submission_runtime to $bypassRole")
+            }
+        }
+        val tenantA = UUID.randomUUID()
+        val tenantB = UUID.randomUUID()
+        val docB = "b-${UUID.randomUUID()}"
+        val at = Instant.parse("2026-03-01T10:00:00Z")
+        SubmissionDb.connect(bypassRole, bypassPassword).use { conn ->
+            val bypassDsl = DSL.using(conn, SQLDialect.POSTGRES)
+            val bypassStore = JooqSubmissionStore(bypassDsl)
+            bypassStore.insertReady(
+                TenantId(tenantB),
+                NewReadySubmission(docB, 1, "E", null, byteArrayOf(2), "sha-b", SubmissionKind.TYPE_2),
+            )
+            shouldThrow<IllegalStateException> { bypassStore.recordAcknowledgementDeadline(TenantId(tenantA), docB, 1, at) }
+            bypassDsl
+                .fetchOne("select acknowledgement_deadline from submission.submission where doc_uuid = ?", docB)!!
+                .get(0) shouldBe null
+            bypassStore.recordAcknowledgementDeadline(TenantId(tenantB), docB, 1, at)
+            bypassDsl
+                .fetchOne("select acknowledgement_deadline from submission.submission where doc_uuid = ?", docB)!!
+                .get(0, java.time.OffsetDateTime::class.java)
+                .toInstant() shouldBe at
+        }
+    }
 }
