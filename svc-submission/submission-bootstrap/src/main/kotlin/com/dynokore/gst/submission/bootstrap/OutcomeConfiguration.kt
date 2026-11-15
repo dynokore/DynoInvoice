@@ -136,7 +136,17 @@ class OutcomeConfiguration(
         failures: FailureReporting,
         deadlines: AcknowledgementDeadlines,
     ): AttemptOutcomeApplier =
-        AttemptOutcomeApplier(Clock.systemUTC(), boundaries, jitter, scope, store, queue, submissions, failures, deadlines)
+        AttemptOutcomeApplier(
+            Clock.systemUTC(),
+            boundaries,
+            jitter,
+            scope,
+            store,
+            queue,
+            submissions,
+            failures,
+            deadlines,
+        )
 
     @Bean
     fun acknowledgementInputs(

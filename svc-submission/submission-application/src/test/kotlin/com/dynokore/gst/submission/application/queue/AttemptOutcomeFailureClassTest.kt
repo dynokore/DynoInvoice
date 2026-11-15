@@ -165,7 +165,7 @@ class AttemptOutcomeFailureClassTest {
     fun `INV-AC-20586 V3 an acceptance records nothing`() {
         applier(row(0, null)).apply(dispatch(1), TransportResult.Accepted("AP-1", now, "ok".toByteArray()))
 
-        writes shouldBe listOf("recordResponse", "recordAccepted", "complete")
+        writes shouldBe listOf("recordResponse", "recordAccepted", "recordAcknowledgementDeadline", "complete")
     }
 
     @Test

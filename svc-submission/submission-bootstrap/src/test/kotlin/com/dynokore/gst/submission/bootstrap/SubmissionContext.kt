@@ -12,6 +12,8 @@ import java.nio.file.Path
 
 /** The service composed as TPL-18 writes it, over a TPL-16 configuration (application.yaml plus these overrides). */
 object SubmissionContext {
+    private const val ACK_THRESHOLD = "inv.submission.ack-threshold-minutes"
+
     private fun secrets(mountRoot: Path) {
         Files.createDirectories(mountRoot.resolve("db"))
         Files.createDirectories(mountRoot.resolve("tenancy"))
@@ -52,7 +54,7 @@ object SubmissionContext {
             // the TransportClient bean exists only with a base-url (INV-T-22121); the drain beans need it
             "inv.transport-client.base-url=http://transport.invalid",
             // the acknowledgement threshold has no default in code (INV-T-22769)
-            "inv.submission.ack-threshold-minutes=120",
+            "$ACK_THRESHOLD=120",
             // the business zone of confirmFiling has no default in code (INV-T-20948)
             "inv.filing.business-zone=Asia/Singapore",
         )
@@ -76,7 +78,9 @@ object SubmissionContext {
                 "spring.datasource.url=${SubmissionDb.jdbcUrl}",
                 "server.port=0",
                 *properties,
-            ).run()
+            )
+            // default properties rank below application.yaml, whose key has no fallback: pass it as an argument
+            .run("--$ACK_THRESHOLD=120")
     }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */

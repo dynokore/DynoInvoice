@@ -1,11 +1,18 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.SignedBindings
+import com.dynokore.gst.submission.adapters.SubmissionDb
+import com.dynokore.gst.submission.application.drain.SafetyMarginAnswer
+import com.dynokore.gst.submission.application.drain.SafetyMargins
+import com.dynokore.gst.submission.application.pack.PackMargin
 import com.dynokore.gst.submission.application.queue.SentResult
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.application.queue.TransportResult
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
@@ -13,6 +20,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.UUID
 
 /** The acknowledgement deadline written with the accepted outcome (INV-T-22769; INV-REQ-975; INV-AC-22762). */
@@ -54,6 +63,62 @@ class AttemptOutcomeAcknowledgementDeadlineDbTest {
         row.state shouldBe "SENT"
         val start = checkNotNull(row.ackTimerStartedAt).toInstant()
         checkNotNull(row.acknowledgementDeadline).toInstant() shouldBe start.plus(Duration.ofMinutes(120))
+    }
+
+    @Test
+    fun `INV-AC-22762 Accepted stores the earlier of the threshold and the cap in the business zone`(
+        @TempDir dir: Path,
+    ) {
+        val margins =
+            SafetyMargins { _, _, _ -> SafetyMarginAnswer.Known(checkNotNull(PackMargin.of(5, "HOURS"))) }
+        SubmissionContext
+            .online(dir)
+            .withAllowBeanDefinitionOverriding(true)
+            .withBean("safetyMargins", SafetyMargins::class.java, { margins })
+            .run { context ->
+                val f = OutcomeFixture(context)
+                val tenant = UUID.randomUUID()
+                val doc = UUID.randomUUID().toString()
+                val dueDate =
+                    f.clock.now
+                        .atZone(ZoneOffset.UTC)
+                        .toLocalDate()
+                f.queued(tenant, doc)
+                SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).use { connection ->
+                    connection.autoCommit = false
+                    SignedBindings.bind(connection, tenant)
+                    val plain = DSL.using(connection, SQLDialect.POSTGRES)
+                    plain.execute(
+                        "insert into submission.obligation_register_entry (tenant_id, doc_uuid, entity_ref, " +
+                            "period_ref, due_date, in_scope, kind) values (?, ?, 'E-001', 'P-1', ?::date, true, " +
+                            "'INVOICE')",
+                        tenant,
+                        doc,
+                        dueDate,
+                    )
+                    plain.execute(
+                        "insert into submission.period_due_date values (?, 'E-001', 'P-1', ?::date, 1)",
+                        tenant,
+                        dueDate,
+                    )
+                    connection.commit()
+                }
+                val dispatch = (f.worker.takeNext() as SentResult.Sent).dispatch
+
+                f.applier().apply(dispatch, accepted)
+
+                val row = f.row(tenant, doc)
+                val start = checkNotNull(row.ackTimerStartedAt).toInstant()
+                val cap =
+                    dueDate
+                        .plusDays(
+                            1,
+                        ).atStartOfDay(ZoneId.of("Asia/Singapore"))
+                        .toInstant()
+                        .minus(Duration.ofHours(5))
+                (cap < start.plus(Duration.ofMinutes(120))) shouldBe true
+                checkNotNull(row.acknowledgementDeadline).toInstant() shouldBe cap
+            }
     }
 
     @Test
