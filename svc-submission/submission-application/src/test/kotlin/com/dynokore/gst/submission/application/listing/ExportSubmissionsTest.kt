@@ -221,9 +221,9 @@ class ExportSubmissionsTest {
 
     private fun unmaskedPart(lines: List<String>) = lines.map { l -> cols(l).filterIndexed { i, _ -> i !in maskedIdx } }
 
-    /** Machine of a type (the type is the role of the type map); the map grants [keys] to the type. */
+    /** A role map that records each key asked and grants the roles of [granted] per key. */
     private class RecordingMap(
-        private val granted: Map<String, Set<String>>,
+        granted: Map<String, Set<String>>,
     ) {
         val asked = mutableListOf<String>()
         val map =

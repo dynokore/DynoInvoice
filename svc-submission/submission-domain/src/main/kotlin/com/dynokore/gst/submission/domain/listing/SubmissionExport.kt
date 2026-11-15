@@ -93,7 +93,7 @@ object SubmissionExport {
 
     /**
      * As [table], for a caller who may or may not view content. When [mayViewContent] is false a cell of a content fact
-     * is the empty text exactly where [ListFactsPolicy.mask] withholds that fact, so the list and the export mask by one
+     * is the empty text exactly where [ListFactsPolicy.mask] withholds that fact, so list and export mask by one
      * rule; the row count and the totals still come from all rows, as the summary serves them.
      */
     fun table(
