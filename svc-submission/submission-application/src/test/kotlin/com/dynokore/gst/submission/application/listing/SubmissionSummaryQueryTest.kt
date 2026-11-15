@@ -135,7 +135,7 @@ class SubmissionSummaryQueryTest {
     private fun request(
         principal: Principal = holder,
         filter: SubmissionFilter = SubmissionFilter(),
-    ) = SubmissionSummaryRequest(tenant, principal, entityRef, periodRef, filter)
+    ) = SubmissionSummaryRequest(tenant, principal, entityRef, periodRef, filter, clock.instant())
 
     /** Every row the list returns for [filter], read page by page with a page size of two. */
     private fun listed(
@@ -146,7 +146,8 @@ class SubmissionSummaryQueryTest {
         val all = mutableListOf<ListSubmissionsRow>()
         var cursor: String? = null
         do {
-            val req = ListSubmissionsRequest(tenant, holder, entityRef, periodRef, filter, null, cursor, 2, 500)
+            val now = clock.instant()
+            val req = ListSubmissionsRequest(tenant, holder, entityRef, periodRef, filter, null, cursor, 2, 500, now)
             val page = list.handle(req, deadline).shouldBeInstanceOf<ListSubmissionsResult.Page>()
             all += page.rows
             cursor = page.nextCursor
@@ -184,14 +185,16 @@ class SubmissionSummaryQueryTest {
     }
 
     @Test
-    fun `INV-AC-22164 each served bucket counts as many rows as the list under that bucket`() {
-        SERVED_BUCKETS.size shouldBe 4
+    fun `INV-AC-22164 INV-AC-22763 each served bucket counts as many rows as the list under that bucket`() {
+        SERVED_BUCKETS shouldBe ReconciliationBucket.entries.toSet()
         SERVED_BUCKETS.forEach { bucket ->
             val source = RecordingSource(rows)
             val filter = SubmissionFilter(bucket = bucket)
             val summary = totals(query(source).summary(request(filter = filter), deadline))
             val list = listed(source, filter)
-            (list.isNotEmpty()) shouldBe true
+            if (bucket != ReconciliationBucket.SENT_NOT_ACKNOWLEDGED) {
+                (list.isNotEmpty()) shouldBe true
+            }
             summary.rowCount shouldBe list.size
             summary.totalTaxableAmount.compareTo(sum(list) { it.facts.taxableAmount }) shouldBe 0
         }
@@ -223,13 +226,14 @@ class SubmissionSummaryQueryTest {
     }
 
     @Test
-    fun `INV-AC-22164 the bucket SENT_NOT_ACKNOWLEDGED is refused with zero calls and a denied caller is Forbidden`() {
+    fun `INV-AC-22164 INV-AC-22763 the class SENT_NOT_ACKNOWLEDGED is served and a denied caller is Forbidden`() {
         val source = RecordingSource(rows)
         val q = query(source)
         val filter = SubmissionFilter(bucket = ReconciliationBucket.SENT_NOT_ACKNOWLEDGED)
-        q.summary(request(filter = filter), deadline) shouldBe SubmissionSummaryResult.BucketNotServed
+        totals(q.summary(request(filter = filter), deadline)).rowCount shouldBe 0
+        source.calls shouldBe 1
         q.summary(request(principal = stranger, filter = filter), deadline) shouldBe SubmissionSummaryResult.Forbidden
-        source.calls shouldBe 0
+        source.calls shouldBe 1
     }
 
     @Test
@@ -247,7 +251,14 @@ class SubmissionSummaryQueryTest {
         val source = RecordingSource(rows)
         val q = SubmissionSummaryQuery(AuthorityReplica(clock, typeMap).also { it.onSnapshotComplete(0) }, source)
         val listOnly =
-            SubmissionSummaryRequest(tenant, machineOf("list-only"), entityRef, periodRef, SubmissionFilter())
+            SubmissionSummaryRequest(
+                tenant,
+                machineOf("list-only"),
+                entityRef,
+                periodRef,
+                SubmissionFilter(),
+                clock.instant(),
+            )
         q.summary(listOnly, deadline) shouldBe SubmissionSummaryResult.Forbidden
         source.calls shouldBe 0
         val reader = listOnly.copy(principal = machineOf("summary-reader"))

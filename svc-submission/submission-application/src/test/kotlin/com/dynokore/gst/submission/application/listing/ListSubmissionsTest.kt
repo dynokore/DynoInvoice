@@ -241,7 +241,18 @@ class ListSubmissionsTest {
         cursor: String? = null,
         limit: Int = 10,
         maxLimit: Int = 500,
-    ) = ListSubmissionsRequest(tenant, principal, entityRef, periodRef, filter, sort, cursor, limit, maxLimit)
+    ) = ListSubmissionsRequest(
+        tenant,
+        principal,
+        entityRef,
+        periodRef,
+        filter,
+        sort,
+        cursor,
+        limit,
+        maxLimit,
+        clock.instant(),
+    )
 
     private fun maskedFacts(
         row: SubmissionRow,
@@ -448,17 +459,13 @@ class ListSubmissionsTest {
     }
 
     @Test
-    fun `INV-AC-21818 bucket table serves four classes and refuses SENT_NOT_ACKNOWLEDGED with no source call`() {
+    fun `INV-AC-21818 INV-AC-22763 bucket table serves every class and refuses none with a source call`() {
         ReconciliationBucket.entries.forEach { bucket ->
             val source = RecordingSource(SourceRead(rows, 0))
             val uc = ListSubmissions(replicaFor(holder to roleHoldingBoth()), source)
             val result = uc.handle(request(filter = SubmissionFilter(bucket = bucket)), deadline)
-            if (bucket != ReconciliationBucket.SENT_NOT_ACKNOWLEDGED) {
-                result.shouldBeInstanceOf<ListSubmissionsResult.Page>()
-            } else {
-                result shouldBe ListSubmissionsResult.Refused(ListSubmissionsRefusal.BUCKET_NOT_SERVED)
-                source.calls.size shouldBe 0
-            }
+            result.shouldBeInstanceOf<ListSubmissionsResult.Page>()
+            source.calls.size shouldBe 1
         }
     }
 

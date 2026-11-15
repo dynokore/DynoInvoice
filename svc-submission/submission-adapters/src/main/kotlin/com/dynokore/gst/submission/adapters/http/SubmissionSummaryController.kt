@@ -14,6 +14,7 @@ import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
+import java.time.Clock
 import com.dynokore.gst.submission.contract.model.ReconciliationBucket as ContractBucket
 
 /**
@@ -27,6 +28,7 @@ import com.dynokore.gst.submission.contract.model.ReconciliationBucket as Contra
 @Component
 class SubmissionSummaryController(
     private val query: SubmissionSummaryQuery,
+    private val clock: Clock,
 ) {
     @Suppress("LongParameterList") // the generated operation signature
     fun summarise(
@@ -56,8 +58,10 @@ class SubmissionSummaryController(
                 acknowledged,
                 bucket,
             )
+        val now = clock.instant()
         val deadline = CurrentDeadline.current() ?: error("no call deadline is bound")
-        return totalsOf(query.summary(SubmissionSummaryRequest(tenant, caller, entityRef, periodRef, filter), deadline))
+        val request = SubmissionSummaryRequest(tenant, caller, entityRef, periodRef, filter, now)
+        return totalsOf(query.summary(request, deadline))
     }
 
     private fun totalsOf(result: SubmissionSummaryResult): SubmissionSummaryTotals =

@@ -16,6 +16,7 @@ import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import org.springframework.stereotype.Component
 import java.math.BigDecimal
+import java.time.Clock
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import com.dynokore.gst.submission.contract.model.ReconciliationBucket as ContractBucket
@@ -49,12 +50,14 @@ data class ListingQuery(
 @Component
 class SubmissionListingHandler(
     private val listing: ListSubmissions,
+    private val clock: Clock,
 ) {
     fun list(
         caller: Principal,
         query: ListingQuery,
     ): SubmissionPage {
         val tenant = caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        val now = clock.instant()
         val request =
             ListSubmissionsRequest(
                 tenant = tenant,
@@ -66,6 +69,7 @@ class SubmissionListingHandler(
                 cursor = query.cursor,
                 limit = query.limit,
                 maxLimit = MAX_LIMIT,
+                now = now,
             )
         val deadline = CurrentDeadline.current() ?: error("no call deadline is bound")
         return page(listing.handle(request, deadline))

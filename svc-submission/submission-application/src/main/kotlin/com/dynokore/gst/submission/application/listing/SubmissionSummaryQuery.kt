@@ -8,6 +8,7 @@ import com.dynokore.platform.serviceruntime.replica.Principal
 import com.dynokore.platform.serviceruntime.replica.PrincipalKind
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
+import java.time.Instant
 
 /** One `getSubmissionSummary` call: the filter is the one of `listSubmissions`. */
 data class SubmissionSummaryRequest(
@@ -16,6 +17,7 @@ data class SubmissionSummaryRequest(
     val entityRef: String,
     val periodRef: String,
     val filter: SubmissionFilter,
+    val now: Instant,
 )
 
 sealed interface SubmissionSummaryResult {
@@ -67,7 +69,7 @@ class SubmissionSummaryQuery(
 
             else -> {
                 val rows = source.rows(request.tenant, request.entityRef, request.periodRef).rows
-                val selected = request.filter.select(rows, documentBuckets(rows)::get)
+                val selected = request.filter.select(rows, documentBuckets(rows, request.now)::get)
                 SubmissionSummaryResult.Totals(SubmissionTotals.of(selected))
             }
         }

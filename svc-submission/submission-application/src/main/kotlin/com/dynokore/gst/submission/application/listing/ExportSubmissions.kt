@@ -12,6 +12,7 @@ import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import java.math.BigDecimal
 import java.time.Clock
+import java.time.Instant
 
 /** One `exportSubmissions` call for the CSV format. */
 data class ExportSubmissionsRequest(
@@ -20,6 +21,7 @@ data class ExportSubmissionsRequest(
     val entityRef: String,
     val periodRef: String,
     val filter: SubmissionFilter,
+    val now: Instant,
 )
 
 sealed interface ExportSubmissionsResult {
@@ -88,7 +90,7 @@ class ExportSubmissions(
         val rows = source.rows(request.tenant, request.entityRef, request.periodRef).rows
         val selected =
             SubmissionRows.assemble(
-                request.filter.select(rows, documentBuckets(rows)::get),
+                request.filter.select(rows, documentBuckets(rows, request.now)::get),
                 SubmissionRows.DEFAULT_SORT,
             )
         val header =

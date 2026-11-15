@@ -124,6 +124,15 @@ class TransactionsControllerReplayTest {
             }
         }
 
+    private val emptySource =
+        object : SubmissionRowSource {
+            override fun rows(
+                tenant: TenantId,
+                entityRef: String,
+                periodRef: String,
+            ) = SourceRead(emptyList(), 0)
+        }
+
     private class Fixture(
         val controller: TransactionsController,
         val source: FakeSource,
@@ -161,26 +170,16 @@ class TransactionsControllerReplayTest {
                 SubmissionListingHandler(
                     ListSubmissions(
                         replica(holder),
-                        object : SubmissionRowSource {
-                            override fun rows(
-                                tenant: TenantId,
-                                entityRef: String,
-                                periodRef: String,
-                            ) = SourceRead(emptyList(), 0)
-                        },
+                        emptySource,
                     ),
+                    clock,
                 ),
                 SubmissionSummaryController(
                     SubmissionSummaryQuery(
                         replica(holder),
-                        object : SubmissionRowSource {
-                            override fun rows(
-                                tenant: TenantId,
-                                entityRef: String,
-                                periodRef: String,
-                            ) = SourceRead(emptyList(), 0)
-                        },
+                        emptySource,
                     ),
+                    clock,
                 ),
             )
         return Fixture(controller, source, requeue)

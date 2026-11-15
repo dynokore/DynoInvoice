@@ -46,20 +46,15 @@ data class ListSubmissionsRequest(
     val cursor: String?,
     val limit: Int,
     val maxLimit: Int,
+    val now: Instant,
 )
 
 /**
- * The reconciliation classes this list can serve. SENT_NOT_ACKNOWLEDGED needs an acknowledgement deadline and a
- * clock that the register rows and this request-scoped use case do not carry (open design question on the
- * reconciliation task), so that drill-down is refused rather than silently matching nothing.
+ * The reconciliation classes this list can serve: every bucket, since the rows carry the stored acknowledgement
+ * deadline and the request carries the instant. A bucket outside this set is refused as BUCKET_NOT_SERVED; none is
+ * outside it today.
  */
-val SERVED_BUCKETS: Set<ReconciliationBucket> =
-    setOf(
-        ReconciliationBucket.SENT_ACKNOWLEDGED,
-        ReconciliationBucket.REJECTED,
-        ReconciliationBucket.DEAD_LETTERED,
-        ReconciliationBucket.NEVER_SENT,
-    )
+val SERVED_BUCKETS: Set<ReconciliationBucket> = ReconciliationBucket.entries.toSet()
 
 /** One list row as served to the caller: the content facts already masked per [ListFactsPolicy.mask]. */
 data class ListSubmissionsRow(
@@ -159,7 +154,11 @@ class ListSubmissions(
         mayViewContent: Boolean,
     ): ListSubmissionsResult {
         val read = source.rows(request.tenant, request.entityRef, request.periodRef)
-        val ordered = SubmissionRows.assemble(request.filter.select(read.rows, documentBuckets(read.rows)::get), sort)
+        val ordered =
+            SubmissionRows.assemble(
+                request.filter.select(read.rows, documentBuckets(read.rows, request.now)::get),
+                sort,
+            )
         val filterKey = request.filter.canonical()
         val sortKey = sortText(sort)
         val from = request.cursor?.let { resumeIndex(it, filterKey, sortKey, ordered) }

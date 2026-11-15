@@ -151,7 +151,7 @@ class ExportSubmissionsTest {
         filter: SubmissionFilter = SubmissionFilter(),
         gstns: EntityGstns = CountingGstns("M00000000X"),
     ) = ExportSubmissions(replica(), source, gstns, clock)
-        .handle(ExportSubmissionsRequest(tenant, principal, entityRef, periodRef, filter), deadline)
+        .handle(ExportSubmissionsRequest(tenant, principal, entityRef, periodRef, filter, clock.instant()), deadline)
 
     private fun csvOf(result: ExportSubmissionsResult) = result.shouldBeInstanceOf<ExportSubmissionsResult.Csv>()
 
@@ -172,8 +172,10 @@ class ExportSubmissionsTest {
             val source = RecordingSource(rows)
             val summary =
                 SubmissionSummaryQuery(replica(), source)
-                    .summary(SubmissionSummaryRequest(tenant, holder, entityRef, periodRef, filter), deadline)
-                    .shouldBeInstanceOf<SubmissionSummaryResult.Totals>()
+                    .summary(
+                        SubmissionSummaryRequest(tenant, holder, entityRef, periodRef, filter, clock.instant()),
+                        deadline,
+                    ).shouldBeInstanceOf<SubmissionSummaryResult.Totals>()
                     .totals
             val csv = csvOf(export(source, filter = filter))
             csv.rowCount shouldBe summary.rowCount

@@ -144,8 +144,8 @@ class SubmissionSummaryControllerTest {
                 object : ObjectProvider<HttpServletRequest> {
                     override fun getObject(): HttpServletRequest = request
                 },
-                SubmissionListingHandler(ListSubmissions(replica, source)),
-                SubmissionSummaryController(SubmissionSummaryQuery(replica, source)),
+                SubmissionListingHandler(ListSubmissions(replica, source), clock),
+                SubmissionSummaryController(SubmissionSummaryQuery(replica, source), clock),
             )
         return Fixture(controller, source)
     }
@@ -237,10 +237,10 @@ class SubmissionSummaryControllerTest {
     }
 
     @Test
-    fun `INV-AC-22165 the bucket SENT_NOT_ACKNOWLEDGED gets 400 SRT-001 with zero source calls`() {
+    fun `INV-AC-22165 INV-AC-22763 the bucket SENT_NOT_ACKNOWLEDGED is served with a zero count`() {
         val f = fixture(FULL)
-        refused { summary(f, bucket = ReconciliationBucket.SENT_NOT_ACKNOWLEDGED) } shouldBe (400 to "SRT-001")
-        f.source.calls shouldBe 0
+        summary(f, bucket = ReconciliationBucket.SENT_NOT_ACKNOWLEDGED).body!!.rowCount shouldBe 0
+        f.source.calls shouldBe 1
     }
 
     private companion object {

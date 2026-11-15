@@ -14,16 +14,20 @@ internal fun touchesMaskedFact(filter: SubmissionFilter): Boolean =
 
 /**
  * The reconciliation class of each document (INV-REQ-976 behavior 3): every row of a document shares its class,
- * so a document with versions ACKNOWLEDGED then REJECTED is SENT_ACKNOWLEDGED in all its rows. No deadline or
- * clock is carried, so the class never is SENT_NOT_ACKNOWLEDGED and the instant passed is never compared.
+ * so a document with versions ACKNOWLEDGED then REJECTED is SENT_ACKNOWLEDGED in all its rows. The stored
+ * acknowledgement deadline of each version and the request instant [now] are carried, so a document whose last
+ * version is SENT or SENT_UNCONFIRMED is SENT_NOT_ACKNOWLEDGED strictly after its deadline. No clock is read here.
  */
-internal fun documentBuckets(rows: List<SubmissionRow>): Map<SubmissionRow, ReconciliationBucket?> {
+internal fun documentBuckets(
+    rows: List<SubmissionRow>,
+    now: Instant,
+): Map<SubmissionRow, ReconciliationBucket?> {
     val byDoc = rows.groupBy { it.docUuid }
     val classOf =
         byDoc.mapValues { (docUuid, group) ->
             val ordered = group.sortedBy { it.version }
-            val versions = ordered.map { VersionFact(it.version, it.state, acknowledgementDeadline = null) }
-            SentVersusAcknowledged.bucketOf(DocFact(docUuid, versions, ordered.last().taxableAmount), Instant.EPOCH)
+            val versions = ordered.map { VersionFact(it.version, it.state, it.acknowledgementDeadline) }
+            SentVersusAcknowledged.bucketOf(DocFact(docUuid, versions, ordered.last().taxableAmount), now)
         }
     return rows.associateWith { classOf[it.docUuid] }
 }

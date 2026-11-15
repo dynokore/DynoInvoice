@@ -218,8 +218,8 @@ class SubmissionListingHandlerTest {
                 object : ObjectProvider<HttpServletRequest> {
                     override fun getObject(): HttpServletRequest = request
                 },
-                SubmissionListingHandler(ListSubmissions(replica, source)),
-                SubmissionSummaryController(SubmissionSummaryQuery(replica, source)),
+                SubmissionListingHandler(ListSubmissions(replica, source), clock),
+                SubmissionSummaryController(SubmissionSummaryQuery(replica, source), clock),
             )
         return Fixture(controller, source)
     }
@@ -411,7 +411,7 @@ class SubmissionListingHandlerTest {
                 acknowledgementId = null,
             )
         val mapper = JsonMapper.builder().build()
-        val handler = SubmissionListingHandler(ListSubmissions(replica(), RecordingSource(emptyList())))
+        val handler = SubmissionListingHandler(ListSubmissions(replica(), RecordingSource(emptyList())), clock)
         val json = mapper.readTree(mapper.writeValueAsString(handler.summary(row)))
         json.get("taxableAmount").asString() shouldBe "200.00"
         json.get("gstAmount").asString() shouldBe "18.00"

@@ -152,6 +152,7 @@ class TransactionsControllerSingleReplayTest {
                             ) = SourceRead(emptyList(), 0)
                         },
                     ),
+                    clock,
                 ),
                 SubmissionSummaryController(
                     SubmissionSummaryQuery(
@@ -164,6 +165,7 @@ class TransactionsControllerSingleReplayTest {
                             ) = SourceRead(emptyList(), 0)
                         },
                     ),
+                    clock,
                 ),
             )
         return Fixture(controller, lookup, requeue)

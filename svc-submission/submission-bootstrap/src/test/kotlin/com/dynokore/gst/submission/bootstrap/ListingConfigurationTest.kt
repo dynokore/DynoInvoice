@@ -57,6 +57,7 @@ class ListingConfigurationTest {
             cursor = null,
             limit = 10,
             maxLimit = 500,
+            now = clock.instant(),
         )
 
     @Test
@@ -80,7 +81,7 @@ class ListingConfigurationTest {
     fun `INV-AC-22164 the submissionSummaryQuery bean answers a denied caller like the hand-built query`() {
         val replica = AuthorityReplica(clock, OperationRoleMap { emptyMap() })
         val source = RecordingSource()
-        val request = SubmissionSummaryRequest(tenant, stranger, "E1", "P1", SubmissionFilter())
+        val request = SubmissionSummaryRequest(tenant, stranger, "E1", "P1", SubmissionFilter(), clock.instant())
 
         val wired: SubmissionSummaryQuery = ListingConfiguration().submissionSummaryQuery(replica, source)
         val handBuilt = SubmissionSummaryQuery(replica, source)
@@ -100,7 +101,7 @@ class ListingConfigurationTest {
                 lookups++
                 "M00000000X"
             }
-        val request = ExportSubmissionsRequest(tenant, stranger, "E1", "P1", SubmissionFilter())
+        val request = ExportSubmissionsRequest(tenant, stranger, "E1", "P1", SubmissionFilter(), clock.instant())
 
         val wired = ListingConfiguration().exportSubmissions(replica, source, gstns, clock)
 
