@@ -1,14 +1,23 @@
 package com.dynokore.gst.submission.adapters
 
+import com.dynokore.gst.catalogue.VariationPoint
 import com.dynokore.gst.submission.adapters.persistence.JooqAcknowledgementInputs
 import com.dynokore.gst.submission.adapters.persistence.JooqFilingDueDates
 import com.dynokore.gst.submission.adapters.persistence.JooqSubmissionStore
+import com.dynokore.gst.submission.adapters.policy.PolicySafetyMargins
 import com.dynokore.gst.submission.application.drain.SafetyMarginAnswer
-import com.dynokore.gst.submission.application.drain.SafetyMargins
+import com.dynokore.gst.submission.application.pack.PackDefaultMargin
 import com.dynokore.gst.submission.application.pack.PackMargin
+import com.dynokore.gst.submission.application.pack.PackMarginAnswer
 import com.dynokore.gst.submission.application.queue.AcknowledgementBasis
 import com.dynokore.gst.submission.application.queue.NewReadySubmission
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
+import com.dynokore.platform.configresolver.PolicyReader
+import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.PolicySource
+import com.dynokore.platform.configresolver.ResolvedSetting
+import com.dynokore.platform.configresolver.SelectedOption
+import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
@@ -41,14 +50,48 @@ class AcknowledgementDeadlineStoreDbTest {
                 block: () -> T,
             ): T = block()
         }
-    private val margin = checkNotNull(PackMargin.of(7, "DAYS"))
-    private val asked = mutableListOf<Triple<TenantId, String, LocalDate>>()
-    private val margins =
-        SafetyMargins { t, e, on ->
-            asked += Triple(t, e, on)
-            SafetyMarginAnswer.Known(margin)
+    private val margin = checkNotNull(PackMargin.of(10, "DAYS"))
+    private val asked = mutableListOf<Triple<String, String, LocalDate>>()
+    private val reader =
+        object : PolicyReader {
+            override fun resolve(
+                key: VariationPointKey,
+                scope: PolicyScope,
+                at: LocalDate,
+            ): ResolvedSetting {
+                asked += Triple(key.value, checkNotNull(scope.entity), at)
+                return resolved(key.value, at, "LARGER", "10")
+            }
         }
+
+    // ResolvedSetting has no public constructor; built by reflection as PolicySafetyMarginsTest does.
+    private fun resolved(
+        key: String,
+        at: LocalDate,
+        option: String,
+        valueJson: String,
+    ): ResolvedSetting =
+        ResolvedSetting::class.java.declaredConstructors
+            .first {
+                it.parameterCount == 5 &&
+                    it.parameterTypes.none { t -> t.simpleName == "DefaultConstructorMarker" }
+            }.also { it.isAccessible = true }
+            .newInstance(
+                key,
+                at,
+                listOf(SelectedOption(option, valueJson)),
+                PolicySource.CatalogueDefault,
+                emptyList<Any>(),
+            ).let(ResolvedSetting::class.java::cast)
+
+    private val packDefault =
+        PackDefaultMargin { _, _ -> PackMarginAnswer.Known(checkNotNull(PackMargin.of(7, "DAYS"))) }
+    private val margins = PolicySafetyMargins(reader, packDefault)
     private val inputs = JooqAcknowledgementInputs(dsl, JooqFilingDueDates(dsl, tenants), margins)
+
+    private companion object {
+        val VP_18_ID: String = VariationPoint.VP_18.id
+    }
 
     @AfterEach
     fun close() = connection.close()
@@ -163,7 +206,8 @@ class AcknowledgementDeadlineStoreDbTest {
         dueDate(t, "E", "P2", "2026-06-30")
         val basis = asTenant(t) { inputs.of(TenantId(t), doc) }
         basis shouldBe AcknowledgementBasis(LocalDate.parse("2026-03-31"), SafetyMarginAnswer.Known(margin))
-        asked.single() shouldBe Triple(TenantId(t), "E", LocalDate.parse("2026-03-31"))
+        asked.single() shouldBe Triple(VP_18_ID, "E", LocalDate.parse("2026-03-31"))
+        basis.margin shouldBe margins.effective(TenantId(t), "E", LocalDate.parse("2026-03-31"))
     }
 
     @Test
