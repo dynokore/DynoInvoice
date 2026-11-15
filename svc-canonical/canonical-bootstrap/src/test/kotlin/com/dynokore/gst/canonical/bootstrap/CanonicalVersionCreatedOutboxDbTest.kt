@@ -9,6 +9,7 @@ import com.dynokore.gst.canonical.application.document.AppliedPackVersion
 import com.dynokore.gst.canonical.application.document.CanonicalVersionCreatedFacts
 import com.dynokore.gst.canonical.application.document.CanonicalVersionCreatedPublisher
 import com.dynokore.gst.canonical.application.document.CanonicalVersionWriter
+import com.dynokore.gst.canonical.application.document.DocumentStore
 import com.dynokore.gst.canonical.application.document.RoutingDirection
 import com.dynokore.gst.canonical.application.document.RoutingFactsData
 import com.dynokore.gst.canonical.application.document.RoutingNetworkPath
@@ -351,6 +352,26 @@ class CanonicalVersionCreatedOutboxDbTest {
                 (it as ObjectNode).remove("traceReference")
             }
         schemaErrors(without.toString()).shouldNotBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-22848 a version insert that fails stages nothing, caught or not`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val tenant = UUID.randomUUID()
+        val g = UUID.randomUUID()
+        val failingStore =
+            object : DocumentStore by b.store {
+                override fun insert(document: NewDocument) = error("insert fails")
+            }
+        val writer = CanonicalVersionWriter(failingStore, b.publisher, b.refs)
+        b.scope.bind(TenantId(tenant), actor) {
+            b.runner.inTransaction {
+                shouldThrow<IllegalStateException> { writer.createFirst(newDocument(tenant, g), facts(g, 1, null)) }
+                // the caller swallows the failure and commits: nothing may have been staged before the insert
+            }
+        }
+        rowsOf(tenant, g).size shouldBe 0
     }
 
     @Test
