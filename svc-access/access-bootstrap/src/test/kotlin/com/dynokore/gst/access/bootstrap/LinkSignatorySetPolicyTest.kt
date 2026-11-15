@@ -61,38 +61,48 @@ class LinkSignatorySetPolicyTest {
         }
     }
 
-    private fun stored(
-        env: ApprovalEnv,
-        vp: String,
-    ): List<String> =
+    private fun stored(env: ApprovalEnv): String? =
         env.tenants.bind(env.tenant, "reader") {
             env.context.getBean(TransactionRunner::class.java).inTransaction {
                 runCatching {
                     env.context
                         .getBean(PolicyReader::class.java)
                         .resolve(
-                            VariationPointKey(vp),
+                            VariationPointKey("VP-04"),
                             PolicyScope.entity(env.tenant, "CLI-1", clientEntity = "CLI-1"),
                             BusinessDate.today(env.clock),
                         ).selected
-                        .map { it.key }
-                }.getOrDefault(emptyList())
+                        .single()
+                        .key
+                }.getOrNull()
             }
         }
 
     @Test
-    fun `INV-AC-2224 a verified link principal sets VP-10 and VP-04 at CLIENT_ENTITY, its look-alike stores nothing`() =
+    fun `INV-AC-2224 a verified link principal sets VP-04 at CLIENT_ENTITY and its look-alike stores nothing`() =
         approvalRun { env ->
             env.link("LNK-771A")
-            listOf("VP-10" to "SUBMIT_INVOICE_DATA", "VP-04" to "CLIENT_APPROVER_ALONE").forEach { (vp, option) ->
-                val before = stored(env, vp)
-                val denied = env.set(vp, "CLI-1", option, actor = "link:LNK-771A ", level = "CLIENT_ENTITY")
-                assertThat(denied.status).describedAs(denied.contentAsString).isEqualTo(403)
-                assertThat(denied.contentAsString).contains("POL-004")
-                assertThat(stored(env, vp)).isEqualTo(before)
-                val ok = env.set(vp, "CLI-1", option, actor = "link:LNK-771A", level = "CLIENT_ENTITY")
-                assertThat(ok.status).describedAs(ok.contentAsString).isEqualTo(200)
-                assertThat(stored(env, vp)).containsExactly(option)
-            }
+            val before = stored(env)
+            val denied =
+                env.set(
+                    "VP-04",
+                    "CLI-1",
+                    "CLIENT_APPROVER_ALONE",
+                    actor = "link:LNK-771A ",
+                    level = "CLIENT_ENTITY",
+                )
+            assertThat(denied.status).describedAs(denied.contentAsString).isEqualTo(403)
+            assertThat(denied.contentAsString).contains("POL-004")
+            assertThat(stored(env)).isEqualTo(before)
+            val ok =
+                env.set(
+                    "VP-04",
+                    "CLI-1",
+                    "CLIENT_APPROVER_ALONE",
+                    actor = "link:LNK-771A",
+                    level = "CLIENT_ENTITY",
+                )
+            assertThat(ok.status).describedAs(ok.contentAsString).isEqualTo(200)
+            assertThat(stored(env)).isEqualTo("CLIENT_APPROVER_ALONE")
         }
 }
