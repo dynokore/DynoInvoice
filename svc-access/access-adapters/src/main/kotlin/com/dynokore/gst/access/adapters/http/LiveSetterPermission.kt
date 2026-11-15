@@ -28,6 +28,7 @@ class LiveSetterPermission(
     private val matrix: PermissionMatrix,
     private val installation: InstallationRoleDirectory,
     private val directory: EntityDirectory? = null,
+    private val linkSignatory: LinkSignatoryPermission? = null,
 ) : SetterPermission {
     override fun holds(
         actor: Actor,
@@ -50,6 +51,10 @@ class LiveSetterPermission(
                     live.read(subject, tenant) { grants, ref, at ->
                         TenantAuthority.tenantRoles(grants, ref, at).any { allows(it, permission) }
                     } == true
+                }
+
+                level == ScopeLevel.CLIENT_ENTITY && subject.startsWith(LinkSignatoryPermission.PREFIX) -> {
+                    linkSignatory?.holds(subject, tenant, scopeRef, entityRef, permission) == true
                 }
 
                 isEntityTarget(level, scopeRef, entityRef) -> {

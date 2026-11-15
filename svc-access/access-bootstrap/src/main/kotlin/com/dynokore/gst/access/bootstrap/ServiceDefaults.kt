@@ -4,6 +4,7 @@ import com.dynokore.gst.access.adapters.events.AccessEventCatalogue
 import com.dynokore.gst.access.adapters.http.GrantManagerCheck
 import com.dynokore.gst.access.adapters.http.InstallationRole
 import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
+import com.dynokore.gst.access.adapters.http.LinkSignatoryPermission
 import com.dynokore.gst.access.adapters.http.LiveGrantManagerCheck
 import com.dynokore.gst.access.adapters.http.LiveSetterPermission
 import com.dynokore.gst.access.adapters.http.LiveTenantGrants
@@ -95,7 +96,8 @@ class ServiceDefaults {
         matrix: PermissionMatrix,
         installation: InstallationRoleDirectory,
         directory: EntityDirectory,
-    ): SetterPermission = LiveSetterPermission(live, matrix, installation, directory)
+        linkSignatory: LinkSignatoryPermission,
+    ): SetterPermission = LiveSetterPermission(live, matrix, installation, directory, linkSignatory)
 
     /**
      * The fixed permission set of each of the six machine principal types (INV-REQ-584, INV-Q-8779 A). Built from the

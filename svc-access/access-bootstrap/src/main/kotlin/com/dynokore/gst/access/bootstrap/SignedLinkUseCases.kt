@@ -4,6 +4,7 @@ import com.dynokore.gst.access.adapters.events.AccessAlertOutbox
 import com.dynokore.gst.access.adapters.events.AlertEntity
 import com.dynokore.gst.access.adapters.events.ScopeAlertEntity
 import com.dynokore.gst.access.adapters.events.SignedLinkEventOutbox
+import com.dynokore.gst.access.adapters.http.LinkSignatoryPermission
 import com.dynokore.gst.access.adapters.link.Sha256PasscodeDigests
 import com.dynokore.gst.access.adapters.link.VariationPointLinkSettings
 import com.dynokore.gst.access.adapters.persistence.JooqLinkTenants
@@ -15,6 +16,7 @@ import com.dynokore.gst.access.application.link.LinkTenants
 import com.dynokore.gst.access.application.link.PasscodeDigests
 import com.dynokore.gst.access.application.link.SignedLinks
 import com.dynokore.gst.access.application.link.VerifySignatoryLinkUseCase
+import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -34,6 +36,16 @@ class SignedLinkUseCases {
         tenants: TenantContext,
         clock: Clock,
     ): SignedLinks = JooqSignedLinks(dsl, tenants, clock, SignedLinkIssueUseCases.SYSTEM_ACTOR)
+
+    /** A link principal at CLIENT_ENTITY is decided from this service's own link store (INV-Q-9222 A). */
+    @Bean
+    fun linkSignatoryPermission(
+        tenants: TenantContext,
+        tx: TransactionRunner,
+        links: SignedLinks,
+        matrix: PermissionMatrix,
+        clock: Clock,
+    ) = LinkSignatoryPermission(tenants, tx, links, matrix, clock)
 
     @Bean
     fun linkTenants(
