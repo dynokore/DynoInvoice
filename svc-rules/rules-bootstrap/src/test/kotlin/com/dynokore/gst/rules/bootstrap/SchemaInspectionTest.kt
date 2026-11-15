@@ -76,7 +76,7 @@ class SchemaInspectionTest {
     }
 
     @Test
-    fun `the registry tables are exactly the twelve names`() {
+    fun `the registry tables are exactly the fifteen names`() {
         SchemaInspection.REGISTRY_TABLES shouldBe
             setOf(
                 "pack_registry",
@@ -91,6 +91,9 @@ class SchemaInspectionTest {
                 "dry_run_sample_item",
                 "pack_import",
                 "pack_currency_state",
+                "pack_delta_ack",
+                "pack_activation_review",
+                "pack_readiness_ack",
             )
     }
 

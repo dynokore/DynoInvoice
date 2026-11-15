@@ -6,6 +6,8 @@ import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
 import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
 import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
+import com.dynokore.gst.rules.adapters.events.PackReadinessAcknowledgedHandler
+import com.dynokore.gst.rules.adapters.events.PackReadinessEvents
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
 import com.dynokore.gst.rules.adapters.packs.DirectoryPackSource
@@ -24,6 +26,7 @@ import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaPort
 import com.dynokore.gst.rules.adapters.persistence.JooqDryRunDeltaStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingImportRecordStore
 import com.dynokore.gst.rules.adapters.persistence.JooqMappingPackStore
+import com.dynokore.gst.rules.adapters.persistence.JooqPackArmingStore
 import com.dynokore.gst.rules.adapters.persistence.JooqPackCurrencyStore
 import com.dynokore.gst.rules.adapters.persistence.JooqPackImportStore
 import com.dynokore.gst.rules.adapters.persistence.JooqSamplePageStore
@@ -447,6 +450,40 @@ class RulesConfiguration {
             scope,
             dsl,
             DryRunSampleRecordedHandler(store, clock),
+            rebuildRequired,
+            clock,
+        )
+
+    /** The arming records: the readiness answers, the acknowledgements, the review rows and the arming write. */
+    @Bean
+    fun jooqPackArmingStore(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+        emitter: PackEventEmitter,
+    ): JooqPackArmingStore = JooqPackArmingStore(dsl, platform, transactions, emitter)
+
+    /**
+     * rules-svc is the subscriber of `gst.platform.pack-readiness-acknowledged.v1` (platform-contracts
+     * event-log/topics.yaml): the handler stores each instance's answer in the consumer's transaction.
+     */
+    @Bean
+    @Suppress("LongParameterList") // the consumer's collaborators are all injected platform beans
+    fun packReadinessConsumer(
+        reader: EventLogReader,
+        scope: TenantScope,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+        dsl: DSLContext,
+        store: JooqPackArmingStore,
+    ): JdbcInboxConsumer =
+        JdbcInboxConsumer(
+            ConsumerSubscription(RulesEventCatalogue.SERVICE, PackReadinessEvents.ACKNOWLEDGED_TOPIC, SCHEMA),
+            EventCatalogue(listOf(PackReadinessEvents.acknowledgedEntry())),
+            reader,
+            scope,
+            dsl,
+            PackReadinessAcknowledgedHandler(store),
             rebuildRequired,
             clock,
         )

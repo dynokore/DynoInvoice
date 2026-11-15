@@ -48,6 +48,10 @@ inv:
     platform-scoped-tables:
       - rules.write_installation_setting
       - rules.config_purge_tenant
+      # rules.pack_readiness_ack: the readiness answer per instance, a platform table without a tenant column (INV-T-22942).
+      - rules.pack_readiness_ack
+      # rules.tenants_with_delta: a table-valued definer function, listed like the two above (INV-T-22942).
+      - rules.tenants_with_delta
 gst:
   service: rules-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

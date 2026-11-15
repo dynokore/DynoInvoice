@@ -418,7 +418,12 @@ class RegistryPostgresIT(
                 "pack_registry_platform_advance",
             )
         names(policies + "'dry_run_delta'") shouldBe
-            setOf("dry_run_delta_tenant_read", "dry_run_delta_tenant_insert", "dry_run_delta_tenant_update")
+            setOf(
+                "dry_run_delta_tenant_read",
+                "dry_run_delta_tenant_insert",
+                "dry_run_delta_tenant_update",
+                "dry_run_delta_sys_read",
+            )
         names(policies + "'mapping_entry_acceptance'") shouldBe
             setOf(
                 "mapping_entry_acceptance_tenant_read",

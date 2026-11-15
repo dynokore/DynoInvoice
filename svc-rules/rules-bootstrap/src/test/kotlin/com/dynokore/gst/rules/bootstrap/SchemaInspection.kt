@@ -50,6 +50,9 @@ internal object SchemaInspection {
             "dry_run_delta_total",
             "dry_run_sample_page",
             "dry_run_sample_item",
+            "pack_delta_ack",
+            "pack_activation_review",
+            "pack_readiness_ack",
             // the import status and the DEP-001 state of INV-T-4976, both relational
             "pack_import",
             "pack_currency_state",
