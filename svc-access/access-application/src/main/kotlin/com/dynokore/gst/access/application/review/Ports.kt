@@ -1,6 +1,8 @@
 package com.dynokore.gst.access.application.review
 
 import com.dynokore.gst.access.domain.grant.GrantRef
+import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.review.PeriodLabel
 import com.dynokore.gst.access.domain.review.ReviewCampaign
 import com.dynokore.gst.access.domain.review.ReviewOutcome
 import com.dynokore.gst.access.domain.review.ReviewedGrant
@@ -23,6 +25,9 @@ interface ReviewCampaigns {
 
     fun find(ref: String): ReviewCampaign?
 
+    /** The campaign of the bound tenant for [period], whatever its status; other tenants' campaigns never appear. */
+    fun findByPeriod(period: PeriodLabel): ReviewCampaign?
+
     /** A fresh opaque campaign reference. */
     fun nextRef(): String
 }
@@ -35,8 +40,28 @@ interface ReviewOutcomes {
 
     fun insert(outcome: ReviewOutcome)
 
-    /** The grants of the campaign that have an outcome. */
-    fun recordedGrants(campaign: String): Set<GrantRef>
+    /** Every outcome recorded for the campaign. */
+    fun recorded(campaign: String): List<ReviewOutcome>
+}
+
+/** What the tenant's stored cadence reads as (VP-05): QUARTERLY also when none is set; UNREADABLE fails closed. */
+enum class CadenceAnswer { QUARTERLY, MONTHLY, UNREADABLE }
+
+/** The tenant's stored review cadence. Never consulted while VP-05 is planned. */
+fun interface ReviewCadenceSource {
+    fun current(): CadenceAnswer
+}
+
+/**
+ * Revokes [grants] when the campaign closes (INV-REQ-894 behaviour 3). Called once, in the transaction of the outcome
+ * that closes the campaign, and only with a non-empty set. An exception rolls the outcome back.
+ */
+fun interface ReviewRevocations {
+    fun revoke(
+        campaign: String,
+        grants: Set<GrantRef>,
+        actor: IdentityRef,
+    )
 }
 
 /** An audit record of the review; [actor] is a user ID, never a role. */

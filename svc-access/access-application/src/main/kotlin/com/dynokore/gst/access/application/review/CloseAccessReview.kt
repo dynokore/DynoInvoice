@@ -43,6 +43,7 @@ class CloseAccessReviewUseCase(
     private val campaigns: ReviewCampaigns,
     private val outcomes: ReviewOutcomes,
     private val acks: SoleOperatorAcks,
+    private val revocations: ReviewRevocations,
     private val audit: ReviewAudit,
     private val clock: Clock,
 ) {
@@ -63,7 +64,7 @@ class CloseAccessReviewUseCase(
             }
             val existing = outcomes.find(campaignRef, grant)
             if (existing != null) {
-                val status = campaign.statusWith(outcomes.recordedGrants(campaignRef))
+                val status = campaign.statusWith(recordedGrants(campaignRef))
                 return@inTransaction if (existing.decision == decision) {
                     CloseAccessReviewOutcome.Repeated(status)
                 } else {
@@ -72,6 +73,13 @@ class CloseAccessReviewUseCase(
             }
             outcomes.insert(ReviewOutcome(campaignRef, grant, decision, actor, clock.instant(), ackRef))
             audit.record(ReviewAuditEntry(actor.value, "closeAccessReview", campaignRef, grant.value, ackRef))
-            CloseAccessReviewOutcome.Recorded(campaign.statusWith(outcomes.recordedGrants(campaignRef)))
+            val status = campaign.statusWith(recordedGrants(campaignRef))
+            if (status == CampaignStatus.CLOSED) {
+                val revoked = outcomes.recorded(campaignRef).filter { it.decision == ReviewDecision.REVOKE }
+                if (revoked.isNotEmpty()) revocations.revoke(campaignRef, revoked.map { it.grant }.toSet(), actor)
+            }
+            CloseAccessReviewOutcome.Recorded(status)
         }
+
+    private fun recordedGrants(campaign: String) = outcomes.recorded(campaign).map { it.grant }.toSet()
 }
