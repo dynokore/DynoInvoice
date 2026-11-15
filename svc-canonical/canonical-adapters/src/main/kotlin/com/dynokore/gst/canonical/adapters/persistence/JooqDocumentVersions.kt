@@ -22,6 +22,6 @@ class JooqDocumentVersions(
                 .from(DOCUMENT)
                 .where(DOCUMENT.DOC_UUID.eq(docUuid))
                 .fetchOne(DOCUMENT.CURRENT_VERSION)
-        return if (current == null) 0 else current + 1
+        return (current ?: 0) + 1
     }
 }
