@@ -6,6 +6,7 @@ import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.DRY_RU
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
 import com.dynokore.gst.rules.application.DryRunDeltaStore
 import com.dynokore.gst.rules.application.DryRunOutcome
+import com.dynokore.gst.rules.application.DryRunPermissionPort
 import com.dynokore.gst.rules.application.DryRunSampleRequest
 import com.dynokore.gst.rules.application.DryRunStart
 import com.dynokore.gst.rules.application.DryRunState
@@ -101,6 +102,7 @@ class DryRunCapacityInUse(
  */
 @Suppress("LongParameterList") // the composition root names the collaborators of the calls (TPL-18)
 class DryRunCalls(
+    private val permission: DryRunPermissionPort,
     private val runs: ObjectProvider<RunDryRun>,
     private val store: DryRunDeltaStore,
     private val requests: SampleRequestPort,
@@ -126,8 +128,11 @@ class DryRunCalls(
         packRef: String,
         window: DryRunWindow?,
     ): DryRunStarted {
-        val run = runs.ifAvailable ?: throw unavailable("the historical sample is not available: no sample adapter")
+        // the scoped permission `pack.dry-run` is the first statement: before the sample adapter, the pack lookup (so an
+        // unknown ref answers like a known one), the capacity and any write (INV-AC-22796)
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
+        if (!permission.mayDryRun(actor)) throw refusedDryRun()
+        val run = runs.ifAvailable ?: throw unavailable("the historical sample is not available: no sample adapter")
         val tenant = tenants.current()
         val target = transactions.inTransaction { targetOf(packRef, tenant) }
         val resolved = window ?: lastCompletePeriod(tenant, target.entityRef)
@@ -198,6 +203,12 @@ class DryRunCalls(
         } finally {
             capacity.release()
         }
+    }
+
+    /** The 403 SRT-004 of a caller without the key; the detail names no person and no pack. */
+    private fun refusedDryRun(): MappingRefusal {
+        val denied = ClosedErrorCode.ACCESS_DENIED
+        return MappingRefusal(denied.httpStatus, denied.code, denied.title, "the dry run is not permitted")
     }
 
     private class Target(

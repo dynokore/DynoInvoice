@@ -1,5 +1,6 @@
 package com.dynokore.gst.rules.bootstrap
 
+import com.dynokore.gst.rules.application.DryRunPermissionPort
 import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.LastCompletePeriodPort
 import com.dynokore.gst.rules.application.PackEvaluationPort
@@ -55,6 +56,23 @@ private const val D3 = "0d000000-0000-4000-8000-000000000003"
 private val OWNED_BY_THE_RUN =
     setOf("dry_run_delta", "dry_run_delta_document", "dry_run_delta_total", "outbox")
 
+/** Counts the calls of the allowing test permission port (the permission is not what these tests assert). */
+object DryRunPermissionProbe {
+    val calls = java.util.concurrent.atomic.AtomicInteger()
+}
+
+/** An allowing [DryRunPermissionPort] for the contexts whose assertions are not about the permission (INV-T-22819). */
+@TestConfiguration(proxyBeanMethods = false)
+class DryRunAllowingPermission {
+    @Bean
+    @org.springframework.context.annotation.Primary
+    fun allowingDryRunPermission(): DryRunPermissionPort =
+        DryRunPermissionPort {
+            DryRunPermissionProbe.calls.incrementAndGet()
+            true
+        }
+}
+
 /** Canned verdicts of the test composition: the current pack answers `SR`; the candidate answers [candidate]. */
 class FixtureEvaluation : PackEvaluationPort {
     val evaluated = CopyOnWriteArrayList<String>()
@@ -88,7 +106,7 @@ class FixtureEvaluation : PackEvaluationPort {
 
 /** The fixture adapters of the test composition; they back off the event adapter and the default calendar. */
 @TestConfiguration(proxyBeanMethods = false)
-@Import(MappingAllowingPorts::class, MappingDoubles::class)
+@Import(MappingAllowingPorts::class, MappingDoubles::class, DryRunAllowingPermission::class)
 class DryRunFixtures {
     @Bean fun fixtureSamples() = FixtureHistoricalSamplePort()
 
@@ -112,7 +130,7 @@ class SwitchableClock : java.time.Clock() {
 
 /** The fixture samples and evaluation, and the default period calendar (no `LastCompletePeriodPort` bean). */
 @TestConfiguration(proxyBeanMethods = false)
-@Import(MappingAllowingPorts::class, MappingDoubles::class)
+@Import(MappingAllowingPorts::class, MappingDoubles::class, DryRunAllowingPermission::class)
 class DryRunFixturesWithoutCalendar {
     @Bean fun fixtureSamples() = FixtureHistoricalSamplePort()
 
@@ -121,7 +139,7 @@ class DryRunFixturesWithoutCalendar {
 
 /** Removes the event adapter of the sample (slice 3) from the context: the production case before canonical-svc. */
 @TestConfiguration(proxyBeanMethods = false)
-@Import(MappingAllowingPorts::class, MappingDoubles::class)
+@Import(MappingAllowingPorts::class, MappingDoubles::class, DryRunAllowingPermission::class)
 class DryRunWithoutSampleAdapter {
     @Bean fun fixtureEvaluation() = FixtureEvaluation()
 

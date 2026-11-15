@@ -394,6 +394,7 @@ class RulesConfiguration {
     @Bean
     @Suppress("LongParameterList") // the composition root names the collaborators of the calls (TPL-18)
     fun dryRunCalls(
+        permission: DryRunPermissionPort,
         runs: ObjectProvider<RunDryRun>,
         store: DryRunDeltaStore,
         requests: SampleRequestPort,
@@ -407,6 +408,7 @@ class RulesConfiguration {
         environment: Environment,
     ): DryRunCalls =
         DryRunCalls(
+            permission,
             runs,
             store,
             requests,
@@ -501,7 +503,7 @@ class RulesConfiguration {
     /**
      * The scoped permission `pack.dry-run` of `dryRun`, decided by `AuthorityReplica.decideTenant` for the caller's
      * tenant (INV-Q-10027): never a role name. A decision that is not answered from the local replica, and a context
-     * with no replica, is the 503 SRT-013 of the contract. It has no caller yet (INV-T-22819).
+     * with no replica, is the 503 SRT-013 of the contract.
      */
     @Bean
     fun dryRunPermissionPort(

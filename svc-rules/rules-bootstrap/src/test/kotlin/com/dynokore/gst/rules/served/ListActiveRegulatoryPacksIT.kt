@@ -3,6 +3,7 @@ package com.dynokore.gst.rules.served
 import com.dynokore.gst.rules.application.ActivePack
 import com.dynokore.gst.rules.application.ActivePackPosition
 import com.dynokore.gst.rules.application.ActivePackReader
+import com.dynokore.gst.rules.bootstrap.DryRunAllowingPermission
 import com.dynokore.gst.rules.bootstrap.PostgresRules
 import com.dynokore.gst.rules.bootstrap.RulesApplication
 import io.kotest.matchers.shouldBe
@@ -67,7 +68,7 @@ class CountingReader {
     classes = [ServedDoubles::class, RulesApplication::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
-@Import(CountingReader::class)
+@Import(CountingReader::class, DryRunAllowingPermission::class)
 class ListActiveRegulatoryPacksIT(
     @LocalServerPort private val port: Int,
 ) {
