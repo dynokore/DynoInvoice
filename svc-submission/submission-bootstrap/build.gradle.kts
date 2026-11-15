@@ -33,5 +33,26 @@ dependencies {
     }
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.jsonSchemaValidator)
     testImplementation(testFixtures(project(":submission-adapters")))
 }
+
+// UnsubmittedCountMeasurementJobTest validates the written payload against the schema of the pinned contract bundle that
+// :submission-contract stages; the build fails when the schema is missing from the bundle (INV-AC-23028).
+val contractSchemas = layout.buildDirectory.dir("contract-schemas")
+val stageContractSchemas =
+    tasks.register<Copy>("stageContractSchemas") {
+        val schema =
+            project(":submission-contract").layout.buildDirectory.file(
+                "contracts-repo/.bundle/submission/schemas/unsubmitted-document-count-measured-payload.schema.json",
+            )
+        from(schema)
+        into(contractSchemas.map { it.dir("gst/contracts/submission/schemas") })
+        doFirst {
+            check(
+                schema.get().asFile.isFile,
+            ) { "the pinned platform-contracts bundle has no ${schema.get().asFile.name}" }
+        }
+    }
+sourceSets.test { resources.srcDir(contractSchemas) }
+tasks.named("processTestResources") { dependsOn(stageContractSchemas) }

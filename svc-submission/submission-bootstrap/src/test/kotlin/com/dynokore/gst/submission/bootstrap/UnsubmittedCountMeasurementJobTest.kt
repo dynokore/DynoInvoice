@@ -15,7 +15,12 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import com.networknt.schema.SchemaRegistry
+import com.networknt.schema.SchemaRegistryConfig
+import com.networknt.schema.SpecificationVersion
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
@@ -28,6 +33,8 @@ import org.springframework.boot.env.YamlPropertySourceLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.core.env.EnumerablePropertySource
 import org.springframework.core.io.ClassPathResource
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.node.ObjectNode
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -159,6 +166,29 @@ class UnsubmittedCountMeasurementJobTest {
             SubmissionEvents.topicByType[it.type] shouldBe "gst.submission.unsubmitted-document-count-measured.v1"
             it.data shouldBe expectedByTenant.getValue(it.tenant)
             it.entity shouldBe EntityRef.TENANT_WIDE
+        }
+    }
+
+    @Test
+    fun `INV-AC-23028 the payload of each event validates against the schema of the pinned contract`() {
+        val resource =
+            ClassPathResource(
+                "gst/contracts/submission/schemas/unsubmitted-document-count-measured-payload.schema.json",
+            )
+        check(resource.exists()) { "the pinned payload schema is not on the test classpath" }
+        val registry =
+            SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12) {
+                it.schemaRegistryConfig(SchemaRegistryConfig.builder().formatAssertionsEnabled(true).build())
+            }
+        val schema = registry.getSchema(resource.inputStream.use { String(it.readAllBytes()) })
+        val mapper = ObjectMapper()
+        val rig = Rig()
+        job(rig, listOf(t1, t2, t3), counts).run()
+        rig.committed.size shouldBe 3
+        rig.committed.forEach {
+            schema.validate(mapper.readTree(it.data)).map { e -> e.toString() }.shouldBeEmpty()
+            val without = mapper.readTree(it.data).also { n -> (n as ObjectNode).remove("measuredAt") }
+            schema.validate(without).shouldNotBeEmpty()
         }
     }
 
