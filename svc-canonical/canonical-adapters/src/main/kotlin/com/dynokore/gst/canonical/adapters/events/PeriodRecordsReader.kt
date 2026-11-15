@@ -49,9 +49,9 @@ class PeriodRecordsReader {
         return PeriodSpan(text(node, PERIOD_REF), start, end)
     }
 
-    /** The optional `periodId`: absent or JSON null is null; a value that is no canonical lower-case uuid fails. */
+    /** The optional `periodId`: absent is null; JSON null or a value that is no canonical lower-case uuid fails. */
     private fun periodId(node: JsonNode): UUID? {
-        val member = node.get(PERIOD_ID)?.takeUnless { it.isNull } ?: return null
+        val member = node.get(PERIOD_ID) ?: return null
         val text = member.takeIf { it.isString }?.asString()
         val id = text?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         if (id == null || id.toString() != text) throw ContractViolation("$PERIOD_ID is not a canonical uuid")

@@ -12,6 +12,8 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
@@ -176,6 +178,29 @@ class PeriodSpanPeriodIdTest {
             rows.next() shouldBe true
             rows.getInt(1) shouldBe 2
         }
+    }
+
+    @Test
+    fun `INV-AC-21535 F5 without row security periodIdOf answers the id of its own tenant only`() {
+        val t1 = UUID.randomUUID()
+        val t2 = UUID.randomUUID()
+        CanonicalDb.superuser().use { c ->
+            listOf(t1 to u1, t2 to u2).forEach { (tenant, id) ->
+                c.createStatement().executeUpdate(
+                    "insert into canonical.period_span (tenant_id, entity_ref, period_ref, period_start, period_end, " +
+                        "period_id) values ('$tenant', 'E-001', 'P1', '2026-01-01', '2026-03-31', '$id')",
+                )
+            }
+            val bare = JooqPeriodSpans(DSL.using(c, SQLDialect.POSTGRES))
+            bare.periodIdOf(t1, "E-001", "P1") shouldBe u1
+            bare.periodIdOf(t2, "E-001", "P1") shouldBe u2
+        }
+    }
+
+    @Test
+    fun `INV-AC-21535 F6 a JSON null periodId is a contract violation`() {
+        val t1 = TenantId(UUID.randomUUID())
+        assertThrows<ContractViolation> { PeriodRecordsReader().read(event(9, "null", null), t1) }
     }
 
     @Test
