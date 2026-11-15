@@ -46,8 +46,8 @@ class JooqBuildInputsReader(
                         .and(input.VERSION.eq(version)),
                 ).fetchOne() ?: return null
         return BuildInput(
-            entityRef = record.get(fact.ENTITY_REF)!!,
-            canonicalDocument = record.get(input.CANONICAL_DOCUMENT)!!.data(),
+            entityRef = checkNotNull(record.get(fact.ENTITY_REF)),
+            canonicalDocument = checkNotNull(record.get(input.CANONICAL_DOCUMENT)).data(),
             aggregateId = record.get(fact.AGGREGATE_ID),
             direction = record.get(input.DIRECTION),
             counterpartyOnNetwork = record.get(input.COUNTERPARTY_ON_NETWORK),

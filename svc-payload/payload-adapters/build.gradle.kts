@@ -255,7 +255,8 @@ val verifyNoGeneratedSources =
                 output.lines().filter {
                     it.isNotBlank() &&
                         (
-                            it.contains("/build/") ||
+                            // a source package may be named build (INV-T-23007): only build output outside src counts
+                            (it.contains("/build/") && !it.startsWith("payload-adapters/src/")) ||
                                 (it.endsWith(".java") && it.contains("/com/dynokore/gst/payload/ubl/"))
                         )
                 }
