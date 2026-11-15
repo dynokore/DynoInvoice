@@ -18,7 +18,8 @@ class EventConfiguration {
     fun eventCatalogue(): EventCatalogue =
         EventCatalogue(
             EvidenceEvents.entries + EvidenceEvents.recordEntries + EvidenceEvents.returnEntries +
-                EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries + EvidenceEvents.sealingEntries,
+                EvidenceEvents.platformEntries + EvidenceEvents.acknowledgementEntries + EvidenceEvents.sealingEntries +
+                EvidenceEvents.offboardingEntries,
         )
 }
 
@@ -32,6 +33,7 @@ object EvidenceEvents {
             "EvidenceIntegrityFailed" to "gst.evidence.evidence-integrity-failed.v1",
             "PriorSubmissionEvidenceImported" to "gst.evidence.prior-submission-evidence-imported.v1",
             "ArchiveVolumeMeasured" to "gst.evidence.archive-volume-measured.v1",
+            "OffboardingExportFinished" to "gst.evidence.offboarding-export-finished.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
     /**
@@ -111,6 +113,23 @@ object EvidenceEvents {
                 AcknowledgementConsumerConfiguration.EVENT_TYPE,
                 AcknowledgementConsumerConfiguration.TOPIC,
                 setOf(AcknowledgementConsumerConfiguration.PRODUCER),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+        )
+
+    /**
+     * `OffboardingExportRequested` (INV-REQ-877, platform-contracts `event-log/topics.yaml`): an ordinary topic of
+     * tenancy-svc that evidence-svc subscribes to, so the consumer keeps the `docsequence` check. The published
+     * `OffboardingExportFinished` is an entry of [topicByType].
+     */
+    val offboardingEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                "com.dynokore.gst.tenancy.OffboardingExportRequested.v1",
+                "gst.tenancy.offboarding-export-requested.v1",
+                setOf("tenancy-svc"),
                 contentTopic = false,
                 recordTopic = false,
                 retainedWhileResolvable = false,

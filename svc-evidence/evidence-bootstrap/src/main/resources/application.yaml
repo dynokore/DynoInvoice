@@ -42,3 +42,6 @@ logging.structured.format.console: ecs # STK-35
 gst:
   service: evidence-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+evidence:
+  offboarding-export:
+    object-store-scheme: s3 # the scheme of the production ObjectStore, read without a default in code
