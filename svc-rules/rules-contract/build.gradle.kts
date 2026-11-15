@@ -109,6 +109,7 @@ val stageContractResources =
         from(stagedRepo.map { it.dir(".bundle/service-runtime") }) {
             include("asyncapi.yaml", "schemas/rule-pack-staged-payload.schema.json")
             include("schemas/pack-currency-changed-payload.schema.json")
+            include("schemas/rule-pack-activated-payload.schema.json")
             into("service-runtime")
         }
         into(layout.buildDirectory.dir("generated/contract-resources/contract"))
