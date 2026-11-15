@@ -147,7 +147,11 @@ class OffboardShapeTest {
     @Test
     fun `INV-AC-16048 E2 with a holder and no mobile returns it without mobile`() {
         assertNull(accepted(call()).retentionCustodyHolder.contactMobile)
-        assertNull(store.rows.single().retentionCustodyHolder.contactMobile)
+        assertNull(
+            store.rows
+                .single()
+                .retentionCustodyHolder.contactMobile,
+        )
     }
 
     @Test

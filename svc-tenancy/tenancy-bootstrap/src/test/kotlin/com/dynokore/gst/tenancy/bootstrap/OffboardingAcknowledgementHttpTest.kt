@@ -25,9 +25,6 @@ import java.util.UUID
 
 private const val CALLER = "identity:USR-004"
 private const val SECOND = "identity:USR-0040"
-private const val TENANT_ADMIN = "tenant.admin"
-private const val COMMERCIAL_ADMIN = "commercial.admin"
-private const val FINANCE_VIEWER = "finance.viewer"
 private const val HOLDER = """{"name":"Ledger Custody Pte Ltd","contactEmail":"custody@ledger.example"}"""
 
 /**
@@ -166,8 +163,6 @@ class OffboardingAcknowledgementHttpTest {
         return "{" + parts.joinToString(",") + "}"
     }
 
-    private fun tenantBody(extra: String = ""): String = """{"scope":"TENANT","retentionCustodyHolder":$HOLDER$extra}"""
-
     private fun rows(tenant: TenantId): List<Row> =
         BoundaryFixture.asSuperuser { c ->
             c
@@ -196,10 +191,14 @@ class OffboardingAcknowledgementHttpTest {
     /** The whole entity row as text, to show a refused call leaves the entity unchanged. */
     private fun entityRow(entity: EntityResponse): String =
         BoundaryFixture.asSuperuser { c ->
-            c.prepareStatement("select e::text from tenancy.entity e where e.ref = ?").use { st ->
-                st.setString(1, entity.entityRef)
-                st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
-            }.joinToString("|")
+            c
+                .prepareStatement("select e::text from tenancy.entity e where e.ref = ?")
+                .use { st ->
+                    st.setString(1, entity.entityRef)
+                    st.executeQuery().use { rs ->
+                        generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                    }
+                }.joinToString("|")
         }
 
     private fun json(text: String) = mapper.readTree(text)
@@ -221,7 +220,7 @@ class OffboardingAcknowledgementHttpTest {
     ) = """"unsubmittedOverride":{"acknowledgedBy":"$by","statement":"$statement"}"""
 
     @Test
-    fun `INV-AC-16048 E1 with unsubmitted documents and no override is 409 TNC-008 with no record and the entity unchanged`() =
+    fun `INV-AC-16048 E1 with unsubmitted documents and no override is 409 TNC-008 and stores nothing`() =
         scenario { tenant, entity ->
             OffboardingPorts.unsubmitted = 2
             val before = entityRow(entity)
@@ -251,7 +250,8 @@ class OffboardingAcknowledgementHttpTest {
     fun `INV-AC-16048 E2 with a holder and mobile stores and returns it unchanged`() =
         scenario { tenant, entity ->
             val holder =
-                """{"name":"Ledger Custody Pte Ltd","contactEmail":"custody@ledger.example","contactMobile":"+6591234567"}"""
+                """{"name":"Ledger Custody Pte Ltd","contactEmail":"custody@ledger.example",""" +
+                    """"contactMobile":"+6591234567"}"""
             val answer = offboard(tenant, entityBody(entity, holder = holder))
             assertThat(answer.status).describedAs(answer.body).isEqualTo(202)
             val stored = rows(tenant).single()

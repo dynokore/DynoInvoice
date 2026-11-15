@@ -353,6 +353,7 @@ class OffboardTenant(
         idempotencyKey: String,
     ): String? {
         val holder = request.retentionCustodyHolder
+        val emptyValue = emptyValueProblem(request)
         return when {
             idempotencyKey.isEmpty() -> {
                 "Idempotency-Key is required"
@@ -362,21 +363,8 @@ class OffboardTenant(
                 "retentionCustodyHolder is required"
             }
 
-            // INV-Q-22844 A: a value of length zero is a shape failure (400); whitespace-only stays 409 TNC-009.
-            holder.name.isEmpty() -> {
-                "retentionCustodyHolder.name must not be empty"
-            }
-
-            holder.contactEmail.isEmpty() -> {
-                "retentionCustodyHolder.contactEmail must not be empty"
-            }
-
-            request.unsubmittedOverride?.statement?.isEmpty() == true -> {
-                "unsubmittedOverride.statement must not be empty"
-            }
-
-            request.unsubmittedOverride?.acknowledgedBy?.isEmpty() == true -> {
-                "unsubmittedOverride.acknowledgedBy must not be empty"
+            emptyValue != null -> {
+                emptyValue
             }
 
             holder.name.length > OffboardingRules.HOLDER_NAME_MAX -> {
@@ -410,6 +398,19 @@ class OffboardTenant(
             else -> {
                 null
             }
+        }
+    }
+
+    /** INV-Q-22844 A: a value of length zero is a shape failure (400); whitespace-only stays 409 TNC-009. */
+    private fun emptyValueProblem(request: OffboardRequest): String? {
+        val holder = request.retentionCustodyHolder
+        val override = request.unsubmittedOverride
+        return when {
+            holder?.name?.isEmpty() == true -> "retentionCustodyHolder.name must not be empty"
+            holder?.contactEmail?.isEmpty() == true -> "retentionCustodyHolder.contactEmail must not be empty"
+            override?.statement?.isEmpty() == true -> "unsubmittedOverride.statement must not be empty"
+            override?.acknowledgedBy?.isEmpty() == true -> "unsubmittedOverride.acknowledgedBy must not be empty"
+            else -> null
         }
     }
 }
