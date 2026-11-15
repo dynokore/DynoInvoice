@@ -184,9 +184,17 @@ class ScopeEvaluationServiceTest {
     private fun combine(vararg v: String) = LineVerdictCombination.combine(v.toList())
 
     @Test
-    fun `INV-AC-22742 K1 K2 K3 single element`() {
+    fun `INV-AC-22742 K1 in scope alone`() {
         combine("IN_SCOPE") shouldBe "IN_SCOPE"
+    }
+
+    @Test
+    fun `INV-AC-22742 K2 out of scope alone`() {
         combine("OUT_OF_SCOPE") shouldBe "OUT_OF_SCOPE"
+    }
+
+    @Test
+    fun `INV-AC-22742 K3 excluded alone`() {
         combine("EXCLUDED_TXN") shouldBe "EXCLUDED_TXN"
     }
 
