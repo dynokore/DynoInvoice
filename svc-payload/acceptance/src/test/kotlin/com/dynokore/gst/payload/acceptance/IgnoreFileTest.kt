@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test
 import java.io.File
 
 class IgnoreFileTest {
-    private val allowed = listOf(".gradle/", ".kotlin/", "*.hprof", "/build/", "/*/build/")
-
     private fun text(lines: List<String>) = lines.joinToString("\n") + "\n"
 
     @Test
@@ -45,15 +43,16 @@ class IgnoreFileTest {
     }
 
     companion object {
+        private val allowed = listOf(".gradle/", ".kotlin/", "*.hprof", "/build/", "/*/build/")
+
         /** Deny by default: the non-blank lines must equal the allowed list exactly, in order. */
         fun findings(text: String?): List<String> {
             if (text == null) return listOf("root .gitignore is missing or unreadable")
             val lines = text.lines().filter { it.isNotBlank() }
-            val allowedLines = listOf(".gradle/", ".kotlin/", "*.hprof", "/build/", "/*/build/")
             val out = mutableListOf<String>()
-            lines.filter { it !in allowedLines }.forEach { out += "unexpected line: $it" }
-            allowedLines.filter { it !in lines }.forEach { out += "missing line: $it" }
-            if (out.isEmpty() && lines != allowedLines) out += "lines differ in order or count: $lines"
+            lines.filter { it !in allowed }.forEach { out += "unexpected line: $it" }
+            allowed.filter { it !in lines }.forEach { out += "missing line: $it" }
+            if (out.isEmpty() && lines != allowed) out += "lines differ in order or count: $lines"
             return out
         }
     }
