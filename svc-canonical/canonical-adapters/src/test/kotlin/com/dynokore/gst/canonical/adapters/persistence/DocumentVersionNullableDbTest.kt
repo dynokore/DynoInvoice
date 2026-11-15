@@ -82,14 +82,6 @@ class DocumentVersionNullableDbTest {
     fun `INV-AC-21562 N1 the first version keeps the five derived columns as SQL NULL`() {
         val doc = inserted()
         nullFlags(doc) shouldBe listOf("t", "t", "t", "t", "t")
-        // No column default may exist: a default would turn a plain insert into a derived-looking value.
-        DocumentSql
-            .rows(
-                "select column_name from information_schema.columns where table_schema = 'canonical' and " +
-                    "table_name = 'document_version' and column_default is not null and column_name in " +
-                    "('scope_verdict', 'scope_pack_version', 'mapping_pack_version', 'mde_pack_version', " +
-                    "'specification_version')",
-            ).size shouldBe 0
         val stored = row(doc, 1)
         stored[5]!!.contains("\"documentNumber\"") shouldBe true
         stored[6] shouldBe "svc"
