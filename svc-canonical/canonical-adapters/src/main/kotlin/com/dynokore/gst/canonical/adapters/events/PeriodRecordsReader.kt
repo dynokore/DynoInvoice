@@ -9,11 +9,12 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import java.util.UUID
 
 /**
  * Reads a `PeriodRecordsChanged` event into the complete [PeriodSpanSet] of an entity (INV-AC-358, ruling INV-Q-21406
  * A: event-carried state transfer). The tenant comes only from the envelope `tenantid` (CloudEvents attribute), never
- * from the data; the ordering version is the payload member `version`. The member `filingDueDate` is not read.
+ * from the data; the ordering version is the payload member `version`. The member `filingDueDate` is not read; the optional `periodId` of a period is kept (INV-AC-21535).
  *
  * Fails closed with [ContractViolation] (dead letter): a missing or blank `entityRef`, a missing, non-integer or
  * below-1 `version`, a missing or empty `periods`, a period without `periodRef`, `periodStart` or `periodEnd`, a date
@@ -32,8 +33,11 @@ class PeriodRecordsReader {
         val periods =
             data.get(PERIODS)?.takeIf { it.isArray && it.size() > 0 }
                 ?: throw ContractViolation("$PERIODS is missing or empty")
-        val spans = (0 until periods.size()).map { span(periods.get(it)) }
-        return PeriodSpanSet(tenant.value, entityRef(data), version(data), spans)
+        val nodes = (0 until periods.size()).map { periods.get(it) }
+        val spans = nodes.map { span(it) }
+        val ids = linkedMapOf<String, UUID>()
+        nodes.forEachIndexed { i, node -> periodId(node)?.let { ids[spans[i].periodRef] = it } }
+        return PeriodSpanSet(tenant.value, entityRef(data), version(data), spans, ids)
     }
 
     private fun span(node: JsonNode): PeriodSpan {
@@ -42,6 +46,15 @@ class PeriodRecordsReader {
         val end = date(node, PERIOD_END)
         if (end.isBefore(start)) throw ContractViolation("period end $end is before start $start")
         return PeriodSpan(text(node, PERIOD_REF), start, end)
+    }
+
+    /** The optional `periodId`: absent (or JSON null) is null; a value that is not a canonical lower-case uuid fails. */
+    private fun periodId(node: JsonNode): UUID? {
+        val member = node.get(PERIOD_ID)?.takeUnless { it.isNull } ?: return null
+        val text = member.takeIf { it.isString }?.asString()
+        val id = text?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+        if (id == null || id.toString() != text) throw ContractViolation("$PERIOD_ID is not a canonical uuid")
+        return id
     }
 
     private fun date(
@@ -85,5 +98,6 @@ class PeriodRecordsReader {
         const val PERIOD_REF = "periodRef"
         const val PERIOD_START = "periodStart"
         const val PERIOD_END = "periodEnd"
+        const val PERIOD_ID = "periodId"
     }
 }

@@ -13,7 +13,14 @@ data class PeriodSpanSet(
     val entityRef: String,
     val version: Long,
     val spans: List<PeriodSpan>,
-)
+    /** Period reference to the id of the period record in force (INV-AC-21535); a period without a key has none. */
+    val periodIds: Map<String, UUID> = emptyMap(),
+) {
+    init {
+        val refs = spans.map { it.periodRef }.toSet()
+        require(refs.containsAll(periodIds.keys)) { "periodIds names a period that is no span of the set" }
+    }
+}
 
 /**
  * TPL-11. jOOQ only. The DSLContext is the one of the open `canonical` transaction; forced row-level security binds
@@ -51,10 +58,25 @@ class JooqPeriodSpans(
                 .set(PERIOD_SPAN.PERIOD_REF, span.periodRef)
                 .set(PERIOD_SPAN.PERIOD_START, span.start)
                 .set(PERIOD_SPAN.PERIOD_END, span.end)
+                .set(PERIOD_SPAN.PERIOD_ID, set.periodIds[span.periodRef])
                 .execute()
         }
         return true
     }
+
+    /** The id of the period record of one period, or null when the period is unknown or was stored without an id. */
+    fun periodIdOf(
+        tenantId: UUID,
+        entityRef: String,
+        periodRef: String,
+    ): UUID? =
+        dsl
+            .select(PERIOD_SPAN.PERIOD_ID)
+            .from(PERIOD_SPAN)
+            .where(PERIOD_SPAN.TENANT_ID.eq(tenantId))
+            .and(PERIOD_SPAN.ENTITY_REF.eq(entityRef))
+            .and(PERIOD_SPAN.PERIOD_REF.eq(periodRef))
+            .fetchOne(PERIOD_SPAN.PERIOD_ID)
 
     override fun spansOf(
         tenantId: UUID,
