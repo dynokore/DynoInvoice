@@ -4,9 +4,11 @@ import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.submission.adapters.http.ComplianceRefusal
 import com.dynokore.gst.submission.adapters.http.SubmissionListingHandler
+import com.dynokore.gst.submission.adapters.http.SubmissionReconciliationController
 import com.dynokore.gst.submission.adapters.http.SubmissionSummaryController
 import com.dynokore.gst.submission.adapters.http.TransactionsController
 import com.dynokore.gst.submission.adapters.http.TransactionsRefusalAdvice
+import com.dynokore.gst.submission.application.listing.GetSubmissionReconciliation
 import com.dynokore.gst.submission.application.listing.ListSubmissions
 import com.dynokore.gst.submission.application.listing.SourceRead
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
@@ -181,6 +183,7 @@ class TransactionsControllerReplayTest {
                     ),
                     clock,
                 ),
+                SubmissionReconciliationController(GetSubmissionReconciliation(replica(holder), emptySource), clock),
             )
         return Fixture(controller, source, requeue)
     }

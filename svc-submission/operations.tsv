@@ -5,7 +5,7 @@ operation	listReadinessChecks	UNASSIGNED
 operation	confirmFiling	INV-T-20948
 operation	listSubmissions	INV-T-16327
 operation	getSubmissionSummary	INV-T-22166
-operation	getSubmissionReconciliation	UNASSIGNED
+operation	getSubmissionReconciliation	INV-T-22772
 operation	exportSubmissions	UNASSIGNED
 operation	getTransaction	UNASSIGNED
 operation	withdrawSubmission	UNASSIGNED

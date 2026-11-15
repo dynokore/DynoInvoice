@@ -44,6 +44,7 @@ class OperationsGateTest {
             "INV-T-20853",
             "INV-T-20948",
             "INV-T-10714",
+            "INV-T-22772",
         ).forEach { doneLines shouldContain it }
     }
 
@@ -53,27 +54,31 @@ class OperationsGateTest {
         // replaySubmissions by INV-T-20607, getLatestReadinessCheck by INV-T-21141 and listSubmissions by
         // INV-T-16327 and getSubmissionSummary by INV-T-22166 and previewDrainPeriod and drainPeriod by INV-T-20853 and
         // confirmFiling by INV-T-20948 and overrideFilingGate, approveFilingGateOverride and getFilingGateOverrides by
-        // INV-T-10714,
+        // INV-T-10714 and getSubmissionReconciliation by INV-T-22772,
         // so they no longer answer 501.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) - "getComplianceMetrics" - "replaySubmissionsByScope" -
             "replaySubmissions" - "getLatestReadinessCheck" - "listSubmissions" - "getSubmissionSummary" -
             "previewDrainPeriod" - "drainPeriod" - "confirmFiling" - "overrideFilingGate" -
-            "approveFilingGateOverride" - "getFilingGateOverrides"
+            "approveFilingGateOverride" - "getFilingGateOverrides" - "getSubmissionReconciliation"
     }
 
     @Test
     fun `the real done set names the row of replaySubmissionsByScope and a look-alike key fails`() {
         run(
-            done = "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\nINV-T-22166\nINV-T-20853\nINV-T-20948\n",
+            done =
+                "INV-T-20589\nINV-T-20607\nINV-T-21141\nINV-T-16327\nINV-T-22166\nINV-T-20853\nINV-T-20948\n" +
+                    "INV-T-22772\n",
             stubSet =
                 stubs - "replaySubmissionsByScope" - "replaySubmissions" - "getLatestReadinessCheck" -
-                    "listSubmissions" - "getSubmissionSummary" - "previewDrainPeriod" - "drainPeriod" - "confirmFiling",
+                    "listSubmissions" - "getSubmissionSummary" - "previewDrainPeriod" - "drainPeriod" -
+                    "confirmFiling" - "getSubmissionReconciliation",
         ).shouldBeEmpty()
         run(done = "INV-T-20590\n") shouldContain "done-tasks.txt: INV-T-20590 names no row of operations.tsv"
         run(done = "INV-T-205890\n") shouldContain "done-tasks.txt: INV-T-205890 names no row of operations.tsv"
         run(done = "INV-T-163270\n") shouldContain "done-tasks.txt: INV-T-163270 names no row of operations.tsv"
         run(done = "INV-T-221660\n") shouldContain "done-tasks.txt: INV-T-221660 names no row of operations.tsv"
+        run(done = "INV-T-227720\n") shouldContain "done-tasks.txt: INV-T-227720 names no row of operations.tsv"
     }
 
     @Test

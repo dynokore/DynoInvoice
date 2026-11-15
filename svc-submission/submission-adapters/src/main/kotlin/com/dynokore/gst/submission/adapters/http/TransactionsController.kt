@@ -12,6 +12,7 @@ import com.dynokore.gst.submission.contract.model.ReplayResult
 import com.dynokore.gst.submission.contract.model.ReplayScopeRequest
 import com.dynokore.gst.submission.contract.model.ReplayScopeResult
 import com.dynokore.gst.submission.contract.model.ReplaySkip
+import com.dynokore.gst.submission.contract.model.SentVersusAcknowledgedView
 import com.dynokore.gst.submission.contract.model.SubmissionPage
 import com.dynokore.gst.submission.contract.model.SubmissionSummaryTotals
 import com.dynokore.gst.submission.domain.ordering.InFlight
@@ -87,7 +88,8 @@ class TransactionsRefusalAdvice {
  * The submission-list, transaction and replay operations of the submission contract (TPL-08).
  * `replaySubmissionsByScope` (INV-REQ-575) is served here, and `listSubmissions` (INV-REQ-975) through the
  * [SubmissionListingHandler] delegate, and `getSubmissionSummary` (INV-REQ-977) through the
- * [SubmissionSummaryController] delegate; the permission is decided by [ReplayBySelection]
+ * [SubmissionSummaryController] delegate, and `getSubmissionReconciliation` (INV-REQ-976) through the
+ * [SubmissionReconciliationController] delegate; the permission is decided by [ReplayBySelection]
  * through `AuthorityReplica.decide`, and this class reads no role name and holds no permission string. Every other
  * operation answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
@@ -100,6 +102,7 @@ open class TransactionsController(
     private val requests: ObjectProvider<HttpServletRequest>,
     private val listing: SubmissionListingHandler,
     private val summary: SubmissionSummaryController,
+    private val reconciliation: SubmissionReconciliationController,
 ) : TransactionsApi {
     override fun replaySubmissionsByScope(
         entityRef: String,
@@ -192,6 +195,13 @@ open class TransactionsController(
                 bucket,
             ),
         )
+
+    /** `getSubmissionReconciliation` (INV-REQ-976): forwarded to [SubmissionReconciliationController]. */
+    override fun getSubmissionReconciliation(
+        entityRef: String,
+        periodRef: String,
+    ): ResponseEntity<SentVersusAcknowledgedView> =
+        ResponseEntity.ok(reconciliation.reconcile(machineCaller(), entityRef, periodRef))
 
     /**
      * `replaySubmissions` (INV-REQ-575). The acting user id of the principal (never a role) is what the use case
