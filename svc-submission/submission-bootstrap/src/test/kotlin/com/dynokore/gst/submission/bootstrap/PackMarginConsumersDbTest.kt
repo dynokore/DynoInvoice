@@ -110,14 +110,19 @@ class PackMarginConsumersDbTest {
 
         private val guardedReader = ListReader()
 
-        /** Delivers through the handler the rulePackActivatedConsumer bean is given (type guard included). */
+        /** Delivers through the activated consumer wiring of the bean (PackMarginConsumers.activatedConsumer). */
         fun deliverGuarded(e: Envelope): PollResult {
             guardedReader.records += LogRecord(++offset, json.write(e))
-            return consumer(
-                PackMarginConsumers.rulePackActivatedSubscription(),
-                guardedReader,
-                PackMarginConsumers.activatedTypeGuard(activatedHandler),
-            ).pollOnce()
+            return PackMarginConsumers()
+                .activatedConsumer(
+                    ConsumerSubscription(name, PackMarginConsumers.rulePackActivatedSubscription().topic, "submission"),
+                    catalogue,
+                    guardedReader,
+                    scope,
+                    activatedHandler,
+                    RebuildRequiredSink { },
+                    java.time.Clock.systemUTC(),
+                ).pollOnce()
         }
 
         /** Delivers the envelopes through the consumer of the topic, in order. */

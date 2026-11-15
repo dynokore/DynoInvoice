@@ -101,13 +101,26 @@ class PackMarginConsumers {
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer =
+        activatedConsumer(rulePackActivatedSubscription(), catalogue, reader, scope, handler, rebuildRequired, clock)
+
+    /** The bean wiring: [handler] behind the exact-type guard; [subscription] is a seam for tests. */
+    @Suppress("LongParameterList")
+    internal fun activatedConsumer(
+        subscription: ConsumerSubscription,
+        catalogue: EventCatalogue,
+        reader: EventLogReader,
+        scope: TenantScope,
+        handler: EventHandler,
+        rebuildRequired: RebuildRequiredSink,
+        clock: Clock,
+    ): JdbcInboxConsumer =
         consumer(
-            rulePackActivatedSubscription(),
+            subscription,
             SubmissionEvents.RULE_PACK_ACTIVATED_TYPE,
             catalogue,
             reader,
             scope,
-            activatedTypeGuard(handler),
+            TypeGuardedHandler(SubmissionEvents.RULE_PACK_ACTIVATED_TYPE, handler),
             rebuildRequired,
             clock,
         )
@@ -145,10 +158,6 @@ class PackMarginConsumers {
 
         fun rulePackStagedSubscription(): ConsumerSubscription =
             ConsumerSubscription(CONSUMER, SubmissionEvents.RULE_PACK_STAGED_TOPIC, SCHEMA)
-
-        /** The handler the activated consumer is given: [handler] behind an exact-type refusal. */
-        internal fun activatedTypeGuard(handler: EventHandler): EventHandler =
-            TypeGuardedHandler(SubmissionEvents.RULE_PACK_ACTIVATED_TYPE, handler)
 
         fun rulePackActivatedSubscription(): ConsumerSubscription =
             ConsumerSubscription(CONSUMER, SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC, SCHEMA)
