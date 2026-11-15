@@ -89,7 +89,8 @@ class TransactionsRefusalAdvice {
  * `replaySubmissionsByScope` (INV-REQ-575) is served here, and `listSubmissions` (INV-REQ-975) through the
  * [SubmissionListingHandler] delegate, and `getSubmissionSummary` (INV-REQ-977) through the
  * [SubmissionSummaryController] delegate, and `getSubmissionReconciliation` (INV-REQ-976) through the
- * [SubmissionReconciliationController] delegate; the permission is decided by [ReplayBySelection]
+ * [SubmissionReconciliationController] delegate, and `exportSubmissions` (INV-REQ-978) through the
+ * [SubmissionExportController] delegate; the permission is decided by [ReplayBySelection]
  * through `AuthorityReplica.decide`, and this class reads no role name and holds no permission string. Every other
  * operation answers 501 until the task named for it in `operations.tsv` overrides its method.
  */
@@ -105,6 +106,7 @@ open class TransactionsController(
     private val listing: SubmissionListingHandler,
     private val summary: SubmissionSummaryController,
     private val reconciliation: SubmissionReconciliationController,
+    private val exporting: SubmissionExportController,
 ) : TransactionsApi {
     override fun replaySubmissionsByScope(
         entityRef: String,
@@ -204,6 +206,40 @@ open class TransactionsController(
         periodRef: String,
     ): ResponseEntity<SentVersusAcknowledgedView> =
         ResponseEntity.ok(reconciliation.reconcile(machineCaller(), entityRef, periodRef))
+    /** `exportSubmissions` (INV-REQ-978): forwarded to [SubmissionExportController]. */
+    @Suppress("LongParameterList") // the generated operation signature
+    override fun exportSubmissions(
+        entityRef: String,
+        periodRef: String,
+        format: String,
+        direction: String?,
+        submissionType: String?,
+        state: String?,
+        categoryCode: String?,
+        counterparty: String?,
+        amountMin: java.math.BigDecimal?,
+        amountMax: java.math.BigDecimal?,
+        acknowledged: Boolean?,
+        bucket: ContractBucket?,
+    ): ResponseEntity<org.springframework.core.io.Resource> =
+        exporting.export(
+            machineCaller(),
+            ExportQuery(
+                entityRef,
+                periodRef,
+                format,
+                direction,
+                submissionType,
+                state,
+                categoryCode,
+                counterparty,
+                amountMin,
+                amountMax,
+                acknowledged,
+                bucket,
+            ),
+            clock.instant(),
+        )
 
     /**
      * `replaySubmissions` (INV-REQ-575). The acting user id of the principal (never a role) is what the use case

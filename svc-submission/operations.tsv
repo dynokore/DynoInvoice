@@ -6,7 +6,7 @@ operation	confirmFiling	INV-T-20948
 operation	listSubmissions	INV-T-16327
 operation	getSubmissionSummary	INV-T-22166
 operation	getSubmissionReconciliation	INV-T-22772
-operation	exportSubmissions	UNASSIGNED
+operation	exportSubmissions	INV-T-22287
 operation	getTransaction	UNASSIGNED
 operation	withdrawSubmission	UNASSIGNED
 operation	overrideFilingGate	INV-T-10714

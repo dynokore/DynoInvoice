@@ -1,12 +1,15 @@
 package com.dynokore.gst.submission.adapters
 
 import com.dynokore.gst.submission.adapters.http.ComplianceRefusal
+import com.dynokore.gst.submission.adapters.http.SubmissionExportController
 import com.dynokore.gst.submission.adapters.http.SubmissionListingHandler
 import com.dynokore.gst.submission.adapters.http.SubmissionReconciliationController
 import com.dynokore.gst.submission.adapters.http.SubmissionSummaryController
 import com.dynokore.gst.submission.adapters.http.TransactionsController
 import com.dynokore.gst.submission.adapters.http.TransactionsRefusalAdvice
 import com.dynokore.gst.submission.application.listing.GetSubmissionReconciliation
+import com.dynokore.gst.submission.application.gstn.EntityGstns
+import com.dynokore.gst.submission.application.listing.ExportSubmissions
 import com.dynokore.gst.submission.application.listing.ListSubmissions
 import com.dynokore.gst.submission.application.listing.ListingActions
 import com.dynokore.gst.submission.application.listing.SourceRead
@@ -149,6 +152,9 @@ class SubmissionSummaryControllerTest {
                 SubmissionListingHandler(ListSubmissions(replica, source), clock),
                 SubmissionSummaryController(SubmissionSummaryQuery(replica, source), clock),
                 SubmissionReconciliationController(GetSubmissionReconciliation(replica, source), clock),
+                SubmissionExportController(
+                    ExportSubmissions(replica, source, EntityGstns { _, _ -> "M90000002B" }, clock),
+                ),
             )
         return Fixture(controller, source)
     }
