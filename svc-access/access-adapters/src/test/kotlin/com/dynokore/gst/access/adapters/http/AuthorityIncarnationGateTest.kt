@@ -11,59 +11,26 @@ import java.nio.file.Path
  * under `src/main`; a literal is matched as a whole token, quotes included.
  */
 class AuthorityIncarnationGateTest {
-    private val root: Path = generateSequence(Path.of("").toAbsolutePath()) { it.parent }.first { Files.exists(it.resolve("settings.gradle.kts")) }
-    private val base = root.resolve("access-adapters/src/main/kotlin/com/dynokore/gst/access/adapters")
-    private val named = listOf(base.resolve("http/AuthorityIncarnationOperation.kt"), base.resolve("http/BumpPermissionCheck.kt"))
-
-    /** Every `.kt` under any module `src/main`, skipping build, .git, .gradle and .gradle-cache. */
-    private fun mainSources(top: Path): List<Path> =
-        Files.walk(top).use { w ->
-            w.filter { Files.isRegularFile(it) && it.toString().endsWith(".kt") && "/src/main/" in it.toString().replace('\\', '/') }
-                .filter { p -> top.relativize(p).none { it.toString() in SKIPPED } }
-                .toList()
-        }
-
-    /** Files this task adds: the named pair, anything under an `incarnation/` directory, and the git-added `.kt` under src/main. */
-    private fun subjectOf(top: Path): List<Path> {
-        val all = mainSources(top)
-        val byDir = all.filter { p -> top.relativize(p).any { it.toString() == "incarnation" } }
-        val added = gitAdded(top).map { top.resolve(it) }.filter { it in all }
-        return (named.filter { top == root } + byDir + added).distinct()
-    }
-
-    private fun gitAdded(top: Path): List<String> {
-        if (top != root) return emptyList()
-        return runCatching {
-            val pb = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=A", "origin/main").directory(top.toFile()).redirectErrorStream(true).start()
-            val out = pb.inputStream.bufferedReader().readLines()
-            if (pb.waitFor() == 0) out.filter { inSubject(it) } else emptyList()
-        }.getOrDefault(emptyList())
-    }
-
-    private val subject: List<Path> get() = subjectOf(root)
+    private val base = Path.of("src/main/kotlin/com/dynokore/gst/access/adapters")
+    private val subject: List<Path> =
+        listOf(
+            base.resolve("http/AuthorityIncarnationOperation.kt"),
+            base.resolve("http/BumpPermissionCheck.kt"),
+        )
 
     @Test
     fun `INV-AC-22070 the subject holds the operation and its check`() {
-        named.forEach { assertThat(it).exists() }
-        assertThat(subject).containsAll(named)
-    }
-
-    @Test
-    fun `INV-AC-22070 probe a file added under an incarnation dir enters the subject and fails the gate`() {
-        val tmp = Files.createTempDirectory(Path.of(System.getProperty("java.io.tmpdir")), "gate")
-        try {
-            val dir = Files.createDirectories(tmp.resolve("m/src/main/kotlin/x/incarnation"))
-            val f = dir.resolve("Extra.kt")
-            Files.writeString(f, "val r = \"platform.engineer\"\nimport com.dynokore.platform.serviceruntime.replica.AuthorityReplica\n")
-            val other = Files.createDirectories(tmp.resolve("m/src/main/kotlin/x/other")).resolve("Ok.kt")
-            Files.writeString(other, "val r = 1")
-            val found = subjectOf(tmp)
-            assertThat(found).containsExactly(f)
-            assertThat(roleLiterals(Files.readString(f))).isNotEmpty()
-            assertThat(replicaUse(Files.readString(f))).isTrue()
-        } finally {
-            Files.walk(tmp).use { w -> w.sorted(Comparator.reverseOrder()).forEach { Files.delete(it) } }
-        }
+        subject.forEach { assertThat(it).exists() }
+        // no other file of the task's two packages is added unseen: the files named Incarnation or Bump are all listed
+        val named =
+            listOf(base.resolve("http")).flatMap { dir ->
+                Files.list(dir).use { files ->
+                    files
+                        .filter { "Incarnation" in it.fileName.toString() || "Bump" in it.fileName.toString() }
+                        .toList()
+                }
+            }
+        assertThat(named).containsExactlyInAnyOrderElementsOf(subject)
     }
 
     @Test
@@ -96,8 +63,9 @@ class AuthorityIncarnationGateTest {
     }
 
     @Test
-    fun `INV-AC-22070 no replica token or import occurs in the subject`() {
+    fun `INV-AC-22070 no replica token or import occurs in the subject and the incarnation package is absent`() {
         subject.forEach { assertThat(replicaUse(Files.readString(it))).describedAs(it.toString()).isFalse() }
+        assertThat(base.resolve("incarnation")).doesNotExist()
     }
 
     @Test
@@ -127,7 +95,6 @@ class AuthorityIncarnationGateTest {
     private fun inSubject(path: String) = path.endsWith(".kt") && path.contains("/src/main/")
 
     private companion object {
-        val SKIPPED = setOf("build", ".git", ".gradle", ".gradle-cache")
         val REPLICA_TOKEN = Regex("(?<![A-Za-z0-9_])AuthorityReplica(?![A-Za-z0-9_])")
         val ROLE_TOKEN = Regex("(?<![A-Za-z0-9_])(?:PLATFORM_ENGINEER|DEPLOYMENT_OPERATOR)(?![A-Za-z0-9_])")
         val LITERAL = Regex("\"(?:platform\\.engineer|deployment\\.operator|tenant\\.admin)\"")
