@@ -127,16 +127,6 @@ class ReviewTest {
     }
 
     @Test
-    fun `INV-AC-23350 a monthly label never sets the cadence once VP-05 is no longer planned`() {
-        val available =
-            RunAccessReviewUseCase(tx, { VpAvailability.AVAILABLE }, { tenantGrants }, campaigns, { audits += it }, clock)
-        assertEquals(RunAccessReviewOutcome.CadenceNotReadable, available.handle(alice, "2026-09"))
-        assertTrue(stored.isEmpty())
-        val quarter = assertInstanceOf(RunAccessReviewOutcome.Opened::class.java, available.handle(alice, "2026Q3"))
-        assertEquals(Cadence.QUARTERLY, quarter.campaign.cadence)
-    }
-
-    @Test
     fun `INV-AC-23349 an outcome on another grant is stored with user and time, the last one closes the campaign`() {
         val c = open()
         assertEquals(

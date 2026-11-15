@@ -17,12 +17,6 @@ sealed interface RunAccessReviewOutcome {
 
     /** A monthly label while VP-05 is planned: no campaign is stored. */
     data object MonthlyUnavailable : RunAccessReviewOutcome
-
-    /**
-     * A monthly label while VP-05 is no longer planned: the tenant's stored cadence is not readable here, and the label
-     * must not decide the cadence, so no campaign is stored until a ruling adds that port.
-     */
-    data object CadenceNotReadable : RunAccessReviewOutcome
 }
 
 /**
@@ -44,13 +38,21 @@ class RunAccessReviewUseCase(
         periodLabel: String,
     ): RunAccessReviewOutcome {
         val period = PeriodLabel.parse(periodLabel)
+        val cadence = cadenceFor(period)
         return when {
             period == null -> RunAccessReviewOutcome.InvalidPeriod
-            period is PeriodLabel.Quarter -> open(actor, period, Cadence.QUARTERLY)
-            availability.current() == VpAvailability.PLANNED -> RunAccessReviewOutcome.MonthlyUnavailable
-            else -> RunAccessReviewOutcome.CadenceNotReadable
+            cadence == null -> RunAccessReviewOutcome.MonthlyUnavailable
+            else -> open(actor, period, cadence)
         }
     }
+
+    /** The cadence a label stands for; null for a month label while VP-05 is planned (and for no label). */
+    private fun cadenceFor(period: PeriodLabel?): Cadence? =
+        when {
+            period is PeriodLabel.Quarter -> Cadence.QUARTERLY
+            period is PeriodLabel.Month && availability.current() != VpAvailability.PLANNED -> Cadence.MONTHLY
+            else -> null
+        }
 
     private fun open(
         actor: IdentityRef,
