@@ -8,6 +8,7 @@ import com.dynokore.gst.evidence.adapters.persistence.JooqTenantPackageCandidate
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStorePackageStore
 import com.dynokore.gst.evidence.application.export.ExportChainIntegrity
 import com.dynokore.gst.evidence.application.export.ExportClassSources
+import com.dynokore.gst.evidence.application.export.ExportJobs
 import com.dynokore.gst.evidence.application.export.ExportPackageStore
 import com.dynokore.gst.evidence.application.export.ExportResultPublisher
 import com.dynokore.gst.evidence.application.export.ExportTenantEvidence
@@ -75,16 +76,21 @@ class OffboardingExportConfiguration {
         ) { digestMaxRetention.longest() }
 
     @Bean
+    fun offboardingExportJobs(
+        dsl: DSLContext,
+        clock: Clock,
+    ): ExportJobs = JooqOffboardingExportJobs(dsl, clock)
+
+    @Bean
     @Suppress("LongParameterList")
     fun exportTenantEvidence(
         sources: ExportClassSources,
-        dsl: DSLContext,
+        jobs: ExportJobs,
         store: ExportPackageStore,
         integrity: ExportChainIntegrity,
         publisher: ExportResultPublisher,
         clock: Clock,
-    ): ExportTenantEvidence =
-        ExportTenantEvidence(sources, JooqOffboardingExportJobs(dsl, clock), store, integrity, publisher, clock)
+    ): ExportTenantEvidence = ExportTenantEvidence(sources, jobs, store, integrity, publisher, clock)
 
     @Bean
     fun offboardingExportRequestedHandler(useCase: ExportTenantEvidence): OffboardingExportRequestedHandler =

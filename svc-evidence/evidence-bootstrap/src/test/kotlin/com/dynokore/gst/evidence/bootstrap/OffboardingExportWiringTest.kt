@@ -152,7 +152,15 @@ class OffboardingExportWiringTest {
                 real
             }
         val store = ExportPackageStore { _, _, _ -> "s3://manifest" }
-        val useCase = configuration.exportTenantEvidence(sources, dsl, store, integrity, publisher, fixedClock)
+        val useCase =
+            configuration.exportTenantEvidence(
+                sources,
+                configuration.offboardingExportJobs(dsl, fixedClock),
+                store,
+                integrity,
+                publisher,
+                fixedClock,
+            )
         return JdbcInboxConsumer(
             ConsumerSubscription(consumerName, TOPIC, OffboardingExportConfiguration.SUBSCRIPTION.schema),
             context.getBean(EventCatalogue::class.java),
@@ -382,6 +390,19 @@ class OffboardingExportWiringTest {
             val store = context.getBean(ExportPackageStore::class.java)
             assertThat(store).isInstanceOf(ObjectStorePackageStore::class.java)
             store.store(TenantId(UUID.randomUUID()), "OFF-1", files) shouldStartWith "x-test://"
+        }
+    }
+
+    @Test
+    fun `INV-AC-22950 the context holds exactly one ExportJobs bean and the use case holds that object`() {
+        runner(Recording()).withPropertyValues("$SCHEME=s3").run { context ->
+            assertThat(context.startupFailure).isNull()
+            val beans = context.getBeansOfType(ExportJobs::class.java)
+            beans.keys.toList() shouldBe listOf("offboardingExportJobs")
+            val useCase = context.getBean(ExportTenantEvidence::class.java)
+            val field = ExportTenantEvidence::class.java.getDeclaredField("jobs")
+            field.isAccessible = true
+            (field.get(useCase) === beans.getValue("offboardingExportJobs")) shouldBe true
         }
     }
 
