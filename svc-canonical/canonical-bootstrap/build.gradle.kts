@@ -31,6 +31,9 @@ dependencies {
     testImplementation(testFixtures(project(":canonical-adapters")))
     testImplementation(project(":canonical-application"))
     testImplementation(project(":canonical-domain"))
+    testImplementation(libs.platform.serviceRuntime.api) {
+        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
+    }
 }
 
 // The tests of the published CanonicalVersionCreated schema read the staged contract documents (INV-T-22849).

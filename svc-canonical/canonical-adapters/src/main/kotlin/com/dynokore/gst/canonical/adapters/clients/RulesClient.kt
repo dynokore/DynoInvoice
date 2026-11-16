@@ -24,6 +24,7 @@ private const val MDE = "MDE"
 private val PACK_TYPES = listOf(SCOPE, MAPPING, MDE)
 private const val HTTP_FORBIDDEN = 403
 private const val FLOW_CONTEXT_REFUSED = "SRT-004"
+private const val UNUSED_FLOW_CONTEXT = ""
 private val ENVELOPE = JsonMapper.builder().build()
 
 /** The sync edge canonical-svc -> rules-svc (sync-edges.yaml; `x-sync-edge` of `evaluateDocument`). */
@@ -110,7 +111,7 @@ class RulesClient(
             onTimeout = { RulesAnswer.Unavailable },
         ) {
             try {
-                val call = { api.evaluateDocumentWithHttpInfo(request(facts)).body }
+                val call = { api.evaluateDocumentWithHttpInfo(UNUSED_FLOW_CONTEXT, request(facts)).body }
                 val body = if (held == null) call() else FlowContext.runWith(held, call)
                 if (body == null) {
                     RulesAnswer.Unavailable

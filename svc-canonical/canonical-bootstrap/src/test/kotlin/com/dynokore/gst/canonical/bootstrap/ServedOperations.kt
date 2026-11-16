@@ -4,6 +4,9 @@ import com.dynokore.gst.canonical.adapters.CanonicalDb
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.identity.FlowContextKeys
+import com.dynokore.platform.serviceruntime.identity.FlowContextTestSupport
+import com.dynokore.platform.serviceruntime.identity.FlowEntity
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -27,6 +30,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
 import org.yaml.snakeyaml.Yaml
 import java.nio.file.Files
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -38,6 +42,7 @@ data class DocumentOperation(
     val principal: String?,
     val callerAuth: String?,
     val edges: List<String>,
+    val flowContext: Boolean,
 )
 
 /** One handler method the application context maps: HTTP method and path pattern. */
@@ -69,6 +74,7 @@ object ContractDocument {
                     path = path,
                     principal = operation["x-principal"] as? String,
                     callerAuth = operation["x-caller-auth"] as? String,
+                    flowContext = operation["x-flow-context"] == "required",
                     edges =
                         when (edge) {
                             is String -> listOf(edge)
@@ -164,6 +170,10 @@ class WorkloadDoubles(
 
     fun tokenOf(service: String): String = "W:" + checkNotNull(subjects[service]) { "no subject for $service" }
 
+    /** The inverse of [tokenOf]: the service of a token, null for no token or a token no entry maps. */
+    fun serviceOf(token: String?): String? =
+        token?.let { t -> subjects.entries.firstOrNull { "W:" + it.value == t }?.key }
+
     /** A verified token that no entry maps. */
     val unmappedToken = "W:subject-nobody"
 }
@@ -181,12 +191,41 @@ class ServedService(
     val tenants: TenantContext,
     val handlers: List<MappedHandler>,
     val classLoader: ClassLoader,
+    private val workloadDoubles: WorkloadDoubles,
 ) {
+    private val flowContextOperations = ContractDocument.operations(ContractDocument.text())
+
+    /** The `X-Flow-Context` of a call to an operation the document marks `x-flow-context: required`, else none. */
+    private fun flowContextHeader(
+        handler: MappedHandler,
+        workload: String?,
+    ): String? {
+        val marked =
+            flowContextOperations.any {
+                it.flowContext && it.method == handler.method &&
+                    it.path == handler.path
+            }
+        val caller = workloadDoubles.serviceOf(workload)
+        return if (!marked || caller == null) {
+            null
+        } else {
+            FlowContextTestSupport.contextFor(
+                tenant = EndUserDoubles.tenantA.toString(),
+                entity = FlowEntity.entity("E-001"),
+                principalKind = "HUMAN",
+                callerService = caller,
+                issuedAt = Instant.now().epochSecond,
+                issuer = FlowContextTestSupport.issuer(),
+            )
+        }
+    }
+
     fun call(
         handler: MappedHandler,
         workload: String?,
         authorization: String? = null,
         extra: Map<String, String> = emptyMap(),
+        flowContext: Boolean = true,
     ): Answer {
         val uri = handler.path.replace(Regex("\\{[^}]+}"), "x1")
         val request =
@@ -201,6 +240,12 @@ class ServedService(
                     if (handler.method != "GET") content("""{"entityRef":"E-001"}""")
                     if (workload != null) header("X-Workload-Token", workload)
                     if (authorization != null) header("Authorization", authorization)
+                    val own = extra.keys.any { it.equals(FLOW_CONTEXT_HEADER, ignoreCase = true) }
+                    if (flowContext &&
+                        !own
+                    ) {
+                        flowContextHeader(handler, workload)?.let { header(FLOW_CONTEXT_HEADER, it) }
+                    }
                     extra.forEach { (name, value) -> header(name, value) }
                 }
         val response = mvc.perform(request).andReturn().response
@@ -227,6 +272,8 @@ class ServedService(
     fun nothingBound(): Boolean = runCatching { tenants.current() }.isFailure
 
     companion object {
+        const val FLOW_CONTEXT_HEADER = "X-Flow-Context"
+
         /** The mapped handlers of the service's own controllers (not the framework's error endpoint). */
         private fun mappedHandlers(context: WebApplicationContext): List<MappedHandler> =
             context
@@ -278,6 +325,7 @@ class ServedService(
                     .web(mountRoot)
                     .withBean(EndUserPrincipalResolver::class.java, { EndUserDoubles.resolver })
                     .withBean(WorkloadTokenVerifier::class.java, { workload.verifier })
+                    .withBean(FlowContextKeys::class.java, { FlowContextTestSupport.keys() })
                     .withBean(ReachConfiguration::class.java, { ReachConfiguration(counter) })
                     .withPropertyValues(
                         "service-runtime.idempotency.schema=canonical",
@@ -299,6 +347,7 @@ class ServedService(
                         tenantsHolder,
                         mappedHandlers(web),
                         checkNotNull(context.classLoader),
+                        workload,
                     ),
                 )
             }
