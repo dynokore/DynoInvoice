@@ -669,6 +669,7 @@ class RegulatoryPackArmingBoundaryTest(
     fun `INV-AC-1903 the window key is read from configuration with no default and fails closed`() {
         val config = RulesConfiguration()
         val key = "rules.fence.acknowledgement-window"
+
         fun window(env: MockEnvironment) = config.fenceAcknowledgementWindow(env)
         window(MockEnvironment().withProperty(key, "PT15M")).value shouldBe Duration.ofMinutes(15)
         listOf("", "15 minutes").forEach {

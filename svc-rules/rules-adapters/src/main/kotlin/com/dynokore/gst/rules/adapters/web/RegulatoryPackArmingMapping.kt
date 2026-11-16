@@ -4,17 +4,17 @@ import com.dynokore.gst.rules.adapters.packs.CompiledPackSchematron
 import com.dynokore.gst.rules.adapters.packs.SchematronPackCompiler
 import com.dynokore.gst.rules.adapters.persistence.PersistedPackRegistry
 import com.dynokore.gst.rules.application.AcknowledgePackDeltaResult
+import com.dynokore.gst.rules.application.ArmRegulatoryPackResult
 import com.dynokore.gst.rules.application.ArmingStore
 import com.dynokore.gst.rules.application.ArmingWrite
+import com.dynokore.gst.rules.contract.model.RegulatoryPack
 import com.dynokore.platform.integrationcanon.schematron.CompilationListener
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.fence.CompileOutcome
-import com.dynokore.platform.tenancykernel.PlatformTenantBinding
-import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.gst.rules.application.ArmRegulatoryPackResult
-import com.dynokore.gst.rules.contract.model.RegulatoryPack
 import com.dynokore.platform.rulepackkernel.fence.FenceOutcome
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.tenancykernel.PlatformTenantBinding
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import java.time.LocalDate
 
 /**
@@ -31,13 +31,21 @@ object RegulatoryPackArmingMapping {
 
     fun refusalOf(result: ArmRegulatoryPackResult): MappingRefusal? =
         when (result) {
-            ArmRegulatoryPackResult.Armed -> null
+            ArmRegulatoryPackResult.Armed -> {
+                null
+            }
 
-            ArmRegulatoryPackResult.Denied -> closed(ClosedErrorCode.ACCESS_DENIED, DENIED_DETAIL)
+            ArmRegulatoryPackResult.Denied -> {
+                closed(ClosedErrorCode.ACCESS_DENIED, DENIED_DETAIL)
+            }
 
-            ArmRegulatoryPackResult.NotFound -> closed(ClosedErrorCode.NOT_FOUND, null)
+            ArmRegulatoryPackResult.NotFound -> {
+                closed(ClosedErrorCode.NOT_FOUND, null)
+            }
 
-            is ArmRegulatoryPackResult.NotArmable -> closed(ClosedErrorCode.STALE_AGGREGATE, "the pack is not APPROVED")
+            is ArmRegulatoryPackResult.NotArmable -> {
+                closed(ClosedErrorCode.STALE_AGGREGATE, "the pack is not APPROVED")
+            }
 
             is ArmRegulatoryPackResult.EffectiveDateMismatch -> {
                 closed(ClosedErrorCode.STALE_AGGREGATE, "the effective date differs from the staged effective date")
@@ -63,11 +71,17 @@ object RegulatoryPackArmingMapping {
 
     fun refusalOf(result: AcknowledgePackDeltaResult): MappingRefusal? =
         when (result) {
-            is AcknowledgePackDeltaResult.Acknowledged -> null
+            is AcknowledgePackDeltaResult.Acknowledged -> {
+                null
+            }
 
-            AcknowledgePackDeltaResult.Denied -> closed(ClosedErrorCode.ACCESS_DENIED, DENIED_DETAIL)
+            AcknowledgePackDeltaResult.Denied -> {
+                closed(ClosedErrorCode.ACCESS_DENIED, DENIED_DETAIL)
+            }
 
-            AcknowledgePackDeltaResult.NotFound -> closed(ClosedErrorCode.NOT_FOUND, null)
+            AcknowledgePackDeltaResult.NotFound -> {
+                closed(ClosedErrorCode.NOT_FOUND, null)
+            }
 
             is AcknowledgePackDeltaResult.NotOpen -> {
                 closed(ClosedErrorCode.STALE_AGGREGATE, "the pack is neither STAGED nor APPROVED")
@@ -77,7 +91,9 @@ object RegulatoryPackArmingMapping {
                 closed(ClosedErrorCode.STALE_AGGREGATE, "no completed dry-run delta exists for the tenant")
             }
 
-            AcknowledgePackDeltaResult.NoGraceWindow -> closed(ClosedErrorCode.STALE_AGGREGATE, NO_WINDOW_DETAIL)
+            AcknowledgePackDeltaResult.NoGraceWindow -> {
+                closed(ClosedErrorCode.STALE_AGGREGATE, NO_WINDOW_DETAIL)
+            }
 
             is AcknowledgePackDeltaResult.WindowClosed -> {
                 closed(ClosedErrorCode.STALE_AGGREGATE, "the grace window has ended")
@@ -140,7 +156,12 @@ class CompiledPackHold {
         packType: String,
         version: String,
         document: ByteArray,
-    ): Int? = held[packType to version]?.stylesheets?.values?.onEach { it.validate(document) }?.size
+    ): Int? =
+        held[packType to version]
+            ?.stylesheets
+            ?.values
+            ?.onEach { it.validate(document) }
+            ?.size
 
     /** The file names of the held stylesheets of the pack version, or null when none is held. */
     fun stylesheetNames(
