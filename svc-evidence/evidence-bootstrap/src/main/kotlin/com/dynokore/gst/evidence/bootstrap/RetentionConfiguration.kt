@@ -1,18 +1,32 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.evidence.adapters.http.PartitionDeletionVisibility
 import com.dynokore.gst.evidence.adapters.http.PlatformMaxRetention
+import com.dynokore.gst.evidence.adapters.persistence.JooqPartitionDeletionOperations
+import com.dynokore.gst.evidence.adapters.persistence.JooqPartitionLifecycle
+import com.dynokore.gst.evidence.adapters.persistence.JooqRetentionRecords
+import com.dynokore.gst.evidence.adapters.persistence.OutboxDeletionAudit
 import com.dynokore.gst.evidence.adapters.retention.JsonTierYearsReader
+import com.dynokore.gst.evidence.application.retention.DeleteAtRetentionEnd
+import com.dynokore.gst.evidence.application.retention.DeletionAudit
 import com.dynokore.gst.evidence.application.retention.EffectiveRetention
 import com.dynokore.gst.evidence.application.retention.MaxRetention
+import com.dynokore.gst.evidence.application.retention.PartitionLifecycle
 import com.dynokore.gst.evidence.application.retention.RetentionPolicy
+import com.dynokore.platform.auditlog.AuditWriter
 import com.dynokore.platform.configresolver.OptionValueMaximum
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.VariationPointCatalogue
+import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantContext
+import org.jooq.DSLContext
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import java.time.Clock
+import java.time.Duration
 import com.dynokore.gst.evidence.application.digest.MaxRetention as DigestMaxRetention
 
 /**
@@ -49,4 +63,45 @@ class RetentionConfiguration {
     @ConditionalOnMissingBean(DigestMaxRetention::class)
     fun evidenceDigestMaxRetention(platform: PlatformMaxRetention): DigestMaxRetention =
         DigestMaxRetention { platform.readIndependently { it.period() } }
+
+    /** The readers of the deletion use case over the request's tenant-bound jOOQ context. */
+    @Bean
+    fun jooqRetentionRecords(
+        dsl: DSLContext,
+        effective: EffectiveRetention,
+        clock: Clock,
+    ): JooqRetentionRecords = JooqRetentionRecords(dsl, effective, clock)
+
+    @Bean
+    fun partitionDeletionOperations(dsl: DSLContext): JooqPartitionDeletionOperations =
+        JooqPartitionDeletionOperations(dsl)
+
+    @Bean
+    fun deletionAudit(writer: AuditWriter): DeletionAudit = OutboxDeletionAudit(writer)
+
+    @Bean
+    fun partitionLifecycle(
+        dsl: DSLContext,
+        store: ObjectStore,
+        clock: Clock,
+    ): PartitionLifecycle = JooqPartitionLifecycle(dsl, store, clock)
+
+    @Bean
+    @Suppress("LongParameterList") // one port per fact of the ruled design
+    fun deleteAtRetentionEnd(
+        records: JooqRetentionRecords,
+        audit: DeletionAudit,
+        lifecycle: PartitionLifecycle,
+        clock: Clock,
+    ): DeleteAtRetentionEnd =
+        DeleteAtRetentionEnd(records, records, records, records, records, records, audit, lifecycle, clock)
+
+    /**
+     * `evidence.retention.deletion-status-visibility` (ISO-8601 duration, default P7D, floor P7D): how long the status
+     * of a deletion is answered after it ended (API-17). A lower value stops the start (fail closed).
+     */
+    @Bean
+    fun partitionDeletionVisibility(
+        @Value("\${evidence.retention.deletion-status-visibility:P7D}") period: Duration,
+    ): PartitionDeletionVisibility = PartitionDeletionVisibility(period)
 }

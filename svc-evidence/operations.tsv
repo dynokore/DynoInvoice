@@ -11,8 +11,8 @@ operation	getIntegrityStatus	UNASSIGNED
 operation	getEvidenceRetrieval	UNASSIGNED
 operation	createAuditPackExport	UNASSIGNED
 operation	getAuditPackExport	UNASSIGNED
-operation	deleteAtRetentionEnd	UNASSIGNED
-operation	getPartitionDeletion	UNASSIGNED
+operation	deleteAtRetentionEnd	INV-T-22971
+operation	getPartitionDeletion	INV-T-22971
 operation	recordSecurityCase	UNASSIGNED
 operation	importPriorEvidence	UNASSIGNED
 operation	openPrivacyCase	UNASSIGNED

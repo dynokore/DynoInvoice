@@ -67,6 +67,7 @@ class SeparableStoreTest {
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
             "offboarding_export_job.scope" to "TENANT",
             "offboarding_export_job.state" to "REQUESTED",
+            "partition_deletion_operation.state" to "RUNNING", // completed_at stays unset: null if and only if RUNNING
             "job_run.status" to "SUCCEEDED",
             "job_run.trigger" to "SCHEDULED",
             "job_pause.paused_until" to OffsetDateTime.of(2026, 3, 21, 10, 15, 30, 123_000_000, ZoneOffset.UTC),
@@ -112,6 +113,8 @@ class SeparableStoreTest {
             "legal_hold.released_at",
             "legal_hold.released_by",
             "legal_hold.release_confirmed_by",
+            // a RUNNING operation has no completion (the shape check of `partition_deletion_operation`)
+            "partition_deletion_operation.completed_at",
         )
 
     /**
@@ -252,6 +255,7 @@ class SeparableStoreTest {
                         .toString()
                 unitSamples["retention_notice.partition_id"] = unit
                 unitSamples["retention_approval.partition_id"] = unit
+                unitSamples["partition_deletion_operation.partition_id"] = unit
                 // the dead letters are written through a sys function, never by the runtime login itself
                 // the registry row comes first: the member, notice and approval rows refer to it
                 written.sortedBy { if (it.name == "retention_partition") "" else it.name }.associate { table ->

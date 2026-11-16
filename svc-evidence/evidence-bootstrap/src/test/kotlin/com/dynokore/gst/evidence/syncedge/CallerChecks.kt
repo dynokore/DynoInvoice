@@ -148,8 +148,12 @@ class CallerChecks(
                 // an entityRef body field (entity-ref-operations.tsv of platform-build 0.24 and later): the entity gate
                 // refuses the test's end-user token before the handler that is not built yet (501 until its task)
                 "POST /internal/v1/evidence/legal-holds" to FORBIDDEN,
+                // INV-T-22971: the partition of the path does not exist, so both handlers answer 404 SRT-005
+                "POST /internal/v1/evidence/partitions/{partitionId}/deletions" to NOT_FOUND,
+                "GET /internal/v1/evidence/partitions/{partitionId}/deletion" to NOT_FOUND,
             )
         private const val FORBIDDEN = 403
+        private const val NOT_FOUND = 404
         private const val OK = 200
         private const val NOT_IMPLEMENTED = 501
         const val TOKEN = "X-Workload-Token"
