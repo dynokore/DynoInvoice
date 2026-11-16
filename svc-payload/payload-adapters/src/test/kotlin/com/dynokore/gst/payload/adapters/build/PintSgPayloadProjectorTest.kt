@@ -44,9 +44,76 @@ class PintSgPayloadProjectorTest {
         text shouldContain "201888888A"
     }
 
+    private fun entry(
+        type: String,
+        term: String = "IBT-022",
+    ) = """{"aggregateType":"$type","businessTermId":"$term","literal":"$type"}"""
+
+    private val fullPack = "{\"aggregateDefaults\":[${entry("POS")},${entry("STI")},${entry("PCP")}]}"
+
+    private fun aggregate(
+        type: String?,
+        pack: String = fullPack,
+    ): Projection {
+        val doc =
+            if (type == null) document() else document().replaceFirst("{", "{\"aggregateType\":{\"value\":\"$type\"},")
+        val p = PintSgPayloadProjector({ "PINT_SG" }, { ActivePackRead("TEST", MdePackOffNetworkPrefix("{}"), pack) })
+        return p.project(BuildInput("E-001", doc, "AGG-2026-0001", "SALE", true), "TYPE_2")
+    }
+
+    private fun notes(text: String): List<String> =
+        Regex("<(?:\\w+:)?Note(?:\\s[^>]*)?>([^<]*)</").findAll(text).map { it.groupValues[1] }.toList()
+
+    private fun assertNote(
+        projection: Projection,
+        literal: String,
+    ) {
+        val text = xml(projection)
+        notes(text) shouldBe listOf(literal)
+    }
+
     @Test
-    fun `INV-AC-23006 projector refuses an aggregate document`() {
-        shouldThrow<IllegalStateException> { projector.project(input(aggregateId = "AGG-2026-0001"), "TYPE_2") }
+    fun `INV-AC-23492 POS aggregate gets the literal POS as its note`() = assertNote(aggregate("POS"), "POS")
+
+    @Test
+    fun `INV-AC-23492 STI aggregate gets the literal STI as its note`() = assertNote(aggregate("STI"), "STI")
+
+    @Test
+    fun `INV-AC-23492 PCP aggregate gets the literal PCP as its note`() = assertNote(aggregate("PCP"), "PCP")
+
+    @Test
+    fun `INV-AC-23492 pack without an entry blocks the build`() {
+        val noSti = "{\"aggregateDefaults\":[${entry("POS")}]}"
+        (aggregate("STI", noSti) as Projection.Blocked).validationTrace shouldContain "AGGREGATE_LITERAL_ABSENT"
+        val twice = "{\"aggregateDefaults\":[${entry("POS")},${entry("POS")}]}"
+        (aggregate("POS", twice) as Projection.Blocked).validationTrace shouldContain "AGGREGATE_LITERAL_INVALID"
+    }
+
+    @Test
+    fun `INV-AC-23492 other business term blocks the build`() {
+        val other = "{\"aggregateDefaults\":[${entry("STI", "IBT-023")}]}"
+        (aggregate("STI", other) as Projection.Blocked).validationTrace shouldContain
+            "AGGREGATE_LITERAL_TERM_UNSUPPORTED"
+        val wrongLiteral =
+            "{\"aggregateDefaults\":[{\"aggregateType\":\"POS\",\"businessTermId\":\"IBT-022\",\"literal\":\"STI\"}]}"
+        (aggregate("POS", wrongLiteral) as Projection.Blocked).validationTrace shouldContain "AGGREGATE_LITERAL_INVALID"
+    }
+
+    @Test
+    fun `INV-AC-23492 aggregate without aggregate type blocks the build`() {
+        (aggregate(null) as Projection.Blocked).validationTrace shouldContain "AGGREGATE_TYPE_ABSENT"
+    }
+
+    @Test
+    fun `INV-AC-23492 ordinary invoice keeps its own note`() {
+        val text =
+            xml(
+                PintSgPayloadProjector(
+                    { "PINT_SG" },
+                    { ActivePackRead("TEST", MdePackOffNetworkPrefix("{}"), fullPack) },
+                ).project(input(), "TYPE_2"),
+            )
+        notes(text) shouldBe listOf("Thanks")
     }
 
     @Test

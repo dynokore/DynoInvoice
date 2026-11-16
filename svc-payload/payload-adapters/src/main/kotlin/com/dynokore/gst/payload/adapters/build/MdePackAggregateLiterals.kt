@@ -25,8 +25,18 @@ class MdePackAggregateLiterals(
         val defaults = JsonMapper().readTree(contentsJson).path("aggregateDefaults")
         if (defaults.isMissingNode || defaults.isNull) return null
         if (!defaults.isArray) throw AggregateLiteralParseException("aggregateDefaults must be an array")
-        val entries = defaults.map(::entry)
-        val duplicated = entries.groupingBy { it.first }.eachCount().filterValues { it > 1 }.keys
+        val entries =
+            defaults
+                .values()
+                .asSequence()
+                .map(::entry)
+                .toList()
+        val duplicated =
+            entries
+                .groupingBy { it.first }
+                .eachCount()
+                .filterValues { it > 1 }
+                .keys
         if (duplicated.isNotEmpty()) {
             throw AggregateLiteralParseException("aggregateDefaults has two entries for $duplicated")
         }

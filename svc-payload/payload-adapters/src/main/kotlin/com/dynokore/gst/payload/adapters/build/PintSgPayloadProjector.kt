@@ -25,8 +25,9 @@ import java.time.format.DateTimeParseException
 
 /**
  * Projects the stored canonical document of an ordinary document to PINT-SG XML through the builders of
- * [DocumentBuilderRegistry.standard]. A document of an aggregate (non-null `aggregateId`) is not built here: its MDE
- * placeholder literals are a following slice, so it throws [IllegalStateException] and nothing is published. A null
+ * [DocumentBuilderRegistry.standard]. A document of an aggregate (non-null `aggregateId`) gets the placeholder literal
+ * of its aggregate type from the active MDE pack as its invoice note (IBT-022), replacing any note; a pack that gives
+ * none, a term other than IBT-022 or an invalid entry blocks the build. A null
  * direction is blocked, never defaulted. [activePack] answers the one read of the active MDE pack of a build (its
  * version, off-network prefix source and contents), or null while none is active, which is [BuildNotReady].
  */
@@ -39,14 +40,12 @@ class PintSgPayloadProjector(
     override fun project(
         input: BuildInput,
         submissionType: String,
-    ): Projection {
-        check(input.aggregateId == null) { "an aggregate document is built by a following slice" }
-        return try {
+    ): Projection =
+        try {
             build(input, submissionType)
         } catch (e: Blocking) {
             Projection.Blocked(e.trace, e.packVersion)
         }
-    }
 
     private fun build(
         input: BuildInput,
@@ -58,10 +57,16 @@ class PintSgPayloadProjector(
         val family = SpecificationFamily.valueOf(families.familyOf(input.familyRequest()))
         val pack = activePack() ?: throw BuildNotReady("no active MDE pack")
         return namingPack(pack.version) {
+            val header =
+                if (input.aggregateId == null) {
+                    DocumentFields.header(document)
+                } else {
+                    DocumentFields.header(document, aggregateNote(document, pack.contents))
+                }
             val result =
                 builderOf(BuilderKey(family, typeCode)).build(
                     parties(document),
-                    DocumentFields.header(document),
+                    header,
                     Direction.valueOf(direction),
                     family,
                     SubmissionType.valueOf(submissionType),
@@ -82,6 +87,16 @@ class PintSgPayloadProjector(
             e.packVersion = version
             throw e
         }
+
+    private fun aggregateNote(
+        document: JsonNode,
+        contents: String,
+    ): String {
+        val type =
+            DocumentFields.text(document.path("aggregateType").path("value"))
+                ?: throw blocking(AGGREGATE_TYPE_ABSENT)
+        return AggregateNoteRule(contents) { reason, detail -> blocking(reason, *detail) }.noteOf(type)
+    }
 
     private fun typeCodeOf(document: JsonNode): String =
         DocumentFields.text(document.path("documentTypeCode").path("value")) ?: throw blocking(TYPE_CODE_ABSENT)
@@ -152,6 +167,10 @@ class PintSgPayloadProjector(
     companion object {
         const val DIRECTION_ABSENT = "DIRECTION_ABSENT"
         const val TYPE_CODE_ABSENT = "DOCUMENT_TYPE_CODE_ABSENT"
+        const val AGGREGATE_TYPE_ABSENT = "AGGREGATE_TYPE_ABSENT"
+        const val AGGREGATE_LITERAL_ABSENT = "AGGREGATE_LITERAL_ABSENT"
+        const val AGGREGATE_LITERAL_INVALID = "AGGREGATE_LITERAL_INVALID"
+        const val AGGREGATE_LITERAL_TERM_UNSUPPORTED = "AGGREGATE_LITERAL_TERM_UNSUPPORTED"
         const val PARTY_ABSENT = "PARTY_IDENTIFIER_ABSENT"
     }
 }
@@ -166,11 +185,14 @@ private object DocumentFields {
         return if (ids.size == TRIPLE_SIZE) IdentityTriple(ids[0], ids[1], ids[2]) else null
     }
 
-    fun header(document: JsonNode): DocumentHeaderInput =
+    fun header(
+        document: JsonNode,
+        note: String? = text(document.path("invoiceNote").path("value")),
+    ): DocumentHeaderInput =
         DocumentHeaderInput(
             documentNumber = text(document.path("documentNumber").path("value")),
             documentDate = date(text(document.path("documentDate").path("value"))),
-            invoiceNote = text(document.path("invoiceNote").path("value")),
+            invoiceNote = note,
         )
 
     fun date(text: String?): LocalDate? =
@@ -181,4 +203,35 @@ private object DocumentFields {
         }
 
     fun text(node: JsonNode): String? = if (node.isString) node.asString() else null
+}
+
+/** The note an aggregate of [type] gets from the pack [contents]; [fail] makes the blocking exception of a reason. */
+private class AggregateNoteRule(
+    private val contents: String,
+    private val fail: (String, Array<Pair<String, String>>) -> Throwable,
+) {
+    fun noteOf(type: String): String {
+        val entry = literalOf(type)
+        if (entry.businessTermId != NOTE_TERM) {
+            throw fail(
+                PintSgPayloadProjector.AGGREGATE_LITERAL_TERM_UNSUPPORTED,
+                arrayOf("businessTermId" to entry.businessTermId),
+            )
+        }
+        if (entry.literal != type) {
+            throw fail(PintSgPayloadProjector.AGGREGATE_LITERAL_INVALID, arrayOf("aggregateType" to type))
+        }
+        return entry.literal
+    }
+
+    private fun literalOf(type: String): AggregateLiteral =
+        try {
+            MdePackAggregateLiterals(contents).literalFor(type)
+        } catch (e: AggregateLiteralParseException) {
+            throw fail(PintSgPayloadProjector.AGGREGATE_LITERAL_INVALID, arrayOf("detail" to (e.message ?: "")))
+        } ?: throw fail(PintSgPayloadProjector.AGGREGATE_LITERAL_ABSENT, arrayOf("aggregateType" to type))
+
+    private companion object {
+        const val NOTE_TERM = "IBT-022"
+    }
 }

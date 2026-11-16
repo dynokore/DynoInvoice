@@ -36,8 +36,9 @@ class MdePackAggregateLiteralsTest {
             MdePackAggregateLiterals(pack(entry("POS"), entry("POS"))).literalFor("STI")
         }
         shouldThrow<AggregateLiteralParseException> {
-            MdePackAggregateLiterals("""{"aggregateDefaults":[{"aggregateType":"POS","businessTermId":" ","literal":"POS"}]}""")
-                .literalFor("POS")
+            MdePackAggregateLiterals(
+                """{"aggregateDefaults":[{"aggregateType":"POS","businessTermId":" ","literal":"POS"}]}""",
+            ).literalFor("POS")
         }
     }
 }
