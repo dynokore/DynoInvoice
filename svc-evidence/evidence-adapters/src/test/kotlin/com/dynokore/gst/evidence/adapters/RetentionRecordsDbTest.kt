@@ -31,7 +31,6 @@ import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
 import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
-
 import org.jooq.impl.DefaultExecuteListenerProvider
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
@@ -116,12 +115,16 @@ class RetentionRecordsDbTest {
                 val statements =
                     c
                         .prepareStatement(
-                            "select 'drop table evidence.' || m.partition_table from evidence.retention_partition_member m " +
+                            "select 'drop table evidence.' || m.partition_table " +
+                                "from evidence.retention_partition_member m " +
                                 "join pg_class t on t.relname = m.partition_table " +
-                                "and t.relnamespace = 'evidence'::regnamespace where m.tenant_id = ? and not t.relispartition",
+                                "and t.relnamespace = 'evidence'::regnamespace " +
+                                "where m.tenant_id = ? and not t.relispartition",
                         ).use { st ->
                             st.setObject(1, u.tenant)
-                            st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
+                            st.executeQuery().use { rs ->
+                                generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                            }
                         }
                 c.createStatement().use { s -> statements.forEach { s.execute(it) } }
             }
@@ -174,7 +177,7 @@ class RetentionRecordsDbTest {
         notice: Boolean = true,
         approvals: Int = 2,
         hold: Boolean = false,
-    ): Unit {
+    ) {
         val u = Unit(period = period)
         used += u
         runtime(u.tenant) { c ->
@@ -191,7 +194,8 @@ class RetentionRecordsDbTest {
         if (notice) {
             statement(
                 u.tenant,
-                "insert into evidence.retention_notice values (?, ?, now() - interval '90 days', 30, now() - interval '60 days')",
+                "insert into evidence.retention_notice values " +
+                    "(?, ?, now() - interval '90 days', 30, now() - interval '60 days')",
                 u.tenant,
                 id,
             )
@@ -208,7 +212,8 @@ class RetentionRecordsDbTest {
         if (hold) {
             statement(
                 u.tenant,
-                "insert into evidence.legal_hold (tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
+                "insert into evidence.legal_hold " +
+                    "(tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
                     "values (?, ?, ?, 'audit', 'ACTIVE', now(), 'u-hold')",
                 u.tenant,
                 u.entity,
@@ -221,7 +226,8 @@ class RetentionRecordsDbTest {
     private fun partitionId(u: Unit): String =
         checkNotNull(
             superuser(
-                "select partition_id from evidence.retention_partition where tenant_id = ? and entity_ref = ? and period_from = ?",
+                "select partition_id from evidence.retention_partition " +
+                    "where tenant_id = ? and entity_ref = ? and period_from = ?",
                 u.tenant,
                 u.entity,
                 u.period,
@@ -239,6 +245,18 @@ class RetentionRecordsDbTest {
                 ),
             ).toInt()
         }
+
+    private fun lastHash(
+        u: Unit,
+        table: String,
+    ): String? =
+        superuser(
+            "select content_hash from evidence.$table where tenant_id = ? and entity_ref = ? and period_ref = ? " +
+                "order by seq desc limit 1",
+            u.tenant,
+            u.entity,
+            u.period,
+        )
 
     private fun state(u: Unit): String =
         checkNotNull(superuser("select state from evidence.retention_partition where partition_id = ?", partitionId(u)))
@@ -298,7 +316,10 @@ class RetentionRecordsDbTest {
                 runtime(u.tenant) { c ->
                     val recording =
                         DSL.using(
-                            DSL.using(c, SQLDialect.POSTGRES).configuration().derive(DefaultExecuteListenerProvider(recorder)),
+                            DSL
+                                .using(c, SQLDialect.POSTGRES)
+                                .configuration()
+                                .derive(DefaultExecuteListenerProvider(recorder)),
                         )
                     val records = JooqRetentionRecords(recording, effective(u.tenant), clock)
                     DeleteAtRetentionEnd(
@@ -328,7 +349,7 @@ class RetentionRecordsDbTest {
         val before = rows(u)
         before.values.all { it == 2 } shouldBe true
         val tails =
-            tables.map { "$it=" + superuser("select content_hash from evidence.$it where tenant_id = ? and entity_ref = ? and period_ref = ? order by seq desc limit 1", u.tenant, u.entity, u.period) }
+            tables.map { "$it=" + lastHash(u, it) }
         val audit = Audited()
         val recorder = Recorder()
         val outcome = delete(u, recorder, store, audit)
@@ -409,7 +430,8 @@ class RetentionRecordsDbTest {
         PeriodText.range("2026-02") shouldBe (LocalDate.of(2026, 2, 1) to LocalDate.of(2026, 2, 28))
         PeriodText.range("2026-02-03") shouldBe (LocalDate.of(2026, 2, 3) to LocalDate.of(2026, 2, 3))
         PeriodText.range("2026") shouldBe (LocalDate.of(2026, 1, 1) to LocalDate.of(2026, 12, 31))
-        listOf("P1", "2026-Q5", "2026-Q0", "2026-13", "2026-02-30", "2026-q1", " 2026", "2026-Q1\n", "", "20261").forEach {
+        val notPeriods = listOf("P1", "2026-Q5", "2026-Q0", "2026-13", "2026-02-30", "2026-q1", " 2026")
+        (notPeriods + listOf("2026-Q1\n", "", "20261")).forEach {
             PeriodText.range(it) shouldBe null
         }
     }

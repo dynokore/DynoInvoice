@@ -96,7 +96,12 @@ class RetentionRefusalAdvice {
 
     @ExceptionHandler(DeletionConflict::class)
     fun conflict(conflict: DeletionConflict): ResponseEntity<String> {
-        val envelope = RetentionController.conflictEnvelope(conflict.reason, conflict.chainVerificationFailed, correlation())
+        val envelope =
+            RetentionController.conflictEnvelope(
+                conflict.reason,
+                conflict.chainVerificationFailed,
+                correlation(),
+            )
         return ResponseEntity
             .status(HttpStatus.CONFLICT)
             .contentType(MediaType.APPLICATION_PROBLEM_JSON)
@@ -137,6 +142,7 @@ open class RetentionController(
     private val visibility: PartitionDeletionVisibility,
     private val waitMillis: Long = CONTRACT_TIMEOUT_MILLIS,
 ) : RetentionApi {
+    @Suppress("TooGenericExceptionCaught") // the one failure the 503 handler answers: any read failure
     override fun getMaxEvidenceRetention(): ResponseEntity<MaxEvidenceRetention> {
         val duration =
             try {
@@ -153,46 +159,56 @@ open class RetentionController(
     ): ResponseEntity<DeletionResult> {
         val caller = caller()
         val tenant = checkNotNull(caller.tenant)
-        val partition =
-            inTenant(tenant) { registry.find(partitionId) } ?: throw RetentionRefusal(ClosedErrorCode.NOT_FOUND)
+        admit(tenant, caller, partitionId)
+        val operation =
+            inTenant(tenant) { operations.claim(tenant, partitionId, caller.actor, clock.instant()) }
+                ?: conflict(RUNNING_REASON)
+        val outcome = CompletableFuture<DeleteAtRetentionEndResult>()
+        Thread.ofVirtual().name("partition-deletion").start { run(tenant, caller.actor, operation, outcome) }
+        return respond(operation, outcome)
+    }
+
+    /** The partition exists, the caller holds the key for its entity, and it is not deleted yet. */
+    private fun admit(
+        tenant: TenantId,
+        caller: EndUserPrincipal,
+        partitionId: String,
+    ) {
+        val partition = inTenant(tenant) { registry.find(partitionId) } ?: refuse(ClosedErrorCode.NOT_FOUND)
         val request =
             AuthorizationRequest(tenant, Principal(caller.actor, PrincipalKind.HUMAN), partition.entityRef, REQUEST_KEY)
         if (!replica.decide(request, Deadline.after(DECISION_BUDGET, clock)).allowed) {
-            throw RetentionRefusal(ClosedErrorCode.ACCESS_DENIED)
+            refuse(ClosedErrorCode.ACCESS_DENIED)
         }
-        if (partition.state == PartitionState.DROPPED) {
-            throw DeletionConflict(DeleteAtRetentionEndResult.ALREADY_DELETED.name)
-        }
-        val operation =
-            inTenant(tenant) { operations.claim(tenant, partitionId, caller.actor, clock.instant()) }
-                ?: throw DeletionConflict(RUNNING_REASON)
-        val outcome = CompletableFuture<DeleteAtRetentionEndResult>()
-        Thread.ofVirtual().name("partition-deletion").start { run(tenant, caller.actor, operation, outcome) }
+        if (partition.state == PartitionState.DROPPED) conflict(DeleteAtRetentionEndResult.ALREADY_DELETED.name)
+    }
+
+    private fun respond(
+        operation: DeletionOperation,
+        outcome: CompletableFuture<DeleteAtRetentionEndResult>,
+    ): ResponseEntity<DeletionResult> {
         val result =
             try {
                 outcome.get(waitMillis, TimeUnit.MILLISECONDS)
             } catch (_: TimeoutException) {
                 return running(operation)
             } catch (failure: ExecutionException) {
-                log.error("the deletion of {} failed", partitionId, failure.cause)
-                throw RetentionRefusal(ClosedErrorCode.INTERNAL_ERROR)
+                log.error("the deletion of {} failed", operation.partitionId, failure.cause)
+                refuse(ClosedErrorCode.INTERNAL_ERROR)
             }
         return when (result) {
             DeleteAtRetentionEndResult.DELETED -> {
                 val at = clock.instant().atOffset(ZoneOffset.UTC)
-                ResponseEntity.ok(DeletionResult(partitionId, DeletionResult.Status.DELETED, at))
+                ResponseEntity.ok(DeletionResult(operation.partitionId, DeletionResult.Status.DELETED, at))
             }
 
             DeleteAtRetentionEndResult.NOT_FOUND -> {
-                throw RetentionRefusal(ClosedErrorCode.NOT_FOUND)
-            }
-
-            DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED -> {
-                throw DeletionConflict(result.name, chainVerificationFailed = true)
+                refuse(ClosedErrorCode.NOT_FOUND)
             }
 
             else -> {
-                throw DeletionConflict(result.name)
+                val chain = result == DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED
+                conflict(result.name, chainVerificationFailed = chain)
             }
         }
     }
@@ -200,13 +216,21 @@ open class RetentionController(
     override fun getPartitionDeletion(partitionId: String): ResponseEntity<DeletionStatus> {
         val caller = caller()
         val tenant = checkNotNull(caller.tenant)
-        val operation =
-            inTenant(tenant) { operations.latest(tenant, partitionId) } ?: throw RetentionRefusal(ClosedErrorCode.NOT_FOUND)
-        if (operation.starterUserId != caller.actor) throw RetentionRefusal(ClosedErrorCode.ACCESS_DENIED)
-        val kept = (operation.completedAt ?: operation.startedAt).plus(visibility.period)
-        if (!clock.instant().isBefore(kept)) throw RetentionRefusal(ClosedErrorCode.NOT_FOUND)
-        return ResponseEntity.ok(status(operation))
+        val operation = inTenant(tenant) { operations.latest(tenant, partitionId) }
+        val kept = operation?.let { (it.completedAt ?: it.startedAt).plus(visibility.period) }
+        return when {
+            operation == null || kept == null || !clock.instant().isBefore(kept) -> refuse(ClosedErrorCode.NOT_FOUND)
+            operation.starterUserId != caller.actor -> refuse(ClosedErrorCode.ACCESS_DENIED)
+            else -> ResponseEntity.ok(status(operation))
+        }
     }
+
+    private fun refuse(code: ClosedErrorCode): Nothing = throw RetentionRefusal(code)
+
+    private fun conflict(
+        reason: String,
+        chainVerificationFailed: Boolean = false,
+    ): Nothing = throw DeletionConflict(reason, chainVerificationFailed)
 
     /** The worker: the deletion in a tenant transaction, then the row ends in one of its own; the outcome follows. */
     @Suppress("TooGenericExceptionCaught") // any failure of the worker ends the row FAILED and fails the call
@@ -267,7 +291,8 @@ open class RetentionController(
             }
 
             JooqPartitionDeletionOperations.SUCCEEDED -> {
-                val result = DeletionResult(operation.partitionId, DeletionResult.Status.DELETED, checkNotNull(completed))
+                val result =
+                    DeletionResult(operation.partitionId, DeletionResult.Status.DELETED, checkNotNull(completed))
                 DeletionStatus(operation.partitionId, OperationState.SUCCEEDED, started, completed, result)
             }
 
@@ -292,7 +317,13 @@ open class RetentionController(
         return ErrorEnvelope(
             type = URI.create(Problems.typeOf(code)),
             title = if (chain) chainCode().condition else closed?.title ?: ClosedErrorCode.INTERNAL_ERROR.title,
-            status = if (chain) HttpStatus.CONFLICT.value() else closed?.httpStatus ?: HttpStatus.INTERNAL_SERVER_ERROR.value(),
+            status =
+                if (chain) {
+                    HttpStatus.CONFLICT.value()
+                } else {
+                    closed?.httpStatus
+                        ?: HttpStatus.INTERNAL_SERVER_ERROR.value()
+                },
             code = code,
             correlationId = MDC.get(CORRELATION_ID) ?: "http:${UUID.randomUUID()}",
             detail = reason,
@@ -302,8 +333,7 @@ open class RetentionController(
     private fun caller(): EndUserPrincipal {
         val caller =
             requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
-        if (caller?.tenant == null) throw RetentionRefusal(ClosedErrorCode.UNAUTHENTICATED)
-        return caller
+        return caller?.takeIf { it.tenant != null } ?: refuse(ClosedErrorCode.UNAUTHENTICATED)
     }
 
     /**
@@ -317,7 +347,13 @@ open class RetentionController(
         var outcome: Result<T>? = null
         val worker =
             Thread.ofVirtual().name("partition-deletion-tx").start {
-                outcome = runCatching { scope.bind(tenant, scope.workloadPrincipal) { scope.transactions.inTransaction(block) } }
+                outcome =
+                    runCatching {
+                        scope.bind(
+                            tenant,
+                            scope.workloadPrincipal,
+                        ) { scope.transactions.inTransaction(block) }
+                    }
             }
         worker.join()
         return checkNotNull(outcome).getOrThrow()
@@ -364,7 +400,7 @@ open class RetentionController(
 
         private fun chainCode(): ErrorCode = ErrorCode.entries.single { it.code == CHAIN_CODE }
 
-        /** The 409 envelope of a deletion stop: the DEP-007 block, else SRT-008 (SRT-007 while running) with the result. */
+        /** The 409 envelope of a stop: the DEP-007 block, else SRT-008 (SRT-007 while running) with the result. */
         fun conflictEnvelope(
             reason: String,
             chainVerificationFailed: Boolean,
@@ -380,7 +416,14 @@ open class RetentionController(
                     code.disposition?.let { put("disposition", it.name) }
                     put("remediationOwner", code.owner)
                 } else {
-                    val closed = if (reason == RUNNING_REASON) ClosedErrorCode.IN_FLIGHT else ClosedErrorCode.STALE_AGGREGATE
+                    val closed =
+                        if (reason ==
+                            RUNNING_REASON
+                        ) {
+                            ClosedErrorCode.IN_FLIGHT
+                        } else {
+                            ClosedErrorCode.STALE_AGGREGATE
+                        }
                     put("type", Problems.typeOf(closed.code))
                     put("title", closed.title)
                     put("code", closed.code)

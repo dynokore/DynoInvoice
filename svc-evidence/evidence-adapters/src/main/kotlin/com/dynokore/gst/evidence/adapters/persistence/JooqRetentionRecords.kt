@@ -56,6 +56,7 @@ object PeriodText {
     private val quarter = Regex("""^(\d{4})-Q([1-4])$""")
     private val month = Regex("""^(\d{4})-(0[1-9]|1[0-2])$""")
     private val day = Regex("""^\d{4}-\d{2}-\d{2}$""")
+    private const val MONTHS_PER_QUARTER = 3
     private val year = Regex("""^\d{4}$""")
 
     /** The first and the last day of the period, or null when the text is not a period. */
@@ -65,8 +66,13 @@ object PeriodText {
         return try {
             when {
                 q != null -> {
-                    val first = LocalDate.of(q.groupValues[1].toInt(), (q.groupValues[2].toInt() - 1) * 3 + 1, 1)
-                    first to first.plusMonths(3).minusDays(1)
+                    val first =
+                        LocalDate.of(
+                            q.groupValues[1].toInt(),
+                            (q.groupValues[2].toInt() - 1) * MONTHS_PER_QUARTER + 1,
+                            1,
+                        )
+                    first to first.plusMonths(MONTHS_PER_QUARTER.toLong()).minusDays(1)
                 }
 
                 m != null -> {
@@ -74,11 +80,17 @@ object PeriodText {
                     first to first.plusMonths(1).minusDays(1)
                 }
 
-                day.matches(text) -> LocalDate.parse(text).let { it to it }
+                day.matches(text) -> {
+                    LocalDate.parse(text).let { it to it }
+                }
 
-                year.matches(text) -> LocalDate.of(text.toInt(), 1, 1).let { it to it.plusYears(1).minusDays(1) }
+                year.matches(text) -> {
+                    LocalDate.of(text.toInt(), 1, 1).let { it to it.plusYears(1).minusDays(1) }
+                }
 
-                else -> null
+                else -> {
+                    null
+                }
             }
         } catch (_: DateTimeParseException) {
             null
@@ -204,7 +216,13 @@ class JooqRetentionRecords(
             .map {
                 // a hold period this service cannot date is read as covering the partition: the stop is the safe side
                 val date = PeriodText.range(it.periodRef.req())?.first ?: periodFrom
-                LegalHold(checkNotNull(it.holdId).toString(), it.entityRef.req(), date, it.reason.req(), HoldStatus.ACTIVE)
+                LegalHold(
+                    checkNotNull(it.holdId).toString(),
+                    it.entityRef.req(),
+                    date,
+                    it.reason.req(),
+                    HoldStatus.ACTIVE,
+                )
             }
     }
 
@@ -212,27 +230,36 @@ class JooqRetentionRecords(
      * The end of the period range plus the greatest years of the three tiers (the longest: a shorter retention is the
      * unsafe direction, INV-Q-12043), or null when the period cannot be dated or any read fails.
      */
-    @Suppress("TooGenericExceptionCaught") // any failed read refuses the deletion: the end is then unknown
     override fun retentionEnd(
         tenant: String,
         partitionId: String,
     ): Instant? {
-        val id = uuid(tenant) ?: return null
-        return try {
-            val row =
-                dsl.selectFrom(p).where(p.PARTITION_ID.eq(partitionId), p.TENANT_ID.eq(id)).fetchOne() ?: return null
-            val last = PeriodText.range(row.periodFrom.req())?.second ?: return null
-            val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
-            val years = RetentionTier.entries.maxOf { effective.years(row.entityRef.req(), it, today) }
-            last
-                .plusDays(1)
-                .atStartOfDay(ZoneOffset.UTC)
-                .plusYears(years.toLong())
-                .toInstant()
+        val id = uuid(tenant)
+        return if (id == null) null else endOf(id, partitionId)
+    }
+
+    @Suppress("TooGenericExceptionCaught") // any failed read refuses the deletion: the end is then unknown
+    private fun endOf(
+        id: UUID,
+        partitionId: String,
+    ): Instant? =
+        try {
+            val row = dsl.selectFrom(p).where(p.PARTITION_ID.eq(partitionId), p.TENANT_ID.eq(id)).fetchOne()
+            val last = row?.let { PeriodText.range(it.periodFrom.req())?.second }
+            if (row == null || last == null) {
+                null
+            } else {
+                val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
+                val years = RetentionTier.entries.maxOf { effective.years(row.entityRef.req(), it, today) }
+                last
+                    .plusDays(1)
+                    .atStartOfDay(ZoneOffset.UTC)
+                    .plusYears(years.toLong())
+                    .toInstant()
+            }
         } catch (_: Exception) {
             null
         }
-    }
 
     override fun window(
         tenant: String,
@@ -267,23 +294,30 @@ class JooqRetentionRecords(
         tenant: String,
         partitionId: String,
     ): Boolean {
-        val id = uuid(tenant) ?: return false
-        val unit =
-            dsl.selectFrom(p).where(p.PARTITION_ID.eq(partitionId), p.TENANT_ID.eq(id)).fetchOne() ?: return false
+        val id = uuid(tenant)
+        val unit = id?.let { dsl.selectFrom(p).where(p.PARTITION_ID.eq(partitionId), p.TENANT_ID.eq(id)).fetchOne() }
+        return id != null && unit != null && noFailure(id, unit.entityRef.req(), unit.periodFrom.req())
+    }
+
+    private fun noFailure(
+        id: UUID,
+        entity: String,
+        period: String,
+    ): Boolean {
         val f = INTEGRITY_FAILURE
         val failed =
             dsl.fetchExists(
                 dsl
                     .selectOne()
                     .from(f)
-                    .where(f.TENANT_ID.eq(id), f.ENTITY_REF.eq(unit.entityRef.req()), f.PERIOD_REF.eq(unit.periodFrom.req())),
+                    .where(f.TENANT_ID.eq(id), f.ENTITY_REF.eq(entity), f.PERIOD_REF.eq(period)),
             )
         val r = INTEGRITY_RUN
         val latest =
             dsl
                 .select(r.RESULT)
                 .from(r)
-                .where(r.TENANT_ID.eq(id), r.ENTITY_REF.eq(unit.entityRef.req()), r.PERIOD_REF.eq(unit.periodFrom.req()))
+                .where(r.TENANT_ID.eq(id), r.ENTITY_REF.eq(entity), r.PERIOD_REF.eq(period))
                 .orderBy(r.RUN_AT.desc(), r.SEQ.desc())
                 .limit(1)
                 .fetchOne(r.RESULT)

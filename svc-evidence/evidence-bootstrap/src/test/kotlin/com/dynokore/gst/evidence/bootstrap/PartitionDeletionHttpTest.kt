@@ -119,12 +119,16 @@ class PartitionDeletionHttpTest {
                 val statements =
                     c
                         .prepareStatement(
-                            "select 'drop table evidence.' || m.partition_table from evidence.retention_partition_member m " +
+                            "select 'drop table evidence.' || m.partition_table " +
+                                "from evidence.retention_partition_member m " +
                                 "join pg_class t on t.relname = m.partition_table " +
-                                "and t.relnamespace = 'evidence'::regnamespace where m.tenant_id = ? and not t.relispartition",
+                                "and t.relnamespace = 'evidence'::regnamespace " +
+                                "where m.tenant_id = ? and not t.relispartition",
                         ).use { st ->
                             st.setObject(1, tenant)
-                            st.executeQuery().use { rs -> generateSequence { if (rs.next()) rs.getString(1) else null }.toList() }
+                            st.executeQuery().use { rs ->
+                                generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                            }
                         }
                 c.createStatement().use { s -> statements.forEach { s.execute(it) } }
             }
@@ -170,7 +174,8 @@ class PartitionDeletionHttpTest {
         tables.forEach {
             sql(
                 "insert into evidence.$it (id, tenant_id, entity_ref, period_ref, seq, evidence_type, content, " +
-                    "content_hash, previous_hash, recorded_at) values (gen_random_uuid(), ?, ?, ?, 1, 'X', ?, ?, null, now())",
+                    "content_hash, previous_hash, recorded_at) " +
+                    "values (gen_random_uuid(), ?, ?, ?, 1, 'X', ?, ?, null, now())",
                 tenant,
                 ENTITY,
                 period,
@@ -186,17 +191,24 @@ class PartitionDeletionHttpTest {
             )
         if (notice) {
             sql(
-                "insert into evidence.retention_notice values (?, ?, now() - interval '90 days', 30, now() - interval '60 days')",
+                "insert into evidence.retention_notice values " +
+                    "(?, ?, now() - interval '90 days', 30, now() - interval '60 days')",
                 tenant,
                 id,
             )
         }
         listOf("u-approver-1", "u-approver-2").forEach {
-            sql("insert into evidence.retention_approval values (?, ?, ?, 'retention.delete.approve', now())", tenant, id, it)
+            sql(
+                "insert into evidence.retention_approval values (?, ?, ?, 'retention.delete.approve', now())",
+                tenant,
+                id,
+                it,
+            )
         }
         if (hold) {
             sql(
-                "insert into evidence.legal_hold (tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
+                "insert into evidence.legal_hold " +
+                    "(tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
                     "values (?, ?, ?, 'audit', 'ACTIVE', now(), 'u-hold')",
                 tenant,
                 ENTITY,
@@ -253,7 +265,7 @@ class PartitionDeletionHttpTest {
     ): Pair<HttpResponse<String>, JsonNode> {
         val request =
             HttpRequest
-                .newBuilder(URI.create("http://localhost:$port/internal/v1/evidence/partitions/${f.partitionId}/$suffix"))
+                .newBuilder(URI.create("http://localhost:$port$PATH${f.partitionId}/$suffix"))
                 .header("Authorization", "Bearer ${TestIdentity.token(user, f.tenant)}")
                 .header("X-Workload-Token", "token-console-bff")
                 .header("Idempotency-Key", UUID.randomUUID().toString())
@@ -322,8 +334,14 @@ class PartitionDeletionHttpTest {
         val own = read(f)
         own.status() shouldBe 200
         own.second.get("state").asString() shouldBe "SUCCEEDED"
-        own.second.get("result").get("status").asString() shouldBe "DELETED"
-        own.second.get("result").get("partitionId").asString() shouldBe f.partitionId
+        own.second
+            .get("result")
+            .get("status")
+            .asString() shouldBe "DELETED"
+        own.second
+            .get("result")
+            .get("partitionId")
+            .asString() shouldBe f.partitionId
         val other = read(f, OTHER)
         other.status() shouldBe 403
         other.code() shouldBe "SRT-004"
@@ -410,9 +428,15 @@ class PartitionDeletionHttpTest {
         val accepted = checkNotNull(first)
         accepted.status() shouldBe 202
         accepted.second.get("state").asString() shouldBe "RUNNING"
-        accepted.first.headers().firstValue("Location").get() shouldBe
+        accepted.first
+            .headers()
+            .firstValue("Location")
+            .get() shouldBe
             "/internal/v1/evidence/partitions/${f.partitionId}/deletion"
-        accepted.first.headers().firstValue("Retry-After").isPresent shouldBe true
+        accepted.first
+            .headers()
+            .firstValue("Retry-After")
+            .isPresent shouldBe true
         // the starter reads RUNNING, another principal is refused
         read(f).second.get("state").asString() shouldBe "RUNNING"
         read(f, OTHER).status() shouldBe 403
@@ -429,7 +453,8 @@ class PartitionDeletionHttpTest {
         val f = fixture()
         val member =
             sql(
-                "select partition_table from evidence.retention_partition_member where partition_id = ? and chain_table = 'audit_log'",
+                "select partition_table from evidence.retention_partition_member " +
+                    "where partition_id = ? and chain_table = 'audit_log'",
                 f.partitionId,
             ).single().single()!!
         sql("alter table evidence.$member rename to ${member}_moved")
@@ -443,7 +468,10 @@ class PartitionDeletionHttpTest {
         failed[3] shouldBe "true"
         val status = read(f)
         status.second.get("state").asString() shouldBe "FAILED"
-        status.second.get("error").get("code").asString() shouldBe "SRT-010"
+        status.second
+            .get("error")
+            .get("code")
+            .asString() shouldBe "SRT-010"
         sql("alter table evidence.${member}_moved rename to $member")
         delete(f).status() shouldBe 200
         operations(f).map { it[0] } shouldBe listOf("FAILED", "SUCCEEDED")
@@ -470,14 +498,14 @@ class PartitionDeletionHttpTest {
         // the trigger refuses an update of an ended row for everyone: the period is moved back with it disabled
         EvidenceDb.superuser().use { c ->
             c.createStatement().use { s ->
-                s.execute("alter table evidence.partition_deletion_operation disable trigger partition_deletion_operation_running_only")
+                s.execute("alter table $OPERATION disable trigger $GUARD")
                 try {
                     s.execute(
-                        "update evidence.partition_deletion_operation set started_at = started_at - interval '8 days', " +
+                        "update $OPERATION set started_at = started_at - interval '8 days', " +
                             "completed_at = completed_at - interval '8 days' where tenant_id = '${f.tenant}'",
                     )
                 } finally {
-                    s.execute("alter table evidence.partition_deletion_operation enable trigger partition_deletion_operation_running_only")
+                    s.execute("alter table $OPERATION enable trigger $GUARD")
                 }
             }
         }
@@ -508,6 +536,9 @@ class PartitionDeletionHttpTest {
 
     private companion object {
         const val ENTITY = "ENT-A"
+        const val PATH = "/internal/v1/evidence/partitions/"
+        const val OPERATION = "evidence.partition_deletion_operation"
+        const val GUARD = "partition_deletion_operation_running_only"
         const val STARTER = "u-starter"
         const val OTHER = "u-other"
         const val REQUEST_ROLE = "platform.engineer"

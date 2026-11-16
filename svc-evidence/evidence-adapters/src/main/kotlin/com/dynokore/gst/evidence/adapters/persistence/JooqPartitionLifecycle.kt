@@ -75,7 +75,7 @@ class JooqPartitionLifecycle(
         val period: String,
     )
 
-    private fun readUnit(partitionId: String): Unit {
+    private fun readUnit(partitionId: String) {
         val p = RETENTION_PARTITION
         val row = dsl.selectFrom(p).where(p.PARTITION_ID.eq(partitionId)).fetchSingle()
         return Unit(row.tenantId.req(), row.entityRef.req(), row.periodFrom.req())
