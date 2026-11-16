@@ -3,16 +3,15 @@ package com.dynokore.gst.consoleBff.adapters
 import com.dynokore.platform.outboxandqueue.QueueSchema
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.Test
+import java.security.MessageDigest
 
 /**
  * The queue tables and the claim function of the library in `console_bff`, with forced tenant isolation on the queue
  * (INV-AC-22009; PostgreSQL forced row level security, least privilege, NIST SP 800-53 AC-6).
  */
 class QueueSubstrateTest {
-    private val migration =
-        checkNotNull(javaClass.getResource("/db/migration/V202611141200__console_bff_work_queue.sql")).readText()
-
     private fun <T> query(
         sql: String,
         read: (java.sql.ResultSet) -> T,
@@ -92,12 +91,52 @@ class QueueSubstrateTest {
     }
 
     @Test
-    fun `INV-AC-22009 the migration section equals the generator output`() {
+    fun `INV-AC-22009 the first work_queue migration file is unchanged`() {
+        val bytes = checkNotNull(javaClass.getResourceAsStream(FIRST)).use { it.readBytes() }
+        val hex =
+            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
+                "%02x".format(java.util.Locale.ROOT, it)
+            }
+        hex shouldBe "a74f6f88534b68ff7310e5910324cca5288b75c317b54037c735cb237e2fe674"
+    }
+
+    @Test
+    fun `INV-AC-23707 the drain order migration section equals the generator output`() {
+        val text = checkNotNull(javaClass.getResource(DRAIN)).readText()
         val section =
-            migration
-                .substringAfter(
-                    "-- BEGIN QueueSchema.ddl(\"console_bff\", \"console_bff_runtime\", \"console_bff_sys\")\n",
-                ).substringBefore("\n-- END QueueSchema.ddl")
-        section shouldBe QueueSchema.ddl(ConsoleDb.SCHEMA, ConsoleDb.RUNTIME, ConsoleDb.SYS)
+            text
+                .substringAfter("$BEGIN\n", "")
+                .substringBefore("\n-- END QueueSchema.drainOrderUpgradeDdl", "")
+        section shouldBe QueueSchema.drainOrderUpgradeDdl(ConsoleDb.SCHEMA, ConsoleDb.RUNTIME, ConsoleDb.SYS)
+    }
+
+    @Test
+    fun `INV-AC-23707 drain_tier and drain_rank have the expected shape and the sys role may select them`() {
+        val cols =
+            query(
+                "select column_name, data_type, is_nullable, column_default, " +
+                    "has_column_privilege('${ConsoleDb.SYS}', 'console_bff.work_queue', column_name, 'SELECT') " +
+                    "from information_schema.columns where table_schema = 'console_bff' " +
+                    "and table_name = 'work_queue' and column_name in ('drain_tier', 'drain_rank') " +
+                    "order by column_name",
+            ) { listOf(it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getBoolean(5)) }
+        cols shouldBe
+            listOf(
+                listOf("drain_rank", "integer", "YES", null, true),
+                listOf("drain_tier", "smallint", "NO", "3", true),
+            )
+    }
+
+    @Test
+    fun `INV-AC-23707 claim_due orders by drain tier, drain rank nulls last, then seq`() {
+        val def = query("select pg_get_functiondef('$claimDue'::regprocedure)") { it.getString(1) }.single()
+        def shouldContain "order by q.drain_tier, q.drain_rank nulls last, q.seq"
+    }
+
+    private companion object {
+        const val FIRST = "/db/migration/V202611141200__console_bff_work_queue.sql"
+        const val BEGIN =
+            "-- BEGIN QueueSchema.drainOrderUpgradeDdl(\"console_bff\", \"console_bff_runtime\", \"console_bff_sys\")"
+        const val DRAIN = "/db/migration/V202611161500__console_bff_work_queue_drain_order.sql"
     }
 }
