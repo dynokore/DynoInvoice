@@ -40,7 +40,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 private const val PLATFORM = "ffffffff-ffff-ffff-ffff-ffffffffffff"
-private const val REGISTER_ARGUMENTS = "uuid,text,text,text,text,date,date,text,text"
+private const val REGISTER_ARGUMENTS = "uuid,text,text,text,text,date,date,text,text,timestamp with time zone"
 
 private const val INSERT_TENANT_PACK =
     "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
@@ -298,6 +298,11 @@ class RegistryPostgresIT(
             "select pg_get_userbyid(proowner) as n from pg_proc " +
                 "where proname = 'register_platform_pack' and pronamespace = 'rules'::regnamespace",
         ) shouldBe setOf("rules_sys")
+        // the ten-parameter function: owner, SECURITY DEFINER and the fixed search_path (INV-T-4977, registry clock)
+        names(
+            "select pg_get_userbyid(proowner) || '|' || prosecdef || '|' || proconfig::text as n from pg_proc " +
+                "where pronamespace = 'rules'::regnamespace and proname = 'register_platform_pack' and pronargs = 10",
+        ) shouldBe setOf("rules_sys|true|{\"search_path=pg_catalog, rules, pg_temp\"}")
         probe.fetchValue(
             "select has_function_privilege('public', 'rules.register_platform_pack($REGISTER_ARGUMENTS)', 'execute')",
         ) shouldBe false

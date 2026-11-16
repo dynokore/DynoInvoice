@@ -824,7 +824,8 @@ class RulesConfiguration {
         transactions: TransactionRunner,
         registry: PersistedPackRegistry,
         emitter: PackEventEmitter,
-    ): PackImportStore = JooqPackImportStore(dsl, platform, transactions, registry, emitter)
+        clock: Clock,
+    ): PackImportStore = JooqPackImportStore(dsl, platform, transactions, registry, emitter, clock)
 
     @Bean
     fun packCurrencyStore(

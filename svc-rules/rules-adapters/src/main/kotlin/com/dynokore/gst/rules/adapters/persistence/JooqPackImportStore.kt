@@ -21,6 +21,7 @@ import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import tools.jackson.core.type.TypeReference
 import tools.jackson.databind.json.JsonMapper
+import java.time.Clock
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -36,6 +37,7 @@ class JooqPackImportStore(
     private val transactions: TransactionRunner,
     private val registry: PersistedPackRegistry,
     private val events: PackEventEmitter,
+    private val clock: Clock,
     private val json: JsonMapper = JsonMapper(),
 ) : PackImportStore {
     private val owner = TenantId.PLATFORM.value
@@ -172,6 +174,7 @@ class JooqPackImportStore(
                     DSL.`val`(m.effectiveTo, SQLDataType.LOCALDATE),
                     DSL.`val`(m.minEngineVersion, SQLDataType.CLOB),
                     DSL.`val`(null as String?, SQLDataType.CLOB),
+                    DSL.`val`(clock.instant().atOffset(ZoneOffset.UTC), SQLDataType.TIMESTAMPWITHTIMEZONE),
                 ),
             ).fetchOne()
     }
