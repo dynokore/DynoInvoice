@@ -45,9 +45,6 @@ class ArchiveVolumeContentColumnsTest {
             "config_setting.reason" to CONFIG_REASON,
             "config_installation_setting.reason" to CONFIG_REASON,
             "config_relaxation_acknowledgement.reason" to CONFIG_REASON,
-            "legal_hold.reason" to
-                "the justification of a legal hold placed by an operator, not archived evidence content; " +
-                "the hold record itself is the evidence of the hold",
         )
 
     private fun marked(connection: Connection): Set<String> =

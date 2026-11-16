@@ -1,6 +1,5 @@
 package com.dynokore.gst.evidence.retention
 
-import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.http.PlatformMaxRetention
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring.SCHEMA
@@ -147,8 +146,6 @@ class DigestRetentionBeanTest {
                     RecordKind.ACKNOWLEDGEMENT to EvidenceType.ACKNOWLEDGEMENT,
                     RecordKind.DECISION_TRACE to EvidenceType.DECISION_TRACE,
                 ).forEach { (kind, type) ->
-                    // the chain tables are partitioned: the unit gets its partition in the tenant's transaction
-                    RetentionPartitionFixture.createInBoundTransaction(dsl, kind.table, tenant.value, entity, period)
                     JdbcEvidenceLedger(dsl, SCHEMA, kind.table)
                         .append(tenant, EntityRef(entity), PeriodRef(period), type, """{"n":1}""".toByteArray())
                 }

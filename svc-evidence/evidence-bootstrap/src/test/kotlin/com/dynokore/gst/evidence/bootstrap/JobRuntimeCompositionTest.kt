@@ -1,6 +1,5 @@
 package com.dynokore.gst.evidence.bootstrap
 
-import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqAppliedStore
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.JobRun.Companion.JOB_RUN
@@ -247,14 +246,6 @@ class JobRuntimeCompositionTest {
         entity: String,
     ) = scope.bind(tenant, "svc:evidence-svc") {
         runner.inTransaction {
-            // the chain tables are partitioned: the unit of the record gets its partition in the tenant's transaction
-            RetentionPartitionFixture.createInBoundTransaction(
-                dsl,
-                RecordKind.EVIDENCE_PAYLOAD.table,
-                tenant.value,
-                entity,
-                "2026-Q1",
-            )
             val ledger = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, RecordKind.EVIDENCE_PAYLOAD.table)
             val record =
                 ledger.append(

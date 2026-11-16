@@ -53,13 +53,6 @@ class TenantPackageCandidatesDbTest {
     ) = tx(tenant) { dsl ->
         tables.keys.forEach { table ->
             entities.forEach { entity ->
-                dsl.fetch(
-                    "select evidence.create_retention_partition(" +
-                        "cast(? as regclass), ?, ?, '2026-Q1', '2026-Q1' || chr(1))",
-                    "evidence.$table",
-                    tenant,
-                    entity,
-                )
                 for (seq in 1..rows) {
                     dsl.execute(
                         "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +

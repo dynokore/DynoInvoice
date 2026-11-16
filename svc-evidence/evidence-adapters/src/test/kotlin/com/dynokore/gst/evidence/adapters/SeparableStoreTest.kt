@@ -75,25 +75,13 @@ class SeparableStoreTest {
                     .valueOf("P30DT0S"),
         )
 
-    /** Written by `create_retention_partition` for the sample chain rows, so read back instead of inserted. */
-    private val createdByPartitions = setOf("retention_partition", "retention_partition_member")
-
     /** The one foreign key of the schema: the category child row points at the `submission_index` row written here. */
     private val indexKey: Map<String, Any> =
         UUID.randomUUID().let { doc ->
             mapOf("submission_index.doc_uuid" to doc, "submission_index_category.doc_uuid" to doc)
         }
 
-    /**
-     * The retention registry (V21): the unit of the sample chain rows is created by the partition function, which
-     * writes its registry row and one member row per chain table; the notice and approval rows refer to that unit.
-     */
-    private val retentionKey: Map<String, Any> = mapOf("legal_hold.status" to "ACTIVE")
-
-    /** The id of the registry unit once the partition function has written it (the notice and approval FK). */
-    private val unitSamples = mutableMapOf<String, Any>()
-
-    private val constrained: Map<String, Any> = consumerConstrained + configConstrained() + indexKey + retentionKey
+    private val constrained: Map<String, Any> = consumerConstrained + configConstrained() + indexKey
 
     /** Columns left unset: a SECURITY case has no subject and no privacy facts (the shape check of `case_register`). */
     private val unset =
@@ -108,10 +96,6 @@ class SeparableStoreTest {
             "case_register.closure_outcome",
             "case_register.closure_basis",
             "case_register.notice_prompted_at",
-            // an ACTIVE hold has no release (the shape check of `legal_hold`)
-            "legal_hold.released_at",
-            "legal_hold.released_by",
-            "legal_hold.release_confirmed_by",
         )
 
     /**
@@ -154,7 +138,7 @@ class SeparableStoreTest {
 
     /** A value for a column from its Java type; a type this file does not know fails the test, never skips it. */
     private fun sample(field: TableField<*, *>): Any =
-        (unitSamples["${field.table?.name}.${field.name}"] ?: constrained["${field.table?.name}.${field.name}"])
+        constrained["${field.table?.name}.${field.name}"]
             ?: byType[field.dataType.type]?.invoke(field)
             ?: error(
                 "no sample value for ${field.name} of type ${field.dataType.type}; add one",
@@ -223,44 +207,23 @@ class SeparableStoreTest {
                 }
             written.forEach { table ->
                 val rows = after.getValue(table.name)
-                rows.map { fields(it) }.sortedBy { it.toString() } shouldBe
-                    before.getValue(table.name).map { fields(it) }.sortedBy { it.toString() }
+                rows.size shouldBe 1
+                fields(rows.single()) shouldBe fields(before.getValue(table.name))
             }
             after.keys shouldBe written.map { it.name }.toSet()
         }
     }
 
     /** One row in every table: by the runtime login where it may insert, else by the owner of the schema. */
-    private fun writeEveryTable(url: String): Map<String, List<Record>> =
+    private fun writeEveryTable(url: String): Map<String, Record> =
         bound(url) { connection ->
             val dsl = DSL.using(connection, SQLDialect.POSTGRES)
             val identity = identityColumns(dsl)
             EvidenceDb.superuserOf(url).use { superuser ->
                 val owner = DSL.using(superuser, SQLDialect.POSTGRES)
-                // the chain tables are partitioned: the sample unit (tenant, entity, period) gets its partition first
-                RetentionPartitionFixture.ensureRetentionPartitions(
-                    superuser,
-                    tenant,
-                    "evidence-entity_ref",
-                    "evidence-period_ref",
-                )
-                // the registry row the function wrote is the unit the notice and approval rows refer to
-                val unit =
-                    DSL
-                        .using(superuser, SQLDialect.POSTGRES)
-                        .fetchValue("select partition_id from evidence.retention_partition")
-                        .toString()
-                unitSamples["retention_notice.partition_id"] = unit
-                unitSamples["retention_approval.partition_id"] = unit
                 // the dead letters are written through a sys function, never by the runtime login itself
-                // the registry row comes first: the member, notice and approval rows refer to it
-                written.sortedBy { if (it.name == "retention_partition") "" else it.name }.associate { table ->
-                    table.name to
-                        if (table.name in createdByPartitions) {
-                            owner.selectFrom(table).fetch().toList()
-                        } else {
-                            listOf(insertOne(if (runtimeMayInsert(dsl, table)) dsl else owner, table, identity))
-                        }
+                written.sortedBy { it.name }.associate { table ->
+                    table.name to insertOne(if (runtimeMayInsert(dsl, table)) dsl else owner, table, identity)
                 }
             }
         }
