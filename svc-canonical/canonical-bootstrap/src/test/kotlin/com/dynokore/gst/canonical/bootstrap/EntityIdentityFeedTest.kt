@@ -24,6 +24,7 @@ import org.springframework.context.ApplicationContext
 import java.nio.file.Path
 import java.time.Instant
 import java.util.UUID
+import javax.sql.DataSource
 
 /** INV-AC-21532: the EntityProfileChanged entity identity feed over the migrated schema (handler bean, real store). */
 class EntityIdentityFeedTest {
@@ -36,11 +37,12 @@ class EntityIdentityFeedTest {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
+        val dataSource: DataSource = context.getBean(DataSource::class.java)
         val handler: EventHandler = context.getBean("entityIdentityHandler", EventHandler::class.java)
     }
 
-    private val i1 = UUID.fromString("11111111-1111-4111-8111-111111111111")
-    private val i2 = UUID.fromString("22222222-2222-4222-8222-222222222222")
+    private val i1 = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    private val i2 = UUID.fromString("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
 
     private fun data(
         id: String? = "\"$i1\"",
@@ -51,23 +53,25 @@ class EntityIdentityFeedTest {
         "{\"entityRef\":\"E-001\"$extra" + (if (id != null) ",\"entityId\":$id" else "") +
             ",\"node\":{\"kind\":\"$kind\"" + (if (version != null) ",\"structureVersion\":$version" else "") + "}}"
 
-    private fun envelope(dataJson: String) =
-        Envelope(
-            id = EventId("evt-1"),
-            source = "/gst/tenancy-svc",
-            type = EntityIdentityFeed.EVENT_TYPE,
-            subject = "E-001",
-            time = Instant.parse("2026-07-01T00:00:00Z"),
-            tenant = t1,
-            entity = EntityRef("E-001"),
-            docUuid = null,
-            transactionDate = null,
-            docSequence = null,
-            instanceId = "i-1",
-            correlation = CorrelationId("c-1"),
-            causation = CausationId("k-1"),
-            dataJson = dataJson,
-        )
+    private fun envelope(
+        dataJson: String,
+        tenant: TenantId = t1,
+    ) = Envelope(
+        id = EventId("evt-1"),
+        source = "/gst/tenancy-svc",
+        type = EntityIdentityFeed.EVENT_TYPE,
+        subject = "E-001",
+        time = Instant.parse("2026-07-01T00:00:00Z"),
+        tenant = tenant,
+        entity = EntityRef("E-001"),
+        docUuid = null,
+        transactionDate = null,
+        docSequence = null,
+        instanceId = "i-1",
+        correlation = CorrelationId("c-1"),
+        causation = CausationId("k-1"),
+        dataJson = dataJson,
+    )
 
     private fun run(
         dir: Path,
@@ -78,6 +82,15 @@ class EntityIdentityFeedTest {
 
     private fun Boundary.handle(dataJson: String): Result<HandleOutcome> =
         scope.bind(t1, actor) { runner.inTransaction { runCatching { handler.handle(envelope(dataJson)) } } }
+
+    private fun Boundary.handleAs(
+        tenant: TenantId,
+        dataJson: String,
+    ): Result<HandleOutcome> =
+        scope.bind(
+            tenant,
+            actor,
+        ) { runner.inTransaction { runCatching { handler.handle(envelope(dataJson, tenant)) } } }
 
     private fun Boundary.idOf(tenant: TenantId): UUID? =
         scope.bind(
@@ -166,6 +179,10 @@ class EntityIdentityFeedTest {
         b.handle(data(extra = ",\"tenantId\":\"${t2.value}\",\"tenantid\":\"${t2.value}\"")).getOrThrow()
         b.idOf(t1) shouldBe i1
         b.idOf(t2) shouldBe null
+        // The same entityRef of another tenant is its own row (the key carries tenant_id).
+        b.handleAs(t2, data(id = "\"$i2\"")).getOrThrow() shouldBe HandleOutcome.APPLIED
+        b.idOf(t1) shouldBe i1
+        b.idOf(t2) shouldBe i2
     }
 
     @Test
@@ -173,7 +190,17 @@ class EntityIdentityFeedTest {
         @TempDir dir: Path,
     ) = run(dir) { b ->
         fun priv(p: String) =
-            b.dsl.fetchValue("select has_table_privilege('canonical_runtime', 'canonical.entity_identity', '$p')")
+            b.dataSource.connection.use { c ->
+                c.createStatement().use { st ->
+                    st
+                        .executeQuery(
+                            "select has_table_privilege('canonical_runtime', 'canonical.entity_identity', '$p')",
+                        ).use {
+                            it.next()
+                            it.getBoolean(1)
+                        }
+                }
+            }
         priv("DELETE") shouldBe false
         priv("INSERT") shouldBe true
     }
