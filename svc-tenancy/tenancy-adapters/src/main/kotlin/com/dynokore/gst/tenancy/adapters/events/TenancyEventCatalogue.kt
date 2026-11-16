@@ -72,7 +72,7 @@ object TenancyEventCatalogue {
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED +
                 SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE +
                 TRIGGER_COVERAGE_CHANGED_TYPE + UNSUBMITTED_COUNT_MEASURED_TYPE + SUBMISSION_DESPATCHED_TYPE +
-                    OFFBOARDING_EXPORT_FINISHED_TYPE
+                OFFBOARDING_EXPORT_FINISHED_TYPE
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -135,7 +135,7 @@ object TenancyEventCatalogue {
                 setOf("payload-svc"),
                 contentTopic = false,
             ),
-        ) + consumedSubmissionCountEvent() + consumedSubmissionDespatchedEvent + consumedOffboardingExportFinished()
+        ) + consumedSubmissionCountEvent() + consumedSubmissionDespatchedEvent() + consumedOffboardingExportFinished()
 
     /** A document was despatched: the replica input of the BackdatingFloor (INV-Q-16675, INV-AC-16774). */
     private fun consumedSubmissionDespatchedEvent() =
