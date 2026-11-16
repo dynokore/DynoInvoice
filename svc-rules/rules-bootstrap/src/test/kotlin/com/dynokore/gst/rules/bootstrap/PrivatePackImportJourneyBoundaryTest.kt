@@ -190,28 +190,29 @@ class PrivatePackImportJourneyBoundaryTest(
 
     private fun currencyRows(): List<Map<String, Any?>> =
         superuser { c ->
-            c.prepareStatement(
-                "select data::text, tenant_id::text, entity_ref from rules.outbox where type = ? order by seq",
-            ).use { ps ->
-                ps.setString(1, OUTBOX_CURRENCY)
-                ps.executeQuery().use { rs ->
-                    buildList {
-                        while (rs.next()) {
-                            val data = json.readTree(rs.getString(1))
-                            add(
-                                mapOf(
-                                    "depCode" to data.path("depCode").asString(null),
-                                    "status" to data.path("status").asString(null),
-                                    "packIdentifier" to data.path("packIdentifier").asString(null),
-                                    "packVersion" to data.path("packVersion").asString(null),
-                                    "tenant" to rs.getString(2),
-                                    "entity" to rs.getString(3),
-                                ),
-                            )
+            c
+                .prepareStatement(
+                    "select data::text, tenant_id::text, entity_ref from rules.outbox where type = ? order by seq",
+                ).use { ps ->
+                    ps.setString(1, OUTBOX_CURRENCY)
+                    ps.executeQuery().use { rs ->
+                        buildList {
+                            while (rs.next()) {
+                                val data = json.readTree(rs.getString(1))
+                                add(
+                                    mapOf(
+                                        "depCode" to data.path("depCode").asString(null),
+                                        "status" to data.path("status").asString(null),
+                                        "packIdentifier" to data.path("packIdentifier").asString(null),
+                                        "packVersion" to data.path("packVersion").asString(null),
+                                        "tenant" to rs.getString(2),
+                                        "entity" to rs.getString(3),
+                                    ),
+                                )
+                            }
                         }
                     }
                 }
-            }
         }
 
     /** The two status values of the pinned schema, in its order: raised, cleared. */
@@ -226,21 +227,10 @@ class PrivatePackImportJourneyBoundaryTest(
         return (0 until values.size()).map { values.get(it).asString() }
     }
 
-    // ---- cases ---------------------------------------------------------------------------------------------------
-
-    @Test
-    fun `INV-AC-22758 the importer cannot arm or approve, a different user does, and the pack is armed`() {
-        val date = uniqueDate()
-        val v = version()
-        grantA()
-        // (1) A imports a signed, engine-compatible bundle
-        val answer = call("import", USER_A, importBody(v, mountedBundle(v, "1.0.0", date)))
-        answer.statusCode() shouldBe 201
-        answer.body() shouldContain "\"STAGED\""
-        importRow(v) shouldBe "STAGED|$USER_A"
-        rows("pack_registry", v) shouldBe 1
-        rows("pack_artefact", v) shouldBe 1
-        outboxRows(OUTBOX_STAGED, v) shouldBe 1
+    private fun deniedWithAndWithoutDelta(
+        v: String,
+        date: String,
+    ) {
         // (2a) A arms with no delta: denied, nothing changes
         val beforeA = snapshot()
         val deniedWithout = arm(USER_A, SCHEMATRON, v, date)
@@ -257,11 +247,12 @@ class PrivatePackImportJourneyBoundaryTest(
             json.readTree(deniedWithout.body()).path("code").asString(null)
         status(SCHEMATRON, v) shouldBe "STAGED"
         snapshot() shouldBe beforeC
-        // (3) the approval key is also granted to A: the stager cannot approve
-        grant(USER_A, approverRole)
-        refused(call("$SCHEMATRON/$v/approval", USER_A, null), 403, "SRT-004")
-        status(SCHEMATRON, v) shouldBe "STAGED"
-        scalar("select approved_by from rules.pack_registry where pack_version = ?", v) shouldBe null
+    }
+
+    private fun approveAndArm(
+        v: String,
+        date: String,
+    ) {
         // (4) B approves, then arms through the fence: first with one instance not acknowledging
         grantB()
         call("$SCHEMATRON/$v/approval", USER_B, null).statusCode() shouldBe 200
@@ -279,6 +270,30 @@ class PrivatePackImportJourneyBoundaryTest(
             OUTBOX_ACTIVATED,
             "$SCHEMATRON@$v",
         ) shouldBe "1"
+    }
+
+    // ---- cases ---------------------------------------------------------------------------------------------------
+
+    @Test
+    fun `INV-AC-22758 the importer cannot arm or approve, a different user does, and the pack is armed`() {
+        val date = uniqueDate()
+        val v = version()
+        grantA()
+        // (1) A imports a signed, engine-compatible bundle
+        val answer = call("import", USER_A, importBody(v, mountedBundle(v, "1.0.0", date)))
+        answer.statusCode() shouldBe 201
+        answer.body() shouldContain "\"STAGED\""
+        importRow(v) shouldBe "STAGED|$USER_A"
+        rows("pack_registry", v) shouldBe 1
+        rows("pack_artefact", v) shouldBe 1
+        outboxRows(OUTBOX_STAGED, v) shouldBe 1
+        deniedWithAndWithoutDelta(v, date)
+        // (3) the approval key is also granted to A: the stager cannot approve
+        grant(USER_A, approverRole)
+        refused(call("$SCHEMATRON/$v/approval", USER_A, null), 403, "SRT-004")
+        status(SCHEMATRON, v) shouldBe "STAGED"
+        scalar("select approved_by from rules.pack_registry where pack_version = ?", v) shouldBe null
+        approveAndArm(v, date)
     }
 
     @Test
