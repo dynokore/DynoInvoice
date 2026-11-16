@@ -188,17 +188,19 @@ class OrphanedApproverUseCaseTest {
         who: IdentityRef,
         role: Role,
         scope: Scope,
-        source: GrantSource = GrantSource.BY_HAND,
-        sourceRef: String? = null,
+        state: GrantState = GrantState(GrantStatus.ACTIVE, GrantSource.BY_HAND, 0),
     ) = rows.add(
         Grant.issue(
             GrantHeader(GrantRef(ref), tenant, who),
             role,
             scope,
             window,
-            GrantState(GrantStatus.ACTIVE, source, 0, sourceRef),
+            state,
         ),
     )
+
+    private fun command(roleWire: String) =
+        GrantRoleCommand(tenant, "user:admin", people[3], GranteeKind.STAFF, roleWire, Scope.Entity(e1), window)
 
     private fun revoke(ref: String) = revoke.handle("user:admin", GrantRef(ref))
 
@@ -220,7 +222,7 @@ class OrphanedApproverUseCaseTest {
         assertEquals(listOf(alertE1), raised)
 
         grantRole.handle(
-            GrantRoleCommand(tenant, "user:admin", people[3], GranteeKind.STAFF, "tax.approver", Scope.Entity(e1), window),
+            command("tax.approver"),
         )
         assertEquals(emptySet<EntityRef>(), open)
         assertEquals(listOf(alertE1), raised)
@@ -236,7 +238,7 @@ class OrphanedApproverUseCaseTest {
     }
 
     @Test
-    fun `INV-AC-23854 a tenant-wide revoke alerts each covered entity left without an approver and none that has one`() {
+    fun `INV-AC-23854 a tenant-wide revoke alerts only the covered entities left without an approver`() {
         seed("GT", people[0], Role.TAX_APPROVER, Scope.Tenant(tenant))
         seed("G2", people[1], Role.TAX_APPROVER, Scope.Entity(e2))
         revoke("GT")
@@ -254,7 +256,8 @@ class OrphanedApproverUseCaseTest {
 
     @Test
     fun `INV-AC-23854 a directory group reconciliation that removes the approver records the same single alert`() {
-        seed("GM", people[4], Role.TAX_APPROVER, Scope.Entity(e1), GrantSource.DIRECTORY_GROUPS, "M-1")
+        val mapped = GrantState(GrantStatus.ACTIVE, GrantSource.DIRECTORY_GROUPS, 0, "M-1")
+        seed("GM", people[4], Role.TAX_APPROVER, Scope.Entity(e1), mapped)
         val effects =
             IdpProvisioningEffects(
                 sink,
@@ -264,7 +267,8 @@ class OrphanedApproverUseCaseTest {
                 ConflictingRolePairs { emptySet() },
                 orphans,
             )
-        val mapping = IdpGroupMapping("M-1", "grp", Role.TAX_APPROVER, Scope.Entity(e1), LocalDate.parse("2026-01-01"), null)
+        val from = LocalDate.parse("2026-01-01")
+        val mapping = IdpGroupMapping("M-1", "grp", Role.TAX_APPROVER, Scope.Entity(e1), from, null)
         GroupGrantReconciler(repo, effects).reconcile("user:admin", tenant, mapping, emptySet())
         assertEquals(listOf(alertE1), raised)
         assertEquals(setOf(e1), open)
@@ -283,7 +287,7 @@ class OrphanedApproverUseCaseTest {
     @Test
     fun `INV-AC-23854 an entity that never held an approver records nothing when another role is granted`() {
         grantRole.handle(
-            GrantRoleCommand(tenant, "user:admin", people[3], GranteeKind.STAFF, "auditor", Scope.Entity(e1), window),
+            command("auditor"),
         )
         assertEquals(emptyList<Pair<String, String>>(), raised)
     }
