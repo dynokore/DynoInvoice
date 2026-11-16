@@ -120,7 +120,7 @@ class JooqAggregateStore(
         runner.inTransaction {
             val tenant = tenants.current().value
             dsl
-                .select(AGGREGATE_LINE.INTERNAL_TAX_CODE, AGGREGATE_LINE.AMOUNT)
+                .select(AGGREGATE_LINE.INTERNAL_TAX_CODE, AGGREGATE_LINE.AMOUNT, AGGREGATE_LINE.TAXABLE_AMOUNT)
                 .from(AGGREGATE_LINE)
                 .join(AGGREGATE)
                 .on(AGGREGATE.AGGREGATE_ID.eq(AGGREGATE_LINE.AGGREGATE_ID))
@@ -131,7 +131,7 @@ class JooqAggregateStore(
                 .and(AGGREGATE.SUPERSEDED_BY.isNull)
                 .and(excluding?.let { AGGREGATE.AGGREGATE_ID.ne(it) } ?: DSL.noCondition())
                 .orderBy(AGGREGATE.SOURCE_REVISION, AGGREGATE_LINE.POSITION)
-                .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
+                .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2()), it.value3()) }
         }
 
     override fun replace(
@@ -202,6 +202,7 @@ class JooqAggregateStore(
                 .set(AGGREGATE_LINE.POSITION, position)
                 .set(AGGREGATE_LINE.INTERNAL_TAX_CODE, line.internalTaxCode)
                 .set(AGGREGATE_LINE.AMOUNT, line.amount)
+                .set(AGGREGATE_LINE.TAXABLE_AMOUNT, line.taxableAmount)
                 .execute()
         }
     }
@@ -236,12 +237,12 @@ class JooqAggregateStore(
 
     private fun linesOf(aggregateId: UUID): List<AggregateLine> =
         dsl
-            .select(AGGREGATE_LINE.INTERNAL_TAX_CODE, AGGREGATE_LINE.AMOUNT)
+            .select(AGGREGATE_LINE.INTERNAL_TAX_CODE, AGGREGATE_LINE.AMOUNT, AGGREGATE_LINE.TAXABLE_AMOUNT)
             .from(AGGREGATE_LINE)
             .where(AGGREGATE_LINE.TENANT_ID.eq(tenants.current().value))
             .and(AGGREGATE_LINE.AGGREGATE_ID.eq(aggregateId))
             .orderBy(AGGREGATE_LINE.POSITION)
-            .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2())) }
+            .fetch { AggregateLine(checkNotNull(it.value1()), checkNotNull(it.value2()), it.value3()) }
 
     private fun <T : Any> AggregateRecord.required(field: Field<T?>): T =
         checkNotNull(get(field)) { "${field.name} is not null in the table" }

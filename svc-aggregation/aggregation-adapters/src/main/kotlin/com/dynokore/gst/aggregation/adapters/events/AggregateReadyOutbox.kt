@@ -44,6 +44,8 @@ class AggregateReadyOutbox(
                         lines.addObject().also {
                             it.put("internalTaxCode", line.internalTaxCode)
                             it.put("amount", line.amount)
+                            // absent, never a JSON null, when the line does not state it (PCP only, INV-REQ-437)
+                            line.taxableAmount?.let { taxable -> it.put("taxableAmount", taxable) }
                         }
                     }
                 }

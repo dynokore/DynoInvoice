@@ -129,6 +129,7 @@ class JooqTransactionStore(
                     .set(AGGREGATE_TRANSACTION.CREDIT_NOTE, item.transaction.isCreditNote)
                     .set(AGGREGATE_TRANSACTION.CLAIMANT_REFERENCE, item.transaction.claimantReference)
                     .set(AGGREGATE_TRANSACTION.CLAIMABLE_INPUT_TAX, item.transaction.claimableInputTax)
+                    .set(AGGREGATE_TRANSACTION.TAXABLE_AMOUNT, item.transaction.taxableAmount)
                     .set(AGGREGATE_TRANSACTION.WINDOW_START, item.placement.window.start)
                     .set(AGGREGATE_TRANSACTION.WINDOW_END, item.placement.window.end)
                     .set(AGGREGATE_TRANSACTION.WINDOW_STATE, item.placement.state.name)

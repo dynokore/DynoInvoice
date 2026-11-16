@@ -26,7 +26,7 @@ internal fun DSLContext.storeLinesOf(
         .where(AGGREGATE_LINE.TENANT_ID.eq(tenant))
         .and(AGGREGATE_LINE.AGGREGATE_ID.eq(aggregateId))
         .execute()
-    subtotalsOf(tenant, aggregateId)
+    subtotalsWithTaxableOf(tenant, aggregateId)
         .forEachIndexed { position, row ->
             insertInto(AGGREGATE_LINE)
                 .set(AGGREGATE_LINE.TENANT_ID, tenant)
@@ -34,8 +34,42 @@ internal fun DSLContext.storeLinesOf(
                 .set(AGGREGATE_LINE.POSITION, position)
                 .set(AGGREGATE_LINE.INTERNAL_TAX_CODE, row.internalTaxCode)
                 .set(AGGREGATE_LINE.AMOUNT, row.amount)
+                .set(AGGREGATE_LINE.TAXABLE_AMOUNT, row.taxableAmount)
                 .execute()
         }
+}
+
+/** A code's amount sum and, for PCP only, its taxable sum (null unless every row of the code states one). */
+internal data class CodeSums(
+    val internalTaxCode: String,
+    val amount: String,
+    val taxableAmount: String?,
+)
+
+/**
+ * [subtotalsOf] plus the taxable amount per code (INV-REQ-437): for a PCP aggregate the exact `numeric` sum of
+ * `taxable_amount` when the count of rows equals the count of non-null values, otherwise null; null for POS and STI.
+ */
+internal fun DSLContext.subtotalsWithTaxableOf(
+    tenant: UUID,
+    aggregateId: UUID,
+): List<CodeSums> {
+    val taxable =
+        select(
+            AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE,
+            DSL
+                .`when`(
+                    DSL.count().eq(DSL.count(AGGREGATE_TRANSACTION.TAXABLE_AMOUNT)),
+                    DSL.sum(AGGREGATE_TRANSACTION.TAXABLE_AMOUNT.cast(SQLDataType.NUMERIC)).cast(SQLDataType.VARCHAR),
+                ).otherwise(DSL.inline(null as String?)),
+        ).from(AGGREGATE_TRANSACTION)
+            .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.eq(aggregateId))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(AggregateType.PCP.name))
+            .groupBy(AGGREGATE_TRANSACTION.INTERNAL_TAX_CODE)
+            .fetch()
+            .associate { checkNotNull(it.value1()) to it.value2() }
+    return subtotalsOf(tenant, aggregateId).map { CodeSums(it.internalTaxCode, it.amount, taxable[it.internalTaxCode]) }
 }
 
 /**
