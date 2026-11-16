@@ -67,19 +67,27 @@ class JooqExpiryScan(
                 ExpiringGrant(
                     grant,
                     IdentityRef(row.get(ROLE_GRANT.CREATED_BY).column("created_by")),
-                    filingEntity(grant),
+                    filingEntityOf(grant.scope, directory),
                     row.get(IDENTITY.GRANTEE_KIND) == GranteeKind.EXTERNAL.name,
                 )
             }
     }
-
-    private fun filingEntity(grant: Grant): EntityRef? =
-        when (val scope = grant.scope) {
-            is Scope.Entity -> scope.entity
-            is Scope.EntityPeriod -> scope.entity
-            else -> directory.entitiesCoveredBy(scope).minByOrNull { it.value }
-        }
 }
+
+/**
+ * The filing entity of a scope: its own entity for an entity or entity-period scope, else the smallest reference by
+ * plain string order (`String.value`, no locale, no numeric compare) of the entities the directory of the bound tenant
+ * says the scope covers, else none.
+ */
+internal fun filingEntityOf(
+    scope: Scope,
+    directory: EntityDirectory,
+): EntityRef? =
+    when (scope) {
+        is Scope.Entity -> scope.entity
+        is Scope.EntityPeriod -> scope.entity
+        else -> directory.entitiesCoveredBy(scope).minByOrNull { it.value }
+    }
 
 /** TPL-11. The notices recorded per grant and day, in the caller's transaction; the unique key refuses a repeat. */
 class JooqExpiryNoticeLog(
