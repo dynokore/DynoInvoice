@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
+import com.dynokore.gst.payload.adapters.build.FamilyLookup
 import com.dynokore.gst.payload.adapters.build.JooqBuildInputsReader
 import com.dynokore.gst.payload.adapters.build.JooqBuildOutcomes
 import com.dynokore.gst.payload.adapters.build.JooqTypeDecisionReader
@@ -66,9 +67,11 @@ class BuildPayloadConfiguration {
     @Bean
     @ConditionalOnMissingBean(SpecificationFamilySource::class)
     fun specificationFamilySource(): SpecificationFamilySource =
-        PolicySpecificationFamilySource { entityRef ->
-            error("the policy scope of the specification family (VP-71) is not ruled; entity $entityRef")
-        }
+        PolicySpecificationFamilySource(
+            FamilyLookup { entityRef ->
+                error("the policy scope of the specification family (VP-71) is not ruled; entity $entityRef")
+            },
+        )
 
     @Bean
     fun payloadProjector(

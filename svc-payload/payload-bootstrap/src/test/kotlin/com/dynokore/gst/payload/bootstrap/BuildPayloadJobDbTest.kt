@@ -75,25 +75,33 @@ class BuildPayloadJobDbTest {
 
     private fun run(
         dir: Path,
+        withFamily: Boolean = true,
+        withPack: Boolean = true,
         block: Boundary.(TenantId) -> Unit,
     ) {
-        PayloadContext
-            .online(dir)
-            .withAllowBeanDefinitionOverriding(true)
-            .withBean(
-                "specificationFamilySource",
-                SpecificationFamilySource::class.java,
-                { SpecificationFamilySource { "PINT_SG" } },
-            ).withBean(
-                ActivePackOffNetworkPrefix::class.java,
-                {
-                    ActivePackOffNetworkPrefix {
-                        com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix(
-                            "{}",
-                        )
-                    }
-                },
-            ).run { ctx -> Boundary(ctx).block(TenantId(UUID.randomUUID())) }
+        var runner = PayloadContext.online(dir).withAllowBeanDefinitionOverriding(true)
+        if (withFamily) {
+            runner =
+                runner.withBean(
+                    "specificationFamilySource",
+                    SpecificationFamilySource::class.java,
+                    { SpecificationFamilySource { "PINT_SG" } },
+                )
+        }
+        if (withPack) {
+            runner =
+                runner.withBean(
+                    ActivePackOffNetworkPrefix::class.java,
+                    {
+                        ActivePackOffNetworkPrefix {
+                            com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix(
+                                "{}",
+                            )
+                        }
+                    },
+                )
+        }
+        runner.run { ctx -> Boundary(ctx).block(TenantId(UUID.randomUUID())) }
     }
 
     private fun <T> Boundary.tx(
@@ -255,5 +263,30 @@ class BuildPayloadJobDbTest {
         }
         outcomes(tenant.value, doc) shouldBe 1
         outcomes(other.value, doc) shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-23006 no active pack is retried and stages nothing`(
+        @TempDir dir: Path,
+    ) = run(dir, withPack = false) { tenant ->
+        val doc = UUID.randomUUID()
+        seed(tenant, doc, "TYPE_2")
+        val handler = handler(doc)
+        shouldThrow<BuildNotReady> { handler.runOnce() }
+        events(tenant.value, doc, readyType).size shouldBe 0
+        events(tenant.value, doc, rejectedType).size shouldBe 0
+        outcomes(tenant.value, doc) shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-23006 production family source fails closed and stages nothing`(
+        @TempDir dir: Path,
+    ) = run(dir, withFamily = false) { tenant ->
+        val doc = UUID.randomUUID()
+        seed(tenant, doc, "TYPE_2")
+        shouldThrow<IllegalStateException> { handler(doc).runOnce() }
+        events(tenant.value, doc, readyType).size shouldBe 0
+        events(tenant.value, doc, rejectedType).size shouldBe 0
+        outcomes(tenant.value, doc) shouldBe 0
     }
 }
