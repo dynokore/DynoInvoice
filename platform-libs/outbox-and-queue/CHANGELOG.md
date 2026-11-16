@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.28.0] - 2026-11-16
+### Added
+- `OffboardingExportRequested` (`com.dynokore.gst.tenancy.OffboardingExportRequested.v1`) joins the closed exact-type set of domain events that may carry the tenant-wide entity (`allowsTenantWide`), as the fifth name with `AccessPointRouteChanged`, `PlanLimitExceeded`, `UnsubmittedDocumentCountMeasured` and `OffboardingExportFinished`: an export of scope TENANT is written with the real tenant and the tenant-wide entity (no `entityref` on the wire), an export of scope ENTITY keeps its registered entity; it stays a domain event and still needs a real tenant; look-alike types stay refused (delegated ruling of tooling `gap22966-gap.md` option A; INV-AC-23693, INV-T-23694).
+
 ## [6.27.0] - 2026-11-15
 ### Added
 - `OffboardingExportFinished` (`com.dynokore.gst.evidence.OffboardingExportFinished.v1`) joins the closed exact-type set of domain events that may carry the tenant-wide entity (`allowsTenantWide`), with `AccessPointRouteChanged`, `PlanLimitExceeded` and `UnsubmittedDocumentCountMeasured`; tenant offboarding is tenant-scoped by nature; it stays a domain event and still needs a real tenant; look-alike types stay refused (delegated ruling of tooling `gap22956-gap.md` option A; INV-AC-23211, INV-T-23212).

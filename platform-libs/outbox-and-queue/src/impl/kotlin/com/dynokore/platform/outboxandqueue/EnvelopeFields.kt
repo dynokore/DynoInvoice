@@ -55,8 +55,8 @@ internal object EnvelopeFields {
     }
 
     // INV-Q-3165: "tenantid present, entityref absent" maps back to the tenant-wide entity, for a platform
-    // event type or the domain events AccessPointRouteChanged, PlanLimitExceeded, UnsubmittedDocumentCountMeasured
-    // and OffboardingExportFinished only (INV-Q-15474); any other domain event
+    // event type or the domain events AccessPointRouteChanged, PlanLimitExceeded, UnsubmittedDocumentCountMeasured,
+    // OffboardingExportFinished and OffboardingExportRequested only (INV-Q-15474); any other domain event
     // without entityref is a contract violation (FR-K.3). The reserved id
     // itself never travels on the wire.
     private fun realTenantEntityOf(node: ObjectNode): EntityRef {

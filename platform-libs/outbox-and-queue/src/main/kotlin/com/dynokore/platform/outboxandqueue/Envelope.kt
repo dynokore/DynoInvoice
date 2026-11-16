@@ -46,7 +46,7 @@ data class Envelope(
         require(pairingHolds(tenant, entity)) { PLATFORM_PAIR }
         require(!entity.isTenantWide || allowsTenantWide(type)) {
             "only a platform event type or the domain events AccessPointRouteChanged, PlanLimitExceeded, " +
-                "UnsubmittedDocumentCountMeasured and OffboardingExportFinished " +
+                "UnsubmittedDocumentCountMeasured, OffboardingExportFinished and OffboardingExportRequested " +
                 "may carry the tenant-wide entity (FR-K.3, INV-Q-3165, INV-Q-15474), was '$type'"
         }
         require(!tenant.isPlatform || isPlatformType(type)) {
@@ -117,7 +117,10 @@ data class Envelope(
          * `UnsubmittedDocumentCountMeasured` concerns the tenant's unsubmitted documents, not one registered
          * entity (delegated ruling of tooling/gap23031-gap.md, option A; INV-REQ-1162);
          * `OffboardingExportFinished` concerns the offboarding of a tenant, which is tenant-scoped by nature
-         * and not one registered entity (delegated ruling of tooling/gap22956-gap.md, option A; INV-REQ-1162).
+         * and not one registered entity (delegated ruling of tooling/gap22956-gap.md, option A; INV-REQ-1162);
+         * `OffboardingExportRequested` of an export of scope TENANT concerns a tenant and no registered entity; an
+         * export of scope ENTITY keeps its registered entity and carries `entityref` (delegated ruling of
+         * tooling/gap22966-gap.md, option A; INV-REQ-1162).
          */
         private val TENANT_WIDE_DOMAIN_EVENTS =
             setOf(
@@ -125,6 +128,7 @@ data class Envelope(
                 "com.dynokore.gst.tenancy.PlanLimitExceeded.v1",
                 "com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1",
                 "com.dynokore.gst.evidence.OffboardingExportFinished.v1",
+                "com.dynokore.gst.tenancy.OffboardingExportRequested.v1",
             )
 
         /**

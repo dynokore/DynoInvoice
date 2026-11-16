@@ -104,7 +104,6 @@ class TenantWideOffboardingExportFinishedEventTest {
                 "com.dynokore.gst.evidence.OffboardingExportFinished.v2",
                 "com.dynokore.gst.platform.OffboardingExportFinished.v1",
                 "com.dynokore.gst.tenancy.OffboardingExportFinished.v1",
-                "com.dynokore.gst.tenancy.OffboardingExportRequested.v1",
             )
     }
 }
