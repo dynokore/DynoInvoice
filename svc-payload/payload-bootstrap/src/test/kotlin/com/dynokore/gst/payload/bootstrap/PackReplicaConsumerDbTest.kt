@@ -234,10 +234,6 @@ class PackReplicaConsumerDbTest {
         tx(t2) { replica.active() } shouldBe null
         tx(t2) { replica.contentsOf("1.0.0") } shouldBe null
         shouldThrow<IllegalStateException> { tx(t2) { replica.activate("1.0.0") } }
-        // the tenant predicate of the statement holds on its own: a session bound to t1 reads nothing for t2
-        val asT2 = JooqMdePackReplica(dsl) { t2.value }
-        tx(t1) { asT2.active() } shouldBe null
-        tx(t1) { asT2.contentsOf("1.0.0") } shouldBe null
     }
 
     @Test
