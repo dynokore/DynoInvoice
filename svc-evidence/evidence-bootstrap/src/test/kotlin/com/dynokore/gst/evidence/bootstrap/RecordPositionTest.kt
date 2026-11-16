@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -186,7 +187,16 @@ class RecordPositionTest {
         }
     }
 
-    private fun Env.emitAudit(eventId: String) =
+    private fun Env.emitAudit(eventId: String) {
+        EvidenceDb.superuserOf(url).use {
+            RetentionPartitionFixture.ensureRetentionPartition(
+                it,
+                "audit_log",
+                tenant.value,
+                "ENT-3F2A9C",
+                "AUDIT-2026-10",
+            )
+        }
         emit(
             audit,
             "com.dynokore.gst.platform.AuditEntryRecorded.v1",
@@ -195,6 +205,7 @@ class RecordPositionTest {
             """{"scope":"invoice","action":"read","actor":"user-1"}""",
             "ENT-3F2A9C",
         )
+    }
 
     private fun Env.emitTrace(
         eventId: String,

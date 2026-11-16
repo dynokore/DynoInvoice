@@ -1,5 +1,6 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
@@ -139,6 +140,7 @@ class ChainDbTest {
         version: Int = 1,
         document: UUID = doc,
     ) = tx(tenant) {
+        RetentionPartitionFixture.ensureRetentionPartition(dsl, kind.table, tenant.value, "ENT-3F2A9C", "2026-Q1")
         val content = """{"id":"$eventId"}""".toByteArray()
         appender.appendBound(tenant, kind, document, version, eventId, content, arrivedAt)
     }
@@ -247,8 +249,26 @@ class ChainDbTest {
         val entityKey = AuditChainKey.of("ENT-3F2A9C", Instant.parse("2026-10-31T23:59:59Z"))
         val tenantKey = AuditChainKey.of(EventEntityRef.TENANT_WIDE.value, Instant.parse("2026-11-01T00:00:00Z"))
         repeat(2) {
-            tx(tenant) { appender.appendAudit(tenant, entityKey, "au-1", """{"a":1}""".toByteArray(), at) }
-            tx(tenant) { appender.appendAudit(tenant, tenantKey, "au-2", """{"a":2}""".toByteArray(), at) }
+            tx(tenant) {
+                RetentionPartitionFixture.ensureRetentionPartition(
+                    dsl,
+                    "audit_log",
+                    tenant.value,
+                    "ENT-3F2A9C",
+                    "AUDIT-2026-10",
+                )
+                appender.appendAudit(tenant, entityKey, "au-1", """{"a":1}""".toByteArray(), at)
+            }
+            tx(tenant) {
+                RetentionPartitionFixture.ensureRetentionPartition(
+                    dsl,
+                    "audit_log",
+                    tenant.value,
+                    EventEntityRef.TENANT_WIDE.value,
+                    "AUDIT-2026-11",
+                )
+                appender.appendAudit(tenant, tenantKey, "au-2", """{"a":2}""".toByteArray(), at)
+            }
         }
         chain(tenant, RecordKind.AUDIT_LOG, "ENT-3F2A9C", "AUDIT-2026-10").size shouldBe 1
         chain(tenant, RecordKind.AUDIT_LOG, EventEntityRef.TENANT_WIDE.value, "AUDIT-2026-11").size shouldBe 1

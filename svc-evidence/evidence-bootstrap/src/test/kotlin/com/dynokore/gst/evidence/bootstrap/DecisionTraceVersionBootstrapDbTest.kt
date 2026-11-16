@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
 import com.dynokore.gst.evidence.domain.chain.DocumentLocator
@@ -82,7 +83,10 @@ class DecisionTraceVersionBootstrapDbTest {
         tenant: TenantId,
         version: Int,
         eventId: String,
-    ) = tx(tenant) { appender.appendBound(tenant, RecordKind.DECISION_TRACE, doc, version, eventId, content, at) }
+    ) = tx(tenant) {
+        RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", tenant.value, "ENT-1", "2026-Q1")
+        appender.appendBound(tenant, RecordKind.DECISION_TRACE, doc, version, eventId, content, at)
+    }
 
     @Test
     fun `INV-AC-20748 the decision_trace rows of versions 1 and 2 of one Doc UUID carry 1 and 2`(
@@ -103,7 +107,10 @@ class DecisionTraceVersionBootstrapDbTest {
         trace(tenant, 3, "T3")
         versions(tenant) shouldBe emptyList()
         locate(tenant, 3)
-        tx(tenant) { appender.drainPending(tenant, doc, 3) } shouldBe 1
+        tx(tenant) {
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", tenant.value, "ENT-1", "2026-Q1")
+            appender.drainPending(tenant, doc, 3)
+        } shouldBe 1
         versions(tenant) shouldBe listOf(3)
     }
 
@@ -113,6 +120,13 @@ class DecisionTraceVersionBootstrapDbTest {
     ) = run(dir) { tenant ->
         locate(tenant, 3)
         tx(tenant) {
+            RetentionPartitionFixture.ensureRetentionPartition(
+                dsl,
+                "evidence_payload",
+                tenant.value,
+                "ENT-1",
+                "2026-Q1",
+            )
             appender.appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P3", content, at)
         }
         chain(tenant, RecordKind.EVIDENCE_PAYLOAD).map { it.index.version } shouldBe listOf(null)

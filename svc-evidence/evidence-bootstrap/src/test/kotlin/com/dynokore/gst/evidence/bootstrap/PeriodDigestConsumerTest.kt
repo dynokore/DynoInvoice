@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.events.GstReturnRecordedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring.SCHEMA
@@ -186,6 +187,7 @@ class PeriodDigestConsumerTest {
         count: Int,
         forPeriod: String = period,
     ) = tx(tenant) {
+        RetentionPartitionFixture.ensureRetentionPartition(dsl, kind.table, tenant.value, entity, forPeriod)
         val ledger = JdbcEvidenceLedger(dsl, ChainWiring.SCHEMA, kind.table, kind == RecordKind.DECISION_TRACE)
         repeat(count) {
             ledger.append(tenant, EntityRef(entity), PeriodRef(forPeriod), type, """{"n":$it}""".toByteArray())

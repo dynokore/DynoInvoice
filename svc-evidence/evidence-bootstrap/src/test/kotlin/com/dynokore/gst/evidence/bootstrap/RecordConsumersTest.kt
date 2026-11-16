@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.events.EvidenceArtefactRecordedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.AppliedRecord.Companion.APPLIED_RECORD
@@ -141,6 +142,15 @@ class RecordConsumersTest {
                 .findByEntityAndPeriod(tenant, EntityRef(entityRef), PeriodRef(period))
         }
 
+    private fun Boundary.partition(
+        tenant: TenantId,
+        kind: RecordKind,
+        entityRef: String,
+        period: String,
+    ) = tx(tenant) {
+        RetentionPartitionFixture.ensureRetentionPartition(dsl, kind.table, tenant.value, entityRef, period)
+    }
+
     private fun Boundary.traces(tenant: TenantId) = chain(tenant, RecordKind.DECISION_TRACE, entity, "2026-Q1")
 
     private fun Boundary.applied(
@@ -246,6 +256,7 @@ class RecordConsumersTest {
         version: EvidenceDb.Version,
         @TempDir dir: Path,
     ) = run(dir, version) { tenant ->
+        partition(tenant, RecordKind.DECISION_TRACE, entity, "2026-Q1")
         traceLog.add(trace(tenant, "dt-1"))
         traceConsumer.pollOnce() shouldBe result(1, 0, 0)
         traces(tenant).size shouldBe 0
@@ -270,6 +281,7 @@ class RecordConsumersTest {
         pendingCount(tenant) shouldBe 1
         applied(tenant, "dt-1").size shouldBe 1
 
+        partition(tenant, RecordKind.AUDIT_LOG, entity, "AUDIT-2026-10")
         auditLog.add(audit(tenant, "au-1"))
         auditConsumer.pollOnce().applied shouldBe 1
         val entry = chain(tenant, RecordKind.AUDIT_LOG, entity, "AUDIT-2026-10").single()
@@ -285,6 +297,7 @@ class RecordConsumersTest {
     ) = run(dir, version) { tenant ->
         locatorLog.add(locator(tenant, "ev-1"))
         locatorConsumer.pollOnce().applied shouldBe 1
+        partition(tenant, RecordKind.DECISION_TRACE, entity, "2026-Q1")
         traceLog.add(trace(tenant, "dt-1", docSequence = 5))
         traceLog.add(trace(tenant, "dt-2", """{"rule":"R2"}""", docSequence = 2))
         traceConsumer.pollOnce() shouldBe result(2, 0, 0)
@@ -301,6 +314,7 @@ class RecordConsumersTest {
     ) = run(dir, version) { tenant ->
         locatorLog.add(locator(tenant, "ev-1"))
         locatorConsumer.pollOnce()
+        partition(tenant, RecordKind.DECISION_TRACE, entity, "2026-Q1")
         traceLog.add(trace(tenant, "dt-1", """{"b":[{"y":1,"x":2}],"a":"1"}"""))
         traceLog.add(trace(tenant, "dt-2", """{"a":"1","b":[{"x":2,"y":1}]}"""))
         traceConsumer.pollOnce().applied shouldBe 2
@@ -315,6 +329,7 @@ class RecordConsumersTest {
         version: EvidenceDb.Version,
         @TempDir dir: Path,
     ) = run(dir, version) { tenant ->
+        partition(tenant, RecordKind.AUDIT_LOG, EventEntityRef.TENANT_WIDE.value, "AUDIT-2026-10")
         auditLog.add(audit(tenant, "au-1", entityRef = null))
         auditLog.add(audit(tenant, "au-1", entityRef = null))
         auditConsumer.pollOnce() shouldBe result(1, 1, 0)
@@ -329,6 +344,7 @@ class RecordConsumersTest {
         version: EvidenceDb.Version,
         @TempDir dir: Path,
     ) = run(dir, version) { tenant ->
+        partition(tenant, RecordKind.AUDIT_LOG, entity, "AUDIT-2026-10")
         auditLog.add(audit(tenant, "au-1"))
         auditLog.add(audit(tenant, "au-2", data = """{"scope":"s","action":"write","actor":"u2"}"""))
         auditConsumer.pollOnce().applied shouldBe 2

@@ -74,6 +74,7 @@ class DecisionTraceVersionDbTest {
         val t = UUID.randomUUID()
         locate(t, 3)
         tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", t, "ENT-1", "2026-Q1")
             ChainWiring
                 .recordAppender(dsl)
                 .appendBound(tenant, RecordKind.DECISION_TRACE, doc, 3, "E1", content, at)
@@ -91,13 +92,17 @@ class DecisionTraceVersionDbTest {
     fun `INV-AC-20715 a pending DECISION_TRACE record drained after the locator carries the locator version 3`() {
         val t = UUID.randomUUID()
         tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", t, "ENT-1", "2026-Q1")
             ChainWiring
                 .recordAppender(dsl)
                 .appendBound(tenant, RecordKind.DECISION_TRACE, doc, 3, "E1", content, at)
         }
         versions(t) shouldBe emptyList()
         locate(t, 3)
-        tx(t) { dsl, tenant -> ChainWiring.recordAppender(dsl).drainPending(tenant, doc, 3) } shouldBe 1
+        tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", t, "ENT-1", "2026-Q1")
+            ChainWiring.recordAppender(dsl).drainPending(tenant, doc, 3)
+        } shouldBe 1
         versions(t) shouldBe listOf(3)
     }
 
@@ -105,6 +110,7 @@ class DecisionTraceVersionDbTest {
     fun `INV-AC-20715 an append whose index carries version 3 stores 3 and reads it back`() {
         val t = UUID.randomUUID()
         tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", t, "ENT-1", "2026-Q1")
             traceLedger(dsl).append(
                 tenant,
                 EntityRef("ENT-1"),
@@ -192,6 +198,7 @@ class DecisionTraceVersionDbTest {
         val t = UUID.randomUUID()
         locate(t, 3)
         tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "evidence_payload", t, "ENT-1", "2026-Q1")
             ChainWiring
                 .recordAppender(dsl)
                 .appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P1", content, at)
@@ -228,6 +235,7 @@ class DecisionTraceVersionDbTest {
     fun `INV-AC-20715 ChainWiring builds the version column for the DECISION_TRACE ledger only`() {
         tx(UUID.randomUUID()) { dsl, tenant ->
             val ledgers = ChainWiring.ledgers(dsl)
+            dsl.connection { RetentionPartitionFixture.ensureRetentionPartitions(it, tenant.value, "ENT-1", "2026-Q1") }
             val refused = types().mapValues { (kind, type) -> refusesVersion(ledgers, kind, type, tenant) }
             refused shouldBe
                 mapOf(
@@ -246,6 +254,7 @@ class DecisionTraceVersionDbTest {
 
             @Suppress("UNCHECKED_CAST")
             val inside = field.get(ChainWiring.recordAppender(dsl)) as Map<RecordKind, EvidenceLedger>
+            dsl.connection { RetentionPartitionFixture.ensureRetentionPartitions(it, tenant.value, "ENT-1", "2026-Q1") }
             inside.keys shouldBe RecordKind.entries.toSet()
             val refused = types().mapValues { (kind, type) -> refusesVersion(inside, kind, type, tenant) }
             refused.filterValues { !it }.keys shouldBe setOf(RecordKind.DECISION_TRACE)
@@ -256,16 +265,19 @@ class DecisionTraceVersionDbTest {
         c: Connection,
         tenant: UUID,
         version: Int,
-    ) = c
-        .prepareStatement(
-            "insert into evidence.decision_trace (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +
-                "content, content_hash, recorded_at, version) " +
-                "values (gen_random_uuid(), ?, 'E', 'P', 0, 'T', '\\x00', 'h', now(), ?)",
-        ).use {
-            it.setObject(1, tenant)
-            it.setInt(2, version)
-            it.executeUpdate()
-        }
+    ): Int {
+        RetentionPartitionFixture.ensureRetentionPartition(c, "decision_trace", tenant, "E", "P")
+        return c
+            .prepareStatement(
+                "insert into evidence.decision_trace (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +
+                    "content, content_hash, recorded_at, version) " +
+                    "values (gen_random_uuid(), ?, 'E', 'P', 0, 'T', '\\x00', 'h', now(), ?)",
+            ).use {
+                it.setObject(1, tenant)
+                it.setInt(2, version)
+                it.executeUpdate()
+            }
+    }
 
     @Test
     fun `INV-AC-20715 inserting version 0 through the owner connection is refused by the check`() {
@@ -282,6 +294,7 @@ class DecisionTraceVersionDbTest {
     fun `INV-AC-20715 UPDATE and DELETE of decision_trace rows are still refused with CS-22`() {
         val t = UUID.randomUUID()
         tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", t, "ENT-1", "2026-Q1")
             traceLedger(dsl).append(
                 tenant,
                 EntityRef("ENT-1"),
@@ -323,6 +336,7 @@ class DecisionTraceVersionDbTest {
     fun `INV-AC-20715 a second tenant reads none of the rows`() {
         val a = UUID.randomUUID()
         tx(a) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "decision_trace", a, "ENT-1", "2026-Q1")
             traceLedger(dsl).append(
                 tenant,
                 EntityRef("ENT-1"),

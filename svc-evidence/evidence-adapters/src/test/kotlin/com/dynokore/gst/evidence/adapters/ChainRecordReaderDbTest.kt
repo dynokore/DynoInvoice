@@ -62,6 +62,7 @@ class ChainRecordReaderDbTest {
         eventId: String,
         appliedAt: Instant = at,
     ) = tx(tenant) { dsl, t ->
+        RetentionPartitionFixture.ensureRetentionPartition(dsl, "evidence_payload", tenant, "ENT-1", "2026-Q1")
         JooqSealedPayloadSink(dsl, ChainWiring.recordAppender(dsl, Clock.fixed(appliedAt, ZoneOffset.UTC)))
             .append(t, doc, version, eventId, "{\"e\":\"$eventId\"}".toByteArray(), at)
     }
@@ -74,6 +75,7 @@ class ChainRecordReaderDbTest {
         appliedAt: Instant = at,
     ) = tx(tenant) { dsl, t ->
         val clock = Clock.fixed(appliedAt, ZoneOffset.UTC)
+        RetentionPartitionFixture.ensureRetentionPartition(dsl, "acknowledgement", tenant, "ENT-1", "2026-Q1")
         ChainWiring
             .acknowledgementRecorder(dsl, clock)
             .record(t, eventId, ackId, doc, version, "{\"ack\":\"$ackId\"}".toByteArray(), appliedAt)
@@ -104,6 +106,7 @@ class ChainRecordReaderDbTest {
         locate(t)
         locate(t, 3, "ENT-2")
         tx(t) { dsl, tenant ->
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "evidence_payload", t, "ENT-2", "2026-Q1")
             ChainWiring
                 .recordAppender(dsl, Clock.fixed(at, ZoneOffset.UTC))
                 .appendBound(tenant, RecordKind.EVIDENCE_PAYLOAD, doc, 3, "P-OTHER", "{}".toByteArray(), at)

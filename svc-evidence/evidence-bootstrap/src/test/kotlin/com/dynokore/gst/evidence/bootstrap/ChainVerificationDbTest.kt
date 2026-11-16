@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.jobs.ChainVerificationJobBody
 import com.dynokore.gst.evidence.adapters.jobs.VerificationEntitySource
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
@@ -174,6 +175,7 @@ class ChainVerificationDbTest {
             forEntity: String = entity,
             forPeriod: String = period,
         ) = tx(tenant) {
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, kind.table, tenant.value, forEntity, forPeriod)
             repeat(count) {
                 val record =
                     ledgers

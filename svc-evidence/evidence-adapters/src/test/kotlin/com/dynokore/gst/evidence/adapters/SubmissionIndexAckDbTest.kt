@@ -165,6 +165,7 @@ class SubmissionIndexAckDbTest {
             c.autoCommit = false
             SignedBindings.bind(c, t)
             val dsl = DSL.using(c, SQLDialect.POSTGRES)
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "acknowledgement", t, "ENT-1", "2026-Q1")
             ChainWiring
                 .acknowledgementRecorder(dsl, clock)
                 .record(TenantId(t), "ev-ack", "K1", doc, 1, "{}".toByteArray(), t1) shouldBe true

@@ -209,7 +209,12 @@ class SealingStoresDbTest {
     fun `INV-AC-20566 the sink appends one record and one link and a repeat of the event writes neither`() {
         val t = UUID.randomUUID()
         locate(t)
-        repeat(2) { tx(t) { tenant -> sink.append(tenant, doc, 1, "E1", """{"id":"E1"}""".toByteArray(), at) } }
+        repeat(2) {
+            tx(t) { tenant ->
+                RetentionPartitionFixture.ensureRetentionPartition(dsl, "evidence_payload", t, "ENT-3F2A9C", "2026-Q1")
+                sink.append(tenant, doc, 1, "E1", """{"id":"E1"}""".toByteArray(), at)
+            }
+        }
         count("select count(*) from evidence.evidence_payload where tenant_id = ?", t) shouldBe 1
         count("select count(*) from evidence.sealed_payload where tenant_id = ?", t) shouldBe 1
         count("select count(*) from evidence.sealed_payload where tenant_id = ? and source_event_id = 'E1'", t) shouldBe
@@ -224,6 +229,7 @@ class SealingStoresDbTest {
             held.insert(tenant, "e1", held(), at)
             parked.park(tenant, ParkedDespatch("p1", despatch(1)))
             quarantine.quarantine(tenant, "c1", held(), QuarantineOrigin.RECEIVED, at)
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "evidence_payload", t, "ENT-3F2A9C", "2026-Q1")
             sink.append(tenant, doc, 1, "E1", """{"id":"E1"}""".toByteArray(), at)
         }
         tx(UUID.randomUUID()) { tenant ->
@@ -254,6 +260,7 @@ class SealingStoresDbTest {
         tx(t) { tenant ->
             parked.park(tenant, ParkedDespatch("p1", despatch(1)))
             quarantine.quarantine(tenant, "c1", held(), QuarantineOrigin.RECEIVED, at)
+            RetentionPartitionFixture.ensureRetentionPartition(dsl, "evidence_payload", t, "ENT-3F2A9C", "2026-Q1")
             sink.append(tenant, doc, 1, "E1", """{"id":"E1"}""".toByteArray(), at)
         }
         mapOf(
