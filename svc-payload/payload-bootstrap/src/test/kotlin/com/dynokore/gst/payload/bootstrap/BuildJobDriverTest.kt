@@ -5,8 +5,8 @@ import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.payload.adapters.build.BuildJobFailed
 import io.kotest.matchers.shouldBe
-import org.slf4j.LoggerFactory
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -80,7 +80,10 @@ class BuildJobDriverTest {
         val scheduled = Queue(1, failAt = 1)
         runner(scheduled)
             .withPropertyValues("payload.build.driver.enabled=true", "payload.build.driver.delay=10ms")
-            .run { awaitTrue { scheduled.claims.get() >= 3 }; (scheduled.claims.get() >= 3) shouldBe true }
+            .run {
+                awaitTrue { scheduled.claims.get() >= 3 }
+                (scheduled.claims.get() >= 3) shouldBe true
+            }
     }
 
     @Test
