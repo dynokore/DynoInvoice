@@ -45,3 +45,7 @@ gst:
 evidence:
   offboarding-export:
     object-store-scheme: s3 # the scheme of the production ObjectStore, read without a default in code
+  # Lock period of the archive objects written before a partition is detached at retention end (object store COMPLIANCE
+  # mode; owner ruling 2026-11-17). Configuration, never a default in code: unset refuses the deletion (SRT-010).
+  retention:
+    archive-lock-period: P30D

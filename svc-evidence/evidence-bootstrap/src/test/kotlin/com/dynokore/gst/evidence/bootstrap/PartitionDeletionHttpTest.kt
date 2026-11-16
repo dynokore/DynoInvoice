@@ -640,7 +640,8 @@ class PartitionDeletionHttpTest {
         // the context binds a fixed port: the configured service is stopped while the one without the period runs
         val beans = listOf(WorkloadTokensOnly::class.java, GateStoreBeans::class.java)
         service.close()
-        System.clearProperty(LOCK_PROPERTY)
+        // the packaged baseline sets P30D (INV-AC-24117): the empty string binds to null and so unsets it
+        System.setProperty(LOCK_PROPERTY, "")
         service = RetentionService.start(Files.createTempDirectory(dir, "unset"), beans)
         try {
             val f = fixture()
