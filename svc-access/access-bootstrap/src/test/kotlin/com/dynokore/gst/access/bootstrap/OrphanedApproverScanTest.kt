@@ -1,17 +1,17 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ORPHAN_ALERT_STATE
-import com.dynokore.gst.access.application.alert.AccessAlerts
 import com.dynokore.gst.access.application.alert.ActiveApprovers
 import com.dynokore.gst.access.application.alert.HeldApprover
 import com.dynokore.gst.access.application.alert.OrphanAlertState
 import com.dynokore.gst.access.application.alert.OrphanedApprovers
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.domain.grant.EntityMembership
+import com.dynokore.gst.access.application.alert.AccessAlerts
 import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.GroupRef
-import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.TenantRef
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
@@ -412,10 +412,7 @@ class OrphanedApproverScanTest {
             val own = Scope.Group(GroupRef("GRP-1"), TenantRef(tenant.toString()))
             Seeds.grant(context, tenant, SeedSpec("user:a", Role.TAX_APPROVER, own, window = open))
             val inside =
-                tenants.bind(
-                    tenant,
-                    "t",
-                ) { tx.inTransaction { active.countFor(unknown, now) to held.everHeld(unknown) } }
+                tenants.bind(tenant, "t") { tx.inTransaction { active.countFor(unknown, now) to held.everHeld(unknown) } }
             assertThat(inside).isEqualTo(1 to true)
         }
     }
@@ -449,7 +446,6 @@ class OrphanedApproverScanTest {
                     AccessAlerts { _, _ -> },
                     context.getBean(java.time.Clock::class.java),
                 )
-
             fun scan(claimed: List<TenantId>) =
                 OrphanedApproverScan(
                     { claimed },
