@@ -256,7 +256,12 @@ object PlatformGrantSeedFixture {
                     "$it|platform_seed_insert|INSERT|{access_migrate}|null|(tenant_id = '$PLATFORM'::uuid)"
                 } +
                 // tenant list of the full sync of AuthorityChanged (INV-T-9061, ruled policy): one row, whole string
-                listOf("role_grant|role_grant_sys_replay_tenants|SELECT|{access_sys}|true|null")
+                listOf("role_grant|role_grant_sys_replay_tenants|SELECT|{access_sys}|true|null") +
+                // tenant claim of the grant expiry-notice scan (INV-T-15799): ACTIVE grants with an end date only
+                listOf(
+                    "role_grant|role_grant_expiry_claim|SELECT|{access_sys}|" +
+                        "((status = 'ACTIVE'::text) AND (valid_until IS NOT NULL))|null",
+                )
         val found = mutableListOf<String>()
         if (policyRows(c).sorted() != ruled.sorted()) found += "policies ${policyRows(c)} differ from $ruled"
         val forced =
@@ -272,11 +277,12 @@ object PlatformGrantSeedFixture {
         // advance_authority_head: INV-T-9060, probed in AuthorityHeadDbTest (the SECURITY DEFINER catalogue case)
         // start_authority_incarnation, bump_authority_incarnation, record_authority_high_water: INV-T-9261,
         // probed in AuthorityIncarnationDbTest
+        // claim_grant_expiry_tenants: INV-T-15799, probed in GrantExpiryNoticeStoredRowsTest (the claim case)
         val definers =
             "select proname from pg_proc where pronamespace = 'access'::regnamespace and prosecdef " +
                 "and proname not in ('resolve_invitation_tenant', 'resolve_signed_link_tenant', " +
                 "'replay_authority_tenants', 'advance_authority_head', 'start_authority_incarnation', " +
-                "'bump_authority_incarnation', 'record_authority_high_water') order by 1"
+                "'bump_authority_incarnation', 'record_authority_high_water', 'claim_grant_expiry_tenants') order by 1"
         if (strings(c, definers) != connect(BASE).use { strings(it, definers) }) found += "a definer function was added"
         return found
     }
