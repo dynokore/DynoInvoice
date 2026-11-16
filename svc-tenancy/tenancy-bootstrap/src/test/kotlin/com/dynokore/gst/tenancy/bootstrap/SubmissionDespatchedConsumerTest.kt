@@ -71,13 +71,13 @@ class SubmissionDespatchedConsumerTest {
             block: () -> T,
         ): T = tenants.bind(tenant, "user:test") { block() }
 
-        fun facts(tenant: TenantId): List<Pair<String, String?>> =
+        fun facts(tenant: TenantId): List<String> =
             inTenant(tenant) {
                 tx.inTransaction {
                     dsl
                         .selectFrom(DESPATCH_FACT)
                         .fetch()
-                        .map { it.rowKind!! to it.entityRef }
+                        .map { it.entityRef!! }
                 }
             }
 
@@ -125,10 +125,10 @@ class SubmissionDespatchedConsumerTest {
             val tenant = TenantId(UUID.randomUUID())
             env.log.add(despatched(tenant, "ev-${UUID.randomUUID()}", "ENT-1"))
             assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(1, 0, 0, 0, 0))
-            assertThat(env.facts(tenant)).containsExactly("ENTITY" to "ENT-1")
+            assertThat(env.facts(tenant)).containsExactly("ENT-1")
             env.log.add(despatched(tenant, "ev-${UUID.randomUUID()}", "ENT-1"))
             assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(0, 1, 0, 0, 0))
-            assertThat(env.facts(tenant)).containsExactly("ENTITY" to "ENT-1")
+            assertThat(env.facts(tenant)).containsExactly("ENT-1")
         }
     }
 
@@ -141,7 +141,7 @@ class SubmissionDespatchedConsumerTest {
             assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(1, 0, 0, 0, 0))
             env.log.add(despatched(tenant, eventId, "ENT-2"))
             assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(0, 0, 1, 0, 0))
-            assertThat(env.facts(tenant)).containsExactly("ENTITY" to "ENT-2")
+            assertThat(env.facts(tenant)).containsExactly("ENT-2")
             assertThat(env.inboxRows(tenant)).isEqualTo(1)
         }
     }
@@ -152,6 +152,18 @@ class SubmissionDespatchedConsumerTest {
             val tenant = TenantId(UUID.randomUUID())
             val record = json.write(envelopeOf(tenant)).replace(Regex(",?\"tenantid\":\"[^\"]*\""), "")
             assertThat(record).doesNotContain("tenantid")
+            env.log.add(record)
+            assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(0, 0, 0, 0, 1))
+            assertThat(env.facts(tenant)).isEmpty()
+        }
+    }
+
+    @Test
+    fun `INV-AC-16774 an event without entityref goes to the dead letter and writes no fact`() {
+        run { env ->
+            val tenant = TenantId(UUID.randomUUID())
+            val record = json.write(envelopeOf(tenant)).replace(Regex(",?\"entityref\":\"[^\"]*\""), "")
+            assertThat(record).doesNotContain("entityref")
             env.log.add(record)
             assertThat(env.consumer.pollOnce()).isEqualTo(PollResult(0, 0, 0, 0, 1))
             assertThat(env.facts(tenant)).isEmpty()
