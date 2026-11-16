@@ -35,8 +35,8 @@ import java.time.ZoneOffset
 class JooqActiveApprovers(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
-    clock: Clock,
-    consent: ConsentCheck,
+    private val clock: Clock,
+    private val consent: ConsentCheck,
     private val directory: EntityDirectory,
 ) : ActiveApprovers {
     private val grants = JooqGrantRepository(dsl, tenants, clock, consent)
@@ -112,7 +112,7 @@ class JooqOrphanAlertState(
         dsl
             .select(ORPHAN_ALERT_STATE.ENTITY_REF)
             .from(ORPHAN_ALERT_STATE)
-            .fetch { EntityRef(checkNotNull(it.value1())) }
+            .fetch { EntityRef(it.value1()!!) }
             .toSet()
 }
 

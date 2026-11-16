@@ -95,7 +95,6 @@ class IdpAndBreakGlassUseCases {
         consent: ConsentCheck,
     ): MappedGrants = JooqMappedGrants(dsl, JooqGrantRepository(dsl, tenants, clock, consent))
 
-    @Suppress("LongParameterList") // one collaborator per port of the effects
     @Bean
     fun idpProvisioningEffects(
         publisher: AuthorityChangePublisher,

@@ -45,8 +45,7 @@ class OrphanedApproverScan(
 ) {
     /** One run: the number of tenants whose evaluation failed. */
     fun runOnce(): Int {
-        // the platform tenant holds installation grants only; it has no entity to alert for
-        val claimed = platform.bindPlatform(ACTOR) { claim() }.filterNot { it.isPlatform }
+        val claimed = platform.bindPlatform(ACTOR) { claim() }
         return claimed.count { tenant ->
             runCatching {
                 tenants.bind(tenant, ACTOR) {
