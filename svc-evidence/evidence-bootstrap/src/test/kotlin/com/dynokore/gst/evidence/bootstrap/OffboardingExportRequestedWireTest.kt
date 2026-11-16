@@ -254,7 +254,7 @@ class OffboardingExportRequestedWireTest {
         @TempDir dir: Path,
     ) = run(dir) {
         val tenant = TenantId(UUID.randomUUID())
-        // the production writer refuses the tenant-wide entity for this type, so the entityref is cut from the wire text
+        // the writer refuses the tenant-wide entity for this type, so the entityref is cut from the wire text
         val wire =
             request(
                 tenant,
