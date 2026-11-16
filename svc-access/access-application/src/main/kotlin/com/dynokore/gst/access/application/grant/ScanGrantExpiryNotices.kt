@@ -11,12 +11,20 @@ import java.time.ZoneId
 private const val DEFAULT_FAR_DAYS = 14
 private const val DEFAULT_NEAR_DAYS = 3
 
-/** The tenant's notice days (default 14 and 3), the bound of INV-REQ-1267 and the zone of the expiry date. */
+/**
+ * The zone of the expiry date (required, no default), the tenant's notice days (default 14 and 3) and the bound of
+ * INV-REQ-1267.
+ */
 data class ExpiryNoticeSettings(
+    val zone: ZoneId,
     val days: List<Int> = listOf(DEFAULT_FAR_DAYS, DEFAULT_NEAR_DAYS),
     val minimumLeadDays: Int = DEFAULT_NEAR_DAYS,
-    val zone: ZoneId = ZoneId.of("Asia/Singapore"),
 )
+
+/** One or more grants failed in a scan; every other grant was still handled. Each failure is a suppressed cause. */
+class ExpiryScanFailed(
+    val failedGrants: List<String>,
+) : RuntimeException("the expiry scan failed for ${failedGrants.size} grant(s): $failedGrants")
 
 /** Where the addresses come from and where an unresolved one is reported. */
 class ExpiryRecipients(
@@ -40,17 +48,39 @@ class ScanGrantExpiryNotices(
     private val messages: ExpiryNoticeMessages,
     private val recipients: ExpiryRecipients,
     private val alerting: ExpiryAlerting,
-    private val settings: ExpiryNoticeSettings = ExpiryNoticeSettings(),
+    private val settings: ExpiryNoticeSettings,
 ) {
+    /**
+     * Handles every grant; a grant that fails stays unmarked and unlogged, the rest go on, and the failure is
+     * rethrown at the end.
+     */
+    @Suppress("TooGenericExceptionCaught")
     fun scan(now: Instant) {
+        val failures = mutableListOf<Pair<String, RuntimeException>>()
         source.due(now).forEach { item ->
-            val filing = item.filingEntity
-            val until = item.grant.window.until
-            when {
-                filing == null || until == null -> Unit
-                now.isBefore(until) -> notify(item, filing, now)
-                else -> raiseExpired(item, filing)
+            try {
+                scanOne(item, now)
+            } catch (e: RuntimeException) {
+                failures += item.grant.ref.value to e
             }
+        }
+        if (failures.isNotEmpty()) {
+            throw ExpiryScanFailed(failures.map { it.first }).also { ex ->
+                failures.forEach { ex.addSuppressed(it.second) }
+            }
+        }
+    }
+
+    private fun scanOne(
+        item: ExpiringGrant,
+        now: Instant,
+    ) {
+        val filing = item.filingEntity
+        val until = item.grant.window.until
+        when {
+            filing == null || until == null -> Unit
+            now.isBefore(until) -> notify(item, filing, now)
+            else -> raiseExpired(item, filing)
         }
     }
 

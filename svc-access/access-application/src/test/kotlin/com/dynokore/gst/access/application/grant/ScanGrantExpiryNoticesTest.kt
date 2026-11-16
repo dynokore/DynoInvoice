@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.time.ZoneId
 
 class ScanGrantExpiryNoticesTest {
     private val tenant = TenantRef("0a000000-0000-4000-8000-00000000000a")
@@ -55,6 +56,7 @@ class ScanGrantExpiryNoticesTest {
         var alertFails = false
         var addresses: Map<String, String> = mapOf("IDN-HOLDER" to "h@x.sg", "IDN-ADMIN" to "a@x.sg")
         var items: List<ExpiringGrant> = emptyList()
+        var zone: ZoneId = ZoneId.of("Asia/Singapore")
 
         fun scan(now: Instant) =
             ScanGrantExpiryNotices(
@@ -99,6 +101,7 @@ class ScanGrantExpiryNoticesTest {
                         alerts += c to s
                     },
                 ),
+                ExpiryNoticeSettings(zone),
             ).scan(now)
     }
 
@@ -237,8 +240,36 @@ class ScanGrantExpiryNoticesTest {
                 items = listOf(expiring(grant("G5", ends20), external = true))
                 alertFails = true
             }
-        assertThrows(IllegalStateException::class.java) { f.scan(d21) }
+        val failure = assertThrows(ExpiryScanFailed::class.java) { f.scan(d21) }
+        assertEquals(listOf("G5"), failure.failedGrants)
         assertTrue(f.raised.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-23831 a failing grant does not starve the later grants`() {
+        val f =
+            Fakes().apply {
+                items =
+                    listOf(
+                        expiring(grant("G5", ends20), external = true),
+                        expiring(grant("G9", Instant.parse("2026-12-24T08:00:00Z"))),
+                    )
+                alertFails = true
+            }
+        assertThrows(ExpiryScanFailed::class.java) { f.scan(d21) }
+        assertEquals(1, f.requests.size)
+        assertEquals(setOf(3), f.noticed["G9"])
+    }
+
+    @Test
+    fun `INV-AC-23831 the zone decides the expiry day`() {
+        val f = Fakes().apply { items = listOf(expiring(grant("G1", Instant.parse("2026-12-20T20:00:00Z")))) }
+        val at = Instant.parse("2026-12-06T10:00:00Z")
+        f.scan(at)
+        assertTrue(f.requests.isEmpty())
+        f.zone = ZoneId.of("UTC")
+        f.scan(at)
+        assertEquals(setOf(14), f.noticed["G1"])
     }
 
     @Test
