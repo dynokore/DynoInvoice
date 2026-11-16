@@ -61,6 +61,7 @@ import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Duration
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -76,7 +77,14 @@ private const val IMPORT_KEY = "regulatory-pack.import-verify"
 private const val APPROVE_KEY = "regulatory-pack.approve"
 private const val TYPE = "CALENDAR"
 private const val SCHEMATRON = "SCHEMATRON"
-private const val EFFECTIVE = "2027-01-01"
+
+// Relative to the real clock (the harness clock starts at Instant.now()), 60 days out: always beyond the
+// grace window that caps the lead time, so the window cases cannot expire with the calendar (P160).
+private val EFFECTIVE_DATE: LocalDate = LocalDate.now(ZoneOffset.UTC).plusDays(60)
+private val EFFECTIVE = EFFECTIVE_DATE.toString()
+private val DAY_AFTER_EFFECTIVE = EFFECTIVE_DATE.plusDays(1).toString()
+private val DAY_BEFORE_EFFECTIVE = EFFECTIVE_DATE.minusDays(1).toString()
+private val LONG_AFTER_EFFECTIVE = EFFECTIVE_DATE.plusDays(150).toString()
 private val HOLDERS = listOf("rules-svc", "payload-svc", "tenancy-svc", "reconciliation-svc", "notification-svc")
 private const val STATUSES = "select string_agg(distinct status, ',') from rules.pack_registry"
 private const val SVRL = "http://purl.oclc.org/dsdl/svrl"
@@ -592,8 +600,8 @@ class RegulatoryPackArmingBoundaryTest(
         ackAll(TYPE, v)
         grantArmer("u-armer")
         val before = snapshot()
-        refused(arm("u-armer", TYPE, v, "2027-01-02"), 409, "SRT-008")
-        refused(arm("u-armer", TYPE, v, "2026-12-31"), 409, "SRT-008")
+        refused(arm("u-armer", TYPE, v, DAY_AFTER_EFFECTIVE), 409, "SRT-008")
+        refused(arm("u-armer", TYPE, v, DAY_BEFORE_EFFECTIVE), 409, "SRT-008")
         snapshot() shouldBe before
         arm("u-armer", TYPE, v).statusCode() shouldBe 200
     }
@@ -993,7 +1001,7 @@ class RegulatoryPackArmingAbortBoundaryTest(
         val answer = arm("u-armer", SCHEMATRON, v, effective)
         refused(answer, 422, "RUL-005")
         status(SCHEMATRON, v) shouldBe "APPROVED"
-        resolved(SCHEMATRON, "2027-06-01", v, previous) shouldBe previous
+        resolved(SCHEMATRON, LONG_AFTER_EFFECTIVE, v, previous) shouldBe previous
         snapshot() shouldBe before
         CurrencyCalls.statuses.size shouldBe 0
     }
@@ -1010,7 +1018,7 @@ class RegulatoryPackArmingAbortBoundaryTest(
         refused(arm("u-armer", TYPE, v), 422, "RUL-005")
         scalar("select count(*)::text from rules.pack_registry where status = 'ARMED' and pack_version = ?", v)
             .shouldBe("0")
-        resolved(TYPE, "2027-06-01", v, previous) shouldBe previous
+        resolved(TYPE, LONG_AFTER_EFFECTIVE, v, previous) shouldBe previous
         snapshot() shouldBe before
     }
 
@@ -1106,7 +1114,7 @@ class RegulatoryPackArmingPrivateBoundaryTest(
             "$SCHEMATRON@$v",
         ) shouldBe "1"
         resolved(SCHEMATRON, effective, v, previous) shouldBe v
-        resolved(SCHEMATRON, "2026-12-31", v, previous) shouldBe previous
+        resolved(SCHEMATRON, DAY_BEFORE_EFFECTIVE, v, previous) shouldBe previous
         (context.getBean(com.dynokore.gst.rules.adapters.web.PacksController::class.java) === controller) shouldBe true
         context.startupDate shouldBe startup
         (CurrencyCalls.compiles.get() - before) shouldBe 2
