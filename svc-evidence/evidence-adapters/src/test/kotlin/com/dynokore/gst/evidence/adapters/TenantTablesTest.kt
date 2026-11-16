@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.adapters
 
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -47,6 +48,31 @@ class TenantTablesTest {
     }
 
     @Test
+    fun `the runtime login holds no privilege on any partition and its parent is covered by the finding check`() {
+        val covered = tables().map { it.name }.toSet()
+        val privileges = listOf("select", "insert", "update", "delete", "truncate")
+        EvidenceDb.superuser().use { connection ->
+            connection.createStatement().use { statement ->
+                statement
+                    .executeQuery(
+                        "select c.relname, p.relname, " +
+                            privileges.joinToString(", ") { "has_table_privilege('evidence_runtime', c.oid, '$it')" } +
+                            " from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+                            "join pg_inherits i on i.inhrelid = c.oid join pg_class p on p.oid = i.inhparent " +
+                            "where n.nspname = 'evidence' and c.relispartition and c.relkind = 'r'",
+                    ).use { rows ->
+                        while (rows.next()) {
+                            (2..privileges.size + 1).map { rows.getBoolean(it + 1) } shouldBe privileges.map { false }
+                            withClue("parent ${rows.getString(2)} of partition ${rows.getString(1)}") {
+                                (rows.getString(2) in covered) shouldBe true
+                            }
+                        }
+                    }
+            }
+        }
+    }
+
+    @Test
     fun `the tables of the first migration exist`() {
         (
             setOf("outbox", "outbox_sequence") -
@@ -65,7 +91,7 @@ class TenantTablesTest {
                 "and pg_get_expr(p.polqual, p.polrelid) like '%bound_tenant()%' " +
                 "and pg_get_expr(p.polwithcheck, p.polrelid) like '%bound_tenant()%') " +
                 "from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
-                "where n.nspname = 'evidence' and c.relkind in ('r', 'p') " +
+                "where n.nspname = 'evidence' and c.relkind in ('r', 'p') and not c.relispartition " +
                 "and c.relname <> 'flyway_schema_history' order by 1"
     }
 

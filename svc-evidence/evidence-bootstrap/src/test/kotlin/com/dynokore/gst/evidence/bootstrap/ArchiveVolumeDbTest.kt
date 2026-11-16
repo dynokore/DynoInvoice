@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
+import com.dynokore.gst.evidence.adapters.RetentionPartitionFixture
 import com.dynokore.gst.evidence.adapters.persistence.JooqArchiveVolumeLedger
 import com.dynokore.gst.evidence.adapters.persistence.JooqStoredContentBytes
 import com.dynokore.gst.evidence.adapters.persistence.jooq.tables.DecisionTrace.Companion.DECISION_TRACE
@@ -98,6 +99,7 @@ class ArchiveVolumeDbTest {
         length: Int,
         table: String = "decision_trace",
     ) = superuser {
+        RetentionPartitionFixture.ensureRetentionPartition(it, table, tenant, entity, "2026-Q3")
         it.run(
             "insert into evidence.$table (id, tenant_id, entity_ref, period_ref, seq, evidence_type, content, " +
                 "content_hash, recorded_at) values (gen_random_uuid(), '$tenant', '$entity', '2026-Q3', " +

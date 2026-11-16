@@ -145,6 +145,9 @@ class CallerChecks(
                 "GET /internal/v1/evidence/acknowledgements/{ackId}" to FORBIDDEN,
                 "GET /internal/v1/evidence/lookup" to FORBIDDEN,
                 "GET /internal/v1/evidence/exports" to FORBIDDEN,
+                // an entityRef body field (entity-ref-operations.tsv of platform-build 0.24 and later): the entity gate
+                // refuses the test's end-user token before the handler that is not built yet (501 until its task)
+                "POST /internal/v1/evidence/legal-holds" to FORBIDDEN,
             )
         private const val FORBIDDEN = 403
         private const val OK = 200

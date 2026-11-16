@@ -38,6 +38,9 @@ import java.time.Clock
 object ChainWiring {
     const val SCHEMA = "evidence"
 
+    /** The exclusive end of a one-period unit: the period followed by this character (V21). */
+    private const val UNIT_END = "\u0001"
+
     /** Only `decision_trace` has the nullable `version` column (V17); the other chain tables have none. */
     private fun versionColumn(kind: RecordKind): Boolean = kind == RecordKind.DECISION_TRACE
 
@@ -46,14 +49,18 @@ object ChainWiring {
         RecordKind.entries.associateWith { JdbcEvidenceLedger(dsl, SCHEMA, it.table, versionColumn(it)) }
 
     /**
-     * The ledgers of the appender: each append first calls `evidence.ensure_partition` (V21) for its
-     * (tenant, entity, period), in the caller's tenant transaction, so the row lands in a partition of its own tenant.
+     * The ledgers of the appender: each append first calls `evidence.create_retention_partition` (V21) for its chain
+     * table and the period's unit, in the caller's tenant transaction, so the row lands in a partition of its own
+     * tenant (the table name is an inline literal that PostgreSQL reads as `regclass`). The unit is one period: the
+     * range is [period, period + U+0001) on the "C" collation, so `P1` and `P10` are different units and no two
+     * units overlap.
      */
     internal fun appendLedgers(dsl: DSLContext): Map<RecordKind, EvidenceLedger> =
-        ledgers(dsl).mapValues { (_, ledger) -> PartitionEnsuringLedger(dsl, ledger) }
+        ledgers(dsl).mapValues { (kind, ledger) -> PartitionCreatingLedger(dsl, kind.table, ledger) }
 
-    private class PartitionEnsuringLedger(
+    private class PartitionCreatingLedger(
         private val dsl: DSLContext,
+        private val table: String,
         private val delegate: EvidenceLedger,
     ) : EvidenceLedger by delegate {
         @Suppress("LongParameterList") // the port signature of EvidenceLedger, unchanged
@@ -68,11 +75,13 @@ object ChainWiring {
             dsl
                 .select(
                     DSL.function(
-                        DSL.name(SCHEMA, "ensure_partition"),
+                        DSL.name(SCHEMA, "create_retention_partition"),
                         SQLDataType.VARCHAR,
+                        DSL.inline("$SCHEMA.$table"),
                         DSL.`val`(tenant.value),
                         DSL.`val`(entity.value),
                         DSL.`val`(period.value),
+                        DSL.`val`(period.value + UNIT_END),
                     ),
                 ).fetch()
             return delegate.append(tenant, entity, period, type, content, index)
