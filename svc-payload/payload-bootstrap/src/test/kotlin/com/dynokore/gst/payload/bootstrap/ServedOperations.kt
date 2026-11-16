@@ -3,10 +3,10 @@ package com.dynokore.gst.payload.bootstrap
 import com.dynokore.gst.payload.adapters.PayloadDb
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.FlowContextKeys
 import com.dynokore.platform.serviceruntime.identity.FlowContextTestSupport
 import com.dynokore.platform.serviceruntime.identity.FlowEntity
-import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -200,8 +200,13 @@ class ServedService(
         classLoader
             .getResources("META-INF/gst/flow-context-operations.tsv")
             .toList()
-            .flatMap { url -> url.readText().lines().drop(1).filter { it.isNotBlank() } }
-            .map { line ->
+            .flatMap { url ->
+                url
+                    .readText()
+                    .lines()
+                    .drop(1)
+                    .filter { it.isNotBlank() }
+            }.map { line ->
                 val (_, method, path) = line.split('\t')
                 method to Regex(path.replace(Regex("\\{[^}]+}"), "[^/]+"))
             }
