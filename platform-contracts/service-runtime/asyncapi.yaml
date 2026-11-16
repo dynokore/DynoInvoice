@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.26.0
+  version: 1.27.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -186,6 +186,17 @@ channels:
     messages:
       PackDryRunSampleRecorded:
         $ref: '#/components/messages/PackDryRunSampleRecorded'
+  platformPackReprocessingRequested:
+    address: 'gst.platform.pack-reprocessing-requested.v1'
+    messages:
+      PackReprocessingRequested:
+        $ref: '#/components/messages/PackReprocessingRequested'
+
+  platformPackReprocessingPopulationRecorded:
+    address: 'gst.platform.pack-reprocessing-population-recorded.v1'
+    messages:
+      PackReprocessingPopulationRecorded:
+        $ref: '#/components/messages/PackReprocessingPopulationRecorded'
 operations:
   publishAuditEntryRecorded:
     action: send
@@ -378,6 +389,22 @@ operations:
       $ref: '#/channels/platformPackDryRunSampleRequested'
     messages:
       - $ref: '#/channels/platformPackDryRunSampleRequested/messages/PackDryRunSampleRequested'
+
+  publishPackReprocessingRequested:
+    action: send
+    description: PackReprocessingRequested — platform event added by the contract task INV-T-24001 (INV-REQ-1003, INV-REQ-1004).
+    channel:
+      $ref: '#/channels/platformPackReprocessingRequested'
+    messages:
+      - $ref: '#/channels/platformPackReprocessingRequested/messages/PackReprocessingRequested'
+
+  publishPackReprocessingPopulationRecorded:
+    action: send
+    description: PackReprocessingPopulationRecorded — platform event added by the contract task INV-T-24001 (INV-REQ-1003, INV-REQ-1004).
+    channel:
+      $ref: '#/channels/platformPackReprocessingPopulationRecorded'
+    messages:
+      - $ref: '#/channels/platformPackReprocessingPopulationRecorded/messages/PackReprocessingPopulationRecorded'
 
   publishPackDryRunSampleRecorded:
     action: send
@@ -801,6 +828,38 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/replay-completed-payload.schema.json'
+
+    PackReprocessingRequested:
+      name: com.dynokore.gst.platform.PackReprocessingRequested.v1
+      title: PackReprocessingRequested
+      summary: PackReprocessingRequested — rules-svc asks canonical-svc for the population of a reprocessing run after a pack correction.
+      description: >-
+        Platform event PackReprocessingRequested (INV-REQ-1003, INV-REQ-1004; class: platform). Emitted by: rules-svc. Consumed by: canonical-svc.
+        Delivery: At-least-once. When a superseding pack is armed, reprocessing runs as
+        background work; canonical-svc selects the documents of entityRef whose current canonical version was evaluated
+        under badPackVersion and whose transaction date is on or after effectiveFrom, and answers with
+        PackReprocessingPopulationRecorded pages. The tenant is the envelope attribute tenantid (API-40), not a payload
+        property. Payload: reprocessingId, entityRef, packType, badPackVersion, supersedingPackVersion and effectiveFrom.
+        Carries no invoice content.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-reprocessing-requested-payload.schema.json'
+
+    PackReprocessingPopulationRecorded:
+      name: com.dynokore.gst.platform.PackReprocessingPopulationRecorded.v1
+      title: PackReprocessingPopulationRecorded
+      summary: PackReprocessingPopulationRecorded — one page of the population canonical-svc supplies for a reprocessing run.
+      description: >-
+        Platform event PackReprocessingPopulationRecorded (INV-REQ-1003, INV-REQ-1004; class: platform). Emitted by: canonical-svc. Consumed by: rules-svc.
+        Delivery: At-least-once. One page of the population for the
+        reprocessingId of a PackReprocessingRequested, numbered from 1, the last page marked lastPage; each document
+        carries its Doc UUID, the superseded canonical version, whether it is already acknowledged, and the values
+        rules-svc re-evaluates. The tenant is the envelope attribute tenantid (API-40). The event carries invoice
+        content (FR-AH.12), so its topic keeps the content window.
+      x-invoice-content: true
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/pack-reprocessing-population-recorded-payload.schema.json'
 
     PackDryRunSampleRequested:
       name: com.dynokore.gst.platform.PackDryRunSampleRequested.v1

@@ -1,0 +1,8 @@
+{
+  "reprocessingId": "rep-0001",
+  "entityRef": "ent-001",
+  "packType": "GST_RATES",
+  "badPackVersion": "1.4.0",
+  "supersedingPackVersion": "1.4.1",
+  "effectiveFrom": "2026-08-01"
+}

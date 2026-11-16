@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/pack-reprocessing-requested-payload.schema.json",
+  "title": "PackReprocessingRequestedPayload",
+  "description": "Payload of the PackReprocessingRequested platform event (INV-REQ-1003, INV-REQ-1004; class: platform; contract task INV-T-24001, coordinator ruling on the coder stop of INV-T-4978): rules-svc asks canonical-svc for the population of a reprocessing run after a pack correction. The tenant is the envelope attribute tenantid (API-40), not a payload property. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "reprocessingId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The reprocessing run the request starts."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The entity whose documents are selected."
+    },
+    "packType": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The pack type that was corrected."
+    },
+    "badPackVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "Version of the bad pack; documents whose current canonical version was evaluated under it are selected."
+    },
+    "supersedingPackVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "description": "Version of the superseding pack the documents are reprocessed under."
+    },
+    "effectiveFrom": {
+      "type": "string",
+      "format": "date",
+      "description": "Documents with a transaction date on or after this date are selected."
+    }
+  },
+  "required": [
+    "reprocessingId",
+    "entityRef",
+    "packType",
+    "badPackVersion",
+    "supersedingPackVersion",
+    "effectiveFrom"
+  ],
+  "additionalProperties": true
+}

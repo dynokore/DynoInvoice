@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/service-runtime/schemas/pack-reprocessing-population-recorded-payload.schema.json",
+  "title": "PackReprocessingPopulationRecordedPayload",
+  "description": "Payload of the PackReprocessingPopulationRecorded platform event (INV-REQ-1003, INV-REQ-1004; class: platform; contract task INV-T-24001, coordinator ruling on the coder stop of INV-T-4978): one page of the population of a reprocessing run. Selection: the documents of entityRef whose current canonical version was evaluated under badPackVersion (of the PackReprocessingRequested event of the reprocessingId) and whose transaction date is on or after effectiveFrom. The documents array holds at most 500 documents: API-42 limits an event to 1 MB, and 500 documents are at most 250,000 bytes at this schema's maximum string lengths (derivation: one document with every member present at its maximum is 499 bytes, namely members entityRef 54, transactionDate 30, internalTaxCode 60, documentFunction 37, supplyType 29, precedingDocumentDate 36, taxableValue 38, gstValue 34 (a value is at most 21 characters: minus sign, 17 digits, point, 2 digits), sgdValuesAbsent 23, periodRef 46, docUuid 48, supersededVersion 30 (an integer counted at 10 digits, as the schema sets no maximum) and acknowledged 20, each counted as quoted name, colon and value, plus 12 commas and 2 braces, and 1 array comma per document gives 500; 500 times 500 is 250,000), so a full page stays far below 1 MB. The tenant is the envelope attribute tenantid (API-40). The optional sgdValuesAbsent flag on a document is true only for a document in a foreign currency that has no stated SGD totals. The optional periodRef member carries the opaque period reference of the canonical document. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "reprocessingId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The reprocessing run the page belongs to."
+    },
+    "entityRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The entity whose documents the page lists."
+    },
+    "pageNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Page number, from 1."
+    },
+    "lastPage": {
+      "type": "boolean",
+      "description": "True on the last page of the population."
+    },
+    "documents": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "properties": {
+          "docUuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The Doc UUID of the canonical document the item describes; the resubmission is made under this same Doc UUID (INV-REQ-1003). A consumer reports it and never generates one."
+          },
+          "supersededVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The current canonical version of the document, evaluated under badPackVersion, that the reprocessing supersedes."
+          },
+          "acknowledged": {
+            "type": "boolean",
+            "description": "True when the document is already ACKNOWLEDGED by IRAS under the bad pack; such a document is resubmitted, not left (INV-REQ-1003)."
+          },
+          "entityRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "The entity the document belongs to; equals entityRef of the page."
+          },
+          "transactionDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Transaction date of the document."
+          },
+          "internalTaxCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "description": "The internal tax code of the document."
+          },
+          "documentFunction": {
+            "type": "string",
+            "enum": [
+              "BILL_FOR_PAYMENT",
+              "ADJUSTMENT",
+              "NOT_A_BILL"
+            ],
+            "description": "The function of the document."
+          },
+          "supplyType": {
+            "type": "string",
+            "enum": [
+              "STANDARD_RATED",
+              "ZERO_RATED",
+              "EXEMPT",
+              "OUT_OF_SCOPE",
+              "IMPORTS"
+            ],
+            "x-extensible-enum": true,
+            "description": "The GST supply type of the document (INV-Q-10703 option B'). Equals the value of canonicalDocument.supplyType of the document's current canonical version. A consumer treats an item without it as having no stated supply type."
+          },
+          "precedingDocumentDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Date of the preceding document; credit notes only."
+          },
+          "taxableValue": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+            "description": "Signed taxable value as a decimal string (API-12)."
+          },
+          "gstValue": {
+            "type": "string",
+            "format": "decimal",
+            "pattern": "^-?\\d{1,17}(\\.\\d{1,2})?$",
+            "description": "Signed GST value as a decimal string (API-12)."
+          },
+          "periodRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "description": "The opaque calendar reference of the period, inside the sample window, that contains the document's transactionDate, in the vocabulary of firstPeriodRef of the request. The producer sets it and a consumer uses it to group by period without computing a period."
+          },
+          "sgdValuesAbsent": {
+            "type": "boolean",
+            "description": "True only for a document in a foreign currency that has no stated SGD totals; taxableValue and gstValue are then the placeholder 0.00, a consumer leaves such an item out of every total and shows it as absent, and a value is never converted (INV-Q-5568 A, INV-Q-5634 A). Absent or false means the values are real."
+          }
+        },
+        "required": [
+          "docUuid",
+          "supersededVersion",
+          "acknowledged",
+          "entityRef",
+          "transactionDate",
+          "internalTaxCode",
+          "documentFunction",
+          "taxableValue",
+          "gstValue"
+        ],
+        "additionalProperties": true,
+        "if": {
+          "properties": {
+            "sgdValuesAbsent": {
+              "const": true
+            }
+          },
+          "required": [
+            "sgdValuesAbsent"
+          ]
+        },
+        "then": {
+          "properties": {
+            "taxableValue": {
+              "const": "0.00"
+            },
+            "gstValue": {
+              "const": "0.00"
+            }
+          },
+          "required": [
+            "taxableValue",
+            "gstValue"
+          ]
+        }
+      },
+      "description": "The documents of the page; at most 500 (API-42, 1 MB event limit; see the schema description)."
+    }
+  },
+  "required": [
+    "reprocessingId",
+    "entityRef",
+    "pageNumber",
+    "lastPage",
+    "documents"
+  ],
+  "additionalProperties": true
+}

@@ -605,6 +605,24 @@ topics:
       - tenancy-svc
     subscribers:
       - rules-svc
+  - topic: gst.platform.pack-reprocessing-population-recorded.v1
+    event_type: com.dynokore.gst.platform.PackReprocessingPopulationRecorded.v1
+    content_topic: true
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - canonical-svc
+    subscribers:
+      - rules-svc
+  - topic: gst.platform.pack-reprocessing-requested.v1
+    event_type: com.dynokore.gst.platform.PackReprocessingRequested.v1
+    content_topic: false
+    record_topic: false
+    retained_while_resolvable: false
+    producers:
+      - rules-svc
+    subscribers:
+      - canonical-svc
   - topic: gst.platform.policy-changed.v1
     event_type: com.dynokore.gst.platform.PolicyChanged.v1
     content_topic: false
@@ -1346,6 +1364,7 @@ replay_topics:
   - topic: gst.canonical.replay-rules.v1
     event_types:
       - com.dynokore.gst.platform.PackDryRunSampleRecorded.v1
+      - com.dynokore.gst.platform.PackReprocessingPopulationRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: true
     record_topic: false
@@ -1897,6 +1916,7 @@ replay_topics:
   - topic: gst.rules.replay-canonical.v1
     event_types:
       - com.dynokore.gst.platform.PackDryRunSampleRequested.v1
+      - com.dynokore.gst.platform.PackReprocessingRequested.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
     content_topic: false
     record_topic: false
