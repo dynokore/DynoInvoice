@@ -71,6 +71,8 @@ class ReplicaUnsubmittedDocuments(
         }
     }
 
+    // Fail closed (NIST SP 800-53 SC-24): whatever a read throws becomes the refusal, never a zero.
+    @Suppress("TooGenericExceptionCaught")
     private fun <T> guarded(read: () -> T): T =
         try {
             read()
