@@ -233,9 +233,12 @@ class SeparabilityTest {
                     "create table evidence.dep_b (id uuid primary key, tenant_id uuid not null);" +
                     "create function evidence.dep_fn() returns trigger language plpgsql as " +
                     "\$\$ begin return new; end \$\$;" +
-                    "create trigger dep_ta before insert on evidence.dep_a for each row execute function evidence.dep_fn();" +
-                    "create trigger dep_tb before insert on evidence.dep_b for each row execute function evidence.dep_fn();" +
-                    "insert into pg_catalog.pg_depend (classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype) " +
+                    "create trigger dep_ta before insert on evidence.dep_a " +
+                    "for each row execute function evidence.dep_fn();" +
+                    "create trigger dep_tb before insert on evidence.dep_b " +
+                    "for each row execute function evidence.dep_fn();" +
+                    "insert into pg_catalog.pg_depend " +
+                    "(classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype) " +
                     "select 'pg_trigger'::regclass, a.oid, 0, 'pg_trigger'::regclass, b.oid, 0, 'n' " +
                     "from pg_trigger a, pg_trigger b where a.tgname = 'dep_ta' and b.tgname = 'dep_tb'",
             )
