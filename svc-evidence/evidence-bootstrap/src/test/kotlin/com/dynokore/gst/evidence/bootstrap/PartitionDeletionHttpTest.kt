@@ -509,14 +509,15 @@ class PartitionDeletionHttpTest {
         EvidenceDb.superuser().use { c ->
             c.createStatement().use { s ->
                 s.execute("alter table $OPERATION disable trigger $GUARD")
-                try {
-                    s.execute(
-                        "update $OPERATION set started_at = started_at - interval '8 days', " +
-                            "completed_at = completed_at - interval '8 days' where tenant_id = '${f.tenant}'",
-                    )
-                } finally {
-                    s.execute("alter table $OPERATION enable trigger $GUARD")
-                }
+                val moved =
+                    runCatching {
+                        s.execute(
+                            "update $OPERATION set started_at = started_at - interval '8 days', " +
+                                "completed_at = completed_at - interval '8 days' where tenant_id = '${f.tenant}'",
+                        )
+                    }
+                s.execute("alter table $OPERATION enable trigger $GUARD")
+                moved.getOrThrow()
             }
         }
         val gone = read(f)

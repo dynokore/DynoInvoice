@@ -21,8 +21,9 @@ import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantContext
 import org.jooq.DSLContext
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.time.Clock
@@ -30,10 +31,20 @@ import java.time.Duration
 import com.dynokore.gst.evidence.application.digest.MaxRetention as DigestMaxRetention
 
 /**
+ * `evidence.retention.*`: how long the status of a deletion is answered after it ended (API-17), an ISO-8601 duration,
+ * default P7D, floor P7D (a lower value stops the start: [PartitionDeletionVisibility] refuses it).
+ */
+@ConfigurationProperties(prefix = "evidence.retention")
+class RetentionProperties(
+    val deletionStatusVisibility: Duration = PartitionDeletionVisibility.FLOOR,
+)
+
+/**
  * The retention use cases over config-resolver's ports, which service-runtime wires (TPL-18). The default years are
  * read from the VP-43 row of the catalogue, never written in code (INV-AC-10452).
  */
 @Configuration(proxyBeanMethods = false)
+@EnableConfigurationProperties(RetentionProperties::class)
 class RetentionConfiguration {
     @Bean
     fun effectiveRetention(
@@ -96,12 +107,8 @@ class RetentionConfiguration {
     ): DeleteAtRetentionEnd =
         DeleteAtRetentionEnd(records, records, records, records, records, records, audit, lifecycle, clock)
 
-    /**
-     * `evidence.retention.deletion-status-visibility` (ISO-8601 duration, default P7D, floor P7D): how long the status
-     * of a deletion is answered after it ended (API-17). A lower value stops the start (fail closed).
-     */
+    /** `evidence.retention.deletion-status-visibility`: default P7D, floor P7D (a lower value stops the start). */
     @Bean
-    fun partitionDeletionVisibility(
-        @Value("\${evidence.retention.deletion-status-visibility:P7D}") period: Duration,
-    ): PartitionDeletionVisibility = PartitionDeletionVisibility(period)
+    fun partitionDeletionVisibility(properties: RetentionProperties): PartitionDeletionVisibility =
+        PartitionDeletionVisibility(properties.deletionStatusVisibility)
 }

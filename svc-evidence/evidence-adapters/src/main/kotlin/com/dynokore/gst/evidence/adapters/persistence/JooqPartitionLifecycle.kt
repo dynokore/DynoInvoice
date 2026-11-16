@@ -24,11 +24,13 @@ import java.util.concurrent.ConcurrentHashMap
  * - [archive]: the rows of each detached partition go to the object store, then `mark_partition_archived` is called
  *   once for the unit (the function checks all four members);
  * - [drop]: `drop_detached_partition(partition)` for each chain table.
+ * [observe] is told the name of each call just before it is made (`detach:<table>`, `archive`, `drop:<table>`).
  */
 class JooqPartitionLifecycle(
     private val dsl: DSLContext,
     private val store: ObjectStore,
     private val clock: Clock,
+    private val observe: (String) -> Unit = {},
 ) : PartitionLifecycle {
     override fun detach(
         partitionId: String,
@@ -40,6 +42,7 @@ class JooqPartitionLifecycle(
         val prefix = archive(partitionId, readUnit(partitionId))
         pendingPrefix[partitionId] = prefix
         RecordKind.entries.forEach { kind ->
+            observe("detach:${kind.table}")
             dsl
                 .select(
                     DSL.function(
@@ -57,6 +60,7 @@ class JooqPartitionLifecycle(
     /** Marks the unit archived (`mark_partition_archived`, once; the function checks all four members detached). */
     override fun archive(partitionId: String): String {
         val prefix = checkNotNull(pendingPrefix.remove(partitionId)) { "the rows of $partitionId were not archived" }
+        observe("archive")
         dsl
             .select(
                 DSL.function(
@@ -106,6 +110,7 @@ class JooqPartitionLifecycle(
 
     override fun drop(partitionId: String) {
         RecordKind.entries.forEach { kind ->
+            observe("drop:${kind.table}")
             dsl
                 .select(
                     DSL.function(

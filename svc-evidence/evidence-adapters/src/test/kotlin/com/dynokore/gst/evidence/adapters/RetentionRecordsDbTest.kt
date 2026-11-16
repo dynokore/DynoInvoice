@@ -26,12 +26,8 @@ import com.dynokore.platform.evidencestore.PeriodRef
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
-import org.jooq.ExecuteContext
-import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
-import org.jooq.exception.DataAccessException
 import org.jooq.impl.DSL
-import org.jooq.impl.DefaultExecuteListenerProvider
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import java.sql.Connection
@@ -83,25 +79,12 @@ class RetentionRecordsDbTest {
     /** Records every call of the three functions in order, and refuses the detach of [refuseDetachOf]. */
     private class Recorder(
         private val refuseDetachOf: String? = null,
-    ) : ExecuteListener {
+    ) : (String) -> Unit {
         val calls = mutableListOf<String>()
 
-        override fun executeStart(ctx: ExecuteContext) {
-            val sql = ctx.sql() ?: return
-            val chain = CHAIN.find(sql)?.groupValues?.get(1)
-            val call =
-                when {
-                    sql.contains("detach_expired_partition") -> "detach:$chain"
-                    sql.contains("drop_detached_partition") -> "drop:$chain"
-                    sql.contains("mark_partition_archived") -> "archive"
-                    else -> return
-                }
+        override fun invoke(call: String) {
             calls += call
-            if (call == "detach:$refuseDetachOf") throw DataAccessException("the detach is refused for $chain")
-        }
-
-        private companion object {
-            val CHAIN = Regex("'evidence\\.(decision_trace|evidence_payload|acknowledgement|audit_log)")
+            check(call != "detach:$refuseDetachOf") { "the detach is refused for $refuseDetachOf" }
         }
     }
 
@@ -323,13 +306,7 @@ class RetentionRecordsDbTest {
         try {
             val result =
                 runtime(u.tenant) { c ->
-                    val recording =
-                        DSL.using(
-                            DSL
-                                .using(c, SQLDialect.POSTGRES)
-                                .configuration()
-                                .derive(DefaultExecuteListenerProvider(recorder)),
-                        )
+                    val recording = DSL.using(c, SQLDialect.POSTGRES)
                     val records = JooqRetentionRecords(recording, effective(u.tenant), clock)
                     DeleteAtRetentionEnd(
                         records,
@@ -339,7 +316,7 @@ class RetentionRecordsDbTest {
                         records,
                         records,
                         audit,
-                        JooqPartitionLifecycle(recording, store, clock),
+                        JooqPartitionLifecycle(recording, store, clock, recorder),
                         clock,
                     ).execute(u.tenant.toString(), "u-starter", partitionId(u))
                 }
