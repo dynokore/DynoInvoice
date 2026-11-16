@@ -14,5 +14,6 @@ object PublishedChannels {
             PeriodEventsOutbox.DUE_DATE_CHANGED_CHANNEL,
             CertificationStatusChangedOutbox.CHANNEL,
             PeriodRecordsChangedOutbox.CHANNEL,
+            OffboardingExportRequestedOutbox.CHANNEL,
         )
 }

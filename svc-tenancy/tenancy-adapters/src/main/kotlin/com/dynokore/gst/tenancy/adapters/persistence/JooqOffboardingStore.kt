@@ -3,8 +3,10 @@ package com.dynokore.gst.tenancy.adapters.persistence
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.records.OffboardingRecordRecord
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.OFFBOARDING_RECORD
 import com.dynokore.gst.tenancy.adapters.persistence.jooq.tables.references.TENANT
+import com.dynokore.gst.tenancy.application.offboarding.OffboardingExportResults
 import com.dynokore.gst.tenancy.application.offboarding.OffboardingRecord
 import com.dynokore.gst.tenancy.application.offboarding.OffboardingStore
+import com.dynokore.gst.tenancy.application.offboarding.StoredOffboarding
 import com.dynokore.gst.tenancy.domain.ExportContent
 import com.dynokore.gst.tenancy.domain.ExportManifest
 import com.dynokore.gst.tenancy.domain.ExportState
@@ -19,12 +21,15 @@ import java.util.UUID
 
 /**
  * The offboarding records of the bound tenant (jOOQ only, CS-18); forced RLS hides every other tenant's rows. A record
- * is inserted once and never updated; a FAILED record stays as history (INV-Q-5025).
+ * is inserted once; only the export result may update a REQUESTED record (state, export state, contents and failure
+ * reason), and a COMPLETED or FAILED record never changes again (the database refuses it); a FAILED record stays as
+ * history (INV-Q-5025).
  */
 class JooqOffboardingStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
-) : OffboardingStore {
+) : OffboardingStore,
+    OffboardingExportResults {
     override fun byIdempotencyKey(key: String): OffboardingRecord? =
         dsl
             .selectFrom(OFFBOARDING_RECORD)
@@ -91,6 +96,58 @@ class JooqOffboardingStore(
             .set(OFFBOARDING_RECORD.SECOND_CONFIRMATION_BY, record.secondConfirmationBy)
             .execute()
     }
+
+    override fun find(offboardingRef: String): StoredOffboarding? =
+        dsl
+            .selectFrom(OFFBOARDING_RECORD)
+            .where(
+                OFFBOARDING_RECORD.TENANT_ID
+                    .eq(tenants.current().value)
+                    .and(OFFBOARDING_RECORD.OFFBOARDING_REF.eq(offboardingRef)),
+            ).fetchOne()
+            ?.let(::storedOf)
+
+    override fun applyResult(
+        offboardingRef: String,
+        state: OffboardingState,
+        manifest: ExportManifest,
+        failureReason: String?,
+    ): Boolean =
+        dsl
+            .update(OFFBOARDING_RECORD)
+            .set(OFFBOARDING_RECORD.STATE, state.name)
+            .set(OFFBOARDING_RECORD.EXPORT_STATE, manifest.state.name)
+            .set(OFFBOARDING_RECORD.EXPORT_CONTENTS, manifest.contents.map { it.name }.toTypedArray())
+            .set(OFFBOARDING_RECORD.EXPORT_FAILURE_REASON, failureReason)
+            .where(
+                OFFBOARDING_RECORD.TENANT_ID
+                    .eq(tenants.current().value)
+                    .and(OFFBOARDING_RECORD.OFFBOARDING_REF.eq(offboardingRef))
+                    .and(OFFBOARDING_RECORD.STATE.eq(OffboardingState.REQUESTED.name)),
+            ).execute() == 1
+
+    override fun requestedFor(
+        scope: OffboardingScope,
+        entityRef: String?,
+    ): StoredOffboarding? =
+        dsl
+            .selectFrom(OFFBOARDING_RECORD)
+            .where(
+                OFFBOARDING_RECORD.TENANT_ID
+                    .eq(tenants.current().value)
+                    .and(OFFBOARDING_RECORD.SCOPE.eq(scope.name))
+                    .and(
+                        if (entityRef == null) {
+                            OFFBOARDING_RECORD.ENTITY_REF.isNull
+                        } else {
+                            OFFBOARDING_RECORD.ENTITY_REF.eq(entityRef)
+                        },
+                    ).and(OFFBOARDING_RECORD.STATE.eq(OffboardingState.REQUESTED.name)),
+            ).fetchOne()
+            ?.let(::storedOf)
+
+    private fun storedOf(row: OffboardingRecordRecord): StoredOffboarding =
+        StoredOffboarding(recordOf(row), row.createdAt.column("created_at").toInstant())
 
     /** The `ref` of the bound tenant, read from the tenant row (no second mapping of a ref to an id). */
     private fun tenantRef(): String =

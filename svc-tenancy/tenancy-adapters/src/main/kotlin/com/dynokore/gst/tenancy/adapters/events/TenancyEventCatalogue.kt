@@ -34,6 +34,8 @@ object TenancyEventCatalogue {
     const val ARCHIVE_VOLUME_TOPIC = "gst.evidence.archive-volume-measured.v1"
     const val TENANT_WIDE_ARCHIVE_VOLUME_TYPE = "com.dynokore.gst.platform.TenantWideArchiveVolumeMeasured.v1"
     const val TENANT_WIDE_ARCHIVE_VOLUME_TOPIC = "gst.platform.tenant-wide-archive-volume-measured.v1"
+    const val OFFBOARDING_EXPORT_FINISHED_TYPE = "com.dynokore.gst.evidence.OffboardingExportFinished.v1"
+    const val OFFBOARDING_EXPORT_FINISHED_TOPIC = "gst.evidence.offboarding-export-finished.v1"
     const val PLAN_LIMIT_EXCEEDED_TYPE = "com.dynokore.gst.tenancy.PlanLimitExceeded.v1"
     const val ASYNCAPI_RESOURCE = "gst/contracts/tenancy/asyncapi.yaml"
 
@@ -69,7 +71,8 @@ object TenancyEventCatalogue {
             ownTypes + consumed.map { it.eventType } + SHORT_CODE_USED_TYPE + PERIOD_FILING_STATUS_TYPE +
                 ConsumedCertificationEvents.IDENTITY_TRIPLE_CHANGED + ConsumedCertificationEvents.MARK_REQUESTED +
                 SUBMISSION_ACKNOWLEDGED_TYPE + ARCHIVE_VOLUME_TYPE + ConsumedRenditionEvents.TYPE +
-                TRIGGER_COVERAGE_CHANGED_TYPE + UNSUBMITTED_COUNT_MEASURED_TYPE + SUBMISSION_DESPATCHED_TYPE
+                TRIGGER_COVERAGE_CHANGED_TYPE + UNSUBMITTED_COUNT_MEASURED_TYPE + SUBMISSION_DESPATCHED_TYPE +
+                    OFFBOARDING_EXPORT_FINISHED_TYPE
         val elections = electionEvents(known)
         val seen = known + elections.map { it.eventType }
         val platform =
@@ -132,7 +135,7 @@ object TenancyEventCatalogue {
                 setOf("payload-svc"),
                 contentTopic = false,
             ),
-        ) + consumedSubmissionCountEvent() + consumedSubmissionDespatchedEvent()
+        ) + consumedSubmissionCountEvent() + consumedSubmissionDespatchedEvent() + consumedOffboardingExportFinished()
 
     /** A document was despatched: the replica input of the BackdatingFloor (INV-Q-16675, INV-AC-16774). */
     private fun consumedSubmissionDespatchedEvent() =
@@ -152,6 +155,17 @@ object TenancyEventCatalogue {
                 UNSUBMITTED_COUNT_MEASURED_TYPE,
                 UNSUBMITTED_COUNT_MEASURED_TOPIC,
                 setOf("submission-svc"),
+                contentTopic = false,
+            ),
+        )
+
+    /** The result of the offboarding export, produced by evidence-svc (INV-REQ-877). */
+    private fun consumedOffboardingExportFinished() =
+        listOf(
+            CatalogueEntry(
+                OFFBOARDING_EXPORT_FINISHED_TYPE,
+                OFFBOARDING_EXPORT_FINISHED_TOPIC,
+                setOf("evidence-svc"),
                 contentTopic = false,
             ),
         )
