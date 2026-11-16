@@ -294,13 +294,7 @@ class PackReplicaConsumerDbTest {
         // an unknown identifier is held for retry too (the handler alone: the failed record above stays queued)
         val handler = RulePackEventsHandler(RulePackEventsHandler.ACTIVATED_TYPE, replica)
         shouldThrow<IllegalStateException> {
-            tx(
-                t1,
-            ) {
-                handler.handle(
-                    envelope(t1, RulePackEventsHandler.ACTIVATED_TYPE, activated("1.0.0", id = "P-UNKNOWN")),
-                )
-            }
+            tx(t1) { handler.handle(envelope(t1, RulePackEventsHandler.ACTIVATED_TYPE, activated("1.0.0", id = "P-UNKNOWN"))) }
         }
         activeRows(t1) shouldBe 0
         rows(t1) shouldBe 1

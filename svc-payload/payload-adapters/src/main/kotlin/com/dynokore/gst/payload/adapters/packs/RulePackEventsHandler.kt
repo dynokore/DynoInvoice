@@ -53,11 +53,7 @@ class RulePackEventsHandler(
             }
 
             StageResult.CONFLICT -> {
-                log.error(
-                    "staged MDE pack {} version {} came with other contents; the stored one is kept",
-                    identifier,
-                    version,
-                )
+                log.error("staged MDE pack {} version {} came with other contents; the stored one is kept", identifier, version)
                 throw ContractViolation("an MDE pack version is already staged with other contents")
             }
         }
