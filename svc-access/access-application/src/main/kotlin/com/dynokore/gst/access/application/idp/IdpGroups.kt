@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.application.idp
 
+import com.dynokore.gst.access.application.alert.OrphanedApproverCheck
 import com.dynokore.gst.access.application.grant.AuthorityChangePublisher
 import com.dynokore.gst.access.application.grant.GrantAudit
 import com.dynokore.gst.access.application.grant.GrantAuditEntry
@@ -84,6 +85,7 @@ class IdpProvisioningEffects(
     val catalogue: RoleCatalogue,
     val mapped: MappedGrants,
     val conflictingPairs: ConflictingRolePairs,
+    val orphans: OrphanedApproverCheck = OrphanedApproverCheck.NotWired,
 )
 
 /**
@@ -169,6 +171,7 @@ class GroupGrantReconciler(
             records.forChange(grant, grants::nextAuthorityVersion),
         )
         audit(actor, "idpGroupGrant", grant, null)
+        if (grant.role == Role.TAX_APPROVER) effects.orphans.afterChange(grant.scope)
     }
 
     private fun revoke(
@@ -184,6 +187,7 @@ class GroupGrantReconciler(
             records.forChange(after, grants::nextAuthorityVersion),
         )
         audit(actor, "idpGroupRevoke", current, """{"status":"${current.status}","role":"${current.role.wire}"}""")
+        if (after.role == Role.TAX_APPROVER) effects.orphans.afterChange(after.scope)
     }
 
     private fun audit(

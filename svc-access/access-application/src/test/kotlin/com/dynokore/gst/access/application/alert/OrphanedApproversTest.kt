@@ -1,6 +1,10 @@
 package com.dynokore.gst.access.application.alert
 
+import com.dynokore.gst.access.application.grant.EntityDirectory
+import com.dynokore.gst.access.domain.grant.EntityMembership
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.Scope
+import com.dynokore.gst.access.domain.grant.TenantRef
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -32,6 +36,17 @@ class OrphanedApproversTest {
             override fun openEntities(): Set<EntityRef> = open.toSet()
         }
 
+    private val directory =
+        object : EntityDirectory {
+            override fun membership(entity: EntityRef) = EntityMembership(TenantRef("T-1"), null)
+
+            override fun entitiesCoveredBy(scope: Scope): Set<EntityRef> =
+                when (scope) {
+                    is Scope.Entity -> setOf(scope.entity)
+                    else -> setOf(e1, e2)
+                }
+        }
+
     private val check =
         OrphanedApprovers(
             { entity, at ->
@@ -41,33 +56,34 @@ class OrphanedApproversTest {
             },
             { everHeld.contains(it) },
             state,
+            directory,
             { code, scope -> raised += code to scope },
             clock,
         )
 
     @Test
     fun `INV-AC-23854 count zero and held raises once with the entity scope`() {
-        check.afterChange(setOf(e1))
-        check.afterChange(setOf(e1))
+        check.afterChange(Scope.Entity(e1))
+        check.afterChange(Scope.Entity(e1))
         assertEquals(listOf("ACC-001" to "entity:E1"), raised)
         assertEquals(setOf(e1), open)
     }
 
     @Test
     fun `INV-AC-23854 an approver again closes the state and a new loss raises again`() {
-        check.afterChange(setOf(e1))
+        check.afterChange(Scope.Entity(e1))
         counts[e1] = 1
-        check.afterChange(setOf(e1))
+        check.afterChange(Scope.Entity(e1))
         assertEquals(emptySet<EntityRef>(), open)
         counts[e1] = 0
-        check.afterChange(setOf(e1))
+        check.afterChange(Scope.Entity(e1))
         assertEquals(2, raised.size)
     }
 
     @Test
     fun `INV-AC-23854 an entity that never held an approver raises nothing and opens nothing`() {
         everHeld.clear()
-        check.afterChange(setOf(e1))
+        check.afterChange(Scope.Entity(e1))
         assertEquals(emptyList<Pair<String, String>>(), raised)
         assertEquals(emptySet<EntityRef>(), open)
     }
@@ -75,7 +91,7 @@ class OrphanedApproversTest {
     @Test
     fun `INV-AC-23854 an entity that still has an approver records nothing`() {
         counts[e2] = 1
-        check.afterChange(setOf(e1, e2))
+        check.afterChange(Scope.Tenant(TenantRef("T-1")))
         assertEquals(listOf("ACC-001" to "entity:E1"), raised)
     }
 
@@ -91,7 +107,7 @@ class OrphanedApproversTest {
     @Test
     fun `INV-AC-23854 a failing approver read propagates and records and opens nothing`() {
         activeFails = true
-        assertThrows(IllegalStateException::class.java) { check.afterChange(setOf(e1)) }
+        assertThrows(IllegalStateException::class.java) { check.afterChange(Scope.Entity(e1)) }
         assertEquals(emptyList<Pair<String, String>>(), raised)
         assertEquals(emptySet<EntityRef>(), open)
     }

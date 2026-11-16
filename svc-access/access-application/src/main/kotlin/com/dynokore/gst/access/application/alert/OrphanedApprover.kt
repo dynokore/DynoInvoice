@@ -1,6 +1,8 @@
 package com.dynokore.gst.access.application.alert
 
+import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.Scope
 import java.time.Clock
 import java.time.Instant
 
@@ -31,13 +33,13 @@ interface OrphanAlertState {
 
 /** Called inside the transaction of a write that touched a `tax.approver` grant (ACC-001, INV-REQ-895). */
 interface OrphanedApproverCheck {
-    fun afterChange(entities: Set<EntityRef>)
+    fun afterChange(scope: Scope)
 
     companion object {
         /** Does nothing; the default of the constructor parameters so no existing caller changes. */
         val NotWired: OrphanedApproverCheck =
             object : OrphanedApproverCheck {
-                override fun afterChange(entities: Set<EntityRef>) = Unit
+                override fun afterChange(scope: Scope) = Unit
             }
     }
 }
@@ -51,10 +53,13 @@ class OrphanedApprovers(
     private val active: ActiveApprovers,
     private val held: HeldApprover,
     private val state: OrphanAlertState,
+    private val directory: EntityDirectory,
     private val alerts: AccessAlerts,
     private val clock: Clock,
 ) : OrphanedApproverCheck {
-    override fun afterChange(entities: Set<EntityRef>) {
+    override fun afterChange(scope: Scope) = evaluate(directory.entitiesCoveredBy(scope))
+
+    private fun evaluate(entities: Set<EntityRef>) {
         entities.forEach { entity ->
             if (active.countFor(entity, clock.instant()) > 0) {
                 state.close(entity)
@@ -66,7 +71,7 @@ class OrphanedApprovers(
 
     /** The level-triggered pass of the scheduled scan: [entities] are those the scan found without an approver. */
     fun settle(entities: Set<EntityRef>) {
-        afterChange(entities)
+        evaluate(entities)
         state.openEntities().forEach { entity ->
             if (entity !in entities || active.countFor(entity, clock.instant()) > 0) state.close(entity)
         }

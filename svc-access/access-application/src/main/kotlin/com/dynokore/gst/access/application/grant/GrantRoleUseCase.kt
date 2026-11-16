@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.application.grant
 
+import com.dynokore.gst.access.application.alert.OrphanedApproverCheck
 import com.dynokore.gst.access.application.separation.ConflictingPairPolicy
 import com.dynokore.gst.access.application.separation.ConflictingRolePairs
 import com.dynokore.gst.access.application.separation.SoleOperatorAcks
@@ -43,6 +44,7 @@ class GrantRoleUseCase(
     private val grants: GrantRepository,
     private val effects: GrantRoleEffects,
     private val rules: GrantRoleRules,
+    private val orphans: OrphanedApproverCheck = OrphanedApproverCheck.NotWired,
 ) {
     private val records = RoleGrantMapper()
 
@@ -174,6 +176,7 @@ class GrantRoleUseCase(
                 priorStateJson = null,
             ),
         )
+        if (role == Role.TAX_APPROVER) orphans.afterChange(scope)
         return GrantRoleOutcome.Granted(grant, repeated = false)
     }
 }
@@ -186,6 +189,7 @@ class RevokeGrantUseCase(
     private val grants: GrantRepository,
     private val publisher: AuthorityChangePublisher,
     private val audit: GrantAudit,
+    private val orphans: OrphanedApproverCheck = OrphanedApproverCheck.NotWired,
 ) {
     private val records = RoleGrantMapper()
 
@@ -212,6 +216,7 @@ class RevokeGrantUseCase(
                     priorStateJson = """{"status":"${current.status}","role":"${current.role.wire}"}""",
                 ),
             )
+            if (after.role == Role.TAX_APPROVER) orphans.afterChange(after.scope)
             RevokeGrantOutcome.Revoked(after)
         }
 }
