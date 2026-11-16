@@ -51,8 +51,8 @@ import java.util.UUID
  * INV-AC-22810 at the service boundary on a real database (P109): the `aggregateId` of a consumed
  * `CanonicalVersionCreated` event is stored by the production consumer and reaches the `PayloadReady` outbox row built
  * by the `BuildPayload` bean; a version without it publishes no such member. The two inbox consumers, the build use
- * case and its ports are the beans of the TPL-18 context. Only the event-log read is a list in memory, and the family
- * and the active pack (not ruled, see the MR gaps) are test beans, as in `BuildPayloadJobDbTest`.
+ * case and its ports are the beans of the TPL-18 context. The test supplies three beans (INV-T-22814 ruling 4): the
+ * family, the active pack (as in `BuildPayloadJobDbTest`) and the in-memory event-log read, the external boundary.
  */
 class PayloadReadyAggregateIdBoundaryTest {
     private companion object {
@@ -217,7 +217,7 @@ class PayloadReadyAggregateIdBoundaryTest {
 
     private fun members(row: JsonNode): Set<String> = row.propertyNames().toSet()
 
-    /** Every port of the build use case is the production bean; the test supplies only two beans. */
+    /** Every build port is the production bean; the test supplies three beans (family, active pack, event log). */
     private fun assertProductionComposition(ctx: ApplicationContext) {
         ctx.getBean(BuildInputsReader::class.java).javaClass shouldBe JooqBuildInputsReader::class.java
         ctx.getBean(TypeDecisionReader::class.java).javaClass shouldBe JooqTypeDecisionReader::class.java
