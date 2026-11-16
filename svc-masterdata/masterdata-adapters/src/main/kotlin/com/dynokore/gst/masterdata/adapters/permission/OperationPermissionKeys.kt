@@ -14,4 +14,7 @@ object OperationPermissionKeys {
     const val CONNECTION_TEST = "connection.test"
     const val CONNECTION_HEALTH_VIEW = "connection-health.view"
     const val CONNECTION_CREDENTIAL_ROTATE = "connection-credential.rotate"
+
+    /** `x-operation.permission` of `sendCounterpartyRequest` (INV-T-22585, catalogue key of INV-T-22584). */
+    const val COUNTERPARTY_REQUEST_SEND = "counterparty-request.send"
 }

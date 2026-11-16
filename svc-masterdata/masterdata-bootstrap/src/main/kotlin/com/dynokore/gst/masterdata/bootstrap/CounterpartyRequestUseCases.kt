@@ -2,6 +2,7 @@ package com.dynokore.gst.masterdata.bootstrap
 
 import com.dynokore.gst.masterdata.adapters.events.ClientSignatoryLinkOutbox
 import com.dynokore.gst.masterdata.adapters.events.SignedLinkRequestedOutbox
+import com.dynokore.gst.masterdata.adapters.http.CounterpartyRequestSendAudit
 import com.dynokore.gst.masterdata.adapters.http.LinkSubmissionAudit
 import com.dynokore.gst.masterdata.adapters.persistence.JooqClientSignatories
 import com.dynokore.gst.masterdata.adapters.persistence.JooqCounterpartyRequests
@@ -168,6 +169,12 @@ class CounterpartyRequestUseCases {
         tenants: TenantContext,
         requests: CounterpartyRequests,
     ): SubmissionAudit = LinkSubmissionAudit(writer, tenants, requests)
+
+    @Bean
+    fun counterpartyRequestSendAudit(
+        writer: AuditWriter,
+        tenants: TenantContext,
+    ) = CounterpartyRequestSendAudit(writer, tenants)
 
     @Bean
     @Suppress("LongParameterList")

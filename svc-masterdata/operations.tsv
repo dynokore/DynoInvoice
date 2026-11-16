@@ -8,7 +8,7 @@ operation	dryRunCounterpartyImport	INV-T-4944	done
 operation	getCounterpartyImportDryRun	INV-T-4944	done
 operation	runGapReport	INV-T-4944	done
 operation	getGapReport	INV-T-4944	done
-operation	sendCounterpartyRequest	INV-T-4945	open
+operation	sendCounterpartyRequest	INV-T-20197	done
 operation	submitCounterpartyDetails	INV-T-18221	done
 operation	importRates	INV-T-18775	done
 operation	enterRate	INV-T-18774	done
@@ -30,7 +30,7 @@ operation	exportGapReport	INV-T-4944	done
 operation	recordClientSignatory	INV-T-17443	done
 channel	masterdataMasterDataResolved	INV-T-4943	done
 channel	masterdataReferenceRateLoaded	INV-T-18775	done
-channel	masterdataSignedLinkRequested	INV-T-4945	open
+channel	masterdataSignedLinkRequested	INV-T-20197	done
 channel	accessSignedLinkIssued	INV-T-18221	done
 channel	accessSignedLinkInvalidated	INV-T-18221	done
 channel	canonicalDocumentHeld	INV-T-21336	done

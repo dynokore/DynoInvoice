@@ -190,13 +190,14 @@ class OperationsTableTest {
     }
 
     @Test
-    fun `INV-AC-16047 PublishedChannels lists exactly the four published channel names`() {
+    fun `INV-AC-16047 PublishedChannels lists exactly the five published channel names`() {
         assertThat(PublishedChannels.ALL).isEqualTo(
             setOf(
                 "masterdataMasterDataResolved",
                 "masterdataIdentityTripleCorrected",
                 "masterdataIdentityTripleChanged",
                 "masterdataReferenceRateLoaded",
+                "masterdataSignedLinkRequested",
             ),
         )
         assertThat(PublishedChannels.ALL).contains(IdentityTripleChangedOutbox.CHANNEL)
@@ -204,10 +205,10 @@ class OperationsTableTest {
     }
 
     @Test
-    fun `INV-AC-16047 probe - PublishedChannels ALL with a fourth name fails the gate`() {
+    fun `INV-AC-16047 probe - PublishedChannels ALL with a sixth name fails the gate`() {
         assertThat(verify(table)).isEmpty()
-        assertThat(verify(table, published = PublishedChannels.IMPLEMENTED + "masterdataSignedLinkRequested"))
-            .containsExactly("channel masterdataSignedLinkRequested: published by the code but not marked done")
+        assertThat(verify(table, published = PublishedChannels.IMPLEMENTED + "masterdataExampleHappened"))
+            .containsExactly("channel masterdataExampleHappened: the code must not publish the PLACEHOLDER channel")
         val reopened =
             table.map {
                 if (it.startsWith("channel\tmasterdataIdentityTripleCorrected\t")) {
@@ -240,9 +241,10 @@ class OperationsTableTest {
                 "masterdataIdentityTripleCorrected",
                 "masterdataIdentityTripleChanged",
                 "masterdataReferenceRateLoaded",
+                "masterdataSignedLinkRequested",
             ) + PublishedChannels.CONSUMED
-        assertThat(verify(base, published = published + "masterdataSignedLinkRequested"))
-            .containsExactly("channel masterdataSignedLinkRequested: published by the code but not marked done")
+        assertThat(verify(base, published = published + "masterdataExampleHappened"))
+            .containsExactly("channel masterdataExampleHappened: the code must not publish the PLACEHOLDER channel")
         val unpublished = "channel\tmasterdataMasterDataResolved\tINV-T-4943\tdone"
         assertThat(
             verify(
@@ -252,6 +254,7 @@ class OperationsTableTest {
                         "masterdataIdentityTripleCorrected",
                         "masterdataIdentityTripleChanged",
                         "masterdataReferenceRateLoaded",
+                        "masterdataSignedLinkRequested",
                     ) + PublishedChannels.CONSUMED,
             ),
         ).containsExactly("channel masterdataMasterDataResolved: marked done but the code does not publish it")
