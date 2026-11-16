@@ -256,7 +256,7 @@ class PayloadReadyAggregateIdBoundaryTest {
                 r["payloadSha256"].asString()
         }
         // D and E hold the same document except aggregateType: the bytes differ only by the one POS note (IBT-022)
-        val note = Regex("<cbc:Note>POS</cbc:Note>")
+        val note = Regex("<(?:\\w+:)?Note(?:\\s[^>]*)?>POS</(?:\\w+:)?Note>")
         val xmlD = String(Base64.getDecoder().decode(rd["payloadBytes"].asString()), Charsets.UTF_8)
         val xmlE = String(Base64.getDecoder().decode(re["payloadBytes"].asString()), Charsets.UTF_8)
         note.findAll(xmlD).count() shouldBe 1
