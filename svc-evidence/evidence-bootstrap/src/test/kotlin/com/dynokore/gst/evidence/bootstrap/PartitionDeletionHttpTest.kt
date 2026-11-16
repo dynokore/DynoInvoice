@@ -173,8 +173,7 @@ class PartitionDeletionHttpTest {
         notice: Boolean = true,
         hold: Boolean = false,
         grant: Boolean = true,
-        windowOpen: Boolean = false,
-        approvals: Boolean = true,
+        gap: Gap? = null,
     ): Fixture {
         val tenant = UUID.randomUUID()
         tenants += tenant
@@ -199,7 +198,7 @@ class PartitionDeletionHttpTest {
                     .single()
                     .single(),
             )
-        authority(tenant, id, period, Authority(notice, hold, windowOpen, approvals))
+        authority(tenant, id, period, Authority(notice, hold, gap == Gap.WINDOW_OPEN, gap != Gap.NO_APPROVALS))
         seedStructure(TenantId(tenant))
         if (grant) {
             service.grants.grant(
@@ -217,16 +216,20 @@ class PartitionDeletionHttpTest {
         period: String,
         authority: Authority,
     ) {
-        val (notice, hold, windowOpen, approvals) = authority
-        if (notice) {
-            val closes = if (windowOpen) "now() + interval '10 days'" else "now() - interval '60 days'"
+        if (authority.notice) {
+            val (notified, closes) =
+                if (authority.windowOpen) {
+                    "now() - interval '20 days'" to "now() + interval '10 days'"
+                } else {
+                    "now() - interval '90 days'" to "now() - interval '60 days'"
+                }
             sql(
-                "insert into evidence.retention_notice values (?, ?, now() - interval '90 days', 30, $closes)",
+                "insert into evidence.retention_notice values (?, ?, $notified, 30, $closes)",
                 tenant,
                 id,
             )
         }
-        listOf("u-approver-1", "u-approver-2").filter { approvals }.forEach {
+        listOf("u-approver-1", "u-approver-2").filter { authority.approvals }.forEach {
             sql(
                 "insert into evidence.retention_approval values (?, ?, ?, 'retention.delete.approve', now())",
                 tenant,
@@ -234,7 +237,7 @@ class PartitionDeletionHttpTest {
                 it,
             )
         }
-        if (hold) {
+        if (authority.hold) {
             sql(
                 "insert into evidence.legal_hold " +
                     "(tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
@@ -245,6 +248,8 @@ class PartitionDeletionHttpTest {
             )
         }
     }
+
+    private enum class Gap { WINDOW_OPEN, NO_APPROVALS }
 
     private data class Authority(
         val notice: Boolean,
@@ -460,7 +465,7 @@ class PartitionDeletionHttpTest {
 
     @Test
     fun `INV-AC-22964 an open notice window gives 409 EVD-006 and the rows remain`() {
-        val f = fixture(windowOpen = true)
+        val f = fixture(gap = Gap.WINDOW_OPEN)
         val answer = delete(f)
         answer.status() shouldBe 409
         answer.code() shouldBe "EVD-006"
@@ -471,7 +476,7 @@ class PartitionDeletionHttpTest {
 
     @Test
     fun `INV-AC-22964 missing approvals give 409 EVD-007 and the rows remain`() {
-        val f = fixture(approvals = false)
+        val f = fixture(gap = Gap.NO_APPROVALS)
         val answer = delete(f)
         answer.status() shouldBe 409
         answer.code() shouldBe "EVD-007"
