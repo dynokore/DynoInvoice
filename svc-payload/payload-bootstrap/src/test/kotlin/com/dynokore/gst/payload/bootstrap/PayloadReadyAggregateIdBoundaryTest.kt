@@ -56,7 +56,8 @@ import java.util.UUID
  */
 class PayloadReadyAggregateIdBoundaryTest {
     private companion object {
-        const val PACK = """{"aggregateDefaults":[{"aggregateType":"POS","businessTermId":"IBT-022","literal":"POS"}]}"""
+        const val PACK =
+            """{"aggregateDefaults":[{"aggregateType":"POS","businessTermId":"IBT-022","literal":"POS"}]}"""
     }
 
     private val mapper = ObjectMapper()
@@ -170,13 +171,14 @@ class PayloadReadyAggregateIdBoundaryTest {
         aggregateId: String?,
     ): String {
         val aggregate = aggregateId?.let { ""","aggregateId":"$it"""" }.orEmpty()
+        val document = document(if (aggregateId == null) null else "POS")
         val routing = ""","routingFacts":{"direction":"SALE","counterpartyOnNetwork":true}"""
         return envelope(
             tenant,
             id,
             doc,
             SubmissionTypeDecidedConsumerConfiguration.VERSION_FACTS_TYPE,
-            """{"docUuid":"$doc","version":1,"canonicalDocument":${document(if (aggregateId == null) null else "POS")}$routing$aggregate}""",
+            """{"docUuid":"$doc","version":1,"canonicalDocument":$document$routing$aggregate}""",
         )
     }
 
@@ -215,6 +217,33 @@ class PayloadReadyAggregateIdBoundaryTest {
 
     private fun members(row: JsonNode): Set<String> = row.propertyNames().toSet()
 
+    /** Every port of the build use case is the production bean; the test supplies only two beans. */
+    private fun assertProductionComposition(ctx: ApplicationContext) {
+        ctx.getBean(BuildInputsReader::class.java).javaClass shouldBe JooqBuildInputsReader::class.java
+        ctx.getBean(TypeDecisionReader::class.java).javaClass shouldBe JooqTypeDecisionReader::class.java
+        ctx.getBean(BuildOutcomes::class.java).javaClass shouldBe JooqBuildOutcomes::class.java
+        ctx.getBean(PayloadProjector::class.java).javaClass shouldBe PintSgPayloadProjector::class.java
+        ctx.getBean(PayloadRejectedPublisher::class.java).javaClass shouldBe OutboxPayloadRejectedPublisher::class.java
+    }
+
+    private fun assertBytes(
+        rd: JsonNode,
+        re: JsonNode,
+    ) {
+        for (r in listOf(rd, re)) {
+            val bytes = Base64.getDecoder().decode(r["payloadBytes"].asString())
+            HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)) shouldBe
+                r["payloadSha256"].asString()
+        }
+        // D and E hold the same document except aggregateType: the bytes differ only by the one POS note (IBT-022)
+        val note = Regex("<(?:\\w+:)?Note(?:\\s[^>]*)?>POS</(?:\\w+:)?Note>")
+        val xmlD = String(Base64.getDecoder().decode(rd["payloadBytes"].asString()), Charsets.UTF_8)
+        val xmlE = String(Base64.getDecoder().decode(re["payloadBytes"].asString()), Charsets.UTF_8)
+        note.findAll(xmlD).count() shouldBe 1
+        note.findAll(xmlE).count() shouldBe 0
+        note.replace(xmlD, "") shouldBe xmlE
+    }
+
     @Test
     fun `INV-AC-22810 PayloadReady carries the aggregateId of the consumed event and none when the event had none`(
         @TempDir dir: Path,
@@ -234,12 +263,7 @@ class PayloadReadyAggregateIdBoundaryTest {
         log.add(decidedTopic, decided(tenant, 4, e))
         typeDecisions.pollOnce() shouldBe applied1
 
-        // composition: every port of the build use case is the production bean; the test supplies only two beans
-        ctx.getBean(BuildInputsReader::class.java).javaClass shouldBe JooqBuildInputsReader::class.java
-        ctx.getBean(TypeDecisionReader::class.java).javaClass shouldBe JooqTypeDecisionReader::class.java
-        ctx.getBean(BuildOutcomes::class.java).javaClass shouldBe JooqBuildOutcomes::class.java
-        ctx.getBean(PayloadProjector::class.java).javaClass shouldBe PintSgPayloadProjector::class.java
-        ctx.getBean(PayloadRejectedPublisher::class.java).javaClass shouldBe OutboxPayloadRejectedPublisher::class.java
+        assertProductionComposition(ctx)
 
         val scope = ctx.getBean(TenantScope::class.java)
         val handler =
@@ -267,17 +291,6 @@ class PayloadReadyAggregateIdBoundaryTest {
                 "payloadSha256",
                 "aggregateId",
             )
-        for (r in listOf(rd, re)) {
-            val bytes = Base64.getDecoder().decode(r["payloadBytes"].asString())
-            HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)) shouldBe
-                r["payloadSha256"].asString()
-        }
-        // D and E hold the same document except aggregateType: the bytes differ only by the one POS note (IBT-022)
-        val note = Regex("<(?:\\w+:)?Note(?:\\s[^>]*)?>POS</(?:\\w+:)?Note>")
-        val xmlD = String(Base64.getDecoder().decode(rd["payloadBytes"].asString()), Charsets.UTF_8)
-        val xmlE = String(Base64.getDecoder().decode(re["payloadBytes"].asString()), Charsets.UTF_8)
-        note.findAll(xmlD).count() shouldBe 1
-        note.findAll(xmlE).count() shouldBe 0
-        note.replace(xmlD, "") shouldBe xmlE
+        assertBytes(rd, re)
     }
 }
