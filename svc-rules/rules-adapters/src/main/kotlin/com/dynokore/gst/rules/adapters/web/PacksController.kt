@@ -13,9 +13,13 @@ import com.dynokore.gst.rules.adapters.web.MappingPackMapping.problemBody
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.refusalOf
 import com.dynokore.gst.rules.adapters.web.MappingPackMapping.statusOf
 import com.dynokore.gst.rules.application.AcceptEntryCommand
+import com.dynokore.gst.rules.application.AcknowledgePackDelta
+import com.dynokore.gst.rules.application.AcknowledgePackDeltaResult
 import com.dynokore.gst.rules.application.ActivateCommand
 import com.dynokore.gst.rules.application.ActivePacksOutcome
 import com.dynokore.gst.rules.application.ApproveRegulatoryPack
+import com.dynokore.gst.rules.application.ArmRegulatoryPack
+import com.dynokore.gst.rules.application.ArmRegulatoryPackResult
 import com.dynokore.gst.rules.application.CodeCataloguePort
 import com.dynokore.gst.rules.application.DraftCommand
 import com.dynokore.gst.rules.application.ImportRegulatoryPack
@@ -31,6 +35,7 @@ import com.dynokore.gst.rules.contract.api.MappingPacksApi
 import com.dynokore.gst.rules.contract.api.RegulatoryPacksApi
 import com.dynokore.gst.rules.contract.model.AcceptSourceClassEntryRequest
 import com.dynokore.gst.rules.contract.model.ActivateMappingPackRequest
+import com.dynokore.gst.rules.contract.model.ActivatePackRequest
 import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPack
 import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPackPage
 import com.dynokore.gst.rules.contract.model.DraftMappingPackRequest
@@ -96,6 +101,8 @@ open class PacksController(
     private val approvals: ApproveRegulatoryPack,
     private val importer: ImportRegulatoryPack,
     private val currency: PackCurrencyMonitor,
+    private val arming: ArmRegulatoryPack,
+    private val deltaAcknowledgements: AcknowledgePackDelta,
 ) : MappingPacksApi,
     RegulatoryPacksApi {
     /** The armed regulatory packs of the platform layer for the installer; the caller check is the generated one. */
@@ -307,6 +314,53 @@ open class PacksController(
         // No transaction here: the store binds the platform tenant and opens its own, one for each call.
         RegulatoryPackApprovalMapping.refusalOf(approvals.execute(packType, version, actor()))?.let { throw it }
         return ResponseEntity.ok(RegulatoryPackApprovalMapping.approved(packType, version))
+    }
+
+    /**
+     * The calling tenant's acknowledgement of its own dry-run delta (INV-T-4977; INV-REQ-858, INV-REQ-952). The
+     * acknowledging user is the authenticated user ID; the permission decision and every precondition are the use
+     * case's, and a refusal writes nothing. The registry status does not change.
+     */
+    override fun acknowledgePackDelta(
+        packType: String,
+        version: String,
+        idempotencyKey: UUID,
+    ): ResponseEntity<RegulatoryPack> {
+        val result = deltaAcknowledgements.execute(tenants.current().toString(), packType, version, actor())
+        RegulatoryPackArmingMapping.refusalOf(result)?.let { throw it }
+        return ResponseEntity.ok(
+            RegulatoryPackArmingMapping.acknowledged(packType, version, result as AcknowledgePackDeltaResult.Acknowledged),
+        )
+    }
+
+    /**
+     * Arms an APPROVED regulatory pack behind the two-phase fence (INV-T-4977; INV-REQ-1166). No transaction is opened
+     * here: the arming store binds the platform tenant and opens its own. A fence abort is written once at WARN
+     * (NIST SP 800-92) and answers 422 RUL-005; `PackCurrencyMonitor.packActivated()` runs only after the commit of
+     * ARMED and its failure never changes the 200.
+     */
+    override fun armRegulatoryPack(
+        packType: String,
+        version: String,
+        idempotencyKey: UUID,
+        activatePackRequest: ActivatePackRequest,
+    ): ResponseEntity<RegulatoryPack> {
+        val effectiveFrom = activatePackRequest.effectiveFrom
+        val result = arming.execute(packType, version, effectiveFrom, actor())
+        if (result is ArmRegulatoryPackResult.Aborted) {
+            LoggerFactory.getLogger(PacksController::class.java).warn(
+                "regulatory pack activation abandoned: packType={} version={} failed={} missing={} armingFailed={}",
+                result.packType,
+                result.version,
+                result.failed.sorted(),
+                result.missing.sorted(),
+                result.armingFailed,
+            )
+        }
+        RegulatoryPackArmingMapping.refusalOf(result)?.let { throw it }
+        runCatching { currency.packActivated() }
+            .onFailure { LoggerFactory.getLogger(PacksController::class.java).warn("DEP-001 evaluation failed", it) }
+        return ResponseEntity.ok(RegulatoryPackArmingMapping.armed(packType, version, effectiveFrom))
     }
 
     /**

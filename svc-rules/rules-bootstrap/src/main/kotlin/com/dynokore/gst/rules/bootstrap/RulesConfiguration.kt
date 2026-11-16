@@ -77,6 +77,24 @@ import com.dynokore.gst.rules.application.PackApprovalDecisionPort
 import com.dynokore.gst.rules.application.PackBundleNotFoundException
 import com.dynokore.gst.rules.application.PackContentsCheck
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
+import com.dynokore.gst.rules.adapters.web.CompileObserver
+import com.dynokore.gst.rules.adapters.web.CompiledPackHold
+import com.dynokore.gst.rules.adapters.web.CompilingArmingStore
+import com.dynokore.gst.rules.application.AcknowledgePackDelta
+import com.dynokore.gst.rules.application.AcknowledgementPermissionPort
+import com.dynokore.gst.rules.application.ArmRegulatoryPack
+import com.dynokore.gst.rules.application.CompleteDeltaReader
+import com.dynokore.gst.rules.application.DeltaAcknowledgement
+import com.dynokore.gst.rules.application.DeltaAcknowledgementStore
+import com.dynokore.gst.rules.application.ArmingPermissionPort
+import com.dynokore.gst.rules.application.ExpectedInstances
+import com.dynokore.gst.rules.application.TenantReviewPolicy
+import com.dynokore.gst.rules.application.TenantReviewPolicyReader
+import com.dynokore.gst.rules.domain.pack.GraceDays
+import com.dynokore.gst.rules.domain.pack.ReviewPolicy
+import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.productruntime.TrainFence
+import com.dynokore.gst.rules.domain.pack.DeploymentForm as DomainDeploymentForm
 import com.dynokore.gst.rules.application.PackCurrencyStore
 import com.dynokore.gst.rules.application.PackDocumentEvaluation
 import com.dynokore.gst.rules.application.PackEvaluationPort
@@ -607,6 +625,175 @@ class RulesConfiguration {
         permission: ApprovalPermissionPort,
     ): ApproveRegulatoryPack = ApproveRegulatoryPack(store, permission)
 
+    // ---- the arming fence, the grace window and the acknowledgement of a delta (INV-T-4977) ----
+
+    /**
+     * The scoped arming permission `regulatory-pack.arm`, decided by `AuthorityReplica.decideTenant` for the caller's
+     * tenant (INV-Q-10027): never a role name, and the code reads no deployment form to choose a key. A decision that
+     * is not answered from the local replica, and a context with no replica, is the 503 SRT-013 of the contract.
+     */
+    @Bean
+    fun armingPermissionPort(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): ArmingPermissionPort =
+        ArmingPermissionPort { user -> decideTenantKey(replica, tenants, user, REGULATORY_PACK_ARM) }
+
+    /** The scoped key `regulatory-pack.acknowledge`, decided like [armingPermissionPort]. */
+    @Bean
+    fun acknowledgementPermissionPort(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): AcknowledgementPermissionPort =
+        AcknowledgementPermissionPort { user -> decideTenantKey(replica, tenants, user, REGULATORY_PACK_ACKNOWLEDGE) }
+
+    private fun decideTenantKey(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+        user: String,
+        key: String,
+    ): Boolean {
+        val decision =
+            replica.ifAvailable?.decideTenant(tenants.current(), Principal(user, PrincipalKind.HUMAN), key)
+                ?: throw unavailable("the permission decision is not available")
+        if (decision.source != DecisionSource.LOCAL) throw unavailable("the permission decision is not available")
+        return decision.allowed
+    }
+
+    /**
+     * VP-39 and VP-57 at the tenant's scope and VP-79 at installation scope, read through `PolicyReplica` (no tenant
+     * binding is needed: the scope names the tenant). An absent value is the catalogue default (VP-39 review in the
+     * grace window, VP-57 the platform maximum, VP-79 14 days); a value this reader does not recognise is the 503
+     * SRT-013, never a guess.
+     */
+    @Bean
+    fun tenantReviewPolicyReader(
+        policy: PolicyReplica,
+        gst: GstProperties,
+        clock: Clock,
+    ): TenantReviewPolicyReader =
+        TenantReviewPolicyReader { tenantId ->
+            val today = LocalDate.now(clock)
+            val scope = PolicyScope.tenant(TenantId.of(tenantId))
+            val review = policy.valueAt(scope, VP_REVIEW_POLICY, today)?.value
+            val stored = policy.valueAt(scope, VP_GRACE_WINDOW, today)?.value
+            val maximum = policy.valueAt(PolicyScope.installation(), VP_GRACE_MAXIMUM, today)?.value
+            TenantReviewPolicy(
+                form = if (gst.form == DeploymentForm.PRIVATE) DomainDeploymentForm.PRIVATE else DomainDeploymentForm.SAAS,
+                policy =
+                    when (review) {
+                        null, "REVIEW_THEN_ACTIVATE" -> ReviewPolicy.REVIEW_IN_GRACE_WINDOW
+                        "ACTIVATE_WITH_NOTICE" -> ReviewPolicy.NOTICE_ONLY
+                        else -> throw unavailable("the review policy is not readable")
+                    },
+                stored = stored?.takeIf { it != "PLATFORM_MAXIMUM" }?.let { GraceDays(graceDays(it)) },
+                maximum = GraceDays(if (maximum == null || maximum == "DAYS_14") DEFAULT_GRACE_DAYS else graceDays(maximum)),
+            )
+        }
+
+    private fun graceDays(value: String): Int =
+        value.takeIf { GRACE_DAYS.matches(it) }?.toIntOrNull()?.takeIf { it >= 1 }
+            ?: throw unavailable("the grace window policy is not readable")
+
+    /** The expected instances of the fence: rules-svc and every pack holder (a missing holder never arms). */
+    @Bean
+    fun expectedInstances(): ExpectedInstances =
+        ExpectedInstances { TrainFence.participants(TrainFence.PACK_HOLDERS + TrainFence.ARMER) }
+
+    /**
+     * The window of the fence: `rules.fence.acknowledgement-window`, ISO-8601, required, no default (12-factor III).
+     * An absent, blank or unparsable value stops the start of the context and names the key.
+     */
+    @Bean
+    fun fenceAcknowledgementWindow(environment: Environment): FenceAcknowledgementWindow {
+        val text =
+            environment.getProperty(FENCE_WINDOW)?.takeIf { it.isNotBlank() }
+                ?: error("$FENCE_WINDOW is required (ISO-8601 duration)")
+        return FenceAcknowledgementWindow(
+            runCatching { Duration.parse(text) }
+                .getOrElse { throw IllegalStateException("$FENCE_WINDOW is not an ISO-8601 duration: $text", it) },
+        )
+    }
+
+    @Bean
+    @Suppress("LongParameterList") // the collaborators of the use case, named once in the composition root (TPL-18)
+    fun armRegulatoryPack(
+        permission: ArmingPermissionPort,
+        store: JooqPackArmingStore,
+        compiling: CompilingArmingStore,
+        policies: TenantReviewPolicyReader,
+        expected: ExpectedInstances,
+        window: FenceAcknowledgementWindow,
+        clock: Clock,
+    ): ArmRegulatoryPack =
+        ArmRegulatoryPack(permission, store, tenantDeltas(store), policies, store, expected, compiling, clock, window.value)
+
+    /** The platform's own dry run is the approval gate, not a tenant delta: no tenant-level policy exists for it. */
+    private fun tenantDeltas(store: JooqPackArmingStore): CompleteDeltaReader =
+        object : CompleteDeltaReader by store {
+            override fun tenantsWithCompleteDelta(
+                packType: String,
+                version: String,
+            ) = store.tenantsWithCompleteDelta(packType, version).filter { !TenantId.of(it.tenantId).isPlatform }
+        }
+
+    /** The stylesheets of the armed Schematron packs, compiled once at activation and held in memory (INV-REQ-776). */
+    @Bean
+    fun compiledPackHold(): CompiledPackHold = CompiledPackHold()
+
+    /** Observes nothing in production; a test supplies its own bean to count the compilations. */
+    @Bean
+    @ConditionalOnMissingBean(CompileObserver::class)
+    fun schematronCompileObserver(): CompileObserver = CompileObserver { }
+
+    /**
+     * rules-svc is itself a fence participant: before the arming write it compiles the pack's stylesheets once
+     * (INV-REQ-776, INV-AC-7964); a pack that does not compile fails the arming, so the fence abandons it (RUL-005).
+     */
+    @Bean
+    @Suppress("LongParameterList") // the collaborators of the decorator, named once in the composition root (TPL-18)
+    fun compilingArmingStore(
+        store: JooqPackArmingStore,
+        registry: PersistedPackRegistry,
+        observer: CompileObserver,
+        hold: CompiledPackHold,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+    ): CompilingArmingStore =
+        CompilingArmingStore(store, registry, observer, hold, platform, transactions)
+
+    @Bean
+    fun acknowledgePackDelta(
+        permission: AcknowledgementPermissionPort,
+        store: JooqPackArmingStore,
+        transactions: TransactionRunner,
+        policies: TenantReviewPolicyReader,
+        clock: Clock,
+    ): AcknowledgePackDelta {
+        // The tenant-bound reads and the write run in their own transaction each; the registry read opens its own
+        // platform-bound one, so the use case itself is called outside any transaction.
+        val deltas =
+            object : CompleteDeltaReader by store {
+                override fun completedAt(
+                    tenantId: String,
+                    packType: String,
+                    version: String,
+                ) = transactions.inTransaction { store.completedAt(tenantId, packType, version) }
+            }
+        val acknowledgements =
+            object : DeltaAcknowledgementStore {
+                override fun recordOnce(acknowledgement: DeltaAcknowledgement) =
+                    transactions.inTransaction { store.recordOnce(acknowledgement) }
+
+                override fun find(
+                    tenantId: String,
+                    packType: String,
+                    version: String,
+                ) = transactions.inTransaction { store.find(tenantId, packType, version) }
+            }
+        return AcknowledgePackDelta(permission, store, deltas, policies, acknowledgements, clock)
+    }
+
     // ---- the signed pack import and DEP-001 pack currency (INV-T-4976; INV-REQ-1078, INV-REQ-2468) ----
 
     /** The mounted read-only directory of the bundles; without the property no bundle is found (fail closed). */
@@ -734,6 +921,14 @@ class RulesConfiguration {
         const val PACK_SOURCE_DIRECTORY = "rules.pack-source.directory"
         const val REGULATORY_PACK_IMPORT_VERIFY = "regulatory-pack.import-verify"
         const val REGULATORY_PACK_APPROVE = "regulatory-pack.approve"
+        const val REGULATORY_PACK_ARM = "regulatory-pack.arm"
+        const val REGULATORY_PACK_ACKNOWLEDGE = "regulatory-pack.acknowledge"
+        const val VP_REVIEW_POLICY = "VP-39"
+        const val VP_GRACE_WINDOW = "VP-57"
+        const val VP_GRACE_MAXIMUM = "VP-79"
+        const val DEFAULT_GRACE_DAYS = 14
+        const val FENCE_WINDOW = "rules.fence.acknowledgement-window"
+        val GRACE_DAYS = Regex("[0-9]{1,4}")
         const val PACK_DRY_RUN = "pack.dry-run"
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
         const val ACCESS_URL_PROPERTY = "rules.access-svc-url"
@@ -918,3 +1113,9 @@ private const val DRY_RUN_RETRY_AFTER = "rules.dry-run.retry-after"
 
 /** `dryRun` answers 202 when the run outlasts this (API-17, x-timeout 2000 ms of the contract). */
 private val SYNC_WAIT: Duration = Duration.ofMillis(2000)
+
+/** The fence's acknowledgement window, from `rules.fence.acknowledgement-window` (typed so a bean never takes a bare Duration). */
+data class FenceAcknowledgementWindow(
+    val value: Duration,
+)
+

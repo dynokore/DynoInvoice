@@ -56,6 +56,7 @@ gst:
   service: rules-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 rules:
+  fence.acknowledgement-window: PT15M
   dry-run:
     # Background capacity of dry runs (INV-T-4974): runs executed at the same time. Two keeps a console user's second
     # dry run from waiting behind the first while leaving most of the background lane to relay and consumers.
