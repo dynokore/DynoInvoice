@@ -5,6 +5,7 @@ import com.dynokore.gst.aggregation.application.IntakeOutcome.CrossesPeriodBound
 import com.dynokore.gst.aggregation.application.IntakeOutcome.NumberNotBuildable
 import com.dynokore.gst.aggregation.application.IntakeOutcome.Replayed
 import com.dynokore.gst.aggregation.application.IntakeOutcome.SourceRevisionLower
+import com.dynokore.gst.aggregation.domain.AggregateLine
 import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.gst.aggregation.domain.Cadence.MONTHLY
@@ -426,4 +427,64 @@ class IntakeAggregateTest {
     fun `ING-018 a crossing call with a null source is accepted as before`() {
         (intake.execute(window(LocalDate.of(2027, 3, 28), LocalDate.of(2027, 4, 3))) is Created) shouldBe true
     }
+
+    @Test
+    fun `INV-AC-23680 a supplementary aggregate carries the taxable difference of the batch lines`() {
+        val first =
+            StoredAggregate(
+                newAggregate(listOf(AggregateLine("S1", "13.00", "150.00"))),
+                UUID.randomUUID(),
+                java.time.Instant.EPOCH,
+            )
+        repo.rows += first
+        val revisions =
+            object : AggregateRevisions {
+                override fun current(
+                    entityRef: String,
+                    sourceKey: String,
+                ) = repo.rows.last()
+
+                override fun recordedLines(
+                    entityRef: String,
+                    sourceKey: String,
+                    excluding: UUID?,
+                ) = repo.rows.flatMap { it.aggregate.lines }
+
+                override fun replace(
+                    old: StoredAggregate,
+                    replacement: NewAggregate,
+                ) = error("not a replacement")
+            }
+        val revise = IntakeAggregate(codes, repo, revisions = revisions)
+        val outcome =
+            revise.execute(
+                command(revision = 2).copy(
+                    aggregateType = AggregateType.PCP,
+                    lines = listOf(AggregateLine("S1", "13.00", "155.00")),
+                ),
+            ) as IntakeOutcome.Supplemented
+        outcome.aggregate.aggregate.isSupplementary shouldBe true
+        outcome.aggregate.aggregate.lines shouldBe listOf(AggregateLine("S1", "0.00", "5.00"))
+        repo.rows
+            .last()
+            .aggregate.lines shouldBe listOf(AggregateLine("S1", "0.00", "5.00"))
+    }
+
+    private fun newAggregate(lines: List<AggregateLine>) =
+        NewAggregate(
+            "ent-1",
+            "bu-1",
+            AggregateType.PCP,
+            LocalDate.of(2027, 3, 1),
+            end,
+            "K",
+            1,
+            1,
+            "E",
+            "B",
+            "AGG-E-PCP-B-20270331-1",
+            end,
+            end,
+            lines = lines,
+        )
 }

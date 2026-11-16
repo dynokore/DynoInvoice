@@ -164,4 +164,13 @@ class IntakeTransactionsTest {
         (otherKey is TransactionsOutcome.Created) shouldBe true
         (otherEntity is TransactionsOutcome.Created) shouldBe true
     }
+
+    @Test
+    fun `INV-AC-23680 the taxableAmount of a transaction reaches the repository unchanged`() {
+        val given = DatedTransaction("T1", LocalDate.of(2027, 3, 31), "S1", "9.00", taxableAmount = "100.00")
+        intake.execute(command(given).copy(aggregateType = AggregateType.PCP))
+        store.rows.values
+            .single()
+            .map { it.transaction } shouldBe listOf(given)
+    }
 }

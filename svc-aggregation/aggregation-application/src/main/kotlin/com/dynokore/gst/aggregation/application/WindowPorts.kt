@@ -130,6 +130,8 @@ data class DatedTransaction(
     val claimantReference: String? = null,
     /** PCP only: the claimable input tax as the ERP stated it, summed per internal tax code (INV-REQ-441). */
     val claimableInputTax: String? = null,
+    /** PCP only: the tax-exclusive amount on which the claimable input tax is claimed, as the ERP stated it. */
+    val taxableAmount: String? = null,
 )
 
 data class PlacedTransaction(
