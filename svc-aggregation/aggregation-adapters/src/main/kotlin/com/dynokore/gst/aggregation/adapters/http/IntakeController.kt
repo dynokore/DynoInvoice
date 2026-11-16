@@ -34,12 +34,17 @@ open class IntakeController(
     private val intake: IntakeAggregate,
 ) : IntakeApi {
     override fun intakeAggregationBatch(
+        xFlowContext: String,
         idempotencyKey: UUID,
         aggregationBatchRequest: AggregationBatchRequest,
     ): ResponseEntity<AggregationReceipt> {
         val request = aggregationBatchRequest
         val type = (AggregateIntakeCheck.check(request.aggregateType.name) as IntakeVerdict.Accepted).type
-        return respond(intake.execute(command(request, type)))
+        return if (type != AggregateType.PCP && request.linesByInternalTaxCode.any { it.taxableAmount != null }) {
+            refusedContract("taxableAmount is absent for POS and STI lines")
+        } else {
+            respond(intake.execute(command(request, type)))
+        }
     }
 
     private fun respond(outcome: IntakeOutcome): ResponseEntity<AggregationReceipt> {
@@ -84,7 +89,10 @@ open class IntakeController(
         periodEnd = request.periodEnd,
         sourceKey = request.sourceKey,
         sourceRevision = request.sourceRevision.toLong(),
-        lines = request.linesByInternalTaxCode.map { AggregateLine(it.internalTaxCode, it.amount.toPlainString()) },
+        lines =
+            request.linesByInternalTaxCode.map {
+                AggregateLine(it.internalTaxCode, it.amount.toPlainString(), it.taxableAmount?.toPlainString())
+            },
         isCreditNote = request.isCreditNote == true,
     )
 

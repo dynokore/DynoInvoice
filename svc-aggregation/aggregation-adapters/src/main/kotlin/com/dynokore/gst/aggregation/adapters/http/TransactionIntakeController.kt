@@ -48,6 +48,8 @@ open class TransactionIntakeController(
         val type = (AggregateIntakeCheck.check(request.aggregateType.name) as IntakeVerdict.Accepted).type
         return if (request.transactions.any { (it.claimableInputTax != null) != (type == AggregateType.PCP) }) {
             refusedContract("claimableInputTax is required for PCP items and absent for POS and STI items")
+        } else if (type != AggregateType.PCP && request.transactions.any { it.taxableAmount != null }) {
+            refusedContract("taxableAmount is absent for POS and STI items")
         } else {
             store(request, type)
         }
@@ -95,6 +97,7 @@ open class TransactionIntakeController(
         isCreditNote = request.isCreditNote == true,
         claimantReference = item.claimantReference,
         claimableInputTax = item.claimableInputTax?.toPlainString(),
+        taxableAmount = item.taxableAmount?.toPlainString(),
     )
 
     /**
