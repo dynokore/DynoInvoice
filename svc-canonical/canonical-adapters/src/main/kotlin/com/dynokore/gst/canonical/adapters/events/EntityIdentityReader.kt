@@ -41,7 +41,11 @@ class EntityIdentityReader {
             } catch (e: IllegalArgumentException) {
                 throw ContractViolation("$ENTITY_ID is not a uuid", e)
             }
-        if (parsed == null || parsed.toString() != text) throw ContractViolation("$ENTITY_ID is not a canonical uuid text")
+        if (parsed == null ||
+            parsed.toString() != text
+        ) {
+            throw ContractViolation("$ENTITY_ID is not a canonical uuid text")
+        }
         return parsed
     }
 

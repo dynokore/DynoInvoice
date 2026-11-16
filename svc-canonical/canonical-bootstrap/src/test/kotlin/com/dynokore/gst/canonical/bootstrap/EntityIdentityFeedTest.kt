@@ -80,7 +80,10 @@ class EntityIdentityFeedTest {
         scope.bind(t1, actor) { runner.inTransaction { runCatching { handler.handle(envelope(dataJson)) } } }
 
     private fun Boundary.idOf(tenant: TenantId): UUID? =
-        scope.bind(tenant, actor) { runner.inTransaction { JooqEntityIdentities(dsl).entityIdOf(tenant.value, "E-001") } }
+        scope.bind(
+            tenant,
+            actor,
+        ) { runner.inTransaction { JooqEntityIdentities(dsl).entityIdOf(tenant.value, "E-001") } }
 
     @Test
     fun `INV-AC-21532 E1 stores the entity id`(
