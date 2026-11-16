@@ -4,6 +4,7 @@ import com.dynokore.gst.masterdata.adapters.permission.OperationPermissionKeys
 import com.dynokore.gst.masterdata.adapters.persistence.JooqLinkBindings
 import com.dynokore.gst.masterdata.application.request.LinkBindings
 import com.dynokore.gst.masterdata.application.request.SendMethodPolicy
+import com.dynokore.gst.masterdata.application.request.TenantLinkValidity
 import com.dynokore.gst.masterdata.domain.request.LinkBinding
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
@@ -34,6 +35,9 @@ private const val LINK_REF_LENGTH = 22
 /** What VP-30 answers to the test; `null` leaves the real reader of the context in place. */
 object SendOption {
     @Volatile var override: String? = null
+
+    /** What the tenant validity answers; `null` leaves the real (no tenant value) port in place. */
+    @Volatile var tenantDays: Long? = null
 }
 
 /** Wraps the VP-30 policy of the context so that a test can make it answer CSV_ONLY, OFF or an unknown option. */
@@ -44,6 +48,8 @@ class SendOptionPostProcessor : BeanPostProcessor {
     ): Any =
         if (bean is SendMethodPolicy && beanName == "sendMethodPolicy") {
             SendMethodPolicy { SendOption.override ?: bean.option() }
+        } else if (bean is TenantLinkValidity && beanName == "tenantLinkValidity") {
+            TenantLinkValidity { SendOption.tenantDays ?: bean.days() }
         } else {
             bean
         }
@@ -66,6 +72,7 @@ class CounterpartySendTest {
 
     private fun run(block: (Env) -> Unit) {
         SendOption.override = null
+        SendOption.tenantDays = null
         BoundaryFixture
             .runner()
             .withBean(EndUserPrincipalResolver::class.java, { resolver })
@@ -77,6 +84,7 @@ class CounterpartySendTest {
                     block(Env(context))
                 } finally {
                     SendOption.override = null
+                    SendOption.tenantDays = null
                 }
             }
     }
@@ -214,8 +222,15 @@ class CounterpartySendTest {
     fun `INV-AC-20201 a call without body, contactEmail or entityRef answers 400, nothing written`() =
         run { env ->
             val before = env.state()
-            val bodies = listOf(null, "{}", env.body(email = null), env.body(entity = null), env.body(email = ""),
-                    "{\"entityRef\":null,\"contactEmail\":\"ap@example.com.sg\"}")
+            val bodies =
+                listOf(
+                    null,
+                    "{}",
+                    env.body(email = null),
+                    env.body(entity = null),
+                    env.body(email = ""),
+                    "{\"entityRef\":null,\"contactEmail\":\"ap@example.com.sg\"}",
+                )
             bodies.forEach { body ->
                 val (status, answer) = env.send(body)
                 assertThat(status).describedAs("$body: $answer").isEqualTo(400)
@@ -228,7 +243,7 @@ class CounterpartySendTest {
     fun `INV-AC-20201 a blank entityRef never reaches the handler, the runtime gate refuses it 403 SRT-004`() =
         run { env ->
             val before = env.state()
-            listOf(" ", "", "   ", "\t").forEach { entity ->
+            listOf(" ", "", "   ", "\\t").forEach { entity ->
                 val (status, answer) = env.send(env.body(entity = entity))
                 assertThat(status).describedAs("'$entity': $answer").isEqualTo(403)
                 assertThat(answer).contains("SRT-004")
@@ -283,6 +298,21 @@ class CounterpartySendTest {
                 assertThat(env.send(env.body(), party = party).first).describedAs(option).isEqualTo(201)
                 assertThat(env.rows(party)).describedAs(option).isEqualTo(1)
             }
+        }
+
+    @Test
+    fun `INV-AC-20201 a validity the limits report invalid is refused 503 SRT-013 with nothing written`() =
+        run { env ->
+            val before = env.state()
+            listOf(0L, -1L, 31L, 1000L).forEach { days ->
+                SendOption.tenantDays = days
+                val (status, answer) = env.send(env.body())
+                assertThat(status).describedAs("$days days: $answer").isEqualTo(503)
+                assertThat(answer).contains("\"code\":\"SRT-013\"").doesNotContain("MDM-011")
+                assertThat(env.state()).describedAs("$days days").isEqualTo(before)
+            }
+            SendOption.tenantDays = 30L
+            assertThat(env.send(env.body(), party = unique("CTP-VAL")).first).isEqualTo(201)
         }
 
     @Test
