@@ -2,6 +2,7 @@ package com.dynokore.gst.consoleBff.acceptance
 
 import com.dynokore.gst.consoleBff.bootstrap.DeferralsController
 import com.dynokore.gst.consoleBff.bootstrap.ExceptionsController
+import com.dynokore.gst.consoleBff.bootstrap.OverridesController
 import com.dynokore.gst.consoleBff.contract.api.ConfigurationApi
 import com.dynokore.gst.consoleBff.contract.api.DeferralsApi
 import com.dynokore.gst.consoleBff.contract.api.DocumentsApi
@@ -42,7 +43,7 @@ class OperationsGateTest {
 
     private val stubs: Set<String> = OperationsStubs.stubs(stubSources)
 
-    private val implemented = setOf("getExceptions", "deferDocument", "undeferDocument", "overrideException")
+    private val implemented = setOf("getExceptions", "deferDocument", "undeferDocument")
 
     private fun doneLines() = doneText.orEmpty().lines().filter { it.isNotBlank() }
 
@@ -58,7 +59,7 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 17
         OperationsGate.contractChannels(asyncapi).size shouldBe 1
         run(done = doneText).shouldBeEmpty()
-        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165", "INV-T-21207")
+        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165")
     }
 
     @Test
@@ -84,10 +85,10 @@ class OperationsGateTest {
             own.size shouldBe 1
             own.single()[2] shouldBe "UNASSIGNED"
         }
-        stubs.size shouldBe 13
+        stubs.size shouldBe 14
         stubs shouldBe ids - implemented
         run(done = doneText).shouldBeEmpty()
-        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165", "INV-T-21207")
+        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165")
     }
 
     @Test
@@ -100,7 +101,7 @@ class OperationsGateTest {
         run(done = doneText).shouldBeEmpty()
         val row = tsv.lines().single { it.startsWith("operation\tgetExceptions\t") }
         row shouldBe "operation\tgetExceptions\tINV-T-21108"
-        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165", "INV-T-21207")
+        doneLines() shouldBe listOf("INV-T-21108", "INV-T-21165")
         ("getExceptions" in stubs) shouldBe false
         stubs shouldBe OperationsGate.contractOperations(openapi) - implemented
     }

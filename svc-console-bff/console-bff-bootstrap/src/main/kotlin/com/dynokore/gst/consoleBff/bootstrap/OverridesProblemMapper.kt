@@ -49,3 +49,28 @@ class OverridesProblemMapper {
         StoredResponse(response.status, response.body)
 }
 
+/** Writes the refusals of [OverridesController] as application/problem+json. */
+@org.springframework.web.bind.annotation.RestControllerAdvice(assignableTypes = [OverridesController::class])
+class OverridesProblemAdvice {
+    @org.springframework.web.bind.annotation.ExceptionHandler(OverridesRefusal::class)
+    fun refusal(refusal: OverridesRefusal) = write(refusal.answer)
+
+    /** A body the generated model refuses to read: no reason, or a wrong type. */
+    @org.springframework.web.bind.annotation.ExceptionHandler(
+        org.springframework.http.converter.HttpMessageNotReadableException::class,
+        org.springframework.web.bind.MethodArgumentNotValidException::class,
+        org.springframework.web.method.annotation.HandlerMethodValidationException::class,
+    )
+    fun invalidBody() = write(Problems.contractViolation("the request body is not valid", correlation()))
+
+    private fun write(answer: StoredResponse) =
+        org.springframework.http.ResponseEntity
+            .status(answer.status)
+            .header("Content-Type", Problems.CONTENT_TYPE)
+            .body(answer.body)
+
+    private fun correlation(): String =
+        com.dynokore.platform.serviceruntime.logging.CorrelationContext
+            .currentCorrelationId()
+            ?.value ?: "http:${java.util.UUID.randomUUID()}"
+}
