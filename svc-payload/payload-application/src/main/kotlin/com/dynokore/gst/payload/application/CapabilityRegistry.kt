@@ -25,9 +25,10 @@ data class BindingRowFacts(
     val pintCardinalities: List<String?>,
 )
 
-/** The active MDE pack (packType `mde`) as the guard sees it: its version and its binding rows. */
+/** The active MDE pack (packType `mde`) as the guard sees it: its version, its stored contents and its binding rows. */
 data class ActiveMdePack(
     val version: String,
+    val contents: String,
     val rows: List<BindingRowFacts>,
 )
 

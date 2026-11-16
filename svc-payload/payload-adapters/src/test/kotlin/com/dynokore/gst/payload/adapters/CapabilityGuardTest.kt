@@ -48,7 +48,7 @@ class CapabilityGuardTest {
         vararg cardinalities: String? = arrayOf("1..1"),
     ) = BindingRowFacts(term, status, cardinalities.toList())
 
-    private fun pack(vararg rows: BindingRowFacts) = ActiveMdePack("1.0.0", rows.toList())
+    private fun pack(vararg rows: BindingRowFacts) = ActiveMdePack("1.0.0", "{}", rows.toList())
 
     /** Runs [block] in one transaction of the `payload_runtime` login bound to [tenant] with a signed binding. */
     private fun <T> bound(
