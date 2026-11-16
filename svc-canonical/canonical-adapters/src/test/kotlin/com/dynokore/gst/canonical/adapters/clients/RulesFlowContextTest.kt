@@ -144,7 +144,10 @@ class RulesFlowContextTest {
     @Test
     fun `INV-AC-23637 no held context sends no flow context header`() {
         client.evaluate(facts)
-        stub.seen.single().headers.containsKey("x-flow-context") shouldBe false
+        stub.seen
+            .single()
+            .headers
+            .containsKey("x-flow-context") shouldBe false
     }
 
     @Test
@@ -159,7 +162,10 @@ class RulesFlowContextTest {
                 .toBodilessEntity()
         }
         stub.seen.single().path shouldBe "/internal/v1/rules/other"
-        stub.seen.single().headers.containsKey("x-flow-context") shouldBe false
+        stub.seen
+            .single()
+            .headers
+            .containsKey("x-flow-context") shouldBe false
     }
 
     @Test

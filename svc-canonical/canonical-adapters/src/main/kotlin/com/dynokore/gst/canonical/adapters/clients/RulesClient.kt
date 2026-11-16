@@ -12,11 +12,11 @@ import org.springframework.core.env.Environment
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import org.springframework.web.client.RestClientResponseException
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
-import tools.jackson.core.JacksonException
-import tools.jackson.databind.json.JsonMapper
 
 private const val SCOPE = "SCOPE"
 private const val MAPPING = "MAPPING"
@@ -132,8 +132,8 @@ class RulesClient(
 
     /**
      * 403 whose API-20 error envelope (`application/problem+json`, field `code`) is exactly `SRT-004`: the callee
-     * refused the flow context (missing, expired or for another entity). That is a wiring fault, not a rules decision: the
-     * record is held and retried. Exact, case-sensitive equality; any other 403 stays a refusal.
+     * refused the flow context (missing, expired or for another entity). That is a wiring fault, not a rules
+     * decision: the record is held and retried. Exact, case-sensitive equality; any other 403 stays a refusal.
      */
     private fun isFlowContextRefusal(failure: RestClientResponseException): Boolean =
         failure.statusCode.value() == HTTP_FORBIDDEN &&
