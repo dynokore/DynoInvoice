@@ -5,13 +5,21 @@ import com.dynokore.gst.consoleBff.application.exceptions.ListExceptions
 import com.dynokore.gst.consoleBff.application.exceptions.ListExceptionsQuery
 import com.dynokore.gst.consoleBff.application.exceptions.ListExceptionsResult
 import com.dynokore.gst.consoleBff.application.exceptions.QueuedException
+import com.dynokore.gst.consoleBff.application.override.OverrideException
+import com.dynokore.gst.consoleBff.application.override.OverrideOutcome
 import com.dynokore.gst.consoleBff.contract.api.ExceptionsApi
+import com.dynokore.gst.consoleBff.contract.model.OverrideRequest
+import com.dynokore.gst.consoleBff.contract.model.OverrideResult
+import com.dynokore.gst.consoleBff.contract.model.PendingOverride
 import com.dynokore.gst.consoleBff.contract.model.ExceptionPage
 import com.dynokore.gst.consoleBff.domain.badge.ItemState
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.http.StoredResponse
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
@@ -32,6 +40,8 @@ class ExceptionsRefusal(
 @RestController
 open class ExceptionsController(
     private val listExceptions: ListExceptions,
+    private val overrideException: OverrideException,
+    private val overrides: OverridesProblemMapper,
 ) : ExceptionsApi {
     override fun getExceptions(
         entityRef: String?,
@@ -63,6 +73,66 @@ open class ExceptionsController(
                 refuse(Problems.contractViolation("limit is out of bounds", correlation()))
             }
         }
+    }
+
+    /**
+     * overrideException (INV-REQ-500): routes through [OverrideException], which decides `validation.override` per
+     * request (INV-Q-10027); no role is compared. The exception row is never written here: it moves to OVERRIDDEN only
+     * from the owning service's event (single writer per state).
+     */
+    override fun overrideException(
+        id: UUID,
+        overrideRequest: OverrideRequest,
+    ): ResponseEntity<OverrideResult> {
+        val request = (RequestContextHolder.currentRequestAttributes() as ServletRequestAttributes).request
+        val principal = request.getAttribute(ConsoleSessionFilter.PRINCIPAL_ATTRIBUTE) as? String
+        val tenant = request.getAttribute(ConsoleSessionFilter.TENANT_ATTRIBUTE) as? String
+        if (principal == null || tenant == null) refuse(Problems.unauthenticated(correlation()))
+        val reason = overrideRequest.reason
+        if (reason.isBlank()) refuse(overrides.contractViolation("reason is required", correlation()))
+        return when (val outcome = overrideException.execute(tenant, principal, id.toString(), reason)) {
+            is OverrideOutcome.Overridden -> {
+                ResponseEntity.ok(
+                    OverrideResult(
+                        exceptionId = id,
+                        state = OverrideResult.State.forValue("OVERRIDDEN"),
+                        reason = reason,
+                        overriddenAt = outcome.overriddenAt.atOffset(ZoneOffset.UTC),
+                    ),
+                )
+            }
+
+            is OverrideOutcome.PendingApproval -> {
+                accepted(
+                    PendingOverride(
+                        exceptionId = id,
+                        reason = reason,
+                        requestedAt = outcome.requestedAt.atOffset(ZoneOffset.UTC),
+                        status = PendingOverride.Status.forValue("PENDING"),
+                    ),
+                )
+            }
+
+            is OverrideOutcome.Relayed -> refuse(overrides.relayed(outcome.refusal, correlation()))
+
+            OverrideOutcome.NotFound -> refuse(overrides.notFound(correlation()))
+
+            OverrideOutcome.Forbidden -> refuse(overrides.accessDenied(correlation()))
+
+            is OverrideOutcome.Unavailable -> refuse(overrides.unavailable(correlation()))
+        }
+    }
+
+    /** The generated signature names the 200 body only; the 202 body is another schema, so the type is erased here. */
+    @Suppress("UNCHECKED_CAST")
+    private fun accepted(body: PendingOverride): ResponseEntity<OverrideResult> =
+        ResponseEntity.status(HttpStatus.ACCEPTED).body(body) as ResponseEntity<OverrideResult>
+
+    /** A body the generated model cannot read (no reason, a wrong type): SRT-001; the use case is not reached. */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun unreadableBody(): ResponseEntity<String> {
+        val answer = overrides.contractViolation("the request body is not valid", correlation())
+        return ResponseEntity.status(answer.status).header("Content-Type", Problems.CONTENT_TYPE).body(answer.body)
     }
 
     private fun refuse(answer: StoredResponse): Nothing = throw ExceptionsRefusal(answer)

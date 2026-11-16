@@ -4,6 +4,11 @@ import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
 import com.dynokore.gst.consoleBff.application.exceptions.EntityScope
 import com.dynokore.gst.consoleBff.application.exceptions.ExceptionQueue
 import com.dynokore.gst.consoleBff.application.exceptions.ListExceptions
+import com.dynokore.gst.consoleBff.application.override.OverrideException
+import com.dynokore.gst.consoleBff.application.override.OwnerReply
+import com.dynokore.gst.consoleBff.application.override.PayloadOverrides
+import com.dynokore.gst.consoleBff.application.override.Release
+import com.dynokore.gst.consoleBff.application.override.SubmissionOverrides
 import com.dynokore.gst.consoleBff.application.exceptions.QueuedException
 import com.dynokore.gst.consoleBff.domain.badge.ItemState
 import com.dynokore.gst.consoleBff.domain.exceptions.ExceptionRow
@@ -78,10 +83,46 @@ class ExceptionsControllerTest {
                 ) = scope
             }
         return MockMvcBuilders
-            .standaloneSetup(ExceptionsController(ListExceptions(entityScope, queue, maxLimit)))
+            .standaloneSetup(
+                ExceptionsController(
+                    ListExceptions(entityScope, queue, maxLimit),
+                    noOverride(),
+                    OverridesProblemMapper(),
+                ),
+            )
             .setControllerAdvice(ExceptionsProblemAdvice())
             .build()
     }
+
+    /** The override use case over ports that are never reached by the list cases. */
+    private fun noOverride() =
+        OverrideException(
+            { null },
+            { _, _, _ -> false },
+            object : PayloadOverrides {
+                override fun latestVersion(docUuid: String): OwnerReply<Long> = OwnerReply.Unavailable("unused")
+
+                override fun override(
+                    docUuid: String,
+                    version: Long,
+                    code: String,
+                    reason: String,
+                ): OwnerReply<Release> = OwnerReply.Unavailable("unused")
+            },
+            object : SubmissionOverrides {
+                override fun latestCheck(
+                    entityRef: String,
+                    periodRef: String,
+                ): OwnerReply<String> = OwnerReply.Unavailable("unused")
+
+                override fun override(
+                    entityRef: String,
+                    periodRef: String,
+                    checkId: String,
+                    reason: String,
+                ): OwnerReply<Release> = OwnerReply.Unavailable("unused")
+            },
+        )
 
     private val two =
         listOf(

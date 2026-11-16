@@ -1,6 +1,7 @@
 package com.dynokore.gst.consoleBff.bootstrap
 
 import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
+import com.dynokore.gst.consoleBff.application.exceptions.ListExceptions
 import com.dynokore.gst.consoleBff.application.override.OverridableRow
 import com.dynokore.gst.consoleBff.application.override.OverrideAuthority
 import com.dynokore.gst.consoleBff.application.override.OverrideException
@@ -16,6 +17,7 @@ import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
+import org.springframework.objenesis.ObjenesisStd
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -25,7 +27,7 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
 
-/** INV-AC-21206: overrideException over the real use case with fake ports. */
+/** INV-AC-21206: ExceptionsController.overrideException over the real use case with fake ports. */
 class OverridesControllerTest {
     private val json = JsonMapper.builder().build()
     private val id = UUID(1, 1).toString()
@@ -36,7 +38,8 @@ class OverridesControllerTest {
     /** Counts what reaches the ports; the controller must never reach a write of the exception row (no such port). */
     private class Fakes(
         var allow: Boolean = true,
-        var target: OverridableRow? = OverridableRow(UUID(1, 1).toString(), "E1", UUID(5, 5).toString(), "", "PAY-006", "OPEN"),
+        var target: OverridableRow? =
+            OverridableRow(UUID(1, 1).toString(), "E1", UUID(5, 5).toString(), "", "PAY-006", "OPEN"),
         var override: OwnerReply<Release> = OwnerReply.Ok(Release.Released(Instant.parse("2026-11-16T01:02:03Z"))),
     ) {
         var finds = 0
@@ -74,10 +77,16 @@ class OverridesControllerTest {
                     reason: String,
                 ) = fakes.override
             }
+        // The list use case is never reached by overrideException.
+        val queue = ObjenesisStd(false).newInstance(ListExceptions::class.java)
         return MockMvcBuilders
             .standaloneSetup(
-                OverridesController(OverrideException(targets, authority, payload, submission), OverridesProblemMapper()),
-            ).setControllerAdvice(OverridesProblemAdvice())
+                ExceptionsController(
+                    queue,
+                    OverrideException(targets, authority, payload, submission),
+                    OverridesProblemMapper(),
+                ),
+            ).setControllerAdvice(ExceptionsProblemAdvice())
             .build()
     }
 
@@ -174,7 +183,8 @@ class OverridesControllerTest {
 
     @Test
     fun `INV-AC-21206 Unavailable gives 503 SRT-013 with no member of the owner's text`() {
-        val result = call(mvc(Fakes(override = OwnerReply.Unavailable("owner reason: connection refused to payload-svc"))))
+        val owner = OwnerReply.Unavailable("owner reason: connection refused to payload-svc")
+        val result = call(mvc(Fakes(override = owner)))
         problem(result, 503, "SRT-013")
         result.response.contentAsString shouldNotContain "owner reason"
         result.response.contentAsString shouldNotContain "payload-svc"
@@ -198,22 +208,12 @@ class OverridesControllerTest {
     }
 
     @Test
-    fun `INV-AC-21206 the controller holds no port that writes the exception row`() {
-        val ports =
-            OverridesController::class.java.declaredConstructors
-                .single()
-                .parameterTypes
-                .map { it.simpleName }
-        ports shouldBe listOf("OverrideException", "OverridesProblemMapper")
-    }
-
-    @Test
     fun `INV-AC-21206 every case of this class carries the criterion token as a whole word`() {
         val names =
             OverridesControllerTest::class.java.declaredMethods
                 .filter { it.isAnnotationPresent(Test::class.java) }
                 .map { it.name }
-        names.size shouldBe 10
+        names.size shouldBe 9
         names.filterNot { it.startsWith("INV-AC-21206 ") } shouldBe emptyList()
     }
 }

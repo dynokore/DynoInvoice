@@ -49,7 +49,7 @@ class OverrideUrlsRequiredTest {
     @Test
     fun `INV-AC-21206 application yaml on the classpath gives the two properties no default`() {
         val text =
-            checkNotNull(javaClass.getResourceAsStream("/application.yaml")) { "application.yaml is not on the classpath" }
+            checkNotNull(javaClass.getResourceAsStream("/application.yaml")) { "application.yaml is missing" }
                 .use { String(it.readBytes()) }
         val lines = text.lines().map { it.substringBefore(" #").trim() }
         lines.count { it == "payload-svc-url: \${CONSOLE_PAYLOAD_SVC_URL}" } shouldBe 1

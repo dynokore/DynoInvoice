@@ -15,7 +15,8 @@ import java.time.Duration
 /**
  * overrideException (INV-REQ-500): the routing use case over the jOOQ read of the exception row, the replica
  * authority and the two owner clients (`PayloadOverrideClient`, `SubmissionOverrideClient`, whose base URLs are
- * required properties), and its controller. Nothing here writes the exception row (single writer per state).
+ * required properties), and the problem mapper that `ExceptionsController` uses.
+ * Nothing here writes the exception row (single writer per state).
  */
 @Configuration(proxyBeanMethods = false)
 class OverridesConfiguration {
@@ -34,9 +35,5 @@ class OverridesConfiguration {
     )
 
     @Bean
-    fun overridesController(overrideException: OverrideException) =
-        OverridesController(overrideException, OverridesProblemMapper())
-
-    @Bean
-    fun overridesProblemAdvice() = OverridesProblemAdvice()
+    fun overridesProblemMapper() = OverridesProblemMapper()
 }

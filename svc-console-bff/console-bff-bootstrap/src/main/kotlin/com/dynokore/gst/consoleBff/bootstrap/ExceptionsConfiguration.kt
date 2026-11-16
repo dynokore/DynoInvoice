@@ -4,6 +4,7 @@ import com.dynokore.gst.consoleBff.adapters.authz.CatalogueReadPermissions
 import com.dynokore.gst.consoleBff.adapters.authz.ReplicaEntityScope
 import com.dynokore.gst.consoleBff.adapters.exceptions.JooqExceptionQueue
 import com.dynokore.gst.consoleBff.application.exceptions.ListExceptions
+import com.dynokore.gst.consoleBff.application.override.OverrideException
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import org.jooq.DSLContext
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -30,7 +31,11 @@ class ExceptionsConfiguration {
     )
 
     @Bean
-    fun exceptionsController(listExceptions: ListExceptions) = ExceptionsController(listExceptions)
+    fun exceptionsController(
+        listExceptions: ListExceptions,
+        overrideException: OverrideException,
+        overridesProblemMapper: OverridesProblemMapper,
+    ) = ExceptionsController(listExceptions, overrideException, overridesProblemMapper)
 
     @Bean
     fun exceptionsProblemAdvice() = ExceptionsProblemAdvice()
