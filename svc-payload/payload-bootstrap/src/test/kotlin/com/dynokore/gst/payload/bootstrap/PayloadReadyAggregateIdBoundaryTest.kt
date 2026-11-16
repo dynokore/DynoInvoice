@@ -244,12 +244,14 @@ class PayloadReadyAggregateIdBoundaryTest {
         note.replace(xmlD, "") shouldBe xmlE
     }
 
-    @Test
-    fun `INV-AC-22810 PayloadReady carries the aggregateId of the consumed event and none when the event had none`(
-        @TempDir dir: Path,
-    ) = run(dir) { ctx, log, tenant ->
-        val d = UUID.randomUUID()
-        val e = UUID.randomUUID()
+    /** The four events go through the two production inbox consumers, one poll each. */
+    private fun consume(
+        ctx: ApplicationContext,
+        log: Log,
+        tenant: TenantId,
+        d: UUID,
+        e: UUID,
+    ) {
         val versionFacts = ctx.getBean("versionFactsConsumer", JdbcInboxConsumer::class.java)
         val typeDecisions = ctx.getBean("submissionTypeDecidedConsumer", JdbcInboxConsumer::class.java)
         val canonicalTopic = VersionFactsConsumerConfiguration.TOPIC
@@ -262,7 +264,15 @@ class PayloadReadyAggregateIdBoundaryTest {
         typeDecisions.pollOnce() shouldBe applied1
         log.add(decidedTopic, decided(tenant, 4, e))
         typeDecisions.pollOnce() shouldBe applied1
+    }
 
+    @Test
+    fun `INV-AC-22810 PayloadReady carries the aggregateId of the consumed event and none when the event had none`(
+        @TempDir dir: Path,
+    ) = run(dir) { ctx, log, tenant ->
+        val d = UUID.randomUUID()
+        val e = UUID.randomUUID()
+        consume(ctx, log, tenant, d, e)
         assertProductionComposition(ctx)
 
         val scope = ctx.getBean(TenantScope::class.java)
