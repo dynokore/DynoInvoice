@@ -99,9 +99,6 @@ class RegulatoryPackDeltaEgressBoundaryTest(
         @DynamicPropertySource
         fun properties(registry: DynamicPropertyRegistry) {
             register(registry)
-            // the telemetry exporter connects to its collector while the guard is installed; `localhost` may resolve to
-            // ::1, which the guard does not admit, so the endpoint is the exact loopback address the guard allows
-            registry.add("gst.bindings.telemetry-export-otlp-endpoint") { "http://127.0.0.1:4318" }
             registry.add("gst.form") { "private" }
             registry.add("rules.dry-run.sample-wait") { "PT2S" }
             registry.add("service-runtime.idempotency.schema") { "rules" }
@@ -165,26 +162,6 @@ class RegulatoryPackDeltaEgressBoundaryTest(
         version,
     )
 
-    /**
-     * The delta run of the staged pack with every connect of the test JVM recorded. The fixture sample adapter and the
-     * test open their own connections to the database, and a driver may try the second address of a host that has two,
-     * so every address of the database host is admitted, each on the mapped port only.
-     */
-    private fun guardedDryRun(
-        ref: String,
-        v: String,
-    ) {
-        val dbPort = PostgresRules.pg.getMappedPort(EGRESS_DB_PORT)
-        val db = InetAddress.getAllByName(PostgresRules.pg.host).map { EgressGuard.Allowed(it.hostAddress, dbPort) }
-        EgressGuard.install(*db.toTypedArray()).use { guard ->
-            val answer = dryRun(ref, "u-dry")
-            withClue(answer.body()) { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
-            val runId = checkNotNull(scalar("select id::text from rules.dry_run_delta where pack_version = ?", v))
-            stateOf(ref, runId, "u-dry") shouldBe "SUCCEEDED"
-            guard.assertNoViolations()
-        }
-    }
-
     @Test
     fun `INV-AC-2077 an imported pack is refused arming before its delta, the delta run has no egress, then it arms`() {
         grant("u-importer", roles(DeploymentForm.PRIVATE, EGRESS_IMPORT_KEY).first())
@@ -213,8 +190,16 @@ class RegulatoryPackDeltaEgressBoundaryTest(
         }
         registryRow(EGRESS_TYPE, v) shouldBe staged
 
-        // (2) the delta run of the staged pack: only loopback and the test database are admitted
-        guardedDryRun(ref, v)
+        // (2) the delta run of the staged pack: every connect of the test JVM is recorded; only loopback and the test
+        // database are admitted
+        val db = InetAddress.getByName(PostgresRules.pg.host).hostAddress
+        EgressGuard.install(EgressGuard.Allowed(db, PostgresRules.pg.getMappedPort(EGRESS_DB_PORT))).use { guard ->
+            val answer = dryRun(ref, "u-dry")
+            withClue(answer.body()) { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
+            val runId = checkNotNull(scalar("select id::text from rules.dry_run_delta where pack_version = ?", v))
+            stateOf(ref, runId, "u-dry") shouldBe "SUCCEEDED"
+            guard.assertNoViolations()
+        }
         scalar("select state from rules.dry_run_delta where pack_version = ?", v) shouldBe "COMPLETE"
 
         // (3) the approval by a user other than the stager, then the arming by the holder of the arming permission
