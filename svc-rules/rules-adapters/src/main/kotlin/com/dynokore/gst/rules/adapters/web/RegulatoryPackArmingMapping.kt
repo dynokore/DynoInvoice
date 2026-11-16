@@ -79,7 +79,9 @@ object RegulatoryPackArmingMapping {
 
             AcknowledgePackDeltaResult.NoGraceWindow -> closed(ClosedErrorCode.STALE_AGGREGATE, NO_WINDOW_DETAIL)
 
-            is AcknowledgePackDeltaResult.WindowClosed -> closed(ClosedErrorCode.STALE_AGGREGATE, "the grace window has ended")
+            is AcknowledgePackDeltaResult.WindowClosed -> {
+                closed(ClosedErrorCode.STALE_AGGREGATE, "the grace window has ended")
+            }
         }
 
     fun armed(
@@ -174,7 +176,8 @@ class CompilingArmingStore(
             val outcome = compiler.compile(manifest, checkNotNull(contents).contents)
             check(outcome is CompileOutcome.Compiled<*>) { "the pack does not compile" }
             @Suppress("UNCHECKED_CAST")
-            hold.put(write.packType, write.version, (outcome as CompileOutcome.Compiled<CompiledPackSchematron>).compiled)
+            val compiled = (outcome as CompileOutcome.Compiled<CompiledPackSchematron>).compiled
+            hold.put(write.packType, write.version, compiled)
         }
         delegate.arm(write)
     }

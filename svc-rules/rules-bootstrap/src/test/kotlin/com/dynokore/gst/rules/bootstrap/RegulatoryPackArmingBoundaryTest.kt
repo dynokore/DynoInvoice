@@ -68,6 +68,7 @@ private const val TYPE = "CALENDAR"
 private const val SCHEMATRON = "SCHEMATRON"
 private const val EFFECTIVE = "2027-01-01"
 private val HOLDERS = listOf("rules-svc", "payload-svc", "tenancy-svc", "reconciliation-svc", "notification-svc")
+private const val STATUSES = "select string_agg(distinct status, ',') from rules.pack_registry"
 private const val SVRL = "http://purl.oclc.org/dsdl/svrl"
 
 /** Counts what the arming path asks of the pack currency monitor and what the registry said at that moment. */
@@ -87,7 +88,9 @@ class ArmingFixtures {
         transactions: com.dynokore.platform.tenancykernel.TransactionRunner,
         emitter: com.dynokore.gst.rules.application.PackEventEmitter,
     ): PackCurrencyStore {
-        val real = com.dynokore.gst.rules.adapters.persistence.JooqPackCurrencyStore(dsl, platform, transactions, emitter)
+        val real =
+            com.dynokore.gst.rules.adapters.persistence
+                .JooqPackCurrencyStore(dsl, platform, transactions, emitter)
         return object : PackCurrencyStore by real {
             override fun record(
                 day: LocalDate,
@@ -100,9 +103,9 @@ class ArmingFixtures {
                         .getConnection(PostgresRules.pg.jdbcUrl, PostgresRules.pg.username, PostgresRules.pg.password)
                         .use { c ->
                             c.createStatement().use { st ->
-                                st.executeQuery("select string_agg(distinct status, ',') from rules.pack_registry").use {
+                                st.executeQuery(STATUSES).use {
                                     it.next()
-                                    it.getString(1) ?: ""
+                                    it.getString(1).orEmpty()
                                 }
                             }
                         }
@@ -115,7 +118,7 @@ class ArmingFixtures {
 }
 
 /** The harness: real PostgreSQL, the replica fixture and the served operations; one instance per test. */
-abstract class ArmingHarness(
+open class ArmingHarness(
     protected val port: Int,
     protected val replica: AuthorityReplica,
     protected val clock: MovableClock,
@@ -257,7 +260,8 @@ abstract class ArmingHarness(
         instance: String,
         outcome: String = "LOADED",
     ) = exec(
-        "insert into rules.pack_readiness_ack (pack_type, pack_version, instance, outcome, failure_reason, received_at) " +
+        "insert into rules.pack_readiness_ack (pack_type, pack_version, instance, outcome, failure_reason, " +
+            "received_at) " +
             "values (?, ?, ?, ?, ?, clock_timestamp())",
         type,
         v,
@@ -309,7 +313,8 @@ abstract class ArmingHarness(
                 .header("Content-Type", "application/json")
         if (user != null) builder.header("Authorization", "Bearer $user|$at|")
         if (token != null) builder.header("X-Workload-Token", token)
-        val publisher = if (body == null) HttpRequest.BodyPublishers.noBody() else HttpRequest.BodyPublishers.ofString(body)
+        val publisher =
+            if (body == null) HttpRequest.BodyPublishers.noBody() else HttpRequest.BodyPublishers.ofString(body)
         return http.send(builder.POST(publisher).build(), HttpResponse.BodyHandlers.ofString())
     }
 
@@ -375,7 +380,8 @@ abstract class ArmingHarness(
         val contents = """{"version":"1.0","files":[${file("a.xsl")},${file("b.xslt")}]}""".toByteArray()
         val manifest =
             (
-                """{"packId":"$SCHEMATRON-pack","packType":"$SCHEMATRON","version":"$v","effectiveFrom":"$effective",""" +
+                """{"packId":"$SCHEMATRON-pack","packType":"$SCHEMATRON","version":"$v",""" +
+                    """"effectiveFrom":"$effective",""" +
                     """"effectiveTo":null,"minEngineVersion":"1.0.0"}"""
             ).toByteArray()
         val checksums = """{"contents":"${sha(contents)}"}""".toByteArray()
@@ -394,7 +400,8 @@ abstract class ArmingHarness(
         }
         val bytes = out.toByteArray()
         Files.write(dir.resolve(sha(bytes)), bytes)
-        val answer = call("import", user, """{"packType":"$SCHEMATRON","version":"$v","bundleHash":"sha256:${sha(bytes)}"}""")
+        val body = """{"packType":"$SCHEMATRON","version":"$v","bundleHash":"sha256:${sha(bytes)}"}"""
+        val answer = call("import", user, body)
         answer.statusCode() shouldBe 201
         return v
     }
@@ -589,7 +596,8 @@ class RegulatoryPackArmingBoundaryTest(
     fun `INV-AC-20504 callers holding only another key are refused 403 SRT-004 and every table is equal`() {
         val v = seedApproved()
         ackAll(TYPE, v)
-        grant("u-import", roles(DeploymentForm.PRIVATE, IMPORT_KEY).first { it !in roles(DeploymentForm.SAAS, ARM_KEY) })
+        val saasArmers = roles(DeploymentForm.SAAS, ARM_KEY)
+        grant("u-import", roles(DeploymentForm.PRIVATE, IMPORT_KEY).first { it !in saasArmers })
         grant("u-ack", roles(DeploymentForm.SAAS, ACK_KEY).first { it !in roles(DeploymentForm.SAAS, ARM_KEY) })
         val before = snapshot()
         refused(arm("u-ack", TYPE, v), 403, "SRT-004")
@@ -661,12 +669,13 @@ class RegulatoryPackArmingBoundaryTest(
     fun `INV-AC-1903 the window key is read from configuration with no default and fails closed`() {
         val config = RulesConfiguration()
         val key = "rules.fence.acknowledgement-window"
-        config.fenceAcknowledgementWindow(MockEnvironment().withProperty(key, "PT15M")).value shouldBe Duration.ofMinutes(15)
+        fun window(env: MockEnvironment) = config.fenceAcknowledgementWindow(env)
+        window(MockEnvironment().withProperty(key, "PT15M")).value shouldBe Duration.ofMinutes(15)
         listOf("", "15 minutes").forEach {
-            val e = runCatching { config.fenceAcknowledgementWindow(MockEnvironment().withProperty(key, it)) }.exceptionOrNull()
-            (e?.message ?: "") shouldContain key
+            val e = runCatching { window(MockEnvironment().withProperty(key, it)) }.exceptionOrNull()
+            e?.message.orEmpty() shouldContain key
         }
-        (runCatching { config.fenceAcknowledgementWindow(MockEnvironment()) }.exceptionOrNull()?.message ?: "") shouldContain key
+        runCatching { window(MockEnvironment()) }.exceptionOrNull()?.message.orEmpty() shouldContain key
         val yaml = Files.readAllLines(Path.of("src/main/resources/application.yaml"))
         yaml.count { it.trim() == "fence.acknowledgement-window: PT15M" } shouldBe 1
         yaml.none { it.contains("acknowledgment-window") } shouldBe true
@@ -728,7 +737,7 @@ class RegulatoryPackArmingAbortBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1235 one instance unacknowledged after the window aborts RUL-005, arms none, keeps the previous version`() {
+    fun `INV-AC-1235 one unacknowledged instance aborts RUL-005, arms none, keeps the previous version`() {
         val effective = uniqueDate()
         val v = approvedSchematron(effective)
         val previous = seedApproved(SCHEMATRON, "2026-01-01", "ARMED")
@@ -745,7 +754,7 @@ class RegulatoryPackArmingAbortBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-20503 the armed state and the resolved version equal the previous ones after an interrupted activation`() {
+    fun `INV-AC-20503 an interrupted activation leaves the armed state and the resolved version unchanged`() {
         val v = seedApproved()
         val previous = seedApproved(TYPE, "2026-01-01", "ARMED")
         ackAll(TYPE, v, except = "payload-svc")
@@ -754,13 +763,14 @@ class RegulatoryPackArmingAbortBoundaryTest(
         pastWindow()
         val before = snapshot()
         refused(arm("u-armer", TYPE, v), 422, "RUL-005")
-        scalar("select count(*)::text from rules.pack_registry where status = 'ARMED' and pack_version = ?", v) shouldBe "0"
+        scalar("select count(*)::text from rules.pack_registry where status = 'ARMED' and pack_version = ?", v)
+            .shouldBe("0")
         resolved(TYPE, "2027-06-01", v, previous) shouldBe previous
         snapshot() shouldBe before
     }
 
     @Test
-    fun `INV-AC-1903 an acknowledgement stored after the window but before the request counts and the arming succeeds`() {
+    fun `INV-AC-1903 an acknowledgement stored after the window but before the request counts, arming succeeds`() {
         val v = seedApproved()
         ackAll(TYPE, v, except = "reconciliation-svc")
         pastWindow()

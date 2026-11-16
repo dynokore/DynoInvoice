@@ -45,21 +45,32 @@ import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
 import com.dynokore.gst.rules.adapters.web.BackgroundDryRunStore
 import com.dynokore.gst.rules.adapters.web.BackgroundEvaluation
 import com.dynokore.gst.rules.adapters.web.BackgroundSamplePort
+import com.dynokore.gst.rules.adapters.web.CompileObserver
+import com.dynokore.gst.rules.adapters.web.CompiledPackHold
+import com.dynokore.gst.rules.adapters.web.CompilingArmingStore
 import com.dynokore.gst.rules.adapters.web.DryRunCalls
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImporter
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImports
 import com.dynokore.gst.rules.adapters.web.RegistryNamedPackVersions
 import com.dynokore.gst.rules.adapters.web.unavailable
+import com.dynokore.gst.rules.application.AcknowledgePackDelta
+import com.dynokore.gst.rules.application.AcknowledgementPermissionPort
 import com.dynokore.gst.rules.application.ActivePackReader
 import com.dynokore.gst.rules.application.ApprovalPermissionPort
 import com.dynokore.gst.rules.application.ApproveRegulatoryPack
+import com.dynokore.gst.rules.application.ArmRegulatoryPack
+import com.dynokore.gst.rules.application.ArmingPermissionPort
 import com.dynokore.gst.rules.application.ClassifyDocument
 import com.dynokore.gst.rules.application.CodeCataloguePort
+import com.dynokore.gst.rules.application.CompleteDeltaReader
+import com.dynokore.gst.rules.application.DeltaAcknowledgement
+import com.dynokore.gst.rules.application.DeltaAcknowledgementStore
 import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.DryRunDeltaPort
 import com.dynokore.gst.rules.application.DryRunDeltaStore
 import com.dynokore.gst.rules.application.DryRunPermissionPort
 import com.dynokore.gst.rules.application.EvaluateDocument
+import com.dynokore.gst.rules.application.ExpectedInstances
 import com.dynokore.gst.rules.application.HistoricalSamplePort
 import com.dynokore.gst.rules.application.HolderCopyPort
 import com.dynokore.gst.rules.application.ImportPermissionPort
@@ -77,24 +88,6 @@ import com.dynokore.gst.rules.application.PackApprovalDecisionPort
 import com.dynokore.gst.rules.application.PackBundleNotFoundException
 import com.dynokore.gst.rules.application.PackContentsCheck
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
-import com.dynokore.gst.rules.adapters.web.CompileObserver
-import com.dynokore.gst.rules.adapters.web.CompiledPackHold
-import com.dynokore.gst.rules.adapters.web.CompilingArmingStore
-import com.dynokore.gst.rules.application.AcknowledgePackDelta
-import com.dynokore.gst.rules.application.AcknowledgementPermissionPort
-import com.dynokore.gst.rules.application.ArmRegulatoryPack
-import com.dynokore.gst.rules.application.CompleteDeltaReader
-import com.dynokore.gst.rules.application.DeltaAcknowledgement
-import com.dynokore.gst.rules.application.DeltaAcknowledgementStore
-import com.dynokore.gst.rules.application.ArmingPermissionPort
-import com.dynokore.gst.rules.application.ExpectedInstances
-import com.dynokore.gst.rules.application.TenantReviewPolicy
-import com.dynokore.gst.rules.application.TenantReviewPolicyReader
-import com.dynokore.gst.rules.domain.pack.GraceDays
-import com.dynokore.gst.rules.domain.pack.ReviewPolicy
-import com.dynokore.platform.configresolver.PolicyScope
-import com.dynokore.platform.productruntime.TrainFence
-import com.dynokore.gst.rules.domain.pack.DeploymentForm as DomainDeploymentForm
 import com.dynokore.gst.rules.application.PackCurrencyStore
 import com.dynokore.gst.rules.application.PackDocumentEvaluation
 import com.dynokore.gst.rules.application.PackEvaluationPort
@@ -107,10 +100,15 @@ import com.dynokore.gst.rules.application.RunDryRun
 import com.dynokore.gst.rules.application.RunningEngine
 import com.dynokore.gst.rules.application.SampleRequestPort
 import com.dynokore.gst.rules.application.SilenceLimitPort
+import com.dynokore.gst.rules.application.TenantReviewPolicy
+import com.dynokore.gst.rules.application.TenantReviewPolicyReader
 import com.dynokore.gst.rules.application.TrustAnchorSource
+import com.dynokore.gst.rules.domain.pack.GraceDays
+import com.dynokore.gst.rules.domain.pack.ReviewPolicy
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
+import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.crypto.DetachedSigner
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -124,6 +122,7 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ProductEventTypes
+import com.dynokore.platform.productruntime.TrainFence
 import com.dynokore.platform.rulepackkernel.PackContentValidator
 import com.dynokore.platform.rulepackkernel.PackId
 import com.dynokore.platform.rulepackkernel.PackManifest
@@ -173,6 +172,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Semaphore
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import com.dynokore.gst.rules.domain.pack.DeploymentForm as DomainDeploymentForm
 
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
@@ -679,7 +679,14 @@ class RulesConfiguration {
             val stored = policy.valueAt(scope, VP_GRACE_WINDOW, today)?.value
             val maximum = policy.valueAt(PolicyScope.installation(), VP_GRACE_MAXIMUM, today)?.value
             TenantReviewPolicy(
-                form = if (gst.form == DeploymentForm.PRIVATE) DomainDeploymentForm.PRIVATE else DomainDeploymentForm.SAAS,
+                form =
+                    if (gst.form ==
+                        DeploymentForm.PRIVATE
+                    ) {
+                        DomainDeploymentForm.PRIVATE
+                    } else {
+                        DomainDeploymentForm.SAAS
+                    },
                 policy =
                     when (review) {
                         null, "REVIEW_THEN_ACTIVATE" -> ReviewPolicy.REVIEW_IN_GRACE_WINDOW
@@ -687,7 +694,16 @@ class RulesConfiguration {
                         else -> throw unavailable("the review policy is not readable")
                     },
                 stored = stored?.takeIf { it != "PLATFORM_MAXIMUM" }?.let { GraceDays(graceDays(it)) },
-                maximum = GraceDays(if (maximum == null || maximum == "DAYS_14") DEFAULT_GRACE_DAYS else graceDays(maximum)),
+                maximum =
+                    GraceDays(
+                        if (maximum == null ||
+                            maximum == "DAYS_14"
+                        ) {
+                            DEFAULT_GRACE_DAYS
+                        } else {
+                            graceDays(maximum)
+                        },
+                    ),
             )
         }
 
@@ -726,7 +742,17 @@ class RulesConfiguration {
         window: FenceAcknowledgementWindow,
         clock: Clock,
     ): ArmRegulatoryPack =
-        ArmRegulatoryPack(permission, store, tenantDeltas(store), policies, store, expected, compiling, clock, window.value)
+        ArmRegulatoryPack(
+            permission,
+            store,
+            tenantDeltas(store),
+            policies,
+            store,
+            expected,
+            compiling,
+            clock,
+            window.value,
+        )
 
     /** The platform's own dry run is the approval gate, not a tenant delta: no tenant-level policy exists for it. */
     private fun tenantDeltas(store: JooqPackArmingStore): CompleteDeltaReader =
@@ -759,8 +785,7 @@ class RulesConfiguration {
         hold: CompiledPackHold,
         platform: PlatformTenantBinding,
         transactions: TransactionRunner,
-    ): CompilingArmingStore =
-        CompilingArmingStore(store, registry, observer, hold, platform, transactions)
+    ): CompilingArmingStore = CompilingArmingStore(store, registry, observer, hold, platform, transactions)
 
     @Bean
     fun acknowledgePackDelta(
@@ -1114,8 +1139,7 @@ private const val DRY_RUN_RETRY_AFTER = "rules.dry-run.retry-after"
 /** `dryRun` answers 202 when the run outlasts this (API-17, x-timeout 2000 ms of the contract). */
 private val SYNC_WAIT: Duration = Duration.ofMillis(2000)
 
-/** The fence's acknowledgement window, from `rules.fence.acknowledgement-window` (typed so a bean never takes a bare Duration). */
+/** The fence's acknowledgement window, from `rules.fence.acknowledgement-window` (typed, never a bare Duration). */
 data class FenceAcknowledgementWindow(
     val value: Duration,
 )
-

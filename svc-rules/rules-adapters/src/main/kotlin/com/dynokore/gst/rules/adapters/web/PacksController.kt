@@ -328,9 +328,8 @@ open class PacksController(
     ): ResponseEntity<RegulatoryPack> {
         val result = deltaAcknowledgements.execute(tenants.current().toString(), packType, version, actor())
         RegulatoryPackArmingMapping.refusalOf(result)?.let { throw it }
-        return ResponseEntity.ok(
-            RegulatoryPackArmingMapping.acknowledged(packType, version, result as AcknowledgePackDeltaResult.Acknowledged),
-        )
+        val acknowledged = result as AcknowledgePackDeltaResult.Acknowledged
+        return ResponseEntity.ok(RegulatoryPackArmingMapping.acknowledged(packType, version, acknowledged))
     }
 
     /**
