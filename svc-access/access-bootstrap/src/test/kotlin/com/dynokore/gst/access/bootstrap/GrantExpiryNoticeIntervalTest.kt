@@ -86,13 +86,39 @@ class GrantExpiryNoticeIntervalTest {
     }
 
     @Test
+    fun `INV-AC-2250 one unresolved filing entity raises only its own counter and logs the grant reference only`() {
+        val registry = SimpleMeterRegistry()
+        val appender = ListAppender<ILoggingEvent>().also { it.start() }
+        val logger = LoggerFactory.getLogger(GrantExpiryNoticeTelemetry::class.java) as Logger
+        logger.addAppender(appender)
+        try {
+            GrantExpiryNoticeTelemetry(registry).filingEntityUnresolved("GRT-456")
+            val counter = registry.get(GrantExpiryNoticeTelemetry.FILING_METRIC).counter()
+            assertThat(counter.count()).isEqualTo(1.0)
+            assertThat(counter.id.tags).isEmpty()
+            assertThat(registry.find(GrantExpiryNoticeTelemetry.METRIC).counter()?.count() ?: 0.0).isEqualTo(0.0)
+            val line = appender.list.single().formattedMessage
+            assertThat(line).contains("GRT-456").doesNotContain("@")
+        } finally {
+            logger.detachAppender(appender)
+        }
+    }
+
+    @Test
+    fun `one unresolved recipient does not raise the filing entity counter`() {
+        val registry = SimpleMeterRegistry()
+        GrantExpiryNoticeTelemetry(registry).recipientUnresolved("GRT-123")
+        assertThat(registry.find(GrantExpiryNoticeTelemetry.FILING_METRIC).counter()?.count() ?: 0.0).isEqualTo(0.0)
+    }
+
+    @Test
     fun `the telemetry source writes only the grant reference to its log line`() {
         val code = File("src/main/kotlin/com/dynokore/gst/access/bootstrap/GrantExpiryNoticeJob.kt").readText()
         val logCalls =
             Regex(
                 """log\.(warn|info|error|debug)\(([^;\n]*)""",
             ).findAll(code).map { it.groupValues[2] }.toList()
-        assertThat(logCalls.filter { it.contains("grant expiry notice recipient") }).allMatch {
+        assertThat(logCalls.filter { it.contains("grant expiry notice") }).allMatch {
             it.contains("grantReference") &&
                 !Regex("(?i)address|email|username|name").containsMatchIn(it.replace("grantReference", ""))
         }

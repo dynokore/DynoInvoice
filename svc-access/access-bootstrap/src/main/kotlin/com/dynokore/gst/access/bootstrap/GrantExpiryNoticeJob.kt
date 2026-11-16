@@ -53,7 +53,11 @@ data class GrantExpiryNoticeProperties(
     }
 }
 
-/** The metric and the log line of an expiry notice recipient that could not be resolved: the grant reference only. */
+/**
+ * The metrics and log lines of an expiry notice recipient or filing entity that could not be resolved: the grant
+ * reference only, never an address or a username. The filing-entity metric counts evaluations per scan, not distinct
+ * grants.
+ */
 class GrantExpiryNoticeTelemetry(
     private val registry: MeterRegistry,
 ) : ExpiryNoticeTelemetry {
@@ -62,8 +66,14 @@ class GrantExpiryNoticeTelemetry(
         log.warn("grant expiry notice recipient unresolved for grant {}", grantReference)
     }
 
+    override fun filingEntityUnresolved(grantReference: String) {
+        registry.counter(FILING_METRIC).increment()
+        log.warn("grant expiry notice filing entity unresolved for grant {}", grantReference)
+    }
+
     companion object {
         const val METRIC = "grant_expiry_notice_recipient_unresolved"
+        const val FILING_METRIC = "grant_expiry_notice_filing_unresolved"
         private val log = LoggerFactory.getLogger(GrantExpiryNoticeTelemetry::class.java)
     }
 }
