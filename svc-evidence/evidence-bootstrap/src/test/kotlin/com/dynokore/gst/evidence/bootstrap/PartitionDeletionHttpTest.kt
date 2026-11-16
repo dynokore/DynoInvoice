@@ -173,6 +173,8 @@ class PartitionDeletionHttpTest {
         notice: Boolean = true,
         hold: Boolean = false,
         grant: Boolean = true,
+        windowOpen: Boolean = false,
+        approvals: Boolean = true,
     ): Fixture {
         val tenant = UUID.randomUUID()
         tenants += tenant
@@ -197,7 +199,7 @@ class PartitionDeletionHttpTest {
                     .single()
                     .single(),
             )
-        authority(tenant, id, period, notice, hold)
+        authority(tenant, id, period, Authority(notice, hold, windowOpen, approvals))
         seedStructure(TenantId(tenant))
         if (grant) {
             service.grants.grant(
@@ -213,18 +215,18 @@ class PartitionDeletionHttpTest {
         tenant: UUID,
         id: String,
         period: String,
-        notice: Boolean,
-        hold: Boolean,
+        authority: Authority,
     ) {
+        val (notice, hold, windowOpen, approvals) = authority
         if (notice) {
+            val closes = if (windowOpen) "now() + interval '10 days'" else "now() - interval '60 days'"
             sql(
-                "insert into evidence.retention_notice values " +
-                    "(?, ?, now() - interval '90 days', 30, now() - interval '60 days')",
+                "insert into evidence.retention_notice values (?, ?, now() - interval '90 days', 30, $closes)",
                 tenant,
                 id,
             )
         }
-        listOf("u-approver-1", "u-approver-2").forEach {
+        listOf("u-approver-1", "u-approver-2").filter { approvals }.forEach {
             sql(
                 "insert into evidence.retention_approval values (?, ?, ?, 'retention.delete.approve', now())",
                 tenant,
@@ -243,6 +245,13 @@ class PartitionDeletionHttpTest {
             )
         }
     }
+
+    private data class Authority(
+        val notice: Boolean,
+        val hold: Boolean,
+        val windowOpen: Boolean,
+        val approvals: Boolean,
+    )
 
     private fun seedStructure(tenant: TenantId) {
         val node =
@@ -410,10 +419,11 @@ class PartitionDeletionHttpTest {
         val f = fixture(hold = true)
         val answer = delete(f)
         answer.status() shouldBe 409
-        answer.detail() shouldBe "HOLD_IN_FORCE"
+        answer.code() shouldBe "EVD-004"
+        answer.detail() shouldBe null
         rows(f) shouldBe tables.size
         registryState(f) shouldBe "ATTACHED"
-        operations(f).single().take(3) shouldBe listOf("FAILED", STARTER, "SRT-008:HOLD_IN_FORCE")
+        operations(f).single().take(3) shouldBe listOf("FAILED", STARTER, "EVD-004")
     }
 
     @Test
@@ -421,7 +431,8 @@ class PartitionDeletionHttpTest {
         val f = fixture(notice = false)
         val answer = delete(f)
         answer.status() shouldBe 409
-        answer.detail() shouldBe "NOTICE_MISSING"
+        answer.code() shouldBe "EVD-005"
+        answer.detail() shouldBe null
         rows(f) shouldBe tables.size
     }
 
@@ -430,7 +441,8 @@ class PartitionDeletionHttpTest {
         val f = fixture(period = "2099-Q1")
         val answer = delete(f)
         answer.status() shouldBe 409
-        answer.detail() shouldBe "RETENTION_NOT_ENDED"
+        answer.code() shouldBe "EVD-003"
+        answer.detail() shouldBe null
         rows(f) shouldBe tables.size
     }
 
@@ -447,12 +459,43 @@ class PartitionDeletionHttpTest {
     }
 
     @Test
+    fun `INV-AC-22964 an open notice window gives 409 EVD-006 and the rows remain`() {
+        val f = fixture(windowOpen = true)
+        val answer = delete(f)
+        answer.status() shouldBe 409
+        answer.code() shouldBe "EVD-006"
+        answer.detail() shouldBe null
+        rows(f) shouldBe tables.size
+        operations(f).single().take(3) shouldBe listOf("FAILED", STARTER, "EVD-006")
+    }
+
+    @Test
+    fun `INV-AC-22964 missing approvals give 409 EVD-007 and the rows remain`() {
+        val f = fixture(approvals = false)
+        val answer = delete(f)
+        answer.status() shouldBe 409
+        answer.code() shouldBe "EVD-007"
+        answer.detail() shouldBe null
+        rows(f) shouldBe tables.size
+        operations(f).single().take(3) shouldBe listOf("FAILED", STARTER, "EVD-007")
+    }
+
+    @Test
+    fun `INV-AC-22964 the stop codes are members of the generated catalogue`() {
+        val known = com.dynokore.gst.catalogue.ErrorCode.entries.map { it.code }.toSet()
+        listOf("EVD-003", "EVD-004", "EVD-005", "EVD-006", "EVD-007", "EVD-008", "EVD-009").forEach {
+            (it in known) shouldBe true
+        }
+    }
+
+    @Test
     fun `INV-AC-22964 a repeat gives 409 and deletes nothing`() {
         val f = fixture()
         deleted(f)
         val repeat = delete(f)
         repeat.status() shouldBe 409
-        repeat.detail() shouldBe "ALREADY_DELETED"
+        repeat.code() shouldBe "EVD-008"
+        repeat.detail() shouldBe null
         operations(f).size shouldBe 1
         sql("select count(*) from evidence.outbox where tenant_id = ? and type like '%AuditEntryRecorded%'", f.tenant)
             .single()
@@ -470,7 +513,8 @@ class PartitionDeletionHttpTest {
         // a concurrent second call while the first is running: 409 and nothing is started
         val second = delete(f)
         second.status() shouldBe 409
-        second.code() shouldBe "SRT-007"
+        second.code() shouldBe "EVD-009"
+        second.detail() shouldBe null
         operations(f).size shouldBe 1
         caller.join(JOIN_MILLIS)
         val accepted = checkNotNull(first)

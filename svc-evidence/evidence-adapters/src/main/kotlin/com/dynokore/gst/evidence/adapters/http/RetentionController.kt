@@ -60,11 +60,10 @@ class RetentionRefusal(
     val detail: String? = null,
 ) : RuntimeException(code.code)
 
-/** A 409 of the deletion: a stop of the rules ([reason], the use case result) or the chain verification block. */
+/** A 409 of the deletion: [code] is the catalogue code of the stop (EVD-003 to EVD-009, or DEP-007). */
 class DeletionConflict(
-    val reason: String,
-    val chainVerificationFailed: Boolean = false,
-) : RuntimeException(reason)
+    val code: String,
+) : RuntimeException(code)
 
 /**
  * How long the status of a deletion is answered after it ended (API-17): at least [FLOOR], 7 days. A shorter period is
@@ -97,11 +96,7 @@ class RetentionRefusalAdvice {
     @ExceptionHandler(DeletionConflict::class)
     fun conflict(conflict: DeletionConflict): ResponseEntity<String> {
         val envelope =
-            RetentionController.conflictEnvelope(
-                conflict.reason,
-                conflict.chainVerificationFailed,
-                correlation(),
-            )
+            RetentionController.conflictEnvelope(conflict.code, correlation())
         return ResponseEntity
             .status(HttpStatus.CONFLICT)
             .contentType(MediaType.APPLICATION_PROBLEM_JSON)
@@ -162,7 +157,7 @@ open class RetentionController(
         admit(tenant, caller, partitionId)
         val operation =
             inTenant(tenant) { operations.claim(tenant, partitionId, caller.actor, clock.instant()) }
-                ?: conflict(RUNNING_REASON)
+                ?: conflict(RUNNING_CODE)
         val outcome = CompletableFuture<DeleteAtRetentionEndResult>()
         Thread.ofVirtual().name("partition-deletion").start { run(tenant, caller.actor, operation, outcome) }
         return respond(operation, outcome)
@@ -180,7 +175,7 @@ open class RetentionController(
         if (!replica.decide(request, Deadline.after(DECISION_BUDGET, clock)).allowed) {
             refuse(ClosedErrorCode.ACCESS_DENIED)
         }
-        if (partition.state == PartitionState.DROPPED) conflict(DeleteAtRetentionEndResult.ALREADY_DELETED.name)
+        if (partition.state == PartitionState.DROPPED) conflict(ALREADY_DELETED_CODE)
     }
 
     private fun respond(
@@ -207,8 +202,7 @@ open class RetentionController(
             }
 
             else -> {
-                val chain = result == DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED
-                conflict(result.name, chainVerificationFailed = chain)
+                conflict(checkNotNull(stopCode(result)) { "$result is not a stop" })
             }
         }
     }
@@ -227,10 +221,7 @@ open class RetentionController(
 
     private fun refuse(code: ClosedErrorCode): Nothing = throw RetentionRefusal(code)
 
-    private fun conflict(
-        reason: String,
-        chainVerificationFailed: Boolean = false,
-    ): Nothing = throw DeletionConflict(reason, chainVerificationFailed)
+    private fun conflict(code: String): Nothing = throw DeletionConflict(code)
 
     /** The worker: the deletion in a tenant transaction, then the row ends in one of its own; the outcome follows. */
     @Suppress("TooGenericExceptionCaught") // any failure of the worker ends the row FAILED and fails the call
@@ -242,13 +233,7 @@ open class RetentionController(
     ) {
         try {
             val result = inTenant(tenant) { deletion.execute(tenant.value.toString(), actor, operation.partitionId) }
-            val code =
-                when (result) {
-                    DeleteAtRetentionEndResult.DELETED -> null
-                    DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED -> CHAIN_CODE
-                    else -> "${ClosedErrorCode.STALE_AGGREGATE.code}:${result.name}"
-                }
-            end(tenant, operation, code)
+            end(tenant, operation, stopCode(result))
             outcome.complete(result)
         } catch (failure: Exception) {
             try {
@@ -310,15 +295,14 @@ open class RetentionController(
 
     /** The API-20 envelope of a stored error code (`<code>` or `<code>:<reason>`). */
     private fun failure(stored: String?): ErrorEnvelope {
-        val code = stored?.substringBefore(':') ?: ClosedErrorCode.INTERNAL_ERROR.code
-        val reason = stored?.substringAfter(':', "")?.takeIf { it.isNotEmpty() }
+        val code = stored ?: ClosedErrorCode.INTERNAL_ERROR.code
         val closed = ClosedErrorCode.entries.firstOrNull { it.code == code }
-        val chain = code == CHAIN_CODE
+        val catalogued = ErrorCode.entries.firstOrNull { it.code == code }
         return ErrorEnvelope(
             type = URI.create(Problems.typeOf(code)),
-            title = if (chain) chainCode().condition else closed?.title ?: ClosedErrorCode.INTERNAL_ERROR.title,
+            title = catalogued?.condition ?: closed?.title ?: ClosedErrorCode.INTERNAL_ERROR.title,
             status =
-                if (chain) {
+                if (catalogued != null) {
                     HttpStatus.CONFLICT.value()
                 } else {
                     closed?.httpStatus
@@ -326,7 +310,6 @@ open class RetentionController(
                 },
             code = code,
             correlationId = MDC.get(CORRELATION_ID) ?: "http:${UUID.randomUUID()}",
-            detail = reason,
         )
     }
 
@@ -388,8 +371,8 @@ open class RetentionController(
         const val CONTRACT_TIMEOUT_MILLIS = 2000L
         private val DECISION_BUDGET: Duration = Duration.ofMillis(CONTRACT_TIMEOUT_MILLIS)
         private const val RETRY_AFTER_SECONDS = 1
-        private const val RUNNING_REASON = "RUNNING"
-        private const val CHAIN_CODE = "DEP-007"
+        private const val RUNNING_CODE = "EVD-009"
+        private const val ALREADY_DELETED_CODE = "EVD-008"
         private const val STATUS_PATH_PREFIX = "/internal/v1/evidence/partitions/"
         private const val STATUS_PATH_SUFFIX = "/deletion"
         private const val CODE = "EVD-001"
@@ -398,39 +381,36 @@ open class RetentionController(
         private val mapper = ObjectMapper()
         private val log: Logger = LoggerFactory.getLogger(RetentionController::class.java)
 
-        private fun chainCode(): ErrorCode = ErrorCode.entries.single { it.code == CHAIN_CODE }
+        /**
+         * The catalogue code a result stops with, null for DELETED. A total `when` without `else`: a further result
+         * fails to compile. NOT_FOUND is the closed SRT-005 and never a 409.
+         */
+        private fun stopCode(result: DeleteAtRetentionEndResult): String? =
+            when (result) {
+                DeleteAtRetentionEndResult.DELETED -> null
+                DeleteAtRetentionEndResult.RETENTION_NOT_ENDED -> "EVD-003"
+                DeleteAtRetentionEndResult.HOLD_IN_FORCE -> "EVD-004"
+                DeleteAtRetentionEndResult.NOTICE_MISSING -> "EVD-005"
+                DeleteAtRetentionEndResult.WINDOW_OPEN -> "EVD-006"
+                DeleteAtRetentionEndResult.APPROVALS_MISSING -> "EVD-007"
+                DeleteAtRetentionEndResult.ALREADY_DELETED -> ALREADY_DELETED_CODE
+                DeleteAtRetentionEndResult.CHAIN_VERIFICATION_FAILED -> "DEP-007"
+                DeleteAtRetentionEndResult.NOT_FOUND -> ClosedErrorCode.NOT_FOUND.code
+            }
 
-        /** The 409 envelope of a stop: the DEP-007 block, else SRT-008 (SRT-007 while running) with the result. */
+        /** The 409 envelope of a stop: the catalogue entry of [code], with no detail (the code names the stop). */
         fun conflictEnvelope(
-            reason: String,
-            chainVerificationFailed: Boolean,
+            code: String,
             correlationId: String,
         ): tools.jackson.databind.node.ObjectNode =
             mapper.createObjectNode().apply {
-                if (chainVerificationFailed) {
-                    val code = chainCode()
-                    put("type", Problems.typeOf(code.code))
-                    put("title", code.condition)
-                    put("code", code.code)
-                    put("severity", code.severity.name)
-                    code.disposition?.let { put("disposition", it.name) }
-                    put("remediationOwner", code.owner)
-                } else {
-                    val closed =
-                        if (reason ==
-                            RUNNING_REASON
-                        ) {
-                            ClosedErrorCode.IN_FLIGHT
-                        } else {
-                            ClosedErrorCode.STALE_AGGREGATE
-                        }
-                    put("type", Problems.typeOf(closed.code))
-                    put("title", closed.title)
-                    put("code", closed.code)
-                    put("disposition", closed.disposition)
-                    put("remediationOwner", closed.remediationOwner)
-                    put("detail", reason)
-                }
+                val entry = ErrorCode.entries.single { it.code == code }
+                put("type", Problems.typeOf(entry.code))
+                put("title", entry.condition)
+                put("code", entry.code)
+                put("severity", entry.severity.name)
+                entry.disposition?.let { put("disposition", it.name) }
+                put("remediationOwner", entry.owner)
                 put("status", HttpStatus.CONFLICT.value())
                 put("correlationId", correlationId)
             }
