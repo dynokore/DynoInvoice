@@ -16,13 +16,15 @@ import org.jooq.DSLContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Import
 
 /**
- * TPL-18: offboardTenant (INV-T-16412 use cases) over the boundary adapters (INV-T-16413). The export port and the
- * documents-count port belong to later-wave services and are unbound here (coordinator ruling INV-Q-4900): in profile
- * `prod` and in every other profile that binds none, a call is refused 422 POL-014 naming the unavailable input.
+ * TPL-18: offboardTenant (INV-T-16412 use cases) over the boundary adapters (INV-T-16413). The export port
+ * belongs to a later-wave service and is unbound here (coordinator ruling INV-Q-4900). The documents-count
+ * port is bound to the read model by [OffboardingCountConfiguration]; a context without it refuses 422 POL-014.
  */
 @Configuration(proxyBeanMethods = false)
+@Import(OffboardingCountConfiguration::class)
 class OffboardingUseCases {
     @Bean
     fun offboardingStore(
@@ -35,7 +37,7 @@ class OffboardingUseCases {
     @ConditionalOnMissingBean(TenantExport::class)
     fun tenantExport(): TenantExport = UnboundTenantExport(EXPORT_INPUT)
 
-    /** The documents service owns the count; until it is bound the count is unreadable. */
+    /** The default when no read-model binding is loaded: the count is unreadable. */
     @Bean
     @ConditionalOnMissingBean(UnsubmittedDocuments::class)
     fun unsubmittedDocuments(): UnsubmittedDocuments =

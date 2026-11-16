@@ -39,6 +39,9 @@ gst:
   service: tenancy-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 inv:
+  offboarding:
+    unsubmitted-count:
+      max-age: PT15M   # at least two job intervals (5 min) plus relay lag; the count is current while received this recently
   persistence:
     append-only-tables:
       - tenancy.installation_action                  # one row per (run id, step), written once (CS-22)

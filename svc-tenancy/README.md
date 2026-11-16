@@ -102,6 +102,8 @@ The four-level hierarchy (FR-G.1). Entity lifecycle: create, go-live gate (FR-Q.
 
 None
 
+The documents-count port of offboarding (`offboardTenant`, `closeTenant`, `deregisterEntity`) reads a replica in the own database that the consumer of `UnsubmittedDocumentCountMeasured` fills (`ReplicaUnsubmittedDocuments`, INV-REQ-956). The service still makes no synchronous call. A count older than `inv.offboarding.unsubmitted-count.max-age`, a missing one, or an unreadable one refuses the offboarding 422 POL-014 naming `unsubmitted-documents-count`.
+
 ## External dependencies
 
 Licence file or entitlement source (LicenceCheck)
