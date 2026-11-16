@@ -126,7 +126,7 @@ class ServiceDefaults {
             }.getOrDefault(false)
         }
 
-    private companion object {
+    companion object {
         val BUSINESS_ZONE: ZoneId = ZoneId.of("Asia/Singapore")
     }
 }

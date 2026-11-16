@@ -1,5 +1,7 @@
 package com.dynokore.gst.access.adapters.events
 
+import com.dynokore.gst.access.application.grant.ExpiryNoticeMessages
+import com.dynokore.gst.access.application.grant.ExpiryNoticeRequest
 import com.dynokore.gst.access.application.link.LinkMessages
 import com.dynokore.gst.access.application.link.MessageRequest
 import com.dynokore.gst.access.domain.link.SignedLink
@@ -21,7 +23,8 @@ class OutboxLinkMessages(
     private val outbox: OutboxWriter,
     private val tenants: TenantContext,
     private val mapper: ObjectMapper,
-) : LinkMessages {
+) : LinkMessages,
+    ExpiryNoticeMessages {
     private val signedLinkEvents = SignedLinkEventOutbox(outbox, tenants, mapper)
 
     private val outcomes = SignedLinkOutcomeOutbox(outbox, tenants, mapper)
@@ -56,12 +59,30 @@ class OutboxLinkMessages(
 
     override fun request(message: MessageRequest) {
         val under = checkNotNull(entity.get()) { "a message is requested inside filedUnder, under an entity" }
+        append(message.template, listOf(message.recipient), message.channel.name, under) {
+            message.linkReference?.let { put("linkReference", it) }
+            message.sealedPasscode?.let { put("sealedPasscode", it) }
+        }
+    }
+
+    /** An expiry notice: `template`, `recipients` and `channel` only, filed under the entity of the request. */
+    override fun request(request: ExpiryNoticeRequest) =
+        append(request.template, request.recipients, request.channel.name, EntityRef(request.entity.value)) {}
+
+    /** The one place that appends `MessageRequested`, in the transaction the caller holds. */
+    private fun append(
+        template: String,
+        recipients: List<String>,
+        channel: String,
+        under: EntityRef,
+        extra: tools.jackson.databind.node.ObjectNode.() -> Unit,
+    ) {
         val payload = mapper.createObjectNode()
-        payload.put("template", message.template)
-        payload.putArray("recipients").add(message.recipient)
-        payload.put("channel", message.channel.name)
-        message.linkReference?.let { payload.put("linkReference", it) }
-        message.sealedPasscode?.let { payload.put("sealedPasscode", it) }
+        payload.put("template", template)
+        val to = payload.putArray("recipients")
+        recipients.forEach { to.add(it) }
+        payload.put("channel", channel)
+        payload.extra()
         outbox.append(
             listOf(OutboundEvent(EVENT_TYPE, payload.toString())),
             EventContexts.forAggregate(tenants.current(), under, "entity:${under.value}"),

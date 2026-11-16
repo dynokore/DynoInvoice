@@ -56,6 +56,8 @@ inv:
       - access.write_installation_setting
       # The claim function of the group synchronisation (INV-T-4938): one tenant_id per tenant with an ACTIVE mapping, no tenant data.
       - access.claim_idp_sync_tenants
+      # The claim function of the grant expiry-notice scan (INV-T-15799): one tenant_id per tenant with an ACTIVE time-limited grant, no tenant data.
+      - access.claim_grant_expiry_tenants
       # The tenant list of the full sync of AuthorityChanged (INV-T-9061): one tenant_id per tenant with a grant, consent or principal, no tenant data.
       - access.replay_authority_tenants
       # The published INSTALLATION role grants (INV-T-9235): a grant at installation scope has no tenant; the row policy admits
@@ -102,6 +104,8 @@ access:
     key-rotation-interval: ${ACCESS_TOKEN_KEY_ROTATION_INTERVAL}
   idp-group-sync:
     interval: PT15M                                # the owner's figure (INV-Q-8667): the directory groups are read every 15 minutes
+  grant-expiry-notice:
+    interval: PT15M                                # Inference (INV-T-15799): same cadence as the directory sync; a notice is dated by day and the scan is idempotent per grant and day
 serviceruntime:
   replica.structure:
     # A cold access-svc answers 503 SRT-013 and is not ready until the structure snapshot is held (INV-AC-9089, INV-Q-9081 A).
