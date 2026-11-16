@@ -21,6 +21,7 @@ import java.util.UUID
  * `appendSequenced` reserves for the same row. `validationTrace` is an object (published schema): an opaque trace that
  * is a JSON object is embedded as given, any other text is wrapped as `{"reason": <text>}`, and a catalogue code
  * without a trace gives `{"code": <code>}`; `code` is written only when set.
+ * `packVersions` (additive, API-41) is written only when [PayloadRejectedFacts.packVersions] is non-empty.
  */
 class OutboxPayloadRejectedPublisher(
     private val outbox: OutboxWriter,
@@ -55,6 +56,10 @@ class OutboxPayloadRejectedPublisher(
         node.put("docsequence", docSequence)
         node.set("validationTrace", trace(facts))
         facts.code?.let { node.put("code", it) }
+        facts.packVersions?.takeIf { it.isNotEmpty() }?.let { packs ->
+            val array = node.putArray("packVersions")
+            packs.forEach { array.addObject().put("packType", it.packType).put("version", it.version) }
+        }
         return mapper.writeValueAsString(node)
     }
 

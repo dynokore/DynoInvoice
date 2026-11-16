@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.adapters.build.ActivePackRead
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
 import com.dynokore.gst.payload.adapters.build.FamilyLookup
 import com.dynokore.gst.payload.adapters.build.JooqBuildInputsReader
@@ -16,7 +17,6 @@ import com.dynokore.gst.payload.application.build.PayloadRejectedPublisher
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.gst.payload.application.payload.PublishPayloadReady
-import com.dynokore.gst.payload.domain.OffNetworkPrefixSource
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.WorkQueue
@@ -79,8 +79,8 @@ class BuildPayloadConfiguration {
         families: SpecificationFamilySource,
         activePackPrefix: ObjectProvider<ActivePackOffNetworkPrefix>,
     ): PayloadProjector =
-        PintSgPayloadProjector(families, offNetworkPrefix = {
-            activePackPrefix.ifAvailable?.prefixSource()
+        PintSgPayloadProjector(families, activePack = {
+            activePackPrefix.ifAvailable?.active()
         })
 
     @Bean
@@ -103,7 +103,7 @@ class BuildPayloadConfiguration {
     ): BuildPayloadJobHandler = BuildPayloadJobHandler(queue, scope, build)
 }
 
-/** The off-network prefix source of the active MDE pack version; absent while no pack is active. */
+/** The one read of the active MDE pack (version, prefix source, contents); absent while no pack is active. */
 fun interface ActivePackOffNetworkPrefix {
-    fun prefixSource(): OffNetworkPrefixSource?
+    fun active(): ActivePackRead?
 }

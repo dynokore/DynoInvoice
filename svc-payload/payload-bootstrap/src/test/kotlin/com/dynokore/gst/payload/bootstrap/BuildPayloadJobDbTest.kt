@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.PayloadDb
+import com.dynokore.gst.payload.adapters.build.ActivePackRead
 import com.dynokore.gst.payload.adapters.build.BuildJobFailed
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
 import com.dynokore.gst.payload.adapters.persistence.JooqBuildJobs
@@ -98,7 +99,10 @@ class BuildPayloadJobDbTest {
                     ActivePackOffNetworkPrefix::class.java,
                     {
                         ActivePackOffNetworkPrefix {
-                            com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix(
+                            ActivePackRead(
+                                "DB-TEST",
+                                com.dynokore.gst.payload.adapters.projection
+                                    .MdePackOffNetworkPrefix("{}"),
                                 "{}",
                             )
                         }
@@ -234,7 +238,10 @@ class BuildPayloadJobDbTest {
                     ActivePackOffNetworkPrefix::class.java,
                     {
                         ActivePackOffNetworkPrefix {
-                            com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix(
+                            ActivePackRead(
+                                "DB-TEST",
+                                com.dynokore.gst.payload.adapters.projection
+                                    .MdePackOffNetworkPrefix("{}"),
                                 "{}",
                             )
                         }

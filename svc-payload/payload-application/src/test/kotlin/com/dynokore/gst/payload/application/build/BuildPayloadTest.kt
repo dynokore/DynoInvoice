@@ -14,6 +14,7 @@ class BuildPayloadTest {
     private val d2 = UUID.fromString("00000000-0000-0000-0000-000000000002")
     private val d3 = UUID.fromString("00000000-0000-0000-0000-000000000003")
     private val d4 = UUID.fromString("00000000-0000-0000-0000-000000000004")
+    private val d5 = UUID.fromString("00000000-0000-0000-0000-000000000005")
     private val small = "<Invoice/>".toByteArray()
     private val big = ByteArray(10_485_761)
 
@@ -25,7 +26,7 @@ class BuildPayloadTest {
     private var decisionText: String? = "TYPE_2"
     private val firstTimeCheck = true
 
-    private val readerMap = mapOf(d1 to input(), d2 to input(), d3 to input())
+    private val readerMap = mapOf(d1 to input(), d2 to input(), d3 to input(), d5 to input())
 
     private fun build(
         types: Map<UUID, String> = emptyMap(),
@@ -34,6 +35,7 @@ class BuildPayloadTest {
                 d1 to Projection.Built(small),
                 d2 to Projection.Built(big),
                 d3 to Projection.Blocked("{\"finding\":\"BLOCK\"}"),
+                d5 to Projection.Blocked("{\"finding\":\"BLOCK\"}", packVersion = "MDE-7"),
             ),
     ): BuildPayload {
         val byDoc = readerMap
@@ -115,5 +117,24 @@ class BuildPayloadTest {
             ready.single().submissionType shouldBe spelling
         }
         assertThrows(IllegalStateException::class.java) { build(types = mapOf(d1 to "2")).run(d1, 2) }
+    }
+
+    @Test
+    fun `INV-AC-23594 packVersions of a blocked projection`() {
+        build().run(d5, 1)
+        rejected.single().packVersions shouldBe listOf(PackVersionFact("MDE", "MDE-7"))
+    }
+
+    @Test
+    fun `INV-AC-23594 no packVersions without a pack`() {
+        build().run(d3, 1)
+        rejected.single().packVersions shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-23594 PAY-010 has no packVersions`() {
+        build(projections = mapOf(d2 to Projection.Built(big))).run(d2, 1)
+        rejected.single().code shouldBe "PAY-010"
+        rejected.single().packVersions shouldBe null
     }
 }

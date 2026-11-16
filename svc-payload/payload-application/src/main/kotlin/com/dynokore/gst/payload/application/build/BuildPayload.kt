@@ -38,18 +38,30 @@ sealed interface Projection {
         val bytes: ByteArray,
     ) : Projection
 
+    /** [packVersion] is the version of the active MDE pack the projection read; null when it read none. */
     data class Blocked(
         val validationTrace: String,
+        val packVersion: String? = null,
     ) : Projection
 }
 
-/** The facts of one `PayloadRejected` event: a catalogue [code] (PAY-010) or the opaque [validationTrace]. */
+/** One pack of the `packVersions` of a `PayloadRejected` event: the [packType] and the [version] built from. */
+data class PackVersionFact(
+    val packType: String,
+    val version: String,
+)
+
+/**
+ * The facts of one `PayloadRejected` event: a catalogue [code] (PAY-010) or the opaque [validationTrace]. [packVersions]
+ * is null when no pack was read.
+ */
 data class PayloadRejectedFacts(
     val entityRef: String,
     val docUuid: UUID,
     val version: Int,
     val code: String?,
     val validationTrace: String?,
+    val packVersions: List<PackVersionFact>? = null,
 )
 
 /** Stages a `PayloadRejected` event for release in the caller's transaction. */
@@ -137,7 +149,14 @@ class BuildPayload(
         if (!outcomes.firstTime(docUuid, version)) return
         when (val projection = projector.project(input, decision)) {
             is Projection.Blocked -> {
-                reject(input, docUuid, version, null, projection.validationTrace)
+                reject(
+                    input,
+                    docUuid,
+                    version,
+                    null,
+                    projection.validationTrace,
+                    projection.packVersion?.let { listOf(PackVersionFact(MDE_PACK_TYPE, it)) },
+                )
             }
 
             is Projection.Built -> {
@@ -156,7 +175,8 @@ class BuildPayload(
         version: Int,
         code: String?,
         trace: String?,
-    ) = rejected.stage(PayloadRejectedFacts(input.entityRef, docUuid, version, code, trace))
+        packVersions: List<PackVersionFact>? = null,
+    ) = rejected.stage(PayloadRejectedFacts(input.entityRef, docUuid, version, code, trace, packVersions))
 
     private fun publish(
         input: BuildInput,
@@ -176,4 +196,8 @@ class BuildPayload(
             aggregateId = input.aggregateId,
         ),
     )
+
+    private companion object {
+        const val MDE_PACK_TYPE = "MDE"
+    }
 }

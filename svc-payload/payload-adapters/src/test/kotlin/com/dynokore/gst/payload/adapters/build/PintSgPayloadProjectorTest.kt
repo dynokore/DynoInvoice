@@ -31,7 +31,7 @@ class PintSgPayloadProjectorTest {
     ) = BuildInput("E-001", document(typeCode), aggregateId, direction, true)
 
     private val projector =
-        PintSgPayloadProjector({ "PINT_SG" }, { MdePackOffNetworkPrefix("{}") })
+        PintSgPayloadProjector({ "PINT_SG" }, { ActivePackRead("TEST", MdePackOffNetworkPrefix("{}"), "{}") })
 
     private fun xml(projection: Projection): String = String((projection as Projection.Built).bytes, Charsets.UTF_8)
 

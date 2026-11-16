@@ -12,7 +12,6 @@ import com.dynokore.gst.payload.application.build.PayloadProjector
 import com.dynokore.gst.payload.application.build.Projection
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.domain.Direction
-import com.dynokore.gst.payload.domain.OffNetworkPrefixSource
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
@@ -28,12 +27,12 @@ import java.time.format.DateTimeParseException
  * Projects the stored canonical document of an ordinary document to PINT-SG XML through the builders of
  * [DocumentBuilderRegistry.standard]. A document of an aggregate (non-null `aggregateId`) is not built here: its MDE
  * placeholder literals are a following slice, so it throws [IllegalStateException] and nothing is published. A null
- * direction is blocked, never defaulted. [offNetworkPrefix] answers the off-network prefix source of the active MDE
- * pack, or null while none is active, which is [BuildNotReady].
+ * direction is blocked, never defaulted. [activePack] answers the one read of the active MDE pack of a build (its
+ * version, off-network prefix source and contents), or null while none is active, which is [BuildNotReady].
  */
 class PintSgPayloadProjector(
     private val families: SpecificationFamilySource,
-    private val offNetworkPrefix: () -> OffNetworkPrefixSource?,
+    private val activePack: () -> ActivePackRead?,
     private val registry: DocumentBuilderRegistry = DocumentBuilderRegistry.standard(),
     private val mapper: ObjectMapper = ObjectMapper(),
 ) : PayloadProjector {
@@ -45,7 +44,7 @@ class PintSgPayloadProjector(
         return try {
             build(input, submissionType)
         } catch (e: Blocking) {
-            Projection.Blocked(e.trace)
+            Projection.Blocked(e.trace, e.packVersion)
         }
     }
 
@@ -57,18 +56,32 @@ class PintSgPayloadProjector(
         val document = mapper.readTree(input.canonicalDocument)
         val typeCode = typeCodeOf(document)
         val family = SpecificationFamily.valueOf(families.familyOf(input.familyRequest()))
-        val prefix = offNetworkPrefix() ?: throw BuildNotReady("no active MDE pack")
-        val result =
-            builderOf(BuilderKey(family, typeCode)).build(
-                parties(document),
-                DocumentFields.header(document),
-                Direction.valueOf(direction),
-                family,
-                SubmissionType.valueOf(submissionType),
-                EndpointInputs(input.counterpartyOnNetwork, prefix),
-            )
-        return projection(result)
+        val pack = activePack() ?: throw BuildNotReady("no active MDE pack")
+        return namingPack(pack.version) {
+            val result =
+                builderOf(BuilderKey(family, typeCode)).build(
+                    parties(document),
+                    DocumentFields.header(document),
+                    Direction.valueOf(direction),
+                    family,
+                    SubmissionType.valueOf(submissionType),
+                    EndpointInputs(input.counterpartyOnNetwork, pack.prefix),
+                )
+            projection(result)
+        }
     }
+
+    /** A block after the one read of the pack names the version that read answered. */
+    private fun namingPack(
+        version: String,
+        block: () -> Projection,
+    ): Projection =
+        try {
+            block()
+        } catch (e: Blocking) {
+            e.packVersion = version
+            throw e
+        }
 
     private fun typeCodeOf(document: JsonNode): String =
         DocumentFields.text(document.path("documentTypeCode").path("value")) ?: throw blocking(TYPE_CODE_ABSENT)
@@ -133,6 +146,7 @@ class PintSgPayloadProjector(
     /** The projection cannot be built; carries the validation trace. Stackless: it is control flow. */
     private class Blocking(
         val trace: String,
+        var packVersion: String? = null,
     ) : RuntimeException(null, null, false, false)
 
     companion object {
