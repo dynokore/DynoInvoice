@@ -5,7 +5,17 @@ import com.dynokore.gst.payload.adapters.build.ActivePackRead
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
 import com.dynokore.gst.payload.adapters.events.OutboxPayloadReadyPublisher
 import com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix
+import com.dynokore.gst.payload.adapters.build.JooqBuildInputsReader
+import com.dynokore.gst.payload.adapters.build.JooqBuildOutcomes
+import com.dynokore.gst.payload.adapters.build.JooqTypeDecisionReader
+import com.dynokore.gst.payload.adapters.build.OutboxPayloadRejectedPublisher
+import com.dynokore.gst.payload.adapters.build.PintSgPayloadProjector
+import com.dynokore.gst.payload.application.build.BuildInputsReader
+import com.dynokore.gst.payload.application.build.BuildOutcomes
 import com.dynokore.gst.payload.application.build.BuildPayload
+import com.dynokore.gst.payload.application.build.PayloadProjector
+import com.dynokore.gst.payload.application.build.PayloadRejectedPublisher
+import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ClaimedItem
@@ -223,6 +233,13 @@ class PayloadReadyAggregateIdBoundaryTest {
         typeDecisions.pollOnce() shouldBe applied1
         log.add(decidedTopic, decided(tenant, 4, e))
         typeDecisions.pollOnce() shouldBe applied1
+
+        // composition: every port of the build use case is the production bean; the test supplies only two beans
+        ctx.getBean(BuildInputsReader::class.java).javaClass shouldBe JooqBuildInputsReader::class.java
+        ctx.getBean(TypeDecisionReader::class.java).javaClass shouldBe JooqTypeDecisionReader::class.java
+        ctx.getBean(BuildOutcomes::class.java).javaClass shouldBe JooqBuildOutcomes::class.java
+        ctx.getBean(PayloadProjector::class.java).javaClass shouldBe PintSgPayloadProjector::class.java
+        ctx.getBean(PayloadRejectedPublisher::class.java).javaClass shouldBe OutboxPayloadRejectedPublisher::class.java
 
         val scope = ctx.getBean(TenantScope::class.java)
         val handler =
