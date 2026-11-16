@@ -59,7 +59,7 @@ class RetentionRecordsDbTest {
             RecordKind.AUDIT_LOG to EvidenceType.AUDIT_LOG,
         )
 
-    private class Unit(
+    private class Fixture(
         val tenant: UUID = UUID.randomUUID(),
         val entity: String = "E1",
         val period: String = "2010-Q1",
@@ -105,7 +105,7 @@ class RetentionRecordsDbTest {
         }
     }
 
-    private val used = mutableListOf<Unit>()
+    private val used = mutableListOf<Fixture>()
 
     /** The detached tables of a unit are standalone tables until dropped: the shared schema is left as found. */
     @AfterEach
@@ -177,8 +177,8 @@ class RetentionRecordsDbTest {
         notice: Boolean = true,
         approvals: Int = 2,
         hold: Boolean = false,
-    ) {
-        val u = Unit(period = period)
+    ): Fixture {
+        val u = Fixture(period = period)
         used += u
         runtime(u.tenant) { c ->
             val ledgers = ChainWiring.appendLedgers(DSL.using(c, SQLDialect.POSTGRES))
@@ -190,6 +190,16 @@ class RetentionRecordsDbTest {
                 }
             }
         }
+        authority(u, notice, approvals, hold)
+        return u
+    }
+
+    private fun authority(
+        u: Fixture,
+        notice: Boolean,
+        approvals: Int,
+        hold: Boolean,
+    ) {
         val id = partitionId(u)
         if (notice) {
             statement(
@@ -220,10 +230,9 @@ class RetentionRecordsDbTest {
                 u.period,
             )
         }
-        return u
     }
 
-    private fun partitionId(u: Unit): String =
+    private fun partitionId(u: Fixture): String =
         checkNotNull(
             superuser(
                 "select partition_id from evidence.retention_partition " +
@@ -234,7 +243,7 @@ class RetentionRecordsDbTest {
             ),
         )
 
-    private fun rows(u: Unit): Map<String, Int> =
+    private fun rows(u: Fixture): Map<String, Int> =
         tables.associateWith {
             checkNotNull(
                 superuser(
@@ -247,7 +256,7 @@ class RetentionRecordsDbTest {
         }
 
     private fun lastHash(
-        u: Unit,
+        u: Fixture,
         table: String,
     ): String? =
         superuser(
@@ -258,7 +267,7 @@ class RetentionRecordsDbTest {
             u.period,
         )
 
-    private fun state(u: Unit): String =
+    private fun state(u: Fixture): String =
         checkNotNull(superuser("select state from evidence.retention_partition where partition_id = ?", partitionId(u)))
 
     /** The years of every tier are the catalogue default, 5: the stub reader selects no LONGER value. */
@@ -306,7 +315,7 @@ class RetentionRecordsDbTest {
     )
 
     private fun delete(
-        u: Unit,
+        u: Fixture,
         recorder: Recorder,
         store: ObjectStore,
         audit: Audited = Audited(),

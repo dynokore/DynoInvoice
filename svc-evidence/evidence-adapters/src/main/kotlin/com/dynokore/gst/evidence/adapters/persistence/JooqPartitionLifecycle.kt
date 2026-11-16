@@ -69,22 +69,22 @@ class JooqPartitionLifecycle(
         return prefix
     }
 
-    private class Unit(
+    private class UnitKey(
         val tenant: UUID,
         val entity: String,
         val period: String,
     )
 
-    private fun readUnit(partitionId: String) {
+    private fun readUnit(partitionId: String): UnitKey {
         val p = RETENTION_PARTITION
         val row = dsl.selectFrom(p).where(p.PARTITION_ID.eq(partitionId)).fetchSingle()
-        return Unit(row.tenantId.req(), row.entityRef.req(), row.periodFrom.req())
+        return UnitKey(row.tenantId.req(), row.entityRef.req(), row.periodFrom.req())
     }
 
     /** One object per chain table: the unit's rows as JSON, under `retention-archive/<tenant>/<partition>/`. */
     private fun archive(
         partitionId: String,
-        unit: Unit,
+        unit: UnitKey,
     ): String {
         val prefix = "retention-archive/${unit.tenant}/$partitionId"
         RecordKind.entries.forEach { kind ->

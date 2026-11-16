@@ -189,6 +189,25 @@ class PartitionDeletionHttpTest {
                     .single()
                     .single(),
             )
+        authority(tenant, id, period, notice, hold)
+        seedStructure(TenantId(tenant))
+        if (grant) {
+            service.grants.grant(
+                TenantId(tenant),
+                STARTER,
+                service.grants.role(REQUEST_ROLE, GrantScope.TENANT, tenant.toString()),
+            )
+        }
+        return Fixture(tenant, id)
+    }
+
+    private fun authority(
+        tenant: UUID,
+        id: String,
+        period: String,
+        notice: Boolean,
+        hold: Boolean,
+    ) {
         if (notice) {
             sql(
                 "insert into evidence.retention_notice values " +
@@ -215,15 +234,6 @@ class PartitionDeletionHttpTest {
                 period,
             )
         }
-        seedStructure(TenantId(tenant))
-        if (grant) {
-            service.grants.grant(
-                TenantId(tenant),
-                STARTER,
-                service.grants.role(REQUEST_ROLE, GrantScope.TENANT, tenant.toString()),
-            )
-        }
-        return Fixture(tenant, id)
     }
 
     private fun seedStructure(tenant: TenantId) {
