@@ -13,9 +13,8 @@ import tools.jackson.databind.json.JsonMapper
  * The consumer of `RulePackStaged` and `RulePackActivated` for payload-svc (event-carried state transfer,
  * INV-AC-23578).
  * One instance handles exactly one event type ([expectedType], exact string equality); any other type is a
- * [ContractViolation] before the payload is read. The type of every staged pack is recorded by identifier; only an
- * MDE pack is stored. An activation of a pack of another type is a no-op; an unknown identifier or an unstaged version
- * throws [IllegalStateException] (inbox retry); nothing is invented.
+ * [ContractViolation] before the payload is read. A staged pack of a type other than [MDE_PACK_TYPE] is ignored. An
+ * activation of a version that is not staged throws [IllegalStateException] (inbox retry); nothing is invented.
  */
 class RulePackEventsHandler(
     private val expectedType: String,
@@ -30,20 +29,12 @@ class RulePackEventsHandler(
     }
 
     private fun staged(data: JsonNode): HandleOutcome {
-        val identifier = text(data, "packIdentifier")
-        val packType = text(data, "packType")
+        if (text(data, "packType") != MDE_PACK_TYPE) return HandleOutcome.IGNORED
         val version = text(data, "version")
-        val log = LoggerFactory.getLogger(RulePackEventsHandler::class.java)
-        val recorded = replica.recordIdentity(identifier, packType)
-        if (recorded == IdentityResult.CONFLICT) {
-            log.error("staged pack {} came with another type than the recorded one; nothing changes", identifier)
-            throw ContractViolation("a pack identifier is already recorded with another type")
-        }
-        if (packType != MDE_PACK_TYPE) return HandleOutcome.IGNORED
         val contents =
             data.get("artefact")?.get("contents")?.takeUnless { it.isNull || it.isMissingNode }
                 ?: throw ContractViolation("an MDE pack carries no artefact.contents")
-        return when (replica.stage(identifier, version, json.writeValueAsString(contents))) {
+        return when (replica.stage(version, json.writeValueAsString(contents))) {
             StageResult.STORED -> {
                 HandleOutcome.APPLIED
             }
@@ -53,24 +44,16 @@ class RulePackEventsHandler(
             }
 
             StageResult.CONFLICT -> {
-                log.error("staged MDE pack {} version {} came with other contents; the stored one is kept", identifier, version)
+                LoggerFactory
+                    .getLogger(RulePackEventsHandler::class.java)
+                    .error("staged MDE pack version {} came with other contents; the stored one is kept", version)
                 throw ContractViolation("an MDE pack version is already staged with other contents")
             }
         }
     }
 
-    private fun activated(data: JsonNode): HandleOutcome {
-        val identifier = text(data, "packIdentifier")
-        val version = text(data, "version")
-        val packType = checkNotNull(replica.typeOf(identifier)) { "the pack identifier is not staged yet" }
-        if (packType != MDE_PACK_TYPE) {
-            LoggerFactory
-                .getLogger(RulePackEventsHandler::class.java)
-                .info("activation of pack {} of another type ignored", identifier)
-            return HandleOutcome.IGNORED
-        }
-        return if (replica.activate(identifier, version)) HandleOutcome.APPLIED else HandleOutcome.IGNORED
-    }
+    private fun activated(data: JsonNode): HandleOutcome =
+        if (replica.activate(text(data, "version"))) HandleOutcome.APPLIED else HandleOutcome.IGNORED
 
     private fun text(
         data: JsonNode,

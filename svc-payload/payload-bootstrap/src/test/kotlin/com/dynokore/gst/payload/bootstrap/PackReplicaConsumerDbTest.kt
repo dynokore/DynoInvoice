@@ -124,14 +124,11 @@ class PackReplicaConsumerDbTest {
         version: String,
         contents: String,
         type: String = "MDE",
-        id: String = "P-MDE",
-    ) = """{"packIdentifier":"$id","packType":"$type","version":"$version","effectiveFrom":"2026-12-01",""" +
+    ) = """{"packIdentifier":"P-MDE","packType":"$type","version":"$version","effectiveFrom":"2026-12-01",""" +
         """"minEngineVersion":"1.0.0","artefact":{"manifest":{},"checksums":{},"signature":"s","contents":$contents}}"""
 
-    private fun activated(
-        version: String,
-        id: String = "P-MDE",
-    ) = """{"packIdentifier":"$id","version":"$version","effectiveFrom":"2026-12-01"}"""
+    private fun activated(version: String) =
+        """{"packIdentifier":"P-MDE","version":"$version","effectiveFrom":"2026-12-01"}"""
 
     private fun run(
         dir: Path,
@@ -164,17 +161,6 @@ class PackReplicaConsumerDbTest {
                 }
         }
 
-    private fun identities(tenant: TenantId): Int =
-        PayloadDb.superuser().use { c ->
-            c.prepareStatement("select count(*) from payload.pack_identity where tenant_id = ?").use { st ->
-                st.setObject(1, tenant.value)
-                st.executeQuery().use { rs ->
-                    rs.next()
-                    rs.getInt(1)
-                }
-            }
-        }
-
     private val applied = PollResult(applied = 1, ignored = 0, duplicates = 0, stale = 0, deadLettered = 0)
     private val ignored = PollResult(applied = 0, ignored = 1, duplicates = 0, stale = 0, deadLettered = 0)
 
@@ -190,7 +176,7 @@ class PackReplicaConsumerDbTest {
         val active = tx(t1) { replica.active() }
         active?.version shouldBe "2.0.0"
         active?.contentsJson shouldBe """{"offNetworkEndpoint": {"prefix": "C6UID"}}"""
-        tx(t1) { replica.contentsOf("P-MDE", "1.0.0") } shouldBe """{"offNetworkEndpoint": {"prefix": "C5UID"}}"""
+        tx(t1) { replica.contentsOf("1.0.0") } shouldBe """{"offNetworkEndpoint": {"prefix": "C5UID"}}"""
         rows(t1) shouldBe 2
         activeRows(t1) shouldBe 1
         consumerBeans.keys.containsAll(listOf("rulePackStagedConsumer", "rulePackActivatedConsumer")) shouldBe true
@@ -220,9 +206,8 @@ class PackReplicaConsumerDbTest {
         @TempDir dir: Path,
     ) = run(dir) { t1 ->
         deliver(t1, true, staged("1.0.0", """{"a":1}""", type = "Scope")) shouldBe ignored
-        deliver(t1, true, staged("1.0.0", """{"a":1}""", type = "mde", id = "P-LOW")) shouldBe ignored
+        deliver(t1, true, staged("1.0.0", """{"a":1}""", type = "mde")) shouldBe ignored
         rows(t1) shouldBe 0
-        identities(t1) shouldBe 2
         tx(t1) { replica.active() } shouldBe null
     }
 
@@ -233,7 +218,7 @@ class PackReplicaConsumerDbTest {
         deliver(t1, true, staged("1.0.0", """{"a":1}""")) shouldBe applied
         // the consumer rolls the record back and rethrows: the offset stays, the inbox retries it
         shouldThrow<IllegalStateException> { deliver(t1, false, activated("9.9.9")) }
-        shouldThrow<IllegalStateException> { tx(t1) { replica.activate("P-MDE", "9.9.9") } }
+        shouldThrow<IllegalStateException> { tx(t1) { replica.activate("9.9.9") } }
         rows(t1) shouldBe 1
         activeRows(t1) shouldBe 0
     }
@@ -247,71 +232,12 @@ class PackReplicaConsumerDbTest {
         deliver(t1, false, activated("1.0.0")) shouldBe applied
         tx(t1) { replica.active() }?.version shouldBe "1.0.0"
         tx(t2) { replica.active() } shouldBe null
-        tx(t2) { replica.contentsOf("P-MDE", "1.0.0") } shouldBe null
-        shouldThrow<IllegalStateException> { tx(t2) { replica.activate("P-MDE", "1.0.0") } }
+        tx(t2) { replica.contentsOf("1.0.0") } shouldBe null
+        shouldThrow<IllegalStateException> { tx(t2) { replica.activate("1.0.0") } }
         // the tenant predicate of the statement holds on its own: a session bound to t1 reads nothing for t2
         val asT2 = JooqMdePackReplica(dsl) { t2.value }
         tx(t1) { asT2.active() } shouldBe null
-        tx(t1) { asT2.contentsOf("P-MDE", "1.0.0") } shouldBe null
-    }
-
-    @Test
-    fun `INV-AC-23578 activation of another pack type is ignored`(
-        @TempDir dir: Path,
-    ) = run(dir) { t1 ->
-        deliver(t1, true, staged("1.0.0", """{"a":1}""")) shouldBe applied
-        deliver(t1, true, staged("1.0.0", """{"s":1}""", type = "Scope", id = "P-SCOPE")) shouldBe ignored
-        deliver(t1, false, activated("1.0.0", id = "P-SCOPE")) shouldBe ignored
-        activeRows(t1) shouldBe 0
-        deliver(t1, false, activated("1.0.0")) shouldBe applied
-        deliver(t1, false, activated("1.0.0", id = "P-SCOPE")) shouldBe ignored
-        tx(t1) { replica.active() }?.packIdentifier shouldBe "P-MDE"
-        activeRows(t1) shouldBe 1
-    }
-
-    @Test
-    fun `INV-AC-23578 equal version of another pack is not activated`(
-        @TempDir dir: Path,
-    ) = run(dir) { t1 ->
-        deliver(t1, true, staged("1.0.0", """{"a":1}""")) shouldBe applied
-        deliver(t1, true, staged("1.0.0", """{"b":1}""", id = "P-MDE-2")) shouldBe applied
-        deliver(t1, false, activated("1.0.0", id = "P-MDE-2")) shouldBe applied
-        val active = tx(t1) { replica.active() }
-        active?.packIdentifier shouldBe "P-MDE-2"
-        active?.contentsJson shouldBe """{"b": 1}"""
-        activeRows(t1) shouldBe 1
-        deliver(t1, false, activated("1.0.0")) shouldBe applied
-        tx(t1) { replica.active() }?.packIdentifier shouldBe "P-MDE"
-        activeRows(t1) shouldBe 1
-    }
-
-    @Test
-    fun `INV-AC-23578 activation of an unstaged version is retried`(
-        @TempDir dir: Path,
-    ) = run(dir) { t1 ->
-        deliver(t1, true, staged("1.0.0", """{"a":1}""")) shouldBe applied
-        shouldThrow<IllegalStateException> { deliver(t1, false, activated("2.0.0")) }
-        // an unknown identifier is held for retry too (the handler alone: the failed record above stays queued)
-        val handler = RulePackEventsHandler(RulePackEventsHandler.ACTIVATED_TYPE, replica)
-        shouldThrow<IllegalStateException> {
-            tx(t1) { handler.handle(envelope(t1, RulePackEventsHandler.ACTIVATED_TYPE, activated("1.0.0", id = "P-UNKNOWN"))) }
-        }
-        activeRows(t1) shouldBe 0
-        rows(t1) shouldBe 1
-    }
-
-    @Test
-    fun `INV-AC-23578 identity type is never overwritten`(
-        @TempDir dir: Path,
-    ) = run(dir) { t1 ->
-        deliver(t1, true, staged("1.0.0", """{"a":1}""")) shouldBe applied
-        deliver(t1, true, staged("1.0.0", """{"a":1}""", type = "Scope")) shouldBe
-            PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
-        tx(t1) { replica.typeOf("P-MDE") } shouldBe "MDE"
-        deliver(t1, true, staged("3.0.0", """{"a":3}""", type = "Scope")) shouldBe
-            PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
-        rows(t1) shouldBe 1
-        identities(t1) shouldBe 1
+        tx(t1) { asT2.contentsOf("1.0.0") } shouldBe null
     }
 
     @Test
