@@ -12,8 +12,8 @@ import java.util.UUID
  * and its payload is `{"docUuid":"<uuid>","version":<n>}`. [BuildPayload.run] and the completion of the item share one
  * tenant transaction, so a build that stages an event also finishes its job. Any failure rolls that transaction back,
  * so nothing is staged, then the item is released in a new transaction to be claimed again, and the failure
- * is thrown as [BuildJobFailed] (the cause is the original exception, e.g. `BuildNotReady` for a missing input or decision). A payload that does not name the partition's Doc UUID
- * and a version is refused the same way.
+ * is thrown as [BuildJobFailed] (the cause is the original exception, e.g. `BuildNotReady` for a missing input or
+ * decision). A payload that does not name the partition's Doc UUID and a version is refused the same way.
  */
 class BuildPayloadJobHandler(
     private val queue: WorkQueue,

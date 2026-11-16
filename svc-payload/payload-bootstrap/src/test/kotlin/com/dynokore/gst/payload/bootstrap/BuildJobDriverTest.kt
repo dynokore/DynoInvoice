@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.slf4j.LoggerFactory
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.core.env.StandardEnvironment
 import java.util.concurrent.atomic.AtomicInteger
 
 /** INV-AC-23582: the build job driver claims jobs only when enabled. */
@@ -71,10 +72,10 @@ class BuildJobDriverTest {
     @Test
     fun `INV-AC-23582 failure does not stop the next tick`() {
         val queue = Queue(2, failAt = 1)
-        BuildJobDriver(queue).tick() // first claim fails: the tick ends, nothing thrown
+        BuildJobDriver(queue, StandardEnvironment()).tick() // first claim fails: the tick ends, nothing thrown
         queue.failures.get() shouldBe 1
         queue.claims.get() shouldBe 1
-        BuildJobDriver(queue).tick() // the next tick drains both jobs and the empty claim
+        BuildJobDriver(queue, StandardEnvironment()).tick() // the next tick drains both jobs and the empty claim
         queue.claims.get() shouldBe 4
         // and through the scheduler
         val scheduled = Queue(1, failAt = 1)
@@ -103,13 +104,13 @@ class BuildJobDriverTest {
         try {
             val doc = "7d1c1b0e-3f4a-4b8e-9a43-0d5a1c2e9f10"
             var first = true
-            BuildJobDriver {
+            BuildJobDriver({
                 if (first) {
                     first = false
                     throw BuildJobFailed(doc, IllegalStateException("boom"))
                 }
                 false
-            }.tick()
+            }, StandardEnvironment()).tick()
             val event = appender.list.single()
             event.keyValuePairs.map { it.key to it.value } shouldBe listOf("docUuid" to doc)
         } finally {
