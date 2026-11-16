@@ -291,18 +291,21 @@ object ReviewPolicyValues {
         val value = option[VALUE]
         val days = value?.let { intOf(it) }
         val rule = allowed.getValue(key)
-        val fits =
-            (value == null || days != null) &&
-                when (rule) {
-                    true -> days != null && days >= 1
-                    false -> days == null
-                    null -> days == null || days == DEFAULT_MAXIMUM_DAYS
-                }
+        val fits = (value == null || days != null) && accepts(rule, days)
         return if (fits) key to (days ?: if (rule == null) DEFAULT_MAXIMUM_DAYS else null) else null
     }
 
-    private fun intOf(node: JsonNode): Int? =
-        node.takeIf { it.isIntegralNumber && it.canConvertToInt() }?.intValue()
+    private fun accepts(
+        rule: Boolean?,
+        days: Int?,
+    ): Boolean =
+        when (rule) {
+            true -> days != null && days >= 1
+            false -> days == null
+            null -> days == null || days == DEFAULT_MAXIMUM_DAYS
+        }
+
+    private fun intOf(node: JsonNode): Int? = node.takeIf { it.isIntegralNumber && it.canConvertToInt() }?.intValue()
 
     private fun unreadable() = unavailable("the review policy value is not readable")
 }
