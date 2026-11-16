@@ -19,6 +19,7 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 
@@ -272,23 +273,35 @@ object ReviewPolicyValues {
     private fun parse(
         text: String,
         allowed: Map<String, Boolean?>,
+    ): Pair<String, Int?>? =
+        runCatching { mapper.readTree(text) }.getOrNull()?.let { single(it) }?.let { fit(it, allowed) }
+
+    /** The one option object of an array of exactly one object whose members are `key` and `value` only. */
+    private fun single(node: JsonNode): JsonNode? =
+        node
+            .takeIf { it.isArray && it.size() == 1 && it[0].isObject }
+            ?.get(0)
+            ?.takeIf { o -> o.propertyNames().asSequence().all { it == KEY || it == VALUE } }
+
+    private fun fit(
+        option: JsonNode,
+        allowed: Map<String, Boolean?>,
     ): Pair<String, Int?>? {
-        val node = runCatching { mapper.readTree(text) }.getOrNull() ?: return null
-        val option = node.takeIf { it.isArray && it.size() == 1 && it[0].isObject }?.get(0) ?: return null
-        if (option.propertyNames().asSequence().any { it != KEY && it != VALUE }) return null
         val key = option[KEY]?.takeIf { it.isString }?.stringValue()?.takeIf { allowed.containsKey(it) } ?: return null
         val value = option[VALUE]
-        val days = if (value == null) null else intOf(value) ?: return null
+        val days = value?.let { intOf(it) }
+        val rule = allowed.getValue(key)
         val fits =
-            when (allowed.getValue(key)) {
-                true -> days != null && days >= 1
-                false -> days == null
-                null -> days == null || days == DEFAULT_MAXIMUM_DAYS
-            }
-        return if (fits) key to (days ?: if (allowed.getValue(key) == null) DEFAULT_MAXIMUM_DAYS else null) else null
+            (value == null || days != null) &&
+                when (rule) {
+                    true -> days != null && days >= 1
+                    false -> days == null
+                    null -> days == null || days == DEFAULT_MAXIMUM_DAYS
+                }
+        return if (fits) key to (days ?: if (rule == null) DEFAULT_MAXIMUM_DAYS else null) else null
     }
 
-    private fun intOf(node: tools.jackson.databind.JsonNode): Int? =
+    private fun intOf(node: JsonNode): Int? =
         node.takeIf { it.isIntegralNumber && it.canConvertToInt() }?.intValue()
 
     private fun unreadable() = unavailable("the review policy value is not readable")
