@@ -1,6 +1,11 @@
 package com.dynokore.gst.payload.bootstrap
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import com.dynokore.gst.payload.adapters.build.BuildJobFailed
 import io.kotest.matchers.shouldBe
+import org.slf4j.LoggerFactory
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.util.concurrent.atomic.AtomicInteger
@@ -84,6 +89,28 @@ class BuildJobDriverTest {
         runner(queue).withPropertyValues("payload.build.driver.enabled=true").run { ctx ->
             (ctx.startupFailure != null) shouldBe true
             queue.claims.get() shouldBe 0
+        }
+    }
+
+    @Test
+    fun `INV-AC-23582 failure is logged with the document UUID`() {
+        val logger = LoggerFactory.getLogger(BuildJobDriver::class.java) as Logger
+        val appender = ListAppender<ILoggingEvent>().apply { start() }
+        logger.addAppender(appender)
+        try {
+            val doc = "7d1c1b0e-3f4a-4b8e-9a43-0d5a1c2e9f10"
+            var first = true
+            BuildJobDriver {
+                if (first) {
+                    first = false
+                    throw BuildJobFailed(doc, IllegalStateException("boom"))
+                }
+                false
+            }.tick()
+            val event = appender.list.single()
+            event.keyValuePairs.map { it.key to it.value } shouldBe listOf("docUuid" to doc)
+        } finally {
+            logger.detachAppender(appender)
         }
     }
 }

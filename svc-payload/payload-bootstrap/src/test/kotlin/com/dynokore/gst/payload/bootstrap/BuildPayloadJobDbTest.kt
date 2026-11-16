@@ -1,6 +1,7 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.PayloadDb
+import com.dynokore.gst.payload.adapters.build.BuildJobFailed
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
 import com.dynokore.gst.payload.adapters.persistence.JooqBuildJobs
 import com.dynokore.gst.payload.adapters.persistence.JooqCanonicalInputStore
@@ -21,6 +22,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -217,12 +219,12 @@ class BuildPayloadJobDbTest {
         val doc = UUID.randomUUID()
         seed(tenant, doc, null)
         val handler = handler(doc)
-        shouldThrow<BuildNotReady> { handler.runOnce() }
+        shouldThrow<BuildJobFailed> { handler.runOnce() }.cause.shouldBeInstanceOf<BuildNotReady>()
         events(tenant.value, doc, readyType).size shouldBe 0
         events(tenant.value, doc, rejectedType).size shouldBe 0
         outcomes(tenant.value, doc) shouldBe 0
         // the job was released: it is claimed again, and once the decision is stored it builds
-        shouldThrow<BuildNotReady> { handler.runOnce() }
+        shouldThrow<BuildJobFailed> { handler.runOnce() }.cause.shouldBeInstanceOf<BuildNotReady>()
         tx(tenant) { ctx.getBean(JooqTypeDecisionStore::class.java).store(doc, 1, "TYPE_2") }
         handler.runOnce() shouldBe true
         events(tenant.value, doc, readyType).size shouldBe 1
@@ -272,7 +274,7 @@ class BuildPayloadJobDbTest {
         val doc = UUID.randomUUID()
         seed(tenant, doc, "TYPE_2")
         val handler = handler(doc)
-        shouldThrow<BuildNotReady> { handler.runOnce() }
+        shouldThrow<BuildJobFailed> { handler.runOnce() }.cause.shouldBeInstanceOf<BuildNotReady>()
         events(tenant.value, doc, readyType).size shouldBe 0
         events(tenant.value, doc, rejectedType).size shouldBe 0
         outcomes(tenant.value, doc) shouldBe 0
@@ -284,9 +286,32 @@ class BuildPayloadJobDbTest {
     ) = run(dir, withFamily = false) { tenant ->
         val doc = UUID.randomUUID()
         seed(tenant, doc, "TYPE_2")
-        shouldThrow<IllegalStateException> { handler(doc).runOnce() }
+        shouldThrow<BuildJobFailed> { handler(doc).runOnce() }.cause.shouldBeInstanceOf<IllegalStateException>()
         events(tenant.value, doc, readyType).size shouldBe 0
         events(tenant.value, doc, rejectedType).size shouldBe 0
         outcomes(tenant.value, doc) shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-23582 handler failure carries the partition document UUID`(
+        @TempDir dir: Path,
+    ) = run(dir) { tenant ->
+        val doc = UUID.randomUUID()
+        val other = UUID.randomUUID()
+        // the payload names another document than the partition: refused, and the failure names the partition
+        tx(tenant) {
+            queue.enqueue(
+                com.dynokore.platform.outboxandqueue.QueueEntry(
+                    doc.toString(),
+                    com.dynokore.platform.outboxandqueue.Lane.LIVE,
+                    """{"docUuid":"$other","version":1}""",
+                ),
+            )
+        }
+        val failure = shouldThrow<BuildJobFailed> { handler(doc).runOnce() }
+        failure.docUuid shouldBe doc.toString()
+        failure.cause.shouldBeInstanceOf<IllegalStateException>()
+        // released after the failure: the same item is claimed again
+        shouldThrow<BuildJobFailed> { handler(doc).runOnce() }.docUuid shouldBe doc.toString()
     }
 }

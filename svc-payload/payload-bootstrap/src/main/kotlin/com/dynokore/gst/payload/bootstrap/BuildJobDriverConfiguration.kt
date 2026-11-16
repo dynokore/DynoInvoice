@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.adapters.build.BuildJobFailed
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -60,7 +61,9 @@ class BuildJobDriver(
             @Suppress("TooGenericExceptionCaught") failure: Exception,
         ) {
             // the failed job was released by the handler; the next tick claims it again
-            LoggerFactory.getLogger(BuildJobDriver::class.java).error("build job failed: {}", failure.message, failure)
+            val event = LoggerFactory.getLogger(BuildJobDriver::class.java).atError()
+            (failure as? BuildJobFailed)?.let { event.addKeyValue("docUuid", it.docUuid) }
+            event.setCause(failure).log("build job failed: {}", failure.message)
         }
     }
 }
