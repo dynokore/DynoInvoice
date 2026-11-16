@@ -178,21 +178,11 @@ class SignedLinkRequestedHandler(
 
     /** The recipient as e-mail and optional mobile number, or null when the recipient is not usable. */
     private fun JsonNode.recipient(): Pair<String, String?>? {
-        val node = get("recipient")?.takeIf { it.isObject } ?: return null
-        val email = node.usableText("email", MAX_EMAIL) ?: return null
-        val mobileNode = node.get("mobileNumber")
-        val mobile = if (mobileNode == null || mobileNode.isNull) null else node.usableText("mobileNumber", MAX_MOBILE)
-        return if (mobileNode != null && !mobileNode.isNull && mobile == null) null else email to mobile
-    }
-
-    /** The text, null when absent, blank or not a string (unusable), and a contract violation when over the schema maximum. */
-    private fun JsonNode.usableText(
-        field: String,
-        max: Int,
-    ): String? {
-        val text = get(field)?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() } ?: return null
-        if (text.length > max) violation("$field is longer than $max")
-        return text
+        val node = get("recipient")?.takeIf { it.isObject }
+        val email = node?.usableText("email", MAX_EMAIL)
+        val mobileGiven = node?.get("mobileNumber")?.takeIf { !it.isNull } != null
+        val mobile = node.takeIf { mobileGiven }?.usableText("mobileNumber", MAX_MOBILE)
+        return if (email == null || (mobileGiven && mobile == null)) null else email to mobile
     }
 
     private fun reasonOf(reason: IssueRefusal): LinkRefusalReason =
@@ -260,4 +250,14 @@ class SignedLinkRequestedHandler(
         private const val MAX_MOBILE = 32
         private const val MAX_EVENT_ID = 128
     }
+}
+
+/** The text, null when unusable (absent, blank, not a string); a contract violation over the schema maximum. */
+private fun JsonNode.usableText(
+    field: String,
+    max: Int,
+): String? {
+    val text = get(field)?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() } ?: return null
+    if (text.length > max) throw ContractViolation("$field is longer than $max")
+    return text
 }
