@@ -295,6 +295,24 @@ class SignedLinkOutcomeTest {
     }
 
     @Test
+    fun `a recipient e-mail over 254 characters is a contract violation with no link and no outcome`() {
+        assertThrows(ContractViolation::class.java) {
+            handler.handle(envelope(payload(email = "a".repeat(250) + "@x.example")))
+        }
+        assertTrue(stored.isEmpty())
+        assertEquals(0, captured.appended.size)
+    }
+
+    @Test
+    fun `a recipient mobile number over 32 characters is a contract violation with no link and no outcome`() {
+        assertThrows(ContractViolation::class.java) {
+            handler.handle(envelope(payload(mobile = "+" + "9".repeat(32))))
+        }
+        assertTrue(stored.isEmpty())
+        assertEquals(0, captured.appended.size)
+    }
+
+    @Test
     fun `an unknown linkKind is a contract violation with no link and no outcome`() {
         assertThrows(ContractViolation::class.java) {
             handler.handle(envelope(payload(""","linkKind":"other"""")))
@@ -304,7 +322,7 @@ class SignedLinkOutcomeTest {
     }
 
     @Test
-    fun `INV-AC-2766 an SMS-only installation with no mobile number refuses with MOBILE_NUMBER_REQUIRED and nothing else`() {
+    fun `INV-AC-2766 an SMS-only installation with no mobile number is refused with MOBILE_NUMBER_REQUIRED`() {
         setting = LinkPasscodeSetting(5, smsOnly = true)
         gatewayBound = true
         refusedWith(payload(mobile = null), "MOBILE_NUMBER_REQUIRED")
@@ -357,7 +375,10 @@ class SignedLinkOutcomeTest {
         handler.handle(envelope(payload(), id))
         val row = captured.appended.single { it.event.type == SignedLinkOutcomeOutbox.TYPE }
         assertEquals("ISSUED", mapper.readTree(row.event.dataJson).get("outcome").asString())
-        assertEquals(setOf("requestEventId", "subjectReference", "outcome", "occurredAt"), properties(row.event.dataJson))
+        assertEquals(
+            setOf("requestEventId", "subjectReference", "outcome", "occurredAt"),
+            properties(row.event.dataJson),
+        )
         assertEquals(now, Instant.parse(mapper.readTree(row.event.dataJson).get("occurredAt").asString()))
         val schema =
             checkNotNull(
@@ -375,7 +396,10 @@ class SignedLinkOutcomeTest {
     fun `a refusal payload carries a reasonCode and validates against the contract schema`() {
         setting = LinkPasscodeSetting(5, smsOnly = true)
         handler.handle(envelope(payload(mobile = null)))
-        val json = captured.appended.single { it.event.type == SignedLinkOutcomeOutbox.TYPE }.event.dataJson
+        val json =
+            captured.appended
+                .single { it.event.type == SignedLinkOutcomeOutbox.TYPE }
+                .event.dataJson
         val schema =
             checkNotNull(
                 javaClass.classLoader.getResourceAsStream(

@@ -15,7 +15,6 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 import java.time.Instant
-import java.time.format.DateTimeParseException
 import com.dynokore.platform.outboxandqueue.EntityRef as EnvelopeEntity
 
 /**
@@ -44,51 +43,99 @@ class SignedLinkRequestedHandler(
         val payload = mapper.readTree(event.dataJson)
         val subject = payload.text("subjectReference", MAX_SUBJECT)
         val entity = EnvelopeEntity(event.entity.value)
-        val outcome: (LinkRefusalReason?) -> Unit = { reason ->
+        val record = { reason: LinkRefusalReason? ->
             messages.outcome(requestId, subject, reason, entity, clock.instant())
         }
+        return when (val step = admit(payload, subject, requestId, entity)) {
+            is Admission.Refuse -> refused(step.reason, record)
+            is Admission.Ready -> issue(step.command, entity, record)
+        }
+    }
+
+    private sealed interface Admission {
+        data class Ready(
+            val command: IssueLinkCommand,
+        ) : Admission
+
+        data class Refuse(
+            val reason: LinkRefusalReason,
+        ) : Admission
+    }
+
+    /** The command for the use case, or the reason the event is refused before the use case is asked. */
+    private fun admit(
+        payload: JsonNode,
+        subject: String,
+        requestId: String,
+        entity: EnvelopeEntity,
+    ): Admission {
         val purpose = payload.text("purpose", MAX_PURPOSE)
-        val recipient = payload.recipient() ?: return refused(LinkRefusalReason.RECIPIENT_INVALID, outcome)
-        val expiresAt = payload.expiry() ?: return refused(LinkRefusalReason.EXPIRY_INVALID, outcome)
-        val live =
-            when (val kind = kindOf(payload)) {
-                LinkKind.Counterparty -> null
-                LinkKind.ClientSignatoryIncomplete -> return refused(LinkRefusalReason.CONSENT_NOT_LIVE, outcome)
-                is LinkKind.ClientSignatory ->
-                    when (val checked = consentCheck.check(kind.consentRef, kind.clientRef)) {
-                        ConsentCheck.NotLive -> return refused(LinkRefusalReason.CONSENT_NOT_LIVE, outcome)
-                        is ConsentCheck.Live -> checked
-                    }
+        val recipient = payload.recipient()
+        val expiresAt = payload.expiry()
+        val kind = kindOf(payload)
+        return when {
+            recipient == null -> {
+                Admission.Refuse(LinkRefusalReason.RECIPIENT_INVALID)
             }
-        val command =
-            IssueLinkCommand(
-                purpose = purpose,
-                subject = subject,
-                email = recipient.first,
-                mobile = recipient.second,
-                expiresAt = expiresAt,
-                consent = live?.consent,
-                client = live?.client,
-                envelopeEntity = EntityRef(entity.value),
-                originEventId = requestId,
-            )
-        return when (val result = messages.filedUnder(entity) { useCase.handle(command) }) {
+
+            expiresAt == null -> {
+                Admission.Refuse(LinkRefusalReason.EXPIRY_INVALID)
+            }
+
+            kind == LinkKind.ClientSignatoryIncomplete -> {
+                Admission.Refuse(LinkRefusalReason.CONSENT_NOT_LIVE)
+            }
+
+            else -> {
+                val live = (kind as? LinkKind.ClientSignatory)?.let { consentCheck.check(it.consentRef, it.clientRef) }
+                if (live == ConsentCheck.NotLive) {
+                    Admission.Refuse(LinkRefusalReason.CONSENT_NOT_LIVE)
+                } else {
+                    val pair = live as ConsentCheck.Live?
+                    Admission.Ready(
+                        IssueLinkCommand(
+                            purpose = purpose,
+                            subject = subject,
+                            email = recipient.first,
+                            mobile = recipient.second,
+                            expiresAt = expiresAt,
+                            consent = pair?.consent,
+                            client = pair?.client,
+                            envelopeEntity = EntityRef(entity.value),
+                            originEventId = requestId,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun issue(
+        command: IssueLinkCommand,
+        entity: EnvelopeEntity,
+        record: (LinkRefusalReason?) -> Unit,
+    ): HandleOutcome =
+        when (val result = messages.filedUnder(entity) { useCase.handle(command) }) {
             is IssueLinkOutcome.Issued -> {
-                outcome(null)
+                record(null)
                 HandleOutcome.APPLIED
             }
 
             // The first delivery wrote its outcome in its own transaction; a redelivery writes none.
-            is IssueLinkOutcome.Duplicate -> HandleOutcome.IGNORED
-            is IssueLinkOutcome.Refused -> refused(reasonOf(result.reason), outcome)
+            is IssueLinkOutcome.Duplicate -> {
+                HandleOutcome.IGNORED
+            }
+
+            is IssueLinkOutcome.Refused -> {
+                refused(reasonOf(result.reason), record)
+            }
         }
-    }
 
     private fun refused(
         reason: LinkRefusalReason,
-        outcome: (LinkRefusalReason?) -> Unit,
+        record: (LinkRefusalReason?) -> Unit,
     ): HandleOutcome {
-        outcome(reason)
+        record(reason)
         return HandleOutcome.IGNORED
     }
 
@@ -109,7 +156,10 @@ class SignedLinkRequestedHandler(
         val kind = payload.get("linkKind")
         if (kind == null || kind.isNull) return LinkKind.Counterparty
         return when (kind.takeIf { it.isString }?.asString()) {
-            KIND_COUNTERPARTY -> LinkKind.Counterparty
+            KIND_COUNTERPARTY -> {
+                LinkKind.Counterparty
+            }
+
             KIND_CLIENT_SIGNATORY -> {
                 val consent = payload.optionalText("consentRef", MAX_CONSENT_REF)
                 val client = payload.optionalText("clientRef", MAX_CLIENT_REF)
@@ -120,31 +170,53 @@ class SignedLinkRequestedHandler(
                 }
             }
 
-            else -> violation("linkKind is neither $KIND_COUNTERPARTY nor $KIND_CLIENT_SIGNATORY")
+            else -> {
+                violation("linkKind is neither $KIND_COUNTERPARTY nor $KIND_CLIENT_SIGNATORY")
+            }
         }
     }
 
     /** The recipient as e-mail and optional mobile number, or null when the recipient is not usable. */
     private fun JsonNode.recipient(): Pair<String, String?>? {
         val node = get("recipient")?.takeIf { it.isObject } ?: return null
-        return try {
-            node.text("email", MAX_EMAIL) to node.optionalText("mobileNumber", MAX_MOBILE)
-        } catch (e: ContractViolation) {
-            null
-        }
+        val email = node.usableText("email", MAX_EMAIL) ?: return null
+        val mobileNode = node.get("mobileNumber")
+        val mobile = if (mobileNode == null || mobileNode.isNull) null else node.usableText("mobileNumber", MAX_MOBILE)
+        return if (mobileNode != null && !mobileNode.isNull && mobile == null) null else email to mobile
+    }
+
+    /** The text, null when absent, blank or not a string (unusable), and a contract violation when over the schema maximum. */
+    private fun JsonNode.usableText(
+        field: String,
+        max: Int,
+    ): String? {
+        val text = get(field)?.takeIf { it.isString }?.asString()?.takeIf { it.isNotBlank() } ?: return null
+        if (text.length > max) violation("$field is longer than $max")
+        return text
     }
 
     private fun reasonOf(reason: IssueRefusal): LinkRefusalReason =
         when (reason) {
-            IssueRefusal.SMS_ONLY_NO_MOBILE, IssueRefusal.SMS_ONLY_GATEWAY_NOT_BOUND ->
+            IssueRefusal.SMS_ONLY_NO_MOBILE, IssueRefusal.SMS_ONLY_GATEWAY_NOT_BOUND -> {
                 LinkRefusalReason.MOBILE_NUMBER_REQUIRED
+            }
 
-            IssueRefusal.EXPIRY_NOT_IN_FUTURE -> LinkRefusalReason.EXPIRY_INVALID
-            IssueRefusal.RECIPIENT_OR_PURPOSE_MISSING -> LinkRefusalReason.RECIPIENT_INVALID
-            IssueRefusal.PAIR_INCOMPLETE -> LinkRefusalReason.CONSENT_NOT_LIVE
+            IssueRefusal.EXPIRY_NOT_IN_FUTURE -> {
+                LinkRefusalReason.EXPIRY_INVALID
+            }
+
+            IssueRefusal.RECIPIENT_OR_PURPOSE_MISSING -> {
+                LinkRefusalReason.RECIPIENT_INVALID
+            }
+
+            IssueRefusal.PAIR_INCOMPLETE -> {
+                LinkRefusalReason.CONSENT_NOT_LIVE
+            }
+
             // Unreachable from this handler: the envelope always names an entity and the caller is the system actor.
-            IssueRefusal.NO_ALERT_ENTITY, IssueRefusal.ACTOR_NOT_SYSTEM ->
+            IssueRefusal.NO_ALERT_ENTITY, IssueRefusal.ACTOR_NOT_SYSTEM -> {
                 error("the issue use case refused with $reason, which this handler cannot produce")
+            }
         }
 
     private fun JsonNode.text(
@@ -169,11 +241,7 @@ class SignedLinkRequestedHandler(
     /** The expiry, or null when it is missing, not a string or not an ISO-8601 instant. */
     private fun JsonNode.expiry(): Instant? {
         val text = get("expiry")?.takeIf { it.isString }?.asString() ?: return null
-        return try {
-            Instant.parse(text)
-        } catch (e: DateTimeParseException) {
-            null
-        }
+        return runCatching { Instant.parse(text) }.getOrNull()
     }
 
     private fun violation(message: String): Nothing = throw ContractViolation(message)
