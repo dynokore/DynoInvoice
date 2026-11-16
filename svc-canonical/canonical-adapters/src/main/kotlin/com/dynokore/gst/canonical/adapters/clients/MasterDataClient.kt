@@ -3,6 +3,7 @@ package com.dynokore.gst.canonical.adapters.clients
 import com.dynokore.gst.canonical.adapters.clients.masterdata.api.ResolutionApi
 import com.dynokore.gst.canonical.adapters.clients.masterdata.model.Counterparty
 import com.dynokore.gst.canonical.adapters.clients.masterdata.model.ErrorEnvelope
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.IdentityTripleFacts
 import com.dynokore.gst.canonical.adapters.clients.masterdata.model.IngestedCounterpartyRequest
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
@@ -123,6 +124,32 @@ class MasterDataClient(
                         body.arcsGstChargeAgreed,
                     ),
                 )
+            }
+        }
+
+    /**
+     * The identity triple of the entity for [constitution] on [transactionDate] (INV-REQ-437): the same operation as
+     * [resolveCounterparty], with no party sent, so the owner answers the triple only. An answer without a triple is
+     * no answer.
+     */
+    fun resolveIdentityTriple(
+        entityRef: String,
+        constitution: String,
+        transactionDate: LocalDate,
+    ): MasterDataAnswer<IdentityTripleFacts> =
+        call {
+            val body =
+                api
+                    .resolveCounterpartyWithHttpInfo(
+                        entityRef = entityRef,
+                        constitution = constitution,
+                        transactionDate = transactionDate,
+                    ).body
+            val triple = body?.identityTriple
+            if (triple == null) {
+                MasterDataAnswer.Unavailable("${MasterDataEdge.EDGE}: no identity triple in the answer")
+            } else {
+                MasterDataAnswer.Answered(triple)
             }
         }
 

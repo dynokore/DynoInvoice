@@ -4,6 +4,7 @@ import com.dynokore.gst.canonical.adapters.clients.MasterDataAnswer.Answered
 import com.dynokore.gst.canonical.adapters.clients.MasterDataAnswer.Refused
 import com.dynokore.gst.canonical.adapters.clients.MasterDataAnswer.Unavailable
 import com.dynokore.gst.canonical.adapters.clients.masterdata.model.Counterparty
+import com.dynokore.gst.canonical.adapters.clients.masterdata.model.IdentityTripleFacts
 import com.dynokore.gst.canonical.adapters.clients.masterdata.model.IngestedCounterpartyRequest
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
@@ -279,5 +280,44 @@ class MasterDataClientTest {
         resolve(client)
         client.recordIngestedCounterparty("CTP-118", key, ingested)
         registry.asked shouldBe listOf("canonical-svc->masterdata-svc", "canonical-svc->masterdata-svc")
+    }
+
+    @Test
+    fun `INV-AC-22852 identity triple request carries entityRef, constitution and transactionDate and no party`() {
+        val client = client(FakeRegistry(fixedClock))
+        stub.reply = Reply(200, """{"identityTriple":$triple}""")
+        client.resolveIdentityTriple("E1", "K1", LocalDate.parse("2026-03-20"))
+        val get = stub.seen.single()
+        get.method shouldBe "GET"
+        get.path shouldBe "/internal/v1/masterdata/counterparties/resolution"
+        get.query!!
+            .split("&")
+            .associate { it.substringBefore("=") to it.substringAfter("=") } shouldBe
+            mapOf("entityRef" to "E1", "constitution" to "K1", "transactionDate" to "2026-03-20")
+    }
+
+    @Test
+    fun `INV-AC-22852 identity triple answer is Answered with the three values`() {
+        val client = client(FakeRegistry(fixedClock))
+        stub.reply = Reply(200, """{"identityTriple":$triple,"counterparty":$counterparty}""")
+        val value =
+            client
+                .resolveIdentityTriple("E1", "K1", LocalDate.parse("2026-03-20"))
+                .shouldBeInstanceOf<Answered<*>>()
+                .value
+        val facts = value.shouldBeInstanceOf<IdentityTripleFacts>()
+        listOf(facts.senderId, facts.supplierId, facts.supplierGstn) shouldBe listOf("0195:1", "0195:1", "201912345A")
+        stub.reply = Reply(200, "{}")
+        client.resolveIdentityTriple("E1", "K1", LocalDate.parse("2026-03-20")).shouldBeInstanceOf<Unavailable>()
+    }
+
+    @Test
+    fun `INV-AC-22852 identity triple 422 MDM-005 is Refused with the code and a 503 is Unavailable`() {
+        val client = client(FakeRegistry(fixedClock))
+        val date = LocalDate.parse("2026-03-20")
+        stub.reply = Reply(422, envelope.replace("404", "422").replace("SRT-005", "MDM-005"))
+        client.resolveIdentityTriple("E1", "K1", date) shouldBe Refused(422, "MDM-005")
+        stub.reply = Reply(503, envelope.replace("404", "503").replace("SRT-005", "SRT-503"))
+        client.resolveIdentityTriple("E1", "K1", date).shouldBeInstanceOf<Unavailable>()
     }
 }
