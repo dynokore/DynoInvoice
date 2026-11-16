@@ -275,7 +275,7 @@ class OffboardingCountReadModelHttpTest {
     }
 
     @Test
-    fun `INV-AC-22872 a current row with total 2 and no override is 409 TNC-008 and no record is stored`() =
+    fun `INV-AC-22872 a current row with total 2 and no override is 409 TNC-008 and no record is stored`(): Unit =
         withEntity { tenant, entity ->
             measured(env, tenant, Duration.ofMinutes(1), mapOf(entity.entityRef to 2))
             val answer = entityOffboard(env, tenant, entity)
@@ -285,7 +285,7 @@ class OffboardingCountReadModelHttpTest {
         }
 
     @Test
-    fun `INV-AC-22872 a current row with total 0 is 202`() =
+    fun `INV-AC-22872 a current row with total 0 is 202`(): Unit =
         withEntity { tenant, entity ->
             measured(env, tenant, Duration.ofMinutes(1), emptyMap())
             val answer = entityOffboard(env, tenant, entity)
@@ -306,28 +306,28 @@ class OffboardingCountReadModelHttpTest {
     }
 
     @Test
-    fun `INV-AC-22872 a row older than the maximum age is 422 POL-014 naming the input and no record is stored`() =
+    fun `INV-AC-22872 a row older than the maximum age is 422 POL-014 naming the input and no record is stored`(): Unit =
         withEntity { tenant, entity ->
             measured(env, tenant, Duration.ofHours(2), emptyMap())
             refusedUnavailable(entityOffboard(env, tenant, entity), tenant)
         }
 
     @Test
-    fun `INV-AC-22872 a row received after the clock instant is 422 POL-014 naming the input`() =
+    fun `INV-AC-22872 a row received after the clock instant is 422 POL-014 naming the input`(): Unit =
         withEntity { tenant, entity ->
             measured(env, tenant, Duration.ofSeconds(-1), emptyMap())
             refusedUnavailable(entityOffboard(env, tenant, entity), tenant)
         }
 
     @Test
-    fun `INV-AC-22872 no row is 422 POL-014 naming the input and a tenant with an entity row and no count row too`() =
+    fun `INV-AC-22872 no row is 422 POL-014 naming the input and a tenant with an entity row and no count row too`(): Unit =
         withEntity { tenant, entity ->
             refusedUnavailable(entityOffboard(env, tenant, entity), tenant)
             refusedUnavailable(tenantClose(env, tenant), tenant)
         }
 
     @Test
-    fun `INV-AC-22872 a tenant with no entity row of any status and no count row is 202 for offboardTenant`() =
+    fun `INV-AC-22872 a tenant with no entity row of any status and no count row is 202 for offboardTenant`(): Unit =
         env.withTenant { tenant ->
             val answer = tenantClose(env, tenant)
             assertThat(answer.status).describedAs(answer.body).isEqualTo(202)
@@ -360,7 +360,7 @@ class OffboardingCountReadModelHttpTest {
     }
 
     @Test
-    fun `INV-AC-22872 a current row where E1 has 3 refuses deregisterEntity of E1 and accepts E2 with 0`() =
+    fun `INV-AC-22872 a current row where E1 has 3 refuses deregisterEntity of E1 and accepts E2 with 0`(): Unit =
         lab { l ->
             l.env.withGroup(2, CreateGroupRequest.GroupKind.DIVISIONAL) { tenant, _, entities ->
                 val (e1, e2) = entities
@@ -379,7 +379,7 @@ class OffboardingCountReadModelHttpTest {
         }
 
     @Test
-    fun `INV-AC-22872 an entity read that throws is 422 POL-014 naming the input and nothing is deregistered`() =
+    fun `INV-AC-22872 an entity read that throws is 422 POL-014 naming the input and nothing is deregistered`(): Unit =
         lab(CountFailingEntityRead::class.java) { l ->
             l.env.withGroup(1, CreateGroupRequest.GroupKind.DIVISIONAL) { tenant, _, entities ->
                 val e1 = entities.single()
