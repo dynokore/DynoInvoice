@@ -135,7 +135,7 @@ object TenancyEventCatalogue {
                 setOf("payload-svc"),
                 contentTopic = false,
             ),
-        ) + consumedSubmissionCountEvent() + consumedSubmissionDespatchedEvent() + consumedOffboardingExportFinished()
+        ) + consumedSubmissionCountEvent() + consumedSubmissionDespatchedEvent + consumedOffboardingExportFinished()
 
     /** A document was despatched: the replica input of the BackdatingFloor (INV-Q-16675, INV-AC-16774). */
     private fun consumedSubmissionDespatchedEvent() =
