@@ -35,18 +35,10 @@ class OffboardingExportRequestedOutbox(
         payload.put("scope", order.scope.name)
         if (order.scope == OffboardingScope.ENTITY) order.entityRef?.let { payload.put("entityRef", it) }
         payload.put("requestedAt", clock.instant().toString())
-        // a domain event cannot carry the tenant-wide entity (FR-K.3): an entity export names its entity, a tenant
-        // export the tenant's own node, whose ref is the tenant ref
+        // an entity export is written with its registered entity, a tenant export with the real tenant and the
+        // tenant-wide entity (no entityref on the wire); the tenant ref is never written as an entity
         val entity =
-            EntityRef(
-                if (order.scope ==
-                    OffboardingScope.ENTITY
-                ) {
-                    checkNotNull(order.entityRef)
-                } else {
-                    order.tenantRef
-                },
-            )
+            if (order.scope == OffboardingScope.ENTITY) EntityRef(checkNotNull(order.entityRef)) else EntityRef.TENANT_WIDE
         try {
             outbox.append(
                 listOf(OutboundEvent(TYPE, payload.toString())),

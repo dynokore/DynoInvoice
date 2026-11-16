@@ -4,6 +4,7 @@ import com.dynokore.gst.tenancy.application.offboarding.ExportOrder
 import com.dynokore.gst.tenancy.application.offboarding.UnavailableInput
 import com.dynokore.gst.tenancy.domain.ExportState
 import com.dynokore.gst.tenancy.domain.OffboardingScope
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -13,6 +14,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.json.JsonMapper
 import java.time.Clock
@@ -27,6 +29,17 @@ class OffboardingExportRequestedPayloadSchemaTest {
     private val mapper = JsonMapper.builder().build()
     private val tenant = TenantId(UUID.fromString("0a000000-0000-4000-8000-00000000000a"))
     private val recording = RecordingOutbox()
+    private val contexts = ArrayList<EventContext>()
+    private val capturing =
+        object : OutboxWriter {
+            override fun append(
+                events: List<OutboundEvent>,
+                context: EventContext,
+            ): List<OutboxEnvelope> {
+                contexts += context
+                return recording.append(events, context)
+            }
+        }
     private val tenants =
         object : TenantContext {
             override fun current() = tenant
@@ -40,7 +53,7 @@ class OffboardingExportRequestedPayloadSchemaTest {
             ): T = block()
         }
     private val clock = Clock.fixed(Instant.parse("2026-11-20T10:00:00Z"), ZoneOffset.UTC)
-    private val outbox = OffboardingExportRequestedOutbox(recording, mapper, tenants, clock)
+    private val outbox = OffboardingExportRequestedOutbox(capturing, mapper, tenants, clock)
 
     @Test
     fun `INV-AC-22960 the payload of a tenant-scope request validates and has no entityRef`() {
@@ -52,6 +65,26 @@ class OffboardingExportRequestedPayloadSchemaTest {
         event.type shouldBe "com.dynokore.gst.tenancy.OffboardingExportRequested.v1"
         SchemaFixture.errors(schema, event.dataJson).shouldBeEmpty()
         mapper.readTree(event.dataJson).has("entityRef") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-22960 the envelope entity of a tenant-scope request is the tenant-wide entity and never the tenant ref`() {
+        outbox.produce(ExportOrder("OFF-4", "T-1", OffboardingScope.TENANT, null))
+        val context = contexts.single()
+        context.entity shouldBe EntityRef.TENANT_WIDE
+        context.entity.toString() shouldBe "00000000-0000-0000-0000-000000000000"
+        context.entity shouldNotBe EntityRef("T-1")
+        context.tenant shouldBe tenant
+        context.aggregateKey shouldBe "OFF-4"
+    }
+
+    @Test
+    fun `INV-AC-22960 the envelope entity of an entity-scope request is the entity of the order and not the tenant-wide one`() {
+        outbox.produce(ExportOrder("OFF-5", "T-1", OffboardingScope.ENTITY, "ENT-1"))
+        val context = contexts.single()
+        context.entity shouldBe EntityRef("ENT-1")
+        context.entity shouldNotBe EntityRef.TENANT_WIDE
+        context.entity shouldNotBe EntityRef("T-1")
     }
 
     @Test
