@@ -11,7 +11,7 @@ class CounterpartySamenessTest {
     private val neither = false to false
 
     @Test
-    fun `INV-AC-1823 INV-AC-760 resolution sets sameTenant and sameGroup from the structure events`() =
+    fun `INV-AC-1823-INV-AC-760-resolution-sets-sameTenant-and-sameGroup-from-the-structure-events`() =
         runCounterparty { env ->
             val tag = unique("S").takeLast(6)
             val group = "GRP-$tag"
