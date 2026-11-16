@@ -104,6 +104,7 @@ class CompletenessConsumersWiringTest {
                 "com.dynokore.gst.canonical.DocumentReleased.v1" to "gst.canonical.document-released.v1",
                 SubmissionEvents.RULE_PACK_STAGED_TYPE to "gst.platform.rule-pack-staged.v1",
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to "gst.platform.rule-pack-activated.v1",
+                SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TYPE to SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TOPIC,
             )
     }
 

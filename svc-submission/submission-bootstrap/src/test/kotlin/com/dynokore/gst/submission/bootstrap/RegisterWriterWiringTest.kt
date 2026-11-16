@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.persistence.EntityConnections
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
 import com.dynokore.gst.submission.application.register.DocumentKindResolver
@@ -110,6 +111,7 @@ class RegisterWriterWiringTest {
                 "com.dynokore.gst.canonical.DocumentReleased.v1" to "gst.canonical.document-released.v1",
                 SubmissionEvents.RULE_PACK_STAGED_TYPE to SubmissionEvents.RULE_PACK_STAGED_TOPIC,
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC,
+                SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TYPE to SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TOPIC,
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
@@ -149,6 +151,7 @@ class RegisterWriterWiringTest {
                 "documentReleasedConsumer",
                 "rulePackStagedConsumer",
                 "rulePackActivatedConsumer",
+                "accessPointRouteChangedConsumer",
             )
     }
 
@@ -166,6 +169,7 @@ class RegisterWriterWiringTest {
                 config.documentKindResolver(),
                 store,
                 context.getBean(OutboxWriter::class.java),
+                context.getBean(EntityConnections::class.java),
             )
         handler.shouldBeInstanceOf<TypeDecidingHandler>()
         context.getBean(RegisterEntryStore::class.java).shouldBeInstanceOf<JooqRegisterEntryStore>()

@@ -151,6 +151,7 @@ class ExtensionWiringTest {
                 "documentReleasedConsumer",
                 "rulePackStagedConsumer",
                 "rulePackActivatedConsumer",
+                "accessPointRouteChangedConsumer",
             )
     }
 

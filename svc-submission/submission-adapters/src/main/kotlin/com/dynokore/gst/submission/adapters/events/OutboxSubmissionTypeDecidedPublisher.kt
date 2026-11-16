@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.adapters.events
 
+import com.dynokore.gst.submission.adapters.persistence.EntityConnections
 import com.dynokore.gst.submission.application.typing.TypeDecidedFacts
 import com.dynokore.gst.submission.application.typing.TypeDecisionSignals
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -20,12 +21,16 @@ import java.util.UUID
 class OutboxSubmissionTypeDecidedPublisher(
     private val outbox: OutboxWriter,
     private val tenants: TenantContext,
+    private val connections: EntityConnections,
 ) : TypeDecisionSignals {
     override fun stage(facts: TypeDecidedFacts) {
+        val tenant = tenants.current()
+        // Read in the caller's transaction from the replica; no call to another service.
+        val connectionRef = connections.connectionOf(tenant, facts.entityRef)
         outbox.appendSequenced(
             EVENT_TYPE,
             EventContext(
-                tenant = tenants.current(),
+                tenant = tenant,
                 entity = EntityRef(facts.entityRef),
                 docUuid = DocUuid(UUID.fromString(facts.docUuid)),
                 transactionDate = null,
@@ -34,15 +39,17 @@ class OutboxSubmissionTypeDecidedPublisher(
                 correlation = CorrelationId(UUID.randomUUID().toString()),
                 causation = CausationId("type-decided:${facts.docUuid}:${facts.version}"),
             ),
-        ) { docSequence -> payload(facts, docSequence) }
+        ) { docSequence -> payload(facts, docSequence, connectionRef) }
     }
 
     private fun payload(
         facts: TypeDecidedFacts,
         docSequence: Long,
+        connectionRef: String?,
     ): String =
         "{\"docUuid\":${json(facts.docUuid)},\"version\":${facts.version},\"docsequence\":$docSequence," +
-            "\"submissionType\":${json(facts.submissionType)}}"
+            "\"submissionType\":${json(facts.submissionType)}" +
+            (if (connectionRef == null) "" else ",\"connectionRef\":${json(connectionRef)}") + "}"
 
     private fun json(text: String): String =
         buildString {

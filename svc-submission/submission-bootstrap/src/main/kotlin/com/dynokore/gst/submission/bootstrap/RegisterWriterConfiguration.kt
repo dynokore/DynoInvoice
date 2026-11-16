@@ -3,6 +3,7 @@ package com.dynokore.gst.submission.bootstrap
 import com.dynokore.gst.submission.adapters.events.JacksonCanonicalVersionCreatedDataReader
 import com.dynokore.gst.submission.adapters.events.JacksonPeriodDueDateChangedDataReader
 import com.dynokore.gst.submission.adapters.events.OutboxSubmissionTypeDecidedPublisher
+import com.dynokore.gst.submission.adapters.persistence.EntityConnections
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedDataReader
@@ -79,11 +80,12 @@ class RegisterWriterConfiguration {
         kinds: DocumentKindResolver,
         store: RegisterEntryStore,
         outbox: OutboxWriter,
+        connections: EntityConnections,
     ): EventHandler =
         TypeDecidingHandler(
             CanonicalVersionCreatedHandler(tenants, reader, deadlines, kinds, store),
             reader,
-            DecideSubmissionType(OutboxSubmissionTypeDecidedPublisher(outbox, tenants)),
+            DecideSubmissionType(OutboxSubmissionTypeDecidedPublisher(outbox, tenants, connections)),
         )
 
     @Bean

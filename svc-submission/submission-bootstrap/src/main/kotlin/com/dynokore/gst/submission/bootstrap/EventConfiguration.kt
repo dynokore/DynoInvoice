@@ -92,6 +92,9 @@ object SubmissionEvents {
     const val DOCUMENT_RELEASED_TOPIC = "gst.canonical.document-released.v1"
     const val DOCUMENT_RELEASED_TYPE = "com.dynokore.gst.canonical.DocumentReleased.v1"
 
+    const val ACCESS_POINT_ROUTE_CHANGED_TOPIC = "gst.transport.access-point-route-changed.v1"
+    const val ACCESS_POINT_ROUTE_CHANGED_TYPE = "com.dynokore.gst.transport.AccessPointRouteChanged.v1"
+
     const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
     const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.platform.RulePackStaged.v1"
 
@@ -107,6 +110,7 @@ object SubmissionEvents {
      * content topic, INV-REQ-570), `EntityProfileChanged` (producer tenancy-svc, no content topic, INV-REQ-335, also
      * feeding the entity node table, INV-REQ-978), `OrganisationStructureChanged` (producer tenancy-svc, no content
      * topic, INV-REQ-978, the entity node table),
+     * `AccessPointRouteChanged` (producer transport-svc, no content topic, INV-AC-23662, the connection replica),
      * `FeedHealthChanged` (producer ingestion-svc) and `AggregateWindowChanged` (producer aggregation-svc), no
      * content topic, the last two feeding the completeness rows (INV-REQ-792); submission-svc
      * is only their subscriber.
@@ -187,6 +191,13 @@ object SubmissionEvents {
                 DOCUMENT_RELEASED_TYPE,
                 DOCUMENT_RELEASED_TOPIC,
                 setOf("canonical-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                ACCESS_POINT_ROUTE_CHANGED_TYPE,
+                ACCESS_POINT_ROUTE_CHANGED_TOPIC,
+                setOf("transport-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,
             ),
