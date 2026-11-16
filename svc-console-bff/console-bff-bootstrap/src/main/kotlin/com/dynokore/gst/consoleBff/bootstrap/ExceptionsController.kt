@@ -144,7 +144,7 @@ open class ExceptionsController(
     private fun accepted(body: PendingOverride): ResponseEntity<OverrideResult> =
         ResponseEntity.status(HttpStatus.ACCEPTED).body(body) as ResponseEntity<OverrideResult>
 
-    /** A body the generated model cannot read or bounds (no reason, a wrong type, over 500 characters): SRT-001; the use case is not reached. */
+    /** A body the model cannot read or bounds (no reason, wrong type, over 500 characters): SRT-001, no use case. */
     @ExceptionHandler(HttpMessageNotReadableException::class, MethodArgumentNotValidException::class)
     fun unreadableBody(): ResponseEntity<String> {
         val answer = overrides.contractViolation("the request body is not valid", correlation())
