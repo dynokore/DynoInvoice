@@ -29,6 +29,8 @@ data class RecordDocumentCommand(
     val sourceTimeZone: String? = null,
     val lines: List<RecordLine> = emptyList(),
     val content: DocumentContent? = null,
+    val documentNumber: String? = null,
+    val networkPath: RoutingNetworkPath = RoutingNetworkPath.NOT_ON_NETWORK,
 )
 
 /** Builds the result text of a recorded document; implemented outside this service. */
