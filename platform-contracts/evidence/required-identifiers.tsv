@@ -98,3 +98,16 @@ state	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-8
 contents	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
 finishedAt	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
 failureReason	property	schemas/offboarding-export-finished-payload.schema.json	INV-REQ-877
+# INV-T-23954. The refusal codes of deleteAtRetentionEnd and getPartitionDeletion (INV-REQ-957, INV-REQ-1010).
+deleteAtRetentionEnd.SRT-004	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.SRT-005	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.SRT-010	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-003	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-004	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-005	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-006	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-007	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-008	operation_error_code	openapi.yaml	INV-REQ-957
+deleteAtRetentionEnd.EVD-009	operation_error_code	openapi.yaml	INV-REQ-957
+getPartitionDeletion.SRT-005	operation_error_code	openapi.yaml	INV-REQ-1010
+getPartitionDeletion.SRT-010	operation_error_code	openapi.yaml	INV-REQ-1010

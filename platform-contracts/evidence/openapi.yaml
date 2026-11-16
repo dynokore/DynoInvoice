@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.15.0
+  version: 1.16.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -903,12 +903,23 @@ paths:
         some operations on a natural key (sourceKey + sourceRevision,
         batchId, the AP notification ID). console-bff still always sends a
         key.
+
+
+        Refusals (INV-T-23954; each leaves the partition unchanged and
+        nothing is detached, archived or dropped): `409` `EVD-003` retention
+        not ended, `409` `EVD-004` legal hold in force, `409` `EVD-005` no
+        retention notice opened, `409` `EVD-006` notice window open, `409`
+        `EVD-007` approvals missing, `409` `EVD-008` already deleted (the
+        loud repeat of INV-REQ-1011), `409` `EVD-009` deletion running;
+        `409` `DEP-007` when the chain verification failed; `403` `SRT-004`
+        for a caller without the key; `404` `SRT-005` for an unknown
+        partition; `500` `SRT-010` for a failed worker.
       tags: [retention]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
-      x-error-codes: [DEP-007]
+      x-error-codes: [DEP-007, SRT-004, SRT-005, SRT-010, EVD-003, EVD-004, EVD-005, EVD-006, EVD-007, EVD-008, EVD-009]
       x-requirements: [INV-REQ-957, INV-REQ-1010, INV-REQ-1011, INV-REQ-639, INV-REQ-662]
       x-operation:
         role: security.officer, tax.approver
@@ -982,12 +993,15 @@ paths:
         `result` is the `DeletionResult` only when SUCCEEDED and `error` the
         API-20 envelope only when FAILED. Readable only by the principal
         that started the deletion, and kept at least 7 days (API-17).
+        Another principal, an unknown deletion and a status past its
+        visibility all get the same `404` `SRT-005` response; a failed
+        worker is `500` `SRT-010`.
       tags: [retention]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [SRT-005, SRT-010]
       x-requirements: [INV-REQ-1010, INV-REQ-1011, INV-REQ-1232]
       parameters:
         - name: partitionId

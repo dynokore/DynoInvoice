@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 02e15b6b6fce623a1f250ed515955f3550b210fb (2026-11-15), the merge of invoice-docs INV-T-22951 adding EVD-002, export not finished, HTTP 409 (INV-T-22952, coordinator ruling of breakdown tooling/req49-gap.md Round 5);
+# pinned at ee16235ac20eaa2a9dbfc7444e7263395cb5df1b (2026-11-16), the merge of invoice-docs INV-T-23952 adding EVD-003 to EVD-009, the retention deletion refusal codes of deleteAtRetentionEnd (INV-T-23954, coordinator ruling (delegated) HIGH option A of the answered design question of INV-T-22971, breakdown tooling/gap22971b-gap.md);
+# previously pinned at commit 02e15b6b6fce623a1f250ed515955f3550b210fb (2026-11-15), the merge of invoice-docs INV-T-22951 adding EVD-002, export not finished, HTTP 409 (INV-T-22952, coordinator ruling of breakdown tooling/req49-gap.md Round 5);
 # previously pinned at 0fae8dc0cd382fe12bed1c1c43a48808cc4d270d (2026-11-13), the merge of invoice-docs INV-T-22014 adding SUB-026 to SUB-028, the credential rotation refusals (INV-T-22003, coordinator ruling (delegated) HIGH option A on the refusal codes of rotateCredential, breakdown tooling/gap18676-gap.md);
 # previously pinned at 0d26d2de1cdc959de01882fe034ee56cdf42c1bd (2026-11-12), the merge of invoice-docs INV-T-21274 adding SRT-015, group has members already submitted (INV-T-21276, coordinator ruling round zt of tooling/wave1/crun/chains/req137-pending-rulings.txt);
 # previously pinned at 5b5ef83811591636c5b5f45829a436d57884bd0f (2026-11-12), the merge of invoice-docs INV-T-20618 adding SUB-025, replay refused, version not replayable (INV-T-20619, coordinator ruling of breakdown tooling/req-breakdown-138.md round d);
@@ -755,6 +756,41 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+- code: EVD-003
+  condition: 'Retention deletion refused, retention not ended: the retention end of the partition is later than now, so nothing is detached, archived or dropped and the partition is unchanged (RETENTION_NOT_ENDED; HTTP 409; INV-REQ-639, INV-REQ-1011)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform and security.officer
+- code: EVD-004
+  condition: 'Retention deletion refused, legal hold in force: an active legal hold covers the entity and period of the partition, so nothing is detached, archived or dropped until the hold is released (HOLD_IN_FORCE; HTTP 409; INV-REQ-639, INV-REQ-1011)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform and security.officer
+- code: EVD-005
+  condition: 'Retention deletion refused, no notice: no retention notice was opened for the partition, so the notice window cannot have closed and nothing is detached, archived or dropped (NOTICE_MISSING; HTTP 409; INV-REQ-639, INV-REQ-1011)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform and security.officer
+- code: EVD-006
+  condition: 'Retention deletion refused, notice window open: the notice window of the partition has not closed, so nothing is detached, archived or dropped; the caller retries after the window closes (WINDOW_OPEN; HTTP 409; INV-REQ-639, INV-REQ-1011)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform and security.officer
+- code: EVD-007
+  condition: 'Retention deletion refused, approvals missing: the two required approvals of the deletion are not both recorded, so nothing is detached, archived or dropped (APPROVALS_MISSING; HTTP 409; INV-REQ-639, INV-REQ-1011)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Platform and security.officer
+- code: EVD-008
+  condition: 'Retention deletion refused, already deleted: the partition was deleted by an earlier call, so the repeat fails loudly and deletes nothing (ALREADY_DELETED; HTTP 409; INV-REQ-1011)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform and security.officer
+- code: EVD-009
+  condition: 'Retention deletion refused, deletion running: a deletion of the same partition is running, so this call starts nothing; the starter reads its status (RUNNING; HTTP 409; INV-REQ-1011)'
+  severity: BLOCK
+  disposition: TERMINAL
+  owner: Platform and security.officer
 - code: SRT-001
   condition: 'Request does not match the contract: shape, type or a missing required field (ContractViolation, ARC-19; HTTP
     400; INV-Q-3720, INV-REQ-827 b3)'
