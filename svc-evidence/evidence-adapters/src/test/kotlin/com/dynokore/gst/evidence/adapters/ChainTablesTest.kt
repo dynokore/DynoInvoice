@@ -82,8 +82,11 @@ class ChainTablesTest {
             EvidenceDb.superuser().use { connection ->
                 connection
                     .prepareStatement(
-                        "select table_name from information_schema.columns where table_schema = 'evidence' " +
-                            "and column_name = 'content_hash' and table_name <> 'flyway_schema_history'",
+                        "select col.table_name from information_schema.columns col " +
+                            "join pg_namespace n on n.nspname = col.table_schema " +
+                            "join pg_class c on c.relnamespace = n.oid and c.relname = col.table_name " +
+                            "where col.table_schema = 'evidence' and not c.relispartition " +
+                            "and col.column_name = 'content_hash' and col.table_name <> 'flyway_schema_history'",
                     ).use {
                         it.executeQuery().use { rows ->
                             generateSequence { if (rows.next()) rows.getString(1) else null }.toSet()
@@ -158,6 +161,7 @@ class ChainTablesTest {
         tenant: UUID,
     ) {
         val text = UUID.randomUUID().toString()
+        if (table in chainTables) createPartition(connection, table, tenant, text)
         connection.prepareStatement(insert(table)).use {
             it.setObject(1, tenant)
             if (table == "document_locator") {
@@ -175,6 +179,22 @@ class ChainTablesTest {
             it.executeUpdate()
         }
     }
+
+    /** The partition of the (tenant, 'E', period) unit, as the append wiring creates it (V21). */
+    private fun createPartition(
+        connection: Connection,
+        table: String,
+        tenant: UUID,
+        period: String,
+    ) = connection
+        .prepareStatement(
+            "select evidence.create_retention_partition(cast('evidence.$table' as regclass), ?, 'E', ?, ? || chr(1))",
+        ).use {
+            it.setObject(1, tenant)
+            it.setString(2, period)
+            it.setString(3, period)
+            it.executeQuery().close()
+        }
 
     private fun runtime(block: (Connection) -> Unit) =
         EvidenceDb.connect(EvidenceDb.RUNTIME, EvidenceDb.RUNTIME_PASSWORD).use {
