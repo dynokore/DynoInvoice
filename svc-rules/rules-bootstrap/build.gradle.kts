@@ -91,7 +91,7 @@ val egressAgentJar =
         }
     }
 
-val PACK_JOURNEY = "com.dynokore.gst.rules.bootstrap.PrivatePackImportJourneyBoundaryTest"
+val packJourney = "com.dynokore.gst.rules.bootstrap.PrivatePackImportJourneyBoundaryTest"
 
 tasks.test {
     dependsOn(egressAgentJar)
@@ -107,7 +107,7 @@ tasks.test {
     useJUnitPlatform()
     filter {
         excludeTestsMatching("*Gate") // the two repository gates have their own tasks below
-        excludeTestsMatching(PACK_JOURNEY) // runs in its own JVM and database: packJourneyTest below
+        excludeTestsMatching(packJourney) // runs in its own JVM and database: packJourneyTest below
     }
     jvmArgs("-Duser.timezone=UTC") // CS-41
     systemProperty("gst.repo.root", rootDir.absolutePath)
@@ -175,7 +175,7 @@ val packJourneyTest =
         dependsOn(":rules-contract:generateContractServer")
         useJUnitPlatform()
         filter {
-            includeTestsMatching(PACK_JOURNEY)
+            includeTestsMatching(packJourney)
             isFailOnNoMatchingTests = true
         }
         jvmArgs(
@@ -190,13 +190,34 @@ val packJourneyTest =
         // gate (fails closed): the class reports under this task only, never under `test`
         val results = layout.buildDirectory.dir("test-results")
         doLast {
-            val own = results.get().dir("packJourneyTest").asFile.listFiles { f -> f.name.startsWith("TEST-") }.orEmpty()
-            val named = { f: java.io.File -> Regex("<testsuite name=\"([^\"]*)\"").find(f.readText())?.groupValues?.get(1) }
-            check(own.any { named(it) == PACK_JOURNEY }) { "packJourneyTest holds no report of $PACK_JOURNEY" }
-            val cases = own.filter { named(it) == PACK_JOURNEY }.sumOf { Regex("<testcase ").findAll(it.readText()).count() }
-            check(cases == 3) { "packJourneyTest ran $cases cases of $PACK_JOURNEY, expected 3" }
-            val shared = results.get().dir("test").asFile.listFiles { f -> f.name.startsWith("TEST-") }.orEmpty()
-            check(shared.none { named(it) == PACK_JOURNEY }) { "$PACK_JOURNEY also ran under test: shared database" }
+            val own =
+                results
+                    .get()
+                    .dir("packJourneyTest")
+                    .asFile
+                    .listFiles { f ->
+                        f.name.startsWith("TEST-")
+                    }.orEmpty()
+            val named = { f: java.io.File ->
+                Regex("<testsuite name=\"([^\"]*)\"").find(f.readText())?.groupValues?.get(1)
+            }
+            check(own.any { named(it) == packJourney }) { "packJourneyTest holds no report of $packJourney" }
+            val cases =
+                own
+                    .filter {
+                        named(
+                            it,
+                        ) == packJourney
+                    }.sumOf { Regex("<testcase ").findAll(it.readText()).count() }
+            check(cases == 3) { "packJourneyTest ran $cases cases of $packJourney, expected 3" }
+            val shared =
+                results
+                    .get()
+                    .dir("test")
+                    .asFile
+                    .listFiles { f -> f.name.startsWith("TEST-") }
+                    .orEmpty()
+            check(shared.none { named(it) == packJourney }) { "$packJourney also ran under test: shared database" }
         }
     }
 
