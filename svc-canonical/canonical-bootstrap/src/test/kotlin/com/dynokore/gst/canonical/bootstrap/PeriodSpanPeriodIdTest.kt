@@ -198,9 +198,15 @@ class PeriodSpanPeriodIdTest {
     }
 
     @Test
-    fun `INV-AC-21535 F6 a JSON null periodId is a contract violation`() {
-        val t1 = TenantId(UUID.randomUUID())
-        assertThrows<ContractViolation> { PeriodRecordsReader().read(event(9, "null", null), t1) }
+    fun `INV-AC-21535 F6 a JSON null periodId is a contract violation and changes nothing`(
+        @TempDir dir: Path,
+    ) = run(dir) { b ->
+        val t1 = UUID.randomUUID()
+        b.feed(t1, event(7, q(u1), q(u3))) shouldBe true
+        assertThrows<ContractViolation> { b.feed(t1, event(9, "null", q(u3))) }
+        b.idOf(t1, t1, "P1") shouldBe u1
+        b.idOf(t1, t1, "P2") shouldBe u3
+        b.spans(t1) shouldBe listOf(p1, p2)
     }
 
     @Test
