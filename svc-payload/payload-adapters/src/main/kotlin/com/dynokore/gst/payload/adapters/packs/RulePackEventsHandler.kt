@@ -40,10 +40,7 @@ class RulePackEventsHandler(
             throw ContractViolation("a pack identifier is already recorded with another type")
         }
         if (packType != MDE_PACK_TYPE) return HandleOutcome.IGNORED
-        val contents =
-            data.get("artefact")?.get("contents")?.takeUnless { it.isNull || it.isMissingNode }
-                ?: throw ContractViolation("an MDE pack carries no artefact.contents")
-        return when (replica.stage(identifier, version, json.writeValueAsString(contents))) {
+        return when (replica.stage(identifier, version, json.writeValueAsString(contentsOf(data)))) {
             StageResult.STORED -> {
                 HandleOutcome.APPLIED
             }
@@ -62,6 +59,10 @@ class RulePackEventsHandler(
             }
         }
     }
+
+    private fun contentsOf(data: JsonNode): JsonNode =
+        data.get("artefact")?.get("contents")?.takeUnless { it.isNull || it.isMissingNode }
+            ?: throw ContractViolation("an MDE pack carries no artefact.contents")
 
     private fun activated(data: JsonNode): HandleOutcome {
         val identifier = text(data, "packIdentifier")

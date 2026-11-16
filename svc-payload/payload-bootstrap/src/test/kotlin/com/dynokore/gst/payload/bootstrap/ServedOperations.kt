@@ -186,6 +186,7 @@ data class Answer(
 )
 
 /** The application context with the doubles, the container's filters in order, and the handlers it maps. */
+@Suppress("LongParameterList") // one served context: mvc, counter, tenants, handlers, class path, context, workload doubles
 class ServedService(
     private val mvc: MockMvc,
     val counter: ReachCounter,
