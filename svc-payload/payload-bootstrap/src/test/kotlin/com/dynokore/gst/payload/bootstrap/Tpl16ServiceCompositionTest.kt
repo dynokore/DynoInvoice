@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.adapters.packs.RulePackEventsHandler
 import com.dynokore.gst.payload.application.AbsentMdePackSource
 import com.dynokore.gst.payload.application.CapabilityService
 import com.dynokore.gst.payload.application.MdePackSource
@@ -42,7 +43,8 @@ class Tpl16ServiceCompositionTest {
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:payload-svc"
             catalogueTypes(context) shouldBe
                 PayloadEvents.entries.map { it.eventType }.toSet() + "com.dynokore.gst.platform.AuditEntryRecorded.v1" +
-                SubmissionTypeDecidedConsumerConfiguration.TYPE
+                SubmissionTypeDecidedConsumerConfiguration.TYPE + RulePackEventsHandler.STAGED_TYPE +
+                RulePackEventsHandler.ACTIVATED_TYPE
         }
     }
 

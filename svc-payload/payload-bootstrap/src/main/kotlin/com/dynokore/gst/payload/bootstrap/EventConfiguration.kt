@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.adapters.packs.RulePackEventsHandler
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import org.springframework.context.annotation.Bean
@@ -61,6 +62,22 @@ object PayloadEvents {
                 SubmissionTypeDecidedConsumerConfiguration.TOPIC,
                 setOf("submission-svc"),
                 contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                RulePackEventsHandler.STAGED_TYPE,
+                RulePackEventsHandler.STAGED_TOPIC,
+                setOf("rules-svc"),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = true,
+            ),
+            CatalogueEntry(
+                RulePackEventsHandler.ACTIVATED_TYPE,
+                RulePackEventsHandler.ACTIVATED_TOPIC,
+                setOf("rules-svc"),
+                contentTopic = false,
+                recordTopic = false,
                 retainedWhileResolvable = false,
             ),
         )

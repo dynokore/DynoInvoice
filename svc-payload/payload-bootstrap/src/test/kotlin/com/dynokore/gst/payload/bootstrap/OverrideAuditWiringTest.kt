@@ -148,6 +148,8 @@ class OverrideAuditWiringTest : OverrideWiringBase() {
                         "com.dynokore.gst.payload.RenditionFindingChanged.v1",
                         "com.dynokore.gst.platform.AuditEntryRecorded.v1",
                         "com.dynokore.gst.submission.SubmissionTypeDecided.v1",
+                        "com.dynokore.gst.platform.RulePackStaged.v1",
+                        "com.dynokore.gst.platform.RulePackActivated.v1",
                     )
             }
         }
