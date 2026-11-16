@@ -185,6 +185,7 @@ class ServedService(
     val context: org.springframework.context.ApplicationContext? = null,
 ) {
     /** One request with a body of the caller's choosing; the same filters as [call]. */
+    @Suppress("LongParameterList") // one request: method, uri, three headers, body
     fun send(
         method: String,
         uri: String,
