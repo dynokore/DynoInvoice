@@ -106,7 +106,7 @@ class ScenarioTestIdsTest {
     }
 
     @Test
-    fun `INV-AC-24133 probe a prefix look-alike criterion INV-AC-76 fails`() {
+    fun `INV-AC-24133 probe a prefix look-alike criterion fails`() {
         val t = tuples[4].copy(criterion = "INV-AC-76")
         assertThat(violations(t)).anyMatch { it.contains("lacks") }
     }
