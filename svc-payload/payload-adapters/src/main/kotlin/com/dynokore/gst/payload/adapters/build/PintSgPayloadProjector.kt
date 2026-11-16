@@ -95,7 +95,7 @@ class PintSgPayloadProjector(
         val type =
             DocumentFields.text(document.path("aggregateType").path("value"))
                 ?: throw blocking(AGGREGATE_TYPE_ABSENT)
-        return AggregateNoteRule(contents) { reason, detail -> blocking(reason, *detail) }.noteOf(type)
+        return AggregateNoteRule(contents) { reason, detail -> blockingOf(reason, detail.toList()) }.noteOf(type)
     }
 
     private fun typeCodeOf(document: JsonNode): String =
@@ -152,6 +152,11 @@ class PintSgPayloadProjector(
     private fun blocking(
         reason: String,
         vararg details: Pair<String, String>,
+    ): Blocking = blockingOf(reason, details.toList())
+
+    private fun blockingOf(
+        reason: String,
+        details: List<Pair<String, String>>,
     ): Blocking {
         val trace = mapper.createObjectNode().put("reason", reason)
         details.forEach { (k, v) -> trace.put(k, v) }
@@ -228,7 +233,7 @@ private class AggregateNoteRule(
         try {
             MdePackAggregateLiterals(contents).literalFor(type)
         } catch (e: AggregateLiteralParseException) {
-            throw fail(PintSgPayloadProjector.AGGREGATE_LITERAL_INVALID, arrayOf("detail" to (e.message ?: "")))
+            throw fail(PintSgPayloadProjector.AGGREGATE_LITERAL_INVALID, arrayOf("detail" to e.message.orEmpty()))
         } ?: throw fail(PintSgPayloadProjector.AGGREGATE_LITERAL_ABSENT, arrayOf("aggregateType" to type))
 
     private companion object {
