@@ -321,6 +321,26 @@ class PackReplicaConsumerDbTest {
     }
 
     @Test
+    fun `INV-AC-23578 a staged pack without contents is a contract violation`(
+        @TempDir dir: Path,
+    ) = run(dir) { t1 ->
+        val handler = RulePackEventsHandler(RulePackEventsHandler.STAGED_TYPE, replica)
+        for (contents in listOf("null", "{}", "\"\"", "[]")) {
+            shouldThrow<com.dynokore.platform.outboxandqueue.ContractViolation> {
+                handler.handle(
+                    envelope(t1, RulePackEventsHandler.STAGED_TYPE, staged("1.0.0", contents, type = "Scope")),
+                )
+            }
+        }
+        val noArtefact = """{"packIdentifier":"P-X","packType":"Scope","version":"1","effectiveFrom":"2026-12-01"}"""
+        shouldThrow<com.dynokore.platform.outboxandqueue.ContractViolation> {
+            handler.handle(envelope(t1, RulePackEventsHandler.STAGED_TYPE, noArtefact))
+        }
+        identities(t1) shouldBe 0
+        rows(t1) shouldBe 0
+    }
+
+    @Test
     fun `INV-AC-23578 a handler refuses an event of another type`(
         @TempDir dir: Path,
     ) = run(dir) { t1 ->

@@ -33,6 +33,7 @@ class RulePackEventsHandler(
         val identifier = text(data, "packIdentifier")
         val packType = text(data, "packType")
         val version = text(data, "version")
+        val contents = contentsOf(data)
         val log = LoggerFactory.getLogger(RulePackEventsHandler::class.java)
         val recorded = replica.recordIdentity(identifier, packType)
         if (recorded == IdentityResult.CONFLICT) {
@@ -40,7 +41,7 @@ class RulePackEventsHandler(
             throw ContractViolation("a pack identifier is already recorded with another type")
         }
         if (packType != MDE_PACK_TYPE) return HandleOutcome.IGNORED
-        return when (replica.stage(identifier, version, json.writeValueAsString(contentsOf(data)))) {
+        return when (replica.stage(identifier, version, json.writeValueAsString(contents))) {
             StageResult.STORED -> {
                 HandleOutcome.APPLIED
             }
@@ -61,8 +62,10 @@ class RulePackEventsHandler(
     }
 
     private fun contentsOf(data: JsonNode): JsonNode =
-        data.get("artefact")?.get("contents")?.takeUnless { it.isNull || it.isMissingNode }
-            ?: throw ContractViolation("an MDE pack carries no artefact.contents")
+        data.get("artefact")?.get("contents")?.takeUnless {
+            it.isNull || it.isMissingNode || (it.isString && it.asString().isBlank()) ||
+                ((it.isObject || it.isArray) && it.isEmpty)
+        } ?: throw ContractViolation("a staged pack carries no artefact.contents")
 
     private fun activated(data: JsonNode): HandleOutcome {
         val identifier = text(data, "packIdentifier")
