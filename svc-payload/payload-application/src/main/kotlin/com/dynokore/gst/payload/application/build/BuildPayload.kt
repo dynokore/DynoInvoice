@@ -4,8 +4,8 @@ import com.dynokore.gst.payload.application.payload.PayloadReadyFacts
 import com.dynokore.gst.payload.application.payload.PublishPayloadReady
 import com.dynokore.gst.payload.domain.PayloadSizeCheck
 import java.security.MessageDigest
-import java.util.HexFormat
 import java.time.LocalDate
+import java.util.HexFormat
 import java.util.UUID
 
 /**
@@ -25,7 +25,7 @@ data class BuildInput(
     fun familyRequest(): FamilyRequest = FamilyRequest(entityRef, connectionRef, transactionDate)
 }
 
-/** What the family source needs: the entity, its connection, and the document date the family is read at (inclusive). */
+/** What the family source needs: the entity, its connection and the document date the family is read at. */
 data class FamilyRequest(
     val entityRef: String,
     val connectionRef: String?,

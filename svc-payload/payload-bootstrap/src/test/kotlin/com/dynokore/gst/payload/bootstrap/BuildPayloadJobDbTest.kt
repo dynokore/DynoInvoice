@@ -231,7 +231,13 @@ class BuildPayloadJobDbTest {
                     { SpecificationFamilySource { request -> "PINT_SG".also { requests.add(request) } } },
                 ).withBean(
                     ActivePackOffNetworkPrefix::class.java,
-                    { ActivePackOffNetworkPrefix { com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix("{}") } },
+                    {
+                        ActivePackOffNetworkPrefix {
+                            com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix(
+                                "{}",
+                            )
+                        }
+                    },
                 )
         runner.run { ctx ->
             val boundary = Boundary(ctx)

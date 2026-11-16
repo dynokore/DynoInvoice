@@ -3,8 +3,8 @@ package com.dynokore.gst.payload.adapters
 import com.dynokore.gst.payload.adapters.events.SubmissionTypeDecidedHandler
 import com.dynokore.gst.payload.adapters.persistence.JooqBuildJobs
 import com.dynokore.gst.payload.adapters.persistence.JooqTypeDecisionStore
-import com.dynokore.gst.payload.application.build.BuildJobs
 import com.dynokore.gst.payload.application.build.BuildInputs
+import com.dynokore.gst.payload.application.build.BuildJobs
 import com.dynokore.gst.payload.application.build.BuildTrigger
 import com.dynokore.gst.payload.application.build.TypeDecisions
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -38,7 +38,17 @@ class ConnectionRefStoreTest {
             try {
                 val dsl = DSL.using(c, SQLDialect.POSTGRES)
                 val jobs = JooqBuildJobs(dsl, mockk(), { tenant })
-                val trigger = BuildTrigger(BuildInputs { _, _ -> false }, TypeDecisions { _, _ -> false }, BuildJobs { _, _ -> false })
+                val trigger =
+                    BuildTrigger(
+                        BuildInputs {
+                            _,
+                            _,
+                            ->
+                            false
+                        },
+                        TypeDecisions { _, _ -> false },
+                        BuildJobs { _, _ -> false },
+                    )
                 block(SubmissionTypeDecidedHandler(JooqTypeDecisionStore(dsl, jobs) { tenant }, trigger))
             } finally {
                 c.commit()
@@ -99,8 +109,12 @@ class ConnectionRefStoreTest {
 
     @Test
     fun `INV-AC-23663 a malformed connectionRef is a contract violation`() {
-        listOf(""","connectionRef":""""", ""","connectionRef":7""", ""","connectionRef":"${"x".repeat(41)}"""", ""","connectionRef":["a"]""")
-            .forEach { member -> shouldThrow<ContractViolation> { inTx { it.handle(decided(member)) } } }
+        listOf(
+            ""","connectionRef":""""",
+            ""","connectionRef":7""",
+            ""","connectionRef":"${"x".repeat(41)}"""",
+            ""","connectionRef":["a"]""",
+        ).forEach { member -> shouldThrow<ContractViolation> { inTx { it.handle(decided(member)) } } }
         stored() shouldBe null
         inTx { it.handle(decided(""","connectionRef":"${"x".repeat(40)}"""")) } shouldBe HandleOutcome.APPLIED
         stored() shouldBe ("TYPE_2" to "x".repeat(40))

@@ -318,7 +318,7 @@ class CanonicalInputConsumerTest {
                 decisionStored.await(10, TimeUnit.SECONDS)
                 tx(t1) {
                     secondCalled.countDown()
-                    inputs.store(d1, 1, "{}", "SALE", true)
+                    inputs.store(d1, 1, "{}", "SALE", true, null)
                     lockReturned.set(System.nanoTime())
                     trigger.onInputStored(d1, 1)
                 }

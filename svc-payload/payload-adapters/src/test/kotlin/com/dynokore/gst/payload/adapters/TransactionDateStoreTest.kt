@@ -52,11 +52,24 @@ class TransactionDateStoreTest {
                 val dsl = DSL.using(c, SQLDialect.POSTGRES)
                 val jobs = JooqBuildJobs(dsl, mockk(), { tenant })
                 val trigger =
-                    BuildTrigger(BuildInputs { _, _ -> false }, TypeDecisions { _, _ -> false }, BuildJobs { _, _ -> false })
+                    BuildTrigger(
+                        BuildInputs {
+                            _,
+                            _,
+                            ->
+                            false
+                        },
+                        TypeDecisions { _, _ -> false },
+                        BuildJobs { _, _ -> false },
+                    )
                 val facts = JooqVersionFactsStore(dsl) { tenant }
                 block(
                     Handlers(
-                        CanonicalVersionCreatedHandler(RecordVersionFacts(facts), JooqCanonicalInputStore(dsl, jobs) { tenant }, trigger),
+                        CanonicalVersionCreatedHandler(
+                            RecordVersionFacts(facts),
+                            JooqCanonicalInputStore(dsl, jobs) { tenant },
+                            trigger,
+                        ),
                         SubmissionTypeDecidedHandler(JooqTypeDecisionStore(dsl, jobs) { tenant }, trigger),
                         JooqBuildInputsReader(dsl) { tenant },
                     ),
@@ -131,8 +144,11 @@ class TransactionDateStoreTest {
 
     @Test
     fun `INV-AC-23663 a malformed transactionDate is a contract violation`() {
-        listOf(""","transactionDate":"2026-13-40"""", ""","transactionDate":20260320""", ""","transactionDate":"20/03/2026"""")
-            .forEach { member -> shouldThrow<ContractViolation> { inTx { it.canonical.handle(created(member)) } } }
+        listOf(
+            ""","transactionDate":"2026-13-40"""",
+            ""","transactionDate":20260320""",
+            ""","transactionDate":"20/03/2026"""",
+        ).forEach { member -> shouldThrow<ContractViolation> { inTx { it.canonical.handle(created(member)) } } }
     }
 
     @Test

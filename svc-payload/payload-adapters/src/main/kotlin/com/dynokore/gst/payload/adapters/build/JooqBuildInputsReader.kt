@@ -2,9 +2,9 @@ package com.dynokore.gst.payload.adapters.build
 
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.CanonicalInput
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.DocumentVersionFact
+import com.dynokore.gst.payload.adapters.persistence.jooq.tables.SubmissionTypeDecision
 import com.dynokore.gst.payload.application.build.BuildInput
 import com.dynokore.gst.payload.application.build.BuildInputsReader
-import com.dynokore.gst.payload.adapters.persistence.jooq.tables.SubmissionTypeDecision
 import org.jooq.DSLContext
 import java.util.UUID
 

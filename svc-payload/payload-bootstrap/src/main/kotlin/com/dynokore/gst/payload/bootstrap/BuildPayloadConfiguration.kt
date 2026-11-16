@@ -60,9 +60,9 @@ class BuildPayloadConfiguration {
     ): PayloadRejectedPublisher = OutboxPayloadRejectedPublisher(outbox, tenants)
 
     /**
-     * The family of a request (entity, connection, document date) through the policy path (VP-71). The scope level and the date of that path are not
-     * ruled (see the MR gaps), so the production lookup names no family and fails closed with an
-     * [IllegalStateException]; the build then ends in a retry and publishes nothing. One bean replaces it.
+     * The family of a request (entity, connection, document date) through the policy path (VP-71). The scope level
+     * and the date of that path are not ruled (see the MR gaps), so the production lookup names no family and fails
+     * closed with an [IllegalStateException]; the build then ends in a retry and publishes nothing. One bean replaces it.
      */
     @Bean
     @ConditionalOnMissingBean(SpecificationFamilySource::class)

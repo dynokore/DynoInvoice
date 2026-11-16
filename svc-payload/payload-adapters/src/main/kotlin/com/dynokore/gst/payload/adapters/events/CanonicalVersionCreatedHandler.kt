@@ -27,7 +27,7 @@ fun interface CanonicalInputWriter {
         canonicalDocument: String,
         direction: String?,
         counterpartyOnNetwork: Boolean?,
-        transactionDate: LocalDate? = null,
+        transactionDate: LocalDate?,
     ): Boolean
 }
 
@@ -56,7 +56,8 @@ class CanonicalVersionCreatedHandler(
         val direction = RoutingFacts.direction(routing)
         val onNetwork = RoutingFacts.counterpartyOnNetwork(routing)
         val factsStored = recordVersionFacts.record(docUuid, version, facts)
-        val inputStored = inputs.store(docUuid, version, json.writeValueAsString(document), direction, onNetwork, transactionDate(data))
+        val date = transactionDate(data)
+        val inputStored = inputs.store(docUuid, version, json.writeValueAsString(document), direction, onNetwork, date)
         trigger.onInputStored(docUuid, version)
         return if (factsStored || inputStored) HandleOutcome.APPLIED else HandleOutcome.IGNORED
     }
@@ -82,7 +83,7 @@ class CanonicalVersionCreatedHandler(
         return node.asString()
     }
 
-    /** The optional `transactionDate` (ISO date): absent or null is null, never defaulted; a malformed one is refused. */
+    /** The optional `transactionDate` (ISO date): absent or null is null, never defaulted; malformed is refused. */
     private fun transactionDate(data: JsonNode): LocalDate? {
         val node = data.get("transactionDate")?.takeUnless { it.isNull } ?: return null
         if (!node.isString) throw ContractViolation("transactionDate is not text")
