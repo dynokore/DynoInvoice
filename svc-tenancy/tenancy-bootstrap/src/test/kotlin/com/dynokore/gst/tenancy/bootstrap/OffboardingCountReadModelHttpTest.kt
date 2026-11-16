@@ -306,7 +306,7 @@ class OffboardingCountReadModelHttpTest {
     }
 
     @Test
-    fun `INV-AC-22872 a row older than the maximum age is 422 POL-014 naming the input and no record is stored`(): Unit =
+    fun `INV-AC-22872 a row older than the maximum age is 422 POL-014 and no record is stored`(): Unit =
         withEntity { tenant, entity ->
             measured(env, tenant, Duration.ofHours(2), emptyMap())
             refusedUnavailable(entityOffboard(env, tenant, entity), tenant)
@@ -320,7 +320,7 @@ class OffboardingCountReadModelHttpTest {
         }
 
     @Test
-    fun `INV-AC-22872 no row is 422 POL-014 naming the input and a tenant with an entity row and no count row too`(): Unit =
+    fun `INV-AC-22872 no row is 422 POL-014 for a tenant that has an entity row`(): Unit =
         withEntity { tenant, entity ->
             refusedUnavailable(entityOffboard(env, tenant, entity), tenant)
             refusedUnavailable(tenantClose(env, tenant), tenant)
