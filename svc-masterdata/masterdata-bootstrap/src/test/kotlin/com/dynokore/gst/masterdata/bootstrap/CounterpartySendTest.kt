@@ -214,7 +214,8 @@ class CounterpartySendTest {
     fun `INV-AC-20201 a call without body, contactEmail or entityRef answers 400, nothing written`() =
         run { env ->
             val before = env.state()
-            val bodies = listOf(null, "{}", env.body(email = null), env.body(entity = null), env.body(email = ""))
+            val bodies = listOf(null, "{}", env.body(email = null), env.body(entity = null), env.body(email = ""),
+                    "{\"entityRef\":null,\"contactEmail\":\"ap@example.com.sg\"}")
             bodies.forEach { body ->
                 val (status, answer) = env.send(body)
                 assertThat(status).describedAs("$body: $answer").isEqualTo(400)
@@ -227,7 +228,7 @@ class CounterpartySendTest {
     fun `INV-AC-20201 a blank entityRef never reaches the handler, the runtime gate refuses it 403 SRT-004`() =
         run { env ->
             val before = env.state()
-            listOf(" ", "").forEach { entity ->
+            listOf(" ", "", "   ", "\t").forEach { entity ->
                 val (status, answer) = env.send(env.body(entity = entity))
                 assertThat(status).describedAs("'$entity': $answer").isEqualTo(403)
                 assertThat(answer).contains("SRT-004")
@@ -269,7 +270,7 @@ class CounterpartySendTest {
                 assertThat(answer).contains("MDM-011")
                 assertThat(env.state()).describedAs(option).isEqualTo(before)
             }
-            listOf("signed_link", "").forEach { option ->
+            listOf("signed_link", "", "CSV_ONLY ", "csv_only", "OFF ").forEach { option ->
                 SendOption.override = option
                 val (status, answer) = env.send(env.body())
                 assertThat(status).describedAs("unknown '$option': $answer").isEqualTo(503)
