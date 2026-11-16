@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test
 import java.sql.Connection
 import java.sql.SQLException
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -45,7 +46,7 @@ import java.util.UUID
  */
 @Suppress("LargeClass", "TooManyFunctions") // one DB test class for the stores of one task
 class RetentionRecordsDbTest {
-    private val clock = Clock.fixed(Instant.parse("2026-11-16T00:00:00Z"), ZoneOffset.UTC)
+    private val clock = Clock.fixed(Instant.now(), ZoneOffset.UTC)
     private val tables = RecordKind.entries.map { it.table }
     private val types =
         mapOf(
@@ -188,18 +189,21 @@ class RetentionRecordsDbTest {
             statement(
                 u.tenant,
                 "insert into evidence.retention_notice values " +
-                    "(?, ?, now() - interval '90 days', 30, now() - interval '60 days')",
+                    "(?, ?, ?, 30, ?)",
                 u.tenant,
                 id,
+                at(clock.instant().minus(Duration.ofDays(90))),
+                at(clock.instant().minus(Duration.ofDays(60))),
             )
         }
         repeat(approvals) {
             statement(
                 u.tenant,
-                "insert into evidence.retention_approval values (?, ?, ?, 'retention.delete.approve', now())",
+                "insert into evidence.retention_approval values (?, ?, ?, 'retention.delete.approve', ?)",
                 u.tenant,
                 id,
                 "u-approver-$it",
+                at(clock.instant()),
             )
         }
         if (hold) {
@@ -207,13 +211,16 @@ class RetentionRecordsDbTest {
                 u.tenant,
                 "insert into evidence.legal_hold " +
                     "(tenant_id, entity_ref, period_ref, reason, status, placed_at, placed_by) " +
-                    "values (?, ?, ?, 'audit', 'ACTIVE', now(), 'u-hold')",
+                    "values (?, ?, ?, 'audit', 'ACTIVE', ?, 'u-hold')",
                 u.tenant,
                 u.entity,
                 u.period,
+                at(clock.instant()),
             )
         }
     }
+
+    private fun at(i: Instant): java.time.OffsetDateTime = i.atOffset(ZoneOffset.UTC)
 
     private fun partitionId(u: Fixture): String =
         checkNotNull(
