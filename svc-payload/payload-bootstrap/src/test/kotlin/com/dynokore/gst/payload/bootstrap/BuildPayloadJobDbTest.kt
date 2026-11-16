@@ -126,6 +126,7 @@ class BuildPayloadJobDbTest {
         """.trimIndent()
 
     /** Stores the facts and the canonical input, optionally the decision, and enqueues the build job once. */
+    @Suppress("LongParameterList") // the test seed names each stored fact
     private fun Boundary.seed(
         tenant: TenantId,
         doc: UUID,
@@ -221,7 +222,7 @@ class BuildPayloadJobDbTest {
         @TempDir dir: Path,
     ) {
         val requests = java.util.Collections.synchronizedList(mutableListOf<FamilyRequest>())
-        var runner =
+        val runner =
             PayloadContext
                 .online(dir)
                 .withAllowBeanDefinitionOverriding(true)

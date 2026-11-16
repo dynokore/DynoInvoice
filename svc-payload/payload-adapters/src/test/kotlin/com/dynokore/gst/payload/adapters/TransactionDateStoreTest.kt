@@ -21,10 +21,10 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.HandleOutcome
+import com.dynokore.platform.outboxandqueue.WorkQueue
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.mockk.mockk
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
@@ -50,7 +50,7 @@ class TransactionDateStoreTest {
             SignedBindings.bind(c, tenant)
             try {
                 val dsl = DSL.using(c, SQLDialect.POSTGRES)
-                val jobs = JooqBuildJobs(dsl, mockk(), { tenant })
+                val jobs = JooqBuildJobs(dsl, unusedQueue(), { tenant })
                 val trigger =
                     BuildTrigger(
                         BuildInputs {
@@ -176,4 +176,13 @@ class TransactionDateStoreTest {
         bare.connectionRef shouldBe null
         bare.transactionDate shouldBe null
     }
+
+    /** The build queue is never reached: the trigger of these tests enqueues nothing. */
+    private fun unusedQueue(): WorkQueue =
+        java.lang.reflect.Proxy.newProxyInstance(
+            WorkQueue::class.java.classLoader,
+            arrayOf(WorkQueue::class.java),
+        ) { _, m, _ ->
+            error("the build queue is not expected to be called: ${m.name}")
+        } as WorkQueue
 }
