@@ -26,8 +26,8 @@ import java.time.ZoneOffset
 /**
  * TPL-11. The grants the expiry scan looks at in the bound tenant (the DSLContext adds the tenant to every statement,
  * forced row-level security stays behind it): the ACTIVE grants that have an end date and have not ended, and the
- * ACTIVE external grants that have ended and have no ACC-003 record yet. The grantee kind is read from the identity row,
- * the granting administrator is the `created_by` of the grant.
+ * ACTIVE external grants that have ended and have no ACC-003 record yet. The grantee kind is read from the identity
+ * row, the granting administrator is the `created_by` of the grant.
  *
  * The entity the notices of a grant are filed under (the outbox refuses a domain event under the tenant-wide entity,
  * FR-K.3): the entity of an entity scope, else the smallest reference of the entities the scope covers, else none; a
@@ -81,7 +81,7 @@ class JooqExpiryScan(
         }
 }
 
-/** TPL-11. The notices recorded per grant and day, in the transaction the caller holds; the unique key refuses a repeat. */
+/** TPL-11. The notices recorded per grant and day, in the caller's transaction; the unique key refuses a repeat. */
 class JooqExpiryNoticeLog(
     private val dsl: DSLContext,
     private val clock: Clock,

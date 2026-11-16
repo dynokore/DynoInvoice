@@ -164,6 +164,7 @@ class GrantExpiryNoticeJob {
     @Bean
     fun expiryNoticeTelemetry(registry: MeterRegistry): ExpiryNoticeTelemetry = GrantExpiryNoticeTelemetry(registry)
 
+    @Suppress("LongParameterList") // one collaborator per port of the use case
     @Bean
     fun scanGrantExpiryNotices(
         source: ExpiryScanSource,
@@ -188,6 +189,7 @@ class GrantExpiryNoticeJob {
         tx: TransactionRunner,
     ) = JooqExpiryClaim(dsl, tx)
 
+    @Suppress("LongParameterList") // one collaborator per port of the scheduler
     @Bean
     fun grantExpiryNoticeScheduler(
         claim: JooqExpiryClaim,

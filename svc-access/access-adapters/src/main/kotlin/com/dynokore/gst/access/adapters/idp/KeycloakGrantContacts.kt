@@ -36,10 +36,12 @@ class KeycloakGrantContacts(
         val name = identity.value
         val users = getJson(accessToken(), "/admin/realms/${enc(realm)}/users?username=${enc(name)}&exact=true")
         check(users.isArray) { "the user search did not come back as a list" }
-        if (users.size() != 1) return null
-        val user = users[0]
-        if (user.path("username").asString() != name) return null
-        return user.path("email").asString().takeIf { it.isNotBlank() }
+        val user = if (users.size() == 1) users[0] else null
+        return user
+            ?.takeIf { it.path("username").asString() == name }
+            ?.path("email")
+            ?.asString()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun accessToken(): String {
