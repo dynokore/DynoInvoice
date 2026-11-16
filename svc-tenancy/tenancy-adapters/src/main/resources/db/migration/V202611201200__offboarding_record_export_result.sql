@@ -1,4 +1,4 @@
--- V202611201100: the export result of the offboarding record (INV-REQ-877; INV-T-22966, INV-AC-22960). The result event
+-- V202611201200: the export result of the offboarding record (INV-REQ-877; INV-T-22966, INV-AC-22960). The result event
 -- of the export moves a REQUESTED record to COMPLETED or FAILED: tenancy_runtime may update only the four columns of
 -- the result (column-level UPDATE, no DELETE; NIST SP 800-53 AC-6), and a trigger refuses any update of a record whose
 -- state is COMPLETED or FAILED, so a terminal state is immutable (INV-Q-5025). This replaces the rule of
