@@ -52,6 +52,7 @@ import com.dynokore.gst.rules.adapters.web.DryRunCalls
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImporter
 import com.dynokore.gst.rules.adapters.web.MappingSpreadsheetImports
 import com.dynokore.gst.rules.adapters.web.RegistryNamedPackVersions
+import com.dynokore.gst.rules.adapters.web.ReviewPolicyValues
 import com.dynokore.gst.rules.adapters.web.unavailable
 import com.dynokore.gst.rules.application.AcknowledgePackDelta
 import com.dynokore.gst.rules.application.AcknowledgementPermissionPort
@@ -103,8 +104,6 @@ import com.dynokore.gst.rules.application.SilenceLimitPort
 import com.dynokore.gst.rules.application.TenantReviewPolicy
 import com.dynokore.gst.rules.application.TenantReviewPolicyReader
 import com.dynokore.gst.rules.application.TrustAnchorSource
-import com.dynokore.gst.rules.domain.pack.GraceDays
-import com.dynokore.gst.rules.domain.pack.ReviewPolicy
 import com.dynokore.gst.rules.domain.resolution.PackResolver
 import com.dynokore.gst.rules.domain.resolution.PackTypes
 import com.dynokore.gst.rules.domain.scope.ScopeVerdictPort
@@ -687,29 +686,11 @@ class RulesConfiguration {
                     } else {
                         DomainDeploymentForm.SAAS
                     },
-                policy =
-                    when (review) {
-                        null, "REVIEW_THEN_ACTIVATE" -> ReviewPolicy.REVIEW_IN_GRACE_WINDOW
-                        "ACTIVATE_WITH_NOTICE" -> ReviewPolicy.NOTICE_ONLY
-                        else -> throw unavailable("the review policy is not readable")
-                    },
-                stored = stored?.takeIf { it != "PLATFORM_MAXIMUM" }?.let { GraceDays(graceDays(it)) },
-                maximum =
-                    GraceDays(
-                        if (maximum == null ||
-                            maximum == "DAYS_14"
-                        ) {
-                            DEFAULT_GRACE_DAYS
-                        } else {
-                            graceDays(maximum)
-                        },
-                    ),
+                policy = ReviewPolicyValues.reviewPolicy(review),
+                stored = ReviewPolicyValues.storedDays(stored),
+                maximum = ReviewPolicyValues.maximumDays(maximum),
             )
         }
-
-    private fun graceDays(value: String): Int =
-        value.takeIf { GRACE_DAYS.matches(it) }?.toIntOrNull()?.takeIf { it >= 1 }
-            ?: throw unavailable("the grace window policy is not readable")
 
     /** The expected instances of the fence: rules-svc and every pack holder (a missing holder never arms). */
     @Bean
@@ -951,9 +932,7 @@ class RulesConfiguration {
         const val VP_REVIEW_POLICY = "VP-39"
         const val VP_GRACE_WINDOW = "VP-57"
         const val VP_GRACE_MAXIMUM = "VP-79"
-        const val DEFAULT_GRACE_DAYS = 14
         const val FENCE_WINDOW = "rules.fence.acknowledgement-window"
-        val GRACE_DAYS = Regex("[0-9]{1,4}")
         const val PACK_DRY_RUN = "pack.dry-run"
         const val CURSOR_KEY_SECRET = "rules/active-packs-cursor-key"
         const val ACCESS_URL_PROPERTY = "rules.access-svc-url"

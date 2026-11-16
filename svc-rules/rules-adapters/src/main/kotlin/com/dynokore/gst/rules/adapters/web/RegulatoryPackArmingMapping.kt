@@ -8,6 +8,8 @@ import com.dynokore.gst.rules.application.ArmRegulatoryPackResult
 import com.dynokore.gst.rules.application.ArmingStore
 import com.dynokore.gst.rules.application.ArmingWrite
 import com.dynokore.gst.rules.contract.model.RegulatoryPack
+import com.dynokore.gst.rules.domain.pack.GraceDays
+import com.dynokore.gst.rules.domain.pack.ReviewPolicy
 import com.dynokore.platform.integrationcanon.schematron.CompilationListener
 import com.dynokore.platform.rulepackkernel.PackType
 import com.dynokore.platform.rulepackkernel.fence.CompileOutcome
@@ -15,6 +17,10 @@ import com.dynokore.platform.rulepackkernel.fence.FenceOutcome
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import tools.jackson.core.JacksonException
+import tools.jackson.core.StreamReadFeature
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDate
 
 /**
@@ -202,4 +208,92 @@ class CompilingArmingStore(
         }
         delegate.arm(write)
     }
+}
+
+/**
+ * The reading of the replica text of VP-39, VP-57 and VP-79 (INV-T-4977, allowlist input validation OWASP ASVS V5.1.3,
+ * NIST SP 800-53 SI-10, fail closed). The text is the JSON `value` of the `PolicyChanged` payload: an array of exactly
+ * one option object `{"key": <option key>, "value": <integer, typed options only>}`. An absent value (null) is the
+ * catalogue default of the row; every other text that is not listed here throws [unavailable] (503 SRT-013), with no
+ * guess and no second accepted form.
+ */
+object ReviewPolicyValues {
+    const val VP39_REVIEW = "REVIEW_THEN_ACTIVATE"
+    const val VP39_NOTICE = "ACTIVATE_WITH_NOTICE"
+    const val VP57_PLATFORM_MAXIMUM = "PLATFORM_MAXIMUM"
+    const val VP57_SHORTER = "SHORTER"
+    const val VP79_DAYS_14 = "DAYS_14"
+    const val VP79_CUSTOM = "CUSTOM"
+    const val DEFAULT_MAXIMUM_DAYS = 14
+
+    private const val KEY = "key"
+    private const val VALUE = "value"
+    private val mapper: JsonMapper =
+        JsonMapper
+            .builder()
+            .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+            .build()
+
+    /** VP-39 at the tenant's scope. */
+    fun reviewPolicy(text: String?): ReviewPolicy =
+        if (text == null) {
+            ReviewPolicy.REVIEW_IN_GRACE_WINDOW
+        } else {
+            when (option(text, mapOf(VP39_REVIEW to false, VP39_NOTICE to false)).first) {
+                VP39_REVIEW -> ReviewPolicy.REVIEW_IN_GRACE_WINDOW
+                else -> ReviewPolicy.NOTICE_ONLY
+            }
+        }
+
+    /** VP-57 at the tenant's scope: none stored means the platform maximum applies. */
+    fun storedDays(text: String?): GraceDays? {
+        if (text == null) return null
+        val (key, days) = option(text, mapOf(VP57_PLATFORM_MAXIMUM to false, VP57_SHORTER to true))
+        return if (key == VP57_PLATFORM_MAXIMUM) null else GraceDays(days!!)
+    }
+
+    /** VP-79 at installation scope. */
+    fun maximumDays(text: String?): GraceDays {
+        if (text == null) return GraceDays(DEFAULT_MAXIMUM_DAYS)
+        val (key, days) = option(text, mapOf(VP79_DAYS_14 to null, VP79_CUSTOM to true))
+        return GraceDays(if (key == VP79_DAYS_14) DEFAULT_MAXIMUM_DAYS else days!!)
+    }
+
+    /**
+     * Parses one option. [allowed] maps each option key to whether it takes a day count: true required, false none,
+     * null optional and, when present, equal to [DEFAULT_MAXIMUM_DAYS].
+     */
+    private fun option(
+        text: String,
+        allowed: Map<String, Boolean?>,
+    ): Pair<String, Int?> {
+        val node =
+            try {
+                mapper.readTree(text)
+            } catch (_: JacksonException) {
+                throw unreadable()
+            }
+        if (!node.isArray || node.size() != 1 || !node[0].isObject) throw unreadable()
+        val option = node[0]
+        if (option.propertyNames().asSequence().any { it != KEY && it != VALUE }) throw unreadable()
+        val key = option[KEY]?.takeIf { it.isString }?.stringValue() ?: throw unreadable()
+        if (!allowed.containsKey(key)) throw unreadable()
+        val value = option[VALUE]
+        val days =
+            if (value == null) {
+                null
+            } else {
+                if (!value.isIntegralNumber || !value.canConvertToInt()) throw unreadable()
+                value.intValue()
+            }
+        when (allowed.getValue(key)) {
+            true -> if (days == null || days < 1) throw unreadable()
+            false -> if (days != null) throw unreadable()
+            null -> if (days != null && days != DEFAULT_MAXIMUM_DAYS) throw unreadable()
+        }
+        return key to (days ?: if (allowed.getValue(key) == null) DEFAULT_MAXIMUM_DAYS else null)
+    }
+
+    private fun unreadable() = unavailable("the review policy value is not readable")
 }

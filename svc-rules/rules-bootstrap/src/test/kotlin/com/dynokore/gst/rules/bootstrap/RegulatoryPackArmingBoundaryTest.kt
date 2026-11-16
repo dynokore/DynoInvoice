@@ -5,18 +5,27 @@ import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.rules.adapters.web.CompileObserver
 import com.dynokore.gst.rules.adapters.web.CompiledPackHold
 import com.dynokore.gst.rules.adapters.web.RegulatoryPackArmingMapping
+import com.dynokore.gst.rules.adapters.web.ReviewPolicyValues
 import com.dynokore.gst.rules.application.AcknowledgePackDeltaResult
+import com.dynokore.gst.rules.application.ExpectedInstances
 import com.dynokore.gst.rules.application.PackCurrencyStore
+import com.dynokore.gst.rules.application.TenantReviewPolicy
+import com.dynokore.gst.rules.application.TenantReviewPolicyReader
+import com.dynokore.gst.rules.domain.pack.GraceDays
+import com.dynokore.gst.rules.domain.pack.ReviewPolicy
 import com.dynokore.gst.rules.served.MovableClock
 import com.dynokore.gst.rules.served.PolicyFixtures
 import com.dynokore.gst.rules.served.ReplicaFallbackDouble
 import com.dynokore.gst.rules.served.subjectOf
 import com.dynokore.gst.rules.served.workloadToken
 import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.productruntime.TrainFence
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
+import com.dynokore.platform.serviceruntime.replica.CellAllowance
 import com.dynokore.platform.serviceruntime.replica.GrantScope
+import com.dynokore.platform.serviceruntime.replica.OperationRoleMap
 import com.dynokore.platform.serviceruntime.replica.PolicyChanged
 import com.dynokore.platform.serviceruntime.replica.PolicyReplica
 import com.dynokore.platform.serviceruntime.replica.PolicySource
@@ -30,13 +39,14 @@ import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
-import org.springframework.mock.env.MockEnvironment
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import java.io.ByteArrayOutputStream
@@ -77,6 +87,11 @@ object CurrencyCalls {
     val compiles = AtomicInteger()
 }
 
+/** Switched on by one case only and off again in its `finally`. */
+object ArmFilter {
+    @Volatile var on = false
+}
+
 @TestConfiguration(proxyBeanMethods = false)
 class ArmingFixtures {
     /** Counts the evaluations of the currency monitor (every `packActivated()` ends in one `record`). */
@@ -109,6 +124,25 @@ class ArmingFixtures {
                                 }
                             }
                         }
+            }
+        }
+    }
+
+    /**
+     * The generated operation-to-roles map; while [ArmFilter.on] is set it returns no role for `regulatory-pack.arm`
+     * and the answer of the generated map for every other key (the look-alike case of INV-AC-20504).
+     */
+    @Bean
+    @Primary
+    fun filteredRoleMap(
+        @Value("\${gst.form}") form: String,
+    ): OperationRoleMap {
+        val deployment = DeploymentForm.valueOf(form.uppercase())
+        return OperationRoleMap { key ->
+            if (ArmFilter.on && key == ARM_KEY) {
+                emptyMap()
+            } else {
+                OperationRoles.rolesFor(deployment, key).mapValues { CellAllowance.valueOf(it.value.name) }
             }
         }
     }
@@ -433,6 +467,22 @@ open class ArmingHarness(
         ),
     )
 
+    protected fun setInstallation(
+        vp: String,
+        value: String,
+    ) = policy.accept(
+        PolicyChanged(
+            PolicyScope.installation(),
+            vp,
+            value,
+            LocalDate.of(2020, 1, 1),
+            PolicySource.PROFILE,
+            null,
+            "gst.platform.policy-changed.v1",
+            versions.incrementAndGet(),
+        ),
+    )
+
     /** A date no other case of the class uses, so that the registry's resolution by date is unambiguous. */
     protected fun uniqueDate(): String = LocalDate.of(2040, 1, 1).plusDays(dates.incrementAndGet()).toString()
 
@@ -479,7 +529,7 @@ class RegulatoryPackArmingBoundaryTest(
             TYPE,
             v,
         )
-        setPolicy(notice, "VP-39", "ACTIVATE_WITH_NOTICE")
+        setPolicy(notice, "VP-39", """[{"key":"ACTIVATE_WITH_NOTICE"}]""")
         grantArmer("u-armer")
         val answer = arm("u-armer", TYPE, v, effective)
         answer.body() shouldContain "ARMED"
@@ -495,7 +545,7 @@ class RegulatoryPackArmingBoundaryTest(
         val v = seedApproved(effective = effective)
         ackAll(TYPE, v)
         delta(tenant, TYPE, v, daysAgo = 30)
-        if (policyValue != null) setPolicy(tenant, "VP-39", policyValue)
+        if (policyValue != null) setPolicy(tenant, "VP-39", """[{"key":"$policyValue"}]""")
         grantArmer("u-armer")
         arm("u-armer", TYPE, v, effective).statusCode() shouldBe 200
         return reviews(v)
@@ -666,20 +716,214 @@ class RegulatoryPackArmingBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1903 the window key is read from configuration with no default and fails closed`() {
-        val config = RulesConfiguration()
-        val key = "rules.fence.acknowledgement-window"
-
-        fun window(env: MockEnvironment) = config.fenceAcknowledgementWindow(env)
-        window(MockEnvironment().withProperty(key, "PT15M")).value shouldBe Duration.ofMinutes(15)
-        listOf("", "15 minutes").forEach {
-            val e = runCatching { window(MockEnvironment().withProperty(key, it)) }.exceptionOrNull()
-            e?.message.orEmpty() shouldContain key
-        }
-        runCatching { window(MockEnvironment()) }.exceptionOrNull()?.message.orEmpty() shouldContain key
+    fun `INV-AC-1903 application yaml carries the window line once and no look-alike key`() {
         val yaml = Files.readAllLines(Path.of("src/main/resources/application.yaml"))
         yaml.count { it.trim() == "fence.acknowledgement-window: PT15M" } shouldBe 1
         yaml.none { it.contains("acknowledgment-window") } shouldBe true
+        context.getBean(com.dynokore.gst.rules.bootstrap.FenceAcknowledgementWindow::class.java).value shouldBe
+            Duration.parse("PT15M")
+    }
+
+    // ---- the replica value encoding (INV-AC-1903, variation-point reads) ----
+
+    private val reader get() = context.getBean(TenantReviewPolicyReader::class.java)
+
+    private fun saas(
+        policy: ReviewPolicy = ReviewPolicy.REVIEW_IN_GRACE_WINDOW,
+        stored: GraceDays? = null,
+        maximum: Int = 14,
+    ) = TenantReviewPolicy(
+        com.dynokore.gst.rules.domain.pack.DeploymentForm.SAAS,
+        policy,
+        stored,
+        GraceDays(maximum),
+    )
+
+    @Test
+    fun `INV-AC-1903 the option keys are the catalogue keys of the rows`() {
+        listOf(
+            ReviewPolicyValues.VP39_REVIEW to "REVIEW_THEN_ACTIVATE",
+            ReviewPolicyValues.VP39_NOTICE to "ACTIVATE_WITH_NOTICE",
+            ReviewPolicyValues.VP57_PLATFORM_MAXIMUM to "PLATFORM_MAXIMUM",
+            ReviewPolicyValues.VP57_SHORTER to "SHORTER",
+            ReviewPolicyValues.VP79_DAYS_14 to "DAYS_14",
+            ReviewPolicyValues.VP79_CUSTOM to "CUSTOM",
+        ).forEach { (constant, literal) -> constant shouldBe literal }
+    }
+
+    @Test
+    fun `INV-AC-1903 each accepted replica text gives its review policy field by field`() {
+        val t = TenantId(UUID.randomUUID())
+        reader.read(t.toString()) shouldBe saas() // the three absent values: the catalogue defaults
+        ReviewPolicyValues.maximumDays(null) shouldBe GraceDays(14)
+        setPolicy(t, "VP-39", """[{"key":"REVIEW_THEN_ACTIVATE"}]""")
+        reader.read(t.toString()) shouldBe saas()
+        setPolicy(t, "VP-39", """[{"key":"ACTIVATE_WITH_NOTICE"}]""")
+        reader.read(t.toString()) shouldBe saas(policy = ReviewPolicy.NOTICE_ONLY)
+        setPolicy(t, "VP-57", """[{"key":"PLATFORM_MAXIMUM"}]""")
+        reader.read(t.toString()) shouldBe saas(policy = ReviewPolicy.NOTICE_ONLY)
+        setPolicy(t, "VP-57", """[{"key":"SHORTER","value":7}]""")
+        reader.read(t.toString()) shouldBe saas(policy = ReviewPolicy.NOTICE_ONLY, stored = GraceDays(7))
+        try {
+            setInstallation("VP-79", """[{"key":"DAYS_14"}]""")
+            reader.read(t.toString()).maximum shouldBe GraceDays(14)
+            setInstallation("VP-79", """[{"key":"DAYS_14","value":14}]""")
+            reader.read(t.toString()).maximum shouldBe GraceDays(14)
+            setInstallation("VP-79", """[{"key":"CUSTOM","value":30}]""")
+            reader.read(t.toString()).maximum shouldBe GraceDays(30)
+        } finally {
+            setInstallation("VP-79", """[{"key":"DAYS_14"}]""")
+        }
+    }
+
+    private val rejected =
+        listOf(
+            "SHORTER",
+            "7",
+            """[{"key":"shorter","value":7}]""",
+            """[{"key":"SHORTEST","value":7}]""",
+            """[{"key":"SHORTER","value":0}]""",
+            """[{"key":"SHORTER","value":-3}]""",
+            """[{"key":"SHORTER","value":"7"}]""",
+            """[{"key":"SHORTER","value":7.5}]""",
+            """[{"key":"SHORTER","value":99999999999}]""",
+            """[{"key":"SHORTER"}]""",
+            """[{"key":"CUSTOM"}]""",
+            """[{"key":"CUSTOM","value":0}]""",
+            """[{"key":"REVIEW_THEN_ACTIVATE","value":1}]""",
+            """[{"key":"PLATFORM_MAXIMUM","value":7}]""",
+            """[{"key":"DAYS_14","value":15}]""",
+            """{"key":"SHORTER","value":7}""",
+            "[]",
+            """[{"key":"SHORTER","value":7},{"key":"SHORTER","value":8}]""",
+            """[{"key":"SHORTER","value":7,"unit":"days"}]""",
+            """[{"value":7}]""",
+            """[{"key"""",
+        )
+
+    @Test
+    fun `INV-AC-1903 every unrecognised replica text is refused by the reader, never defaulted`() {
+        rejected.forEach { text ->
+            listOf<(String?) -> Any?>(
+                ReviewPolicyValues::reviewPolicy,
+                ReviewPolicyValues::storedDays,
+                ReviewPolicyValues::maximumDays,
+            ).forEach { read ->
+                (runCatching { read(text) }.exceptionOrNull() != null) shouldBe true
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-1903 an unrecognised replica text answers 503 SRT-013 and every table is equal`() {
+        val effective = LocalDate.now(clock).minusDays(1).toString()
+        val v = seedApproved(effective = effective)
+        ackAll(TYPE, v)
+        delta(tenant, TYPE, v, daysAgo = 30)
+        grantArmer("u-armer")
+        val before = snapshot()
+        try {
+            rejected.forEach { text ->
+                listOf("VP-39", "VP-57").forEach { vp ->
+                    setPolicy(tenant, vp, text)
+                    refused(arm("u-armer", TYPE, v, effective), 503, "SRT-013")
+                    snapshot() shouldBe before
+                    setPolicy(
+                        tenant,
+                        vp,
+                        if (vp ==
+                            "VP-39"
+                        ) {
+                            """[{"key":"REVIEW_THEN_ACTIVATE"}]"""
+                        } else {
+                            """[{"key":"PLATFORM_MAXIMUM"}]"""
+                        },
+                    )
+                }
+                setInstallation("VP-79", text)
+                refused(arm("u-armer", TYPE, v, effective), 503, "SRT-013")
+                snapshot() shouldBe before
+                setInstallation("VP-79", """[{"key":"DAYS_14"}]""")
+            }
+        } finally {
+            setInstallation("VP-79", """[{"key":"DAYS_14"}]""")
+        }
+        arm("u-armer", TYPE, v, effective).statusCode() shouldBe 200
+    }
+
+    // ---- the platform row (INV-AC-1903) ----
+
+    private val lookAlike = TenantId.of("ffffffff-ffff-ffff-ffff-fffffffffffe")
+
+    @Test
+    fun `INV-AC-1903 only the platform row arms, writes no review row and is not refused`() {
+        val v = seedApproved()
+        ackAll(TYPE, v)
+        delta(TenantId.PLATFORM, TYPE, v, daysAgo = 1)
+        grantArmer("u-armer")
+        arm("u-armer", TYPE, v).statusCode() shouldBe 200
+        reviews(v) shouldBe ""
+    }
+
+    @Test
+    fun `INV-AC-1903 the platform row beside an open tenant window is 409 SRT-008 and every table is equal`() {
+        val v = seedApproved()
+        ackAll(TYPE, v)
+        delta(TenantId.PLATFORM, TYPE, v, daysAgo = 1)
+        delta(tenant, TYPE, v, daysAgo = 1)
+        grantArmer("u-armer")
+        val before = snapshot()
+        refused(arm("u-armer", TYPE, v), 409, "SRT-008")
+        snapshot() shouldBe before
+    }
+
+    @Test
+    fun `INV-AC-1903 the platform row beside an ended unacknowledged tenant window reviews only that tenant`() {
+        val effective = LocalDate.now(clock).minusDays(1).toString()
+        val v = seedApproved(effective = effective)
+        ackAll(TYPE, v)
+        delta(TenantId.PLATFORM, TYPE, v, daysAgo = 30)
+        delta(tenant, TYPE, v, daysAgo = 30)
+        grantArmer("u-armer")
+        arm("u-armer", TYPE, v, effective).statusCode() shouldBe 200
+        reviews(v) shouldBe "$tenant:false"
+    }
+
+    @Test
+    fun `INV-AC-1903 a tenant id one character off the platform id is not dropped`() {
+        val v = seedApproved()
+        ackAll(TYPE, v)
+        delta(lookAlike, TYPE, v, daysAgo = 1)
+        grantArmer("u-armer")
+        val before = snapshot()
+        refused(arm("u-armer", TYPE, v), 409, "SRT-008")
+        snapshot() shouldBe before
+        val effective = LocalDate.now(clock).minusDays(1).toString()
+        val ended = seedApproved(effective = effective)
+        ackAll(TYPE, ended)
+        delta(lookAlike, TYPE, ended, daysAgo = 30)
+        arm("u-armer", TYPE, ended, effective).statusCode() shouldBe 200
+        reviews(ended) shouldBe "$lookAlike:false"
+    }
+
+    // ---- the look-alike key (INV-AC-20504) ----
+
+    @Test
+    fun `INV-AC-20504 a caller holding only the activation key is refused 403 SRT-004 and every table is equal`() {
+        val v = seedApproved()
+        ackAll(TYPE, v)
+        val activator = roles(DeploymentForm.SAAS, "regulatory-pack.activate").first()
+        grant("u-activate", activator)
+        ArmFilter.on = true
+        try {
+            val before = snapshot()
+            refused(arm("u-activate", TYPE, v), 403, "SRT-004")
+            snapshot() shouldBe before
+            CurrencyCalls.statuses.size shouldBe 0
+        } finally {
+            ArmFilter.on = false
+        }
+        arm("u-activate", TYPE, v).statusCode() shouldBe 200 // the filter is off again: the fixture carries the case
     }
 
     @Test
@@ -779,6 +1023,32 @@ class RegulatoryPackArmingAbortBoundaryTest(
         armed("u-armer")
         arm("u-armer", TYPE, v).statusCode() shouldBe 200
         CurrencyCalls.statuses.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-20503 the expected instances equal the train fence participants of the constants`() {
+        context.getBean(ExpectedInstances::class.java).participants() shouldBe
+            TrainFence.participants(TrainFence.PACK_HOLDERS + TrainFence.ARMER)
+        context.getBean(ExpectedInstances::class.java).participants() shouldBe HOLDERS.toSet()
+    }
+
+    @Test
+    fun `INV-AC-20503 each of the five instances unacknowledged after the window aborts and all five arm`() {
+        armed("u-armer")
+        HOLDERS.forEach { missing ->
+            val v = seedApproved()
+            ackAll(TYPE, v, except = missing)
+            pastWindow()
+            val before = snapshot()
+            refused(arm("u-armer", TYPE, v), 422, "RUL-005")
+            status(TYPE, v) shouldBe "APPROVED"
+            snapshot() shouldBe before
+            CurrencyCalls.statuses.size shouldBe 0
+        }
+        val all = seedApproved()
+        ackAll(TYPE, all)
+        pastWindow()
+        arm("u-armer", TYPE, all).statusCode() shouldBe 200
     }
 
     @Test
@@ -895,5 +1165,70 @@ class RegulatoryPackArmingPrivateBoundaryTest(
         val before = snapshot()
         refused(acknowledge("u-approver", TYPE, v), 403, "SRT-004")
         snapshot() shouldBe before
+    }
+}
+
+/** The window key against a started context (fail closed, 12-factor III): the real beans of the service. */
+class RegulatoryPackFenceWindowContextTest {
+    private val key = "rules.fence.acknowledgement-window"
+    private val secrets: Path =
+        Files.createTempDirectory("rules-window-secrets").also { root ->
+            Files.createDirectories(root.resolve("tenancy"))
+            Files.writeString(root.resolve("tenancy/binding-key-current"), "test-only-binding-key-0123456789ab")
+        }
+
+    private fun runner(vararg window: String) =
+        ApplicationContextRunner()
+            .withUserConfiguration(Tpl18CompositionTest.Tpl18Bootstrap::class.java)
+            .withBean(io.micrometer.core.instrument.MeterRegistry::class.java, {
+                io.micrometer.core.instrument.simple
+                    .SimpleMeterRegistry()
+            })
+            .withBean(
+                "internalRestClientBuilder",
+                org.springframework.web.client.RestClient.Builder::class.java,
+                {
+                    org.springframework.web.client.RestClient
+                        .builder()
+                },
+            ).withPropertyValues(
+                "gst.service=rules-svc",
+                "rules.access-svc-url=http://127.0.0.1:1",
+                "rules.dry-run.parallelism=1",
+                "rules.dry-run.sample-wait=PT1S",
+                "rules.dry-run.retry-after=PT2S",
+                "gst.instance-id=rules-svc-0",
+                "service-runtime.workload-identity.audience=rules-svc",
+                "service-runtime.modules.schema=rules",
+                "inv.tenancy.reference-tables=rules.pack_registry,rules.pack_entry_source",
+                "inv.tenancy.platform-scoped-tables=rules.write_installation_setting,rules.config_purge_tenant," +
+                    "rules.pack_readiness_ack,rules.tenants_with_delta",
+                "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
+                "spring.datasource.username=rules_runtime",
+                "service-runtime.pool.profile=minimal",
+                "gst.bindings.secret-store.mount-root=$secrets",
+                "gst.bindings.telemetry-export=bundled-otel",
+                "gst.bindings.telemetry-export-otlp-endpoint=http://localhost:4318",
+                *window,
+            )
+
+    private fun causes(t: Throwable?) = generateSequence(t) { it.cause }.mapNotNull { it.message }.toList()
+
+    @Test
+    fun `INV-AC-1903 the context fails to start naming the key for an absent, empty or malformed window`() {
+        listOf(emptyArray(), arrayOf("$key="), arrayOf("$key=15 minutes")).forEach { window ->
+            runner(*window).run { context ->
+                (context.startupFailure != null) shouldBe true
+                causes(context.startupFailure).any { key in it } shouldBe true
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-1903 the context starts with an ISO-8601 window and holds exactly that value`() {
+        runner("$key=PT7M").run { context ->
+            context.startupFailure shouldBe null
+            context.getBean(FenceAcknowledgementWindow::class.java).value shouldBe Duration.ofMinutes(7)
+        }
     }
 }
