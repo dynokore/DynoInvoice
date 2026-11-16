@@ -220,7 +220,7 @@ open class RetentionController(
         val kept = operation?.let { (it.completedAt ?: it.startedAt).plus(visibility.period) }
         return when {
             operation == null || kept == null || !clock.instant().isBefore(kept) -> refuse(ClosedErrorCode.NOT_FOUND)
-            operation.starterUserId != caller.actor -> refuse(ClosedErrorCode.ACCESS_DENIED)
+            operation.starterUserId != caller.actor -> refuse(ClosedErrorCode.NOT_FOUND)
             else -> ResponseEntity.ok(status(operation))
         }
     }

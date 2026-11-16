@@ -37,6 +37,8 @@ import com.dynokore.gst.evidence.application.digest.MaxRetention as DigestMaxRet
 @ConfigurationProperties(prefix = "evidence.retention")
 class RetentionProperties(
     val deletionStatusVisibility: Duration = PartitionDeletionVisibility.FLOOR,
+    /** `archive-lock-period`: lock of an archive object; no default, unset refuses the deletion. */
+    val archiveLockPeriod: Duration? = null,
 )
 
 /**
@@ -95,7 +97,8 @@ class RetentionConfiguration {
         dsl: DSLContext,
         store: ObjectStore,
         clock: Clock,
-    ): PartitionLifecycle = JooqPartitionLifecycle(dsl, store, clock)
+        properties: RetentionProperties,
+    ): PartitionLifecycle = JooqPartitionLifecycle(dsl, store, clock, properties.archiveLockPeriod)
 
     @Bean
     @Suppress("LongParameterList") // one port per fact of the ruled design

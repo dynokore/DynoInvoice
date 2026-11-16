@@ -99,6 +99,7 @@ class PartitionDeletionHttpTest {
     @BeforeAll
     fun start() {
         System.setProperty(GateStoreBeans.PROPERTY, "true")
+        System.setProperty(LOCK_PROPERTY, LOCK_PERIOD)
         dir = Files.createTempDirectory("pdh")
         service = RetentionService.start(dir, listOf(WorkloadTokensOnly::class.java, GateStoreBeans::class.java))
     }
@@ -107,6 +108,7 @@ class PartitionDeletionHttpTest {
     fun stop() {
         service.close()
         System.clearProperty(GateStoreBeans.PROPERTY)
+        System.clearProperty(LOCK_PROPERTY)
         dir.toFile().deleteRecursively()
     }
 
@@ -304,6 +306,19 @@ class PartitionDeletionHttpTest {
         user: String = STARTER,
     ) = call("GET", f, "deletion", user)
 
+    /** Equal after the per-request members (correlation id, instance path) are removed. */
+    private fun sameResponse(
+        a: Pair<HttpResponse<String>, JsonNode>,
+        b: Pair<HttpResponse<String>, JsonNode>,
+    ): Boolean {
+        fun bare(n: JsonNode): JsonNode {
+            val copy = n.deepCopy() as tools.jackson.databind.node.ObjectNode
+            PER_REQUEST.forEach { copy.remove(it) }
+            return copy
+        }
+        return a.status() == b.status() && bare(a.second) == bare(b.second)
+    }
+
     private fun Pair<HttpResponse<String>, JsonNode>.status() = first.statusCode()
 
     private fun Pair<HttpResponse<String>, JsonNode>.code() = second.get("code")?.asString()
@@ -358,7 +373,7 @@ class PartitionDeletionHttpTest {
     }
 
     @Test
-    fun `INV-AC-22964 the starter reads SUCCEEDED with the result and another principal is refused`() {
+    fun `INV-AC-22964 the starter reads SUCCEEDED with the result and another principal gets 404 SRT-005`() {
         val f = fixture()
         deleted(f)
         val own = read(f)
@@ -373,10 +388,13 @@ class PartitionDeletionHttpTest {
             .get("partitionId")
             .asString() shouldBe f.partitionId
         val other = read(f, OTHER)
-        other.status() shouldBe 403
-        other.code() shouldBe "SRT-004"
-        // a read of a partition nobody started deleting is not found
-        read(fixture()).status() shouldBe 404
+        other.status() shouldBe 404
+        other.code() shouldBe "SRT-005"
+        other.detail() shouldBe null
+        // a read of a partition nobody started deleting is not found, and the response is the same one
+        val unknown = read(fixture())
+        unknown.status() shouldBe 404
+        sameResponse(other, unknown) shouldBe true
     }
 
     @Test
@@ -469,7 +487,7 @@ class PartitionDeletionHttpTest {
             .isPresent shouldBe true
         // the starter reads RUNNING, another principal is refused
         read(f).second.get("state").asString() shouldBe "RUNNING"
-        read(f, OTHER).status() shouldBe 403
+        read(f, OTHER).status() shouldBe 404
         gate.countDown()
         awaitState(f, "SUCCEEDED")
         val done = read(f)
@@ -565,8 +583,58 @@ class PartitionDeletionHttpTest {
         text shouldContain "at least"
     }
 
+    @Test
+    fun `INV-AC-22964 an unset archive lock period refuses the deletion with 500 SRT-010 and writes no object`() {
+        // the context binds a fixed port: the configured service is stopped while the one without the period runs
+        val beans = listOf(WorkloadTokensOnly::class.java, GateStoreBeans::class.java)
+        service.close()
+        System.clearProperty(LOCK_PROPERTY)
+        service = RetentionService.start(Files.createTempDirectory(dir, "unset"), beans)
+        try {
+            val f = fixture()
+            val refused = delete(f)
+            refused.status() shouldBe 500
+            refused.code() shouldBe "SRT-010"
+            store.objects.isEmpty() shouldBe true
+            rows(f) shouldBe tables.size
+            registryState(f) shouldBe "ATTACHED"
+        } finally {
+            service.close()
+            System.setProperty(LOCK_PROPERTY, LOCK_PERIOD)
+            service = RetentionService.start(Files.createTempDirectory(dir, "restored"), beans)
+        }
+    }
+
+    @Test
+    fun `INV-AC-22964 a negative archive lock period stops the start`() {
+        service.close() // the contexts bind fixed ports
+        val beans = listOf(WorkloadTokensOnly::class.java, GateStoreBeans::class.java)
+        System.setProperty(LOCK_PROPERTY, "-PT1H")
+        try {
+            val failure =
+                runCatching {
+                    EvidenceContext
+                        .startServlet(
+                            Files.createTempDirectory(dir, "negative"),
+                            beans,
+                            arrayOf("evidence.identity-provider.jwk-set-uri=${TestIdentity.jwkSetUri}"),
+                            PartitionDeletionHttpTest::class.java.classLoader,
+                        ).close()
+                }.exceptionOrNull()
+            (failure != null) shouldBe true
+            val text = generateSequence(failure) { it.cause }.mapNotNull { it.message }.joinToString(" | ")
+            text shouldContain "must not be negative"
+        } finally {
+            System.setProperty(LOCK_PROPERTY, LOCK_PERIOD)
+            service = RetentionService.start(Files.createTempDirectory(dir, "after-negative"), beans)
+        }
+    }
+
     private companion object {
+        const val LOCK_PROPERTY = "evidence.retention.archive-lock-period"
+        const val LOCK_PERIOD = "PT1H"
         const val ENTITY = "ENT-A"
+        val PER_REQUEST = listOf("correlationId", "correlation_id", "instance", "traceId")
         const val PATH = "/internal/v1/evidence/partitions/"
         const val OPERATION = "evidence.partition_deletion_operation"
         const val GUARD = "partition_deletion_operation_running_only"

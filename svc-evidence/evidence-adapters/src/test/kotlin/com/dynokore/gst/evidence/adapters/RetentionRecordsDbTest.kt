@@ -46,6 +46,7 @@ import java.util.UUID
  */
 @Suppress("LargeClass", "TooManyFunctions") // one DB test class for the stores of one task
 class RetentionRecordsDbTest {
+    private val lockPeriod: Duration = Duration.ofDays(30)
     private val clock = Clock.fixed(Instant.now(), ZoneOffset.UTC)
     private val tables = RecordKind.entries.map { it.table }
     private val types =
@@ -64,13 +65,17 @@ class RetentionRecordsDbTest {
 
     private class Memory : ObjectStore {
         val objects = mutableMapOf<String, ByteArray>()
+        val retains = mutableMapOf<String, Instant>()
+        var puts = 0
 
         override fun put(
             key: ObjectKey,
             bytes: ByteArray,
             retainUntil: Instant,
         ): ObjectRef {
+            puts++
             objects[key.value] = bytes
+            retains[key.value] = retainUntil
             return ObjectRef(key, retainUntil)
         }
 
@@ -309,6 +314,7 @@ class RetentionRecordsDbTest {
         recorder: Recorder,
         store: ObjectStore,
         audit: Audited = Audited(),
+        lock: Duration? = lockPeriod,
     ): Outcome =
         try {
             val result =
@@ -323,7 +329,7 @@ class RetentionRecordsDbTest {
                         records,
                         records,
                         audit,
-                        JooqPartitionLifecycle(recording, store, clock, recorder),
+                        JooqPartitionLifecycle(recording, store, clock, lock, recorder),
                         clock,
                     ).execute(u.tenant.toString(), "u-starter", partitionId(u))
                 }
@@ -357,6 +363,58 @@ class RetentionRecordsDbTest {
         store.objects.keys.sorted() shouldBe
             fourChainTables.sorted().map { "retention-archive/${u.tenant}/${partitionId(u)}/$it.json" }
         store.objects.values.all { it.size > 2 } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-22964 each archive object is locked for the configured period from the write`() {
+        val u = fixture()
+        val store = Memory()
+        delete(u, Recorder(), store).result shouldBe DeleteAtRetentionEndResult.DELETED
+        store.puts shouldBe fourChainTables.size
+        store.retains.values.all { it == clock.instant().plus(lockPeriod) } shouldBe true
+        (clock.instant().plus(lockPeriod) != clock.instant()) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-22964 an unset archive lock period refuses the deletion and puts no object`() {
+        val u = fixture()
+        val store = Memory()
+        val recorder = Recorder()
+        val outcome = delete(u, recorder, store, lock = null)
+        outcome.result shouldBe null
+        (outcome.failure != null) shouldBe true
+        store.puts shouldBe 0
+        recorder.calls shouldBe emptyList()
+        state(u) shouldBe "ATTACHED"
+        rows(u).values.all { it == 2 } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-22964 a negative archive lock period is refused at construction`() {
+        val failure =
+            runCatching {
+                JooqPartitionLifecycle(
+                    DSL.using(SQLDialect.POSTGRES),
+                    Memory(),
+                    clock,
+                    Duration.ofSeconds(-1),
+                )
+            }.exceptionOrNull()
+        (failure is IllegalArgumentException) shouldBe true
+        JooqPartitionLifecycle(DSL.using(SQLDialect.POSTGRES), Memory(), clock, Duration.ZERO)
+    }
+
+    @Test
+    fun `INV-AC-22964 a retry after a refused detach puts the same four keys again and ends DELETED`() {
+        val u = fixture()
+        val store = Memory()
+        delete(u, Recorder(refuseDetachOf = "acknowledgement"), store).result shouldBe null
+        val first = store.objects.keys.toSet()
+        first.size shouldBe fourChainTables.size
+        state(u) shouldBe "ATTACHED"
+        delete(u, Recorder(), store).result shouldBe DeleteAtRetentionEndResult.DELETED
+        store.objects.keys shouldBe first
+        store.puts shouldBe 2 * fourChainTables.size
     }
 
     @Test

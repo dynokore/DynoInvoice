@@ -10,6 +10,7 @@ import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -24,19 +25,29 @@ import java.util.concurrent.ConcurrentHashMap
  * - [archive]: the rows of each detached partition go to the object store, then `mark_partition_archived` is called
  *   once for the unit (the function checks all four members);
  * - [drop]: `drop_detached_partition(partition)` for each chain table.
+ * The archive objects are locked for [archiveLockPeriod] from the write (NIST SP 800-53 AU-9); it is configuration with
+ * no default: while it is null the deletion is refused before any object is written. Zero is allowed, negative is not.
  * [observe] is told the name of each call just before it is made (`detach:<table>`, `archive`, `drop:<table>`).
  */
 class JooqPartitionLifecycle(
     private val dsl: DSLContext,
     private val store: ObjectStore,
     private val clock: Clock,
+    private val archiveLockPeriod: Duration? = null,
     private val observe: (String) -> Unit = {},
 ) : PartitionLifecycle {
+    init {
+        require(archiveLockPeriod == null || !archiveLockPeriod.isNegative) {
+            "the archive lock period must not be negative, was $archiveLockPeriod"
+        }
+    }
+
     override fun detach(
         partitionId: String,
         auditRef: String,
         retentionEnd: Instant,
     ) {
+        checkNotNull(archiveLockPeriod) { "no archive lock period is configured" }
         // The runtime login holds no right on a detached partition (it is owned by the migration login), so the rows
         // are read through the chain tables, still attached, and written to the object store before the first detach.
         val prefix = archive(partitionId, readUnit(partitionId))
@@ -106,7 +117,7 @@ class JooqPartitionLifecycle(
         return prefix
     }
 
-    private fun retain(): Instant = clock.instant()
+    private fun retain(): Instant = clock.instant().plus(checkNotNull(archiveLockPeriod))
 
     override fun drop(partitionId: String) {
         RecordKind.entries.forEach { kind ->
