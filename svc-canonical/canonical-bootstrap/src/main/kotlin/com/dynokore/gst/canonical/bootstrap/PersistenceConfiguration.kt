@@ -1,6 +1,7 @@
 package com.dynokore.gst.canonical.bootstrap
 
 import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentVersions
+import com.dynokore.gst.canonical.adapters.persistence.JooqEntityIdentities
 import com.dynokore.gst.canonical.adapters.persistence.JooqPeriodSpans
 import com.dynokore.gst.canonical.adapters.persistence.JooqProfileElections
 import com.dynokore.gst.canonical.adapters.persistence.jooq.DefaultCatalog
@@ -32,4 +33,8 @@ class PersistenceConfiguration {
     /** The document version store (INV-AC-21469); the jOOQ context is the one of the open transaction. */
     @Bean
     fun documentVersions(dsl: DSLContext): DocumentVersions = JooqDocumentVersions(dsl)
+
+    /** The entity identity store (INV-Q-21451 A); the jOOQ context is the one of the open transaction. */
+    @Bean
+    fun entityIdentities(dsl: DSLContext): JooqEntityIdentities = JooqEntityIdentities(dsl)
 }
