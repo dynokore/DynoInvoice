@@ -31,6 +31,7 @@ import java.util.UUID
  * artefact through the persisted holder copy, the registry row (STAGED) and the `RulePackStaged` outbox row. Every call
  * runs under the platform binding with the importing user ID as the actor and opens its own transaction.
  */
+@Suppress("LongParameterList") // constructor injection of the collaborators and the injected clock (CS-05)
 class JooqPackImportStore(
     private val dsl: DSLContext,
     private val platform: PlatformTenantBinding,

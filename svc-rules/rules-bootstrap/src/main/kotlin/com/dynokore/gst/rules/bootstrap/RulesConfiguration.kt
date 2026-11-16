@@ -818,6 +818,7 @@ class RulesConfiguration {
     fun trustAnchorSource(): TrustAnchorSource = ClasspathTrustAnchors()
 
     @Bean
+    @Suppress("LongParameterList") // the collaborators of the store, wired once in the composition root (TPL-18)
     fun packImportStore(
         dsl: DSLContext,
         platform: PlatformTenantBinding,

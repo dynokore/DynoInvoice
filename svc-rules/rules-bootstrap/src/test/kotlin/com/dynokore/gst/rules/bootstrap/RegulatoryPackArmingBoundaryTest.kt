@@ -280,7 +280,8 @@ open class ArmingHarness(
         val v = version()
         probe.inTenant(TenantId.PLATFORM) {
             fetchValue(
-                "select rules.register_platform_pack(?::uuid, ?, ?, ?, ?, ?::date, null, '1.0.0', null, ?::timestamptz)",
+                "select rules.register_platform_pack(?::uuid, ?, ?, ?, ?, ?::date, null, '1.0.0', null, " +
+                    "?::timestamptz)",
                 UUID.randomUUID().toString(),
                 "$type-pack",
                 type,
