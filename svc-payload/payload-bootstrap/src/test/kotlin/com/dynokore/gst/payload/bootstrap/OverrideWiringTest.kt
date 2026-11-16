@@ -191,6 +191,8 @@ class OverrideWiringTest : OverrideWiringBase() {
                         "W:subject-ingestion-svc",
                         "Bearer U-u1",
                         """{"submissionType":"TYPE_1A"}""",
+                        // the pinned contract (payload 2.0.0) requires X-Flow-Context on validateIssuance
+                        flowContext = "flow-context-not-verified-here",
                     )
                 answer.status shouldBe 501
             }

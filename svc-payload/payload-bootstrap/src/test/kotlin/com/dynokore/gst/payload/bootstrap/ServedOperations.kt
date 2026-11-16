@@ -191,6 +191,7 @@ class ServedService(
         workload: String,
         authorization: String,
         body: String? = null,
+        flowContext: String? = null,
     ): Answer {
         val request =
             MockMvcRequestBuilders
@@ -202,6 +203,7 @@ class ServedService(
                 .header("X-Workload-Token", workload)
                 .header("Authorization", authorization)
                 .contentType(MediaType.APPLICATION_JSON)
+                .apply { if (flowContext != null) header("X-Flow-Context", flowContext) }
                 .apply { if (body != null) content(body) }
         val response = mvc.perform(request).andReturn().response
         return Answer(response.status, response.contentAsString)

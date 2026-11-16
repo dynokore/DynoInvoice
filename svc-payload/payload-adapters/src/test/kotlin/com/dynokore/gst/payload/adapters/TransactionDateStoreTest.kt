@@ -120,7 +120,8 @@ class TransactionDateStoreTest {
         PayloadDb.superuser().use { c ->
             c
                 .prepareStatement(
-                    "select transaction_date from payload.canonical_input where tenant_id = ? and doc_uuid = ? and version = ?",
+                    "select transaction_date from payload.canonical_input " +
+                        "where tenant_id = ? and doc_uuid = ? and version = ?",
                 ).use { p ->
                     p.setObject(1, tenant)
                     p.setObject(2, doc)

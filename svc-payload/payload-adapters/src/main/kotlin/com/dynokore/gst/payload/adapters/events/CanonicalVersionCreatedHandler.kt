@@ -19,6 +19,7 @@ import java.util.UUID
  * The narrow port that stores the canonical document of a version with its routing facts (interface segregation: the
  * handler never sees the concrete store).
  */
+@Suppress("LongParameterList") // the stored facts of one canonical input
 fun interface CanonicalInputWriter {
     /** True when a row was newly stored; the first stored document of a version wins. */
     fun store(

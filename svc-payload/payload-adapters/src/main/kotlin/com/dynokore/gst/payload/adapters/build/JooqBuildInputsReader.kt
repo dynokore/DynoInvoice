@@ -6,6 +6,7 @@ import com.dynokore.gst.payload.adapters.persistence.jooq.tables.SubmissionTypeD
 import com.dynokore.gst.payload.application.build.BuildInput
 import com.dynokore.gst.payload.application.build.BuildInputsReader
 import org.jooq.DSLContext
+import org.jooq.Record
 import java.util.UUID
 
 /**
@@ -55,7 +56,11 @@ class JooqBuildInputsReader(
                         .and(input.DOC_UUID.eq(docUuid))
                         .and(input.VERSION.eq(version)),
                 ).fetchOne() ?: return null
-        return BuildInput(
+        return toInput(record)
+    }
+
+    private fun toInput(record: Record): BuildInput =
+        BuildInput(
             entityRef = checkNotNull(record.get(fact.ENTITY_REF)),
             canonicalDocument = checkNotNull(record.get(input.CANONICAL_DOCUMENT)).data(),
             aggregateId = record.get(fact.AGGREGATE_ID),
@@ -64,5 +69,4 @@ class JooqBuildInputsReader(
             connectionRef = record.get(decision.CONNECTION_REF),
             transactionDate = record.get(input.TRANSACTION_DATE),
         )
-    }
 }
