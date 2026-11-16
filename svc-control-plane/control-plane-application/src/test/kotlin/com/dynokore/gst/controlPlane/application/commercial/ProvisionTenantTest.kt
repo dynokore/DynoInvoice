@@ -167,7 +167,7 @@ class ProvisionTenantTest {
     }
 
     @Test
-    fun `INV-AC-8570 INV-AC-8572 INV-AC-1331 a Singapore request is recorded and every resource carries SG`() {
+    fun `INV-AC-8570_INV-AC-8572_INV-AC-1331_a_Singapore_request_is_recorded_and_every_resource_carries_SG`() {
         val (refusal, provisioned) = run(command())
         refusal shouldBe null
         checkNotNull(provisioned)
@@ -202,7 +202,7 @@ class ProvisionTenantTest {
     }
 
     @Test
-    fun `INV-AC-935 the first invitation is signed, expires after the call and is messaged`() {
+    fun `INV-AC-935_the_first_invitation_is_signed,_expires_after_the_call_and_is_messaged`() {
         val provisioned = checkNotNull(run(command()).second)
         val expiry = now.plus(Duration.ofDays(7))
         provisioned.invitationRef shouldBe "INVN-1"
