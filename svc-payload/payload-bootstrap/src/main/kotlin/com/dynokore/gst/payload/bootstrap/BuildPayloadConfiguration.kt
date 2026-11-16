@@ -9,6 +9,8 @@ import com.dynokore.gst.payload.adapters.build.JooqTypeDecisionReader
 import com.dynokore.gst.payload.adapters.build.OutboxPayloadRejectedPublisher
 import com.dynokore.gst.payload.adapters.build.PintSgPayloadProjector
 import com.dynokore.gst.payload.adapters.build.PolicySpecificationFamilySource
+import com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix
+import com.dynokore.gst.payload.application.MdePackSource
 import com.dynokore.gst.payload.application.build.BuildInputsReader
 import com.dynokore.gst.payload.application.build.BuildOutcomes
 import com.dynokore.gst.payload.application.build.BuildPayload
@@ -29,9 +31,9 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The beans of the claimed build job: the readers, the outcomes, the `PayloadRejected` publisher, the projector, the
- * use case and the handler. `SpecificationFamilySource` and the active-pack source of the off-network prefix are
- * not ruled yet (see the MR gaps): the family bean fails closed and, while no [ActivePackOffNetworkPrefix] bean exists,
- * a build is `BuildNotReady`.
+ * use case and the handler. `SpecificationFamilySource` is not ruled yet (see the MR gaps): the family bean fails
+ * closed. The active pack is read from the replica once per call of [ActivePackOffNetworkPrefix]; with no active
+ * pack a build is `BuildNotReady`.
  */
 @Configuration(proxyBeanMethods = false)
 class BuildPayloadConfiguration {
@@ -73,6 +75,17 @@ class BuildPayloadConfiguration {
                 error("the policy scope of the specification family (VP-71) is not ruled; entity ${request.entityRef}")
             },
         )
+
+    /**
+     * One read of the active MDE pack per call (INV-AC-23595): no cache, no static state, so the next build reads a
+     * newly activated version. `contents` is the stored text of that same read; no active pack gives null.
+     */
+    @Bean
+    @ConditionalOnMissingBean(ActivePackOffNetworkPrefix::class)
+    fun activePackOffNetworkPrefix(packs: MdePackSource): ActivePackOffNetworkPrefix =
+        ActivePackOffNetworkPrefix {
+            packs.active()?.let { ActivePackRead(it.version, MdePackOffNetworkPrefix(it.contents), it.contents) }
+        }
 
     @Bean
     fun payloadProjector(

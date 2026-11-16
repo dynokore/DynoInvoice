@@ -1,7 +1,7 @@
 package com.dynokore.gst.payload.bootstrap
 
+import com.dynokore.gst.payload.adapters.packs.JooqMdePackSource
 import com.dynokore.gst.payload.adapters.packs.RulePackEventsHandler
-import com.dynokore.gst.payload.application.AbsentMdePackSource
 import com.dynokore.gst.payload.application.CapabilityService
 import com.dynokore.gst.payload.application.MdePackSource
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -38,7 +38,7 @@ class Tpl16ServiceCompositionTest {
                 WorkQueue::class,
                 CapabilityService::class,
             ).forEach { context.getBean(it.java) }
-            context.getBean(MdePackSource::class.java).shouldBeInstanceOf<AbsentMdePackSource>()
+            context.getBean(MdePackSource::class.java).shouldBeInstanceOf<JooqMdePackSource>()
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:payload-svc"
             catalogueTypes(context) shouldBe

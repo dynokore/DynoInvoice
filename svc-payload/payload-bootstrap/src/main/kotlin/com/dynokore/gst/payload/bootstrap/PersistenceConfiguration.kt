@@ -1,9 +1,9 @@
 package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.persistence.JooqCapabilityRegistry
+import com.dynokore.gst.payload.adapters.packs.JooqMdePackSource
 import com.dynokore.gst.payload.adapters.persistence.JooqFindingsStore
 import com.dynokore.gst.payload.adapters.persistence.jooq.DefaultCatalog
-import com.dynokore.gst.payload.application.AbsentMdePackSource
 import com.dynokore.gst.payload.application.CapabilityRegistry
 import com.dynokore.gst.payload.application.CapabilityService
 import com.dynokore.gst.payload.application.MdePackSource
@@ -35,11 +35,14 @@ class PersistenceConfiguration {
     ): JooqFindingsStore = JooqFindingsStore(dsl) { tenants.current().value }
 
     /**
-     * The production source: no MDE pack is loaded yet, so `markSpecified(SERIALISATION)` stays refused. The task that
-     * loads the pack replaces this one bean.
+     * The production source: the active row of `payload.mde_pack_replica` of the bound tenant (INV-AC-23595).
+     * `AbsentMdePackSource` stays as a class but is no production bean.
      */
     @Bean
-    fun mdePackSource(): MdePackSource = AbsentMdePackSource()
+    fun mdePackSource(
+        dsl: DSLContext,
+        tenants: TenantContext,
+    ): MdePackSource = JooqMdePackSource(dsl) { tenants.current().value }
 
     @Bean
     fun capabilityService(
