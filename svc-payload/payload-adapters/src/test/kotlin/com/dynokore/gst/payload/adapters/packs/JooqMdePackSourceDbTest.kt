@@ -21,16 +21,17 @@ class JooqMdePackSourceDbTest {
         contents: String,
         active: Boolean,
     ) = PayloadDb.superuser().use { c ->
-        c.prepareStatement(
-            "insert into payload.mde_pack_replica(tenant_id, pack_identifier, pack_version, contents, active) " +
-                "values (?, 'mde-core', ?, ?::jsonb, ?)",
-        ).use {
-            it.setObject(1, tenant)
-            it.setString(2, version)
-            it.setString(3, contents)
-            it.setBoolean(4, active)
-            it.executeUpdate()
-        }
+        c
+            .prepareStatement(
+                "insert into payload.mde_pack_replica(tenant_id, pack_identifier, pack_version, contents, active) " +
+                    "values (?, 'mde-core', ?, ?::jsonb, ?)",
+            ).use {
+                it.setObject(1, tenant)
+                it.setString(2, version)
+                it.setString(3, contents)
+                it.setBoolean(4, active)
+                it.executeUpdate()
+            }
     }
 
     private fun read(tenant: UUID) =
@@ -41,16 +42,17 @@ class JooqMdePackSourceDbTest {
         version: String,
     ): String =
         PayloadDb.superuser().use { c ->
-            c.prepareStatement(
-                "select contents::text from payload.mde_pack_replica where tenant_id = ? and pack_version = ?",
-            ).use {
-                it.setObject(1, tenant)
-                it.setString(2, version)
-                it.executeQuery().use { r ->
-                    r.next()
-                    r.getString(1)
+            c
+                .prepareStatement(
+                    "select contents::text from payload.mde_pack_replica where tenant_id = ? and pack_version = ?",
+                ).use {
+                    it.setObject(1, tenant)
+                    it.setString(2, version)
+                    it.executeQuery().use { r ->
+                        r.next()
+                        r.getString(1)
+                    }
                 }
-            }
         }
 
     @Test
