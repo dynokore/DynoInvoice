@@ -99,6 +99,9 @@ class RegulatoryPackDeltaEgressBoundaryTest(
         @DynamicPropertySource
         fun properties(registry: DynamicPropertyRegistry) {
             register(registry)
+            // the telemetry exporter connects to its collector while the guard is installed; `localhost` may resolve to
+            // ::1, which the guard does not admit, so the endpoint is the exact loopback address the guard allows
+            registry.add("gst.bindings.telemetry-export-otlp-endpoint") { "http://127.0.0.1:4318" }
             registry.add("gst.form") { "private" }
             registry.add("rules.dry-run.sample-wait") { "PT2S" }
             registry.add("service-runtime.idempotency.schema") { "rules" }
