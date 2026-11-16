@@ -38,6 +38,9 @@ logging.structured.format.console: ecs             # STK-35
 gst:
   service: tenancy-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+tenancy:
+  offboarding:
+    export-timeout: PT24H   # how long a REQUESTED offboarding export may wait for its result before it is FAILED (INV-REQ-877)
 inv:
   offboarding:
     unsubmitted-count:

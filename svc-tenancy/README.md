@@ -91,18 +91,22 @@ The four-level hierarchy (FR-G.1). Entity lifecycle: create, go-live gate (FR-Q.
 - OrganisationStructureChanged
 - PeriodDueDateChanged
 - PeriodExtended
+- OffboardingExportRequested (transactional outbox, in the transaction of the offboarding record; INV-REQ-877)
 
 ## Events consumed
 
 - RulePackActivated
 - RulePackStaged
 - SubmissionAcknowledged
+- OffboardingExportFinished (the result of the asynchronous offboarding export; INV-REQ-877)
 
 ## Synchronous calls
 
 None
 
 The documents-count port of offboarding (`offboardTenant`, `closeTenant`, `deregisterEntity`) reads a replica in the own database that the consumer of `UnsubmittedDocumentCountMeasured` fills (`ReplicaUnsubmittedDocuments`, INV-REQ-956). The service still makes no synchronous call. A count older than `inv.offboarding.unsubmitted-count.max-age`, a missing one, or an unreadable one refuses the offboarding 422 POL-014 naming `unsubmitted-documents-count`.
+
+The export of `offboardTenant` and `closeTenant` is asynchronous (INV-AC-22961). The `TenantExport` port is the outbox publisher: the request stores one REQUESTED record and one `OffboardingExportRequested` outbox row in one transaction and answers 202, and the tenant stays OPEN. The consumer of `OffboardingExportFinished` moves the record to COMPLETED (a tenant record then closes the tenant) or FAILED (the tenant stays OPEN and a new request is accepted). A REQUESTED record older than `tenancy.offboarding.export-timeout` (ISO-8601 duration, default `PT24H` in `application.yaml`, read once at start; an unparsable or non-positive value fails the start) is FAILED when the next request for that scope finds it.
 
 ## External dependencies
 
