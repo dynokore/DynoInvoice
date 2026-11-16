@@ -32,3 +32,4 @@ schemas/backlog-values-measured-payload.schema.json	failureRate	NONE
 schemas/backlog-values-measured-payload.schema.json	unacknowledgedCount	NONE
 schemas/backlog-values-measured-payload.schema.json	measuredAt	NONE
 schemas/submission-despatched-payload.schema.json	aggregateId	NONE
+schemas/submission-type-decided-payload.schema.json	connectionRef	NONE

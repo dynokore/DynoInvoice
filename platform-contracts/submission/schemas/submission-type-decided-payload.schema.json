@@ -29,6 +29,12 @@
         "TYPE_3"
       ],
       "description": "The submission type decided by submission-svc (INV-REQ-415)."
+    },
+    "connectionRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "The Access Point connection the document's entity is assigned to when the type was decided, copied from the connectionRef of AccessPointRouteChanged; absent when the entity is assigned to no connection; payload-svc reads it to select the specification family certified for that connection (VP-71, INV-REQ-2467). Optional so an older consumer validates."
     }
   },
   "required": [

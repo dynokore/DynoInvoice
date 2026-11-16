@@ -261,3 +261,5 @@ measuredAt	property	schemas/unsubmitted-document-count-measured-payload.schema.j
 unsubmittedDocumentCount	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
 entities	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
 entityRef	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
+# INV-T-23667 (INV-REQ-2467). Optional member connectionRef of SubmissionTypeDecided.
+connectionRef	property	schemas/submission-type-decided-payload.schema.json	INV-REQ-2467
