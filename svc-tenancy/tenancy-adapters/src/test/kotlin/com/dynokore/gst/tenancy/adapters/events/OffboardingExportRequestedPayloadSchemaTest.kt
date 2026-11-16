@@ -68,7 +68,7 @@ class OffboardingExportRequestedPayloadSchemaTest {
     }
 
     @Test
-    fun `INV-AC-22960 the envelope entity of a tenant-scope request is the tenant-wide entity and never the tenant ref`() {
+    fun `INV-AC-22960 the entity of a tenant-scope request is tenant-wide, never the tenant ref`() {
         outbox.produce(ExportOrder("OFF-4", "T-1", OffboardingScope.TENANT, null))
         val context = contexts.single()
         context.entity shouldBe EntityRef.TENANT_WIDE
@@ -79,7 +79,7 @@ class OffboardingExportRequestedPayloadSchemaTest {
     }
 
     @Test
-    fun `INV-AC-22960 the envelope entity of an entity-scope request is the entity of the order and not the tenant-wide one`() {
+    fun `INV-AC-22960 the entity of an entity-scope request is the order entity, not tenant-wide`() {
         outbox.produce(ExportOrder("OFF-5", "T-1", OffboardingScope.ENTITY, "ENT-1"))
         val context = contexts.single()
         context.entity shouldBe EntityRef("ENT-1")

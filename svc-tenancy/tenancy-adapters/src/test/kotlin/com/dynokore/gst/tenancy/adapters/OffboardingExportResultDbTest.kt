@@ -230,7 +230,7 @@ class OffboardingExportResultDbTest {
     }
 
     @Test
-    fun `INV-AC-22960 the stored envelope entity of a tenant request is the tenant-wide entity and of an entity request its entity`() {
+    fun `INV-AC-22960 the stored entity of a tenant request is tenant-wide and of an entity request its entity`() {
         val seed = seed()
         Db.bound(seed.tenant) {
             outbox(it, seed.tenant).produce(ExportOrder("OFF-T", seed.ref, OffboardingScope.TENANT, null))
@@ -240,7 +240,8 @@ class OffboardingExportResultDbTest {
             Db.superuser {
                 it
                     .fetch(
-                        "select data->>'offboardingRef', entity_ref from tenancy.outbox where tenant_id = ?::uuid and type = ?",
+                        "select data->>'offboardingRef', entity_ref from tenancy.outbox " +
+                            "where tenant_id = ?::uuid and type = ?",
                         seed.tenant.toString(),
                         type,
                     ).associate { r -> r.get(0, String::class.java) to r.get(1, String::class.java) }

@@ -38,7 +38,13 @@ class OffboardingExportRequestedOutbox(
         // an entity export is written with its registered entity, a tenant export with the real tenant and the
         // tenant-wide entity (no entityref on the wire); the tenant ref is never written as an entity
         val entity =
-            if (order.scope == OffboardingScope.ENTITY) EntityRef(checkNotNull(order.entityRef)) else EntityRef.TENANT_WIDE
+            if (order.scope ==
+                OffboardingScope.ENTITY
+            ) {
+                EntityRef(checkNotNull(order.entityRef))
+            } else {
+                EntityRef.TENANT_WIDE
+            }
         try {
             outbox.append(
                 listOf(OutboundEvent(TYPE, payload.toString())),
