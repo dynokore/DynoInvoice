@@ -308,12 +308,13 @@ open class ArmingHarness(
     ) = exec(
         "insert into rules.pack_readiness_ack (pack_type, pack_version, instance, outcome, failure_reason, " +
             "received_at) " +
-            "values (?, ?, ?, ?, ?, clock_timestamp())",
+            "values (?, ?, ?, ?, ?, ?::timestamptz)",
         type,
         v,
         instance,
         outcome,
         if (outcome == "FAILED") "VERIFICATION_FAILED" else null,
+        clock.instant().toString(),
     )
 
     protected fun ackAll(
@@ -536,10 +537,11 @@ class RegulatoryPackArmingBoundaryTest(
         listOf(acked, late, notice).forEach { delta(it, TYPE, v, daysAgo = 30) }
         exec(
             "insert into rules.pack_delta_ack (tenant_id, pack_type, pack_version, acknowledged_by, acknowledged_at) " +
-                "values (?::uuid, ?, ?, 'u-ack', clock_timestamp())",
+                "values (?::uuid, ?, ?, 'u-ack', ?::timestamptz)",
             acked.toString(),
             TYPE,
             v,
+            clock.instant().toString(),
         )
         setPolicy(notice, "VP-39", """[{"key":"ACTIVATE_WITH_NOTICE"}]""")
         grantArmer("u-armer")
