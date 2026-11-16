@@ -1,12 +1,16 @@
 package com.dynokore.gst.aggregation.syncedge
 
 import com.dynokore.gst.aggregation.adapters.AggregationDb
+import com.dynokore.platform.serviceruntime.identity.FlowContext
+import com.dynokore.platform.serviceruntime.identity.FlowContextTestSupport
+import com.dynokore.platform.serviceruntime.identity.FlowEntity
 import org.springframework.context.ApplicationContext
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.sql.Connection
+import java.time.Instant
 
 /** The requests of INV-AC-8455 against one running service: every caller of [services] and their look-alikes. */
 class CallerChecks(
@@ -124,7 +128,9 @@ class CallerChecks(
                 ?.let { "?$it" }
                 .orEmpty()
         val request = HttpRequest.newBuilder(URI.create("http://localhost:$port$path$query"))
-        (operation.headers + headers).forEach { (name, value) -> request.header(name, value) }
+        (operation.headers + headers + flowContext(operation, headers)).forEach { (name, value) ->
+            request.header(name, value)
+        }
         if (operation.method == "GET") {
             request.GET()
         } else {
@@ -132,6 +138,30 @@ class CallerChecks(
             request.method(operation.method, HttpRequest.BodyPublishers.ofString(operation.body))
         }
         return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString())
+    }
+
+    /**
+     * The `X-Flow-Context` of a call to an operation that declares it, signed by the platform test fixture for the
+     * service of the request's `token-<name>` workload token; a request without such a token is refused before the
+     * flow filter, so it carries none.
+     */
+    private fun flowContext(
+        operation: Operation,
+        headers: Map<String, String>,
+    ): Map<String, String> {
+        val declared = operation.headers.keys.firstOrNull { it.equals(FlowContext.HEADER_NAME, ignoreCase = true) }
+        val caller = headers[TOKEN]?.takeIf { it.startsWith("token-") }?.removePrefix("token-")
+        if (declared == null || caller == null) return emptyMap()
+        return mapOf(
+            declared to
+                FlowContextTestSupport.contextFor(
+                    tenant = TestWorkloadVerifier.TENANT,
+                    entity = FlowEntity.entity("E-001"),
+                    principalKind = "HUMAN",
+                    callerService = caller,
+                    issuedAt = Instant.now().epochSecond,
+                ),
+        )
     }
 
     /** Row counts of every table of the schema (the events are rows of its outbox tables). */

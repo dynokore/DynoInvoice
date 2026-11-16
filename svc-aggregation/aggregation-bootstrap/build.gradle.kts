@@ -31,6 +31,9 @@ dependencies {
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
     testImplementation(libs.postgresql)
+    testImplementation(libs.platform.serviceRuntime.api) {
+        capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }
+    }
     testImplementation(libs.spring.test)
     testImplementation(libs.jackson.databind)
     testImplementation(libs.jsonSchemaValidator)

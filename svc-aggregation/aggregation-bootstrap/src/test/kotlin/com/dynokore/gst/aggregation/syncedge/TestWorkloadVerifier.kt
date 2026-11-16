@@ -2,6 +2,8 @@ package com.dynokore.gst.aggregation.syncedge
 
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.identity.FlowContextKeys
+import com.dynokore.platform.serviceruntime.identity.FlowContextTestSupport
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
 import com.dynokore.platform.tenancykernel.TenantId
@@ -53,6 +55,10 @@ class TestWorkloadVerifier {
             authorization?.let { EndUserPrincipal("end-user-1", TenantId.of(TENANT), emptySet()) }
         }
 
+    /** The keys the flow-context filter verifies with: the platform test fixture, never a copy of it. */
+    @Bean
+    fun testFlowContextKeys(): FlowContextKeys = FlowContextTestSupport.keys()
+
     @Bean
     fun handlerCalls(): HandlerCalls = HandlerCalls()
 
@@ -76,7 +82,7 @@ class TestWorkloadVerifier {
             }
         }
 
-    private companion object {
+    internal companion object {
         const val TENANT = "0b8f5f0e-52a4-4d0a-9d4e-3f1f6a1c7e11"
     }
 }
