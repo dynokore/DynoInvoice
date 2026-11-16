@@ -23,6 +23,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -65,13 +66,16 @@ class GateStore : ObjectStore {
     }
 }
 
+/** Active only while [PartitionDeletionHttpTest] sets [GateStoreBeans.PROPERTY]: the scan of other tests skips it. */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(GateStoreBeans.PROPERTY, havingValue = "true")
 class GateStoreBeans {
     @Bean
     @Primary
     fun gateStore(): GateStore = store
 
     companion object {
+        const val PROPERTY = "evidence.test.gate-store"
         val store = GateStore()
     }
 }
@@ -94,6 +98,7 @@ class PartitionDeletionHttpTest {
 
     @BeforeAll
     fun start() {
+        System.setProperty(GateStoreBeans.PROPERTY, "true")
         dir = Files.createTempDirectory("pdh")
         service = RetentionService.start(dir, listOf(WorkloadTokensOnly::class.java, GateStoreBeans::class.java))
     }
@@ -101,6 +106,7 @@ class PartitionDeletionHttpTest {
     @AfterAll
     fun stop() {
         service.close()
+        System.clearProperty(GateStoreBeans.PROPERTY)
         dir.toFile().deleteRecursively()
     }
 
