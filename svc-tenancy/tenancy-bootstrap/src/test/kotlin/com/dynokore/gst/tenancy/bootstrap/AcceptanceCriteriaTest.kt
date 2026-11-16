@@ -256,6 +256,8 @@ class AcceptanceCriteriaTest {
                     "inv.tenancy.platform-scoped-tables[3]",
                     "inv.tenancy.platform-scoped-tables[4]",
                     "inv.tenancy.platform-scoped-tables[5]",
+                    // INV-T-22967: the export limit of the offboarding, a service property with its default PT24H
+                    "tenancy.offboarding.export-timeout",
                 )
             val names =
                 env.context.environment.propertySources
