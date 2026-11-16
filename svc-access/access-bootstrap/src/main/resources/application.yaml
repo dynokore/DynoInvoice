@@ -60,6 +60,8 @@ inv:
       - access.claim_grant_expiry_tenants
       # The tenant list of the full sync of AuthorityChanged (INV-T-9061): one tenant_id per tenant with a grant, consent or principal, no tenant data.
       - access.replay_authority_tenants
+      # The claim function of the ACC-001 scan (INV-T-23857): one tenant_id per tenant that holds a grant, no tenant data.
+      - access.claim_orphan_scan_tenants
       # The published INSTALLATION role grants (INV-T-9235): a grant at installation scope has no tenant; the row policy admits
       # only a transaction bound to the platform tenant.
       - access.installation_role_grant
@@ -106,6 +108,8 @@ access:
     interval: PT15M                                # the owner's figure (INV-Q-8667): the directory groups are read every 15 minutes
   grant-expiry-notice:
     interval: PT15M                                # Inference (INV-T-15799): same cadence as the directory sync; a notice is dated by day and the scan is idempotent per grant and day
+  orphaned-approver:
+    interval: PT15M                                # ACC-001 scan cadence (INV-REQ-895); configuration, not a ruled figure
 serviceruntime:
   replica.structure:
     # A cold access-svc answers 503 SRT-013 and is not ready until the structure snapshot is held (INV-AC-9089, INV-Q-9081 A).

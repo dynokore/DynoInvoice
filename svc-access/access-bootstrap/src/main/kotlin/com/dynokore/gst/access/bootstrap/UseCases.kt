@@ -11,6 +11,7 @@ import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqLandingChoices
 import com.dynokore.gst.access.adapters.persistence.JooqSoleOperatorAcks
 import com.dynokore.gst.access.adapters.structure.ReplicaEntityDirectory
+import com.dynokore.gst.access.application.alert.OrphanedApproverCheck
 import com.dynokore.gst.access.application.authorise.Authorise
 import com.dynokore.gst.access.application.authorise.AuthorisePlatform
 import com.dynokore.gst.access.application.authorise.OperatorOverlay
@@ -139,11 +140,13 @@ class UseCases {
         dependencies: GrantDependencies,
         effects: GrantRoleEffects,
         rules: GrantRoleRules,
+        orphans: OrphanedApproverCheck,
     ) = GrantRoleUseCase(
         dependencies.tx,
         dependencies.grants,
         effects,
         rules,
+        orphans,
     )
 
     @Bean
@@ -151,11 +154,13 @@ class UseCases {
         dependencies: GrantDependencies,
         publisher: AuthorityChangePublisher,
         audit: GrantAudit,
+        orphans: OrphanedApproverCheck,
     ) = RevokeGrantUseCase(
         dependencies.tx,
         dependencies.grants,
         publisher,
         audit,
+        orphans,
     )
 }
 

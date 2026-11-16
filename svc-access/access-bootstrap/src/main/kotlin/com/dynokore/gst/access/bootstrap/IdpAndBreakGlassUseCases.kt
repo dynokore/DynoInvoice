@@ -17,6 +17,7 @@ import com.dynokore.gst.access.adapters.persistence.JooqGrantRepository
 import com.dynokore.gst.access.adapters.persistence.JooqIdpGroupMappings
 import com.dynokore.gst.access.adapters.persistence.JooqMappedGrants
 import com.dynokore.gst.access.adapters.persistence.JooqSignInAttempts
+import com.dynokore.gst.access.application.alert.OrphanedApproverCheck
 import com.dynokore.gst.access.application.breakglass.ApproveBreakGlassUnlockUseCase
 import com.dynokore.gst.access.application.breakglass.BreakGlassAccounts
 import com.dynokore.gst.access.application.breakglass.BreakGlassAlerts
@@ -94,6 +95,7 @@ class IdpAndBreakGlassUseCases {
         consent: ConsentCheck,
     ): MappedGrants = JooqMappedGrants(dsl, JooqGrantRepository(dsl, tenants, clock, consent))
 
+    @Suppress("LongParameterList") // one collaborator per port of the effects
     @Bean
     fun idpProvisioningEffects(
         publisher: AuthorityChangePublisher,
@@ -101,7 +103,8 @@ class IdpAndBreakGlassUseCases {
         catalogue: RoleCatalogue,
         mapped: MappedGrants,
         conflictingPairs: ConflictingRolePairs,
-    ) = IdpProvisioningEffects(publisher, audit, catalogue, mapped, conflictingPairs)
+        orphans: OrphanedApproverCheck,
+    ) = IdpProvisioningEffects(publisher, audit, catalogue, mapped, conflictingPairs, orphans)
 
     @Bean
     fun mapIdpGroupUseCase(
