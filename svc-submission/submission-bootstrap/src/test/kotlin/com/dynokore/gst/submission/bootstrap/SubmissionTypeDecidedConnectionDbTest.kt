@@ -157,7 +157,6 @@ class SubmissionTypeDecidedConnectionDbTest {
         SubmissionContext.online(dir).run { context -> Fixture(context).block() }
     }
 
-
     @Test
     fun `INV-AC-23662 connectionRef of the assigned connection is in the payload`(
         @TempDir dir: Path,

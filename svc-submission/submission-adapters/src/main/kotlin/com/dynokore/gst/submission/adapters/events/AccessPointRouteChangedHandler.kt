@@ -26,7 +26,11 @@ class AccessPointRouteChangedHandler(
         val data = parse(event.dataJson)
         val connectionRef = ref(data.get("connectionRef"), "connectionRef")
         val entities = data.get("entityRefs")
-        if (entities == null || !entities.isArray) throw ContractViolation("member entityRefs is missing or not an array")
+        if (entities == null ||
+            !entities.isArray
+        ) {
+            throw ContractViolation("member entityRefs is missing or not an array")
+        }
         val refs = entities.values().map { ref(it, "entityRefs item") }
         val version = data.get("version")
         if (version == null || !version.isIntegralNumber || !version.canConvertToLong() || version.asLong() < 1) {
