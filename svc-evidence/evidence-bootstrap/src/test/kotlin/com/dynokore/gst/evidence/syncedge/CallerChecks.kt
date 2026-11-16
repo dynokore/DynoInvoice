@@ -144,6 +144,7 @@ class CallerChecks(
                 "GET /internal/v1/evidence/retention/maximum" to OK,
                 "GET /internal/v1/evidence/acknowledgements/{ackId}" to FORBIDDEN,
                 "GET /internal/v1/evidence/lookup" to FORBIDDEN,
+                "GET /internal/v1/evidence/exports" to FORBIDDEN,
             )
         private const val FORBIDDEN = 403
         private const val OK = 200
