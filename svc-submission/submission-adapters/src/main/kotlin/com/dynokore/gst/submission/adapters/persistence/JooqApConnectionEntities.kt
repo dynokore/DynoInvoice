@@ -16,9 +16,9 @@ fun interface EntityConnections {
 }
 
 /**
- * The replica of `AccessPointRouteChanged` over `submission.ap_connection_entity` and `submission.ap_connection_version`
- * (INV-AC-23662). Versions are per connection: a version is compared only with the stored version of the same
- * connection. Forced row level security applies; values are never logged.
+ * The replica of `AccessPointRouteChanged` over `submission.ap_connection_entity` and
+ * `submission.ap_connection_version` (INV-AC-23662). Versions are per connection: a version is compared only with
+ * the stored version of the same connection. Forced row level security applies; values are never logged.
  */
 class JooqApConnectionEntities(
     private val dsl: DSLContext,
@@ -41,7 +41,8 @@ class JooqApConnectionEntities(
         }
 
     /**
-     * Applies one delivered event of [connectionRef] with the whole list [entityRefs] and [version], in one transaction.
+     * Applies one delivered event of [connectionRef] with the whole list [entityRefs] and [version], in one
+     * transaction.
      * An event whose version is not greater than the stored version of the same connection changes nothing (false).
      * Otherwise the stored version becomes [version], every entity of the list is stored with this connection (an
      * entity stored with another connection moves, whatever that connection's version) and every row still stored with

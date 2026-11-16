@@ -26,17 +26,12 @@ class AccessPointRouteChangedHandler(
         val data = parse(event.dataJson)
         val connectionRef = ref(data.get("connectionRef"), "connectionRef")
         val entities = data.get("entityRefs")
-        if (entities == null ||
-            !entities.isArray
-        ) {
+        if (entities == null || !entities.isArray) {
             throw ContractViolation("member entityRefs is missing or not an array")
         }
         val refs = entities.values().map { ref(it, "entityRefs item") }
-        val version = data.get("version")
-        if (version == null || !version.isIntegralNumber || !version.canConvertToLong() || version.asLong() < 1) {
-            throw ContractViolation("member version is missing or not an integer of at least 1")
-        }
-        return if (connections.apply(tenants.current(), connectionRef, refs, version.asLong())) {
+        val version = versionOf(data.get("version"))
+        return if (connections.apply(tenants.current(), connectionRef, refs, version)) {
             HandleOutcome.APPLIED
         } else {
             HandleOutcome.IGNORED
@@ -54,14 +49,23 @@ class AccessPointRouteChangedHandler(
         return data
     }
 
+    private fun versionOf(node: JsonNode?): Long {
+        val valid = node != null && node.isIntegralNumber && node.canConvertToLong()
+        if (!valid || node.asLong() < 1) {
+            throw ContractViolation("member version is missing or not an integer of at least 1")
+        }
+        return node.asLong()
+    }
+
     private fun ref(
         node: JsonNode?,
         name: String,
     ): String {
-        if (node == null || !node.isString || node.asString().isBlank() || node.asString().length > MAX_REF) {
+        val text = if (node != null && node.isString) node.asString() else ""
+        if (text.isBlank() || text.length > MAX_REF) {
             throw ContractViolation("member $name is missing or not a string of 1 to $MAX_REF characters")
         }
-        return node.asString()
+        return text
     }
 
     private companion object {
