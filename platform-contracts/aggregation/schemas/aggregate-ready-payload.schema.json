@@ -53,6 +53,11 @@
             "type": "string",
             "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
             "description": "Aggregated amount for this tax code. Decimal string (API-12 convention)."
+          },
+          "taxableAmount": {
+            "type": "string",
+            "pattern": "^-?[0-9]+(\\.[0-9]+)?$",
+            "description": "For aggregateType PCP, the taxable amount of this internal tax code: the exact decimal sum of the taxable amounts of its retained underlying items, the base on which the claimable input tax in amount is claimed. Stated only when every retained item of the code carries one, otherwise absent; never stated for POS and STI (INV-REQ-437). Optional (API-41): a consumer that does not know it ignores it; canonical-svc refuses a PCP line without it."
           }
         },
         "required": [

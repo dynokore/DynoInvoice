@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: aggregation API
-  version: 2.0.0
+  version: 2.1.0
   description: >-
     Contract-first source of truth for aggregation (API-01, STK-44). The
     `aggregation-contract` module generates its server interfaces and DTOs
@@ -443,6 +443,11 @@ components:
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: Money as a decimal string (API-12). For aggregateType PCP the amount of a line is the claimable input tax of that internal tax code (INV-REQ-441).
+              taxableAmount:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: The taxable amount (tax-exclusive) of the line on which a PCP aggregate's claimable input tax is claimed, as the ERP stated it. Optional; meaningful for aggregateType PCP only (INV-REQ-437).
             required: [internalTaxCode, amount]
         claimantReference:
           type: string
@@ -595,6 +600,11 @@ components:
                 format: decimal
                 pattern: '^-?\d{1,17}(\.\d{1,2})?$'
                 description: For a PCP aggregate the claimable input tax of the claim as the ERP stated it under the entity's elected apportionment mode (INV-REQ-370), which aggregation-svc sums per internal tax code into the aggregate (INV-REQ-441). Required for aggregateType PCP and absent for POS and STI; a PCP item without it, and a POS or STI item with it, is refused with 400 SRT-001 and nothing is stored.
+              taxableAmount:
+                type: string
+                format: decimal
+                pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+                description: The taxable amount (tax-exclusive) of the item on which a PCP aggregate's claimable input tax is claimed, as the ERP stated it. Optional; meaningful for aggregateType PCP only (INV-REQ-437).
             required: [transactionRef, transactionDate, internalTaxCode, amount]
       required: [entityRef, businessUnitRef, aggregateType, underlyingRef, sourceKey, sourceRevision, transactions]
     AggregationTransactionsReceipt:

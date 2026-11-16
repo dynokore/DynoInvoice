@@ -1,0 +1,1 @@
+{"aggregateId":"AGG-PCP-0001","entityRef":"E-001","aggregateType":"PCP","window":{"periodRef":"2026-03","from":"2026-03-01","to":"2026-03-31"},"linesByInternalTaxCode":[{"internalTaxCode":"SR-STD","amount":"13.00","taxableAmount":"150.00"},{"internalTaxCode":"ZR-PUR","amount":"0.00","taxableAmount":"20.00"}]}

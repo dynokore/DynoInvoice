@@ -44,3 +44,6 @@ isCreditNote	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-438
 isSupplementary	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-439
 # INV-T-22524: claimable input tax on the aggregation transaction items
 claimableInputTax	property	openapi.yaml	INV-REQ-441
+# INV-T-23666: taxable amount on the aggregation PCP lines and intake
+taxableAmount	property	openapi.yaml	INV-REQ-437
+taxableAmount	property	schemas/aggregate-ready-payload.schema.json	INV-REQ-437
