@@ -22,6 +22,8 @@ data class SupersedingSpec(
     val version: String,
     val effectiveFrom: LocalDate,
     val contentRef: String,
+    /** Always [PackStatus.ARMED]: the published rollbackPack answer is the reversal armed from the original date. */
+    val status: PackStatus,
 )
 
 sealed interface PackCorrectionResult {
@@ -82,7 +84,7 @@ object PackCorrection {
 
             else -> {
                 PackCorrectionResult.Superseding(
-                    SupersedingSpec(bad.packType, label, bad.effectiveFrom, earlier.contentRef),
+                    SupersedingSpec(bad.packType, label, bad.effectiveFrom, earlier.contentRef, PackStatus.ARMED),
                 )
             }
         }

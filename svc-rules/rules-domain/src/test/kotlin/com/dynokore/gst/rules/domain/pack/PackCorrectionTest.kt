@@ -13,7 +13,9 @@ class PackCorrectionTest {
     @Test
     fun `INV-AC-24013 the spec has the bad date, the label plus -rollback and the earlier content`() {
         PackCorrection.supersede(bad, earlier, badDate) shouldBe
-            PackCorrectionResult.Superseding(SupersedingSpec("GST_RULES", "2026.3-rollback", badDate, "content-2026.2"))
+            PackCorrectionResult.Superseding(
+                SupersedingSpec("GST_RULES", "2026.3-rollback", badDate, "content-2026.2", PackStatus.ARMED),
+            )
     }
 
     @Test
@@ -50,5 +52,12 @@ class PackCorrectionTest {
         spec.packType shouldBe bad.packType
         spec.effectiveFrom shouldBe bad.effectiveFrom
         spec.version shouldBe bad.version + "-rollback"
+    }
+
+    @Test
+    fun `INV-AC-24013 the spec status is ARMED and not DRAFT, APPROVED or STAGED`() {
+        val spec = (PackCorrection.supersede(bad, earlier, badDate) as PackCorrectionResult.Superseding).spec
+        spec.status shouldBe PackStatus.ARMED
+        listOf(PackStatus.DRAFT, PackStatus.APPROVED, PackStatus.STAGED).forEach { (spec.status == it) shouldBe false }
     }
 }

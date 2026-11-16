@@ -129,8 +129,8 @@ fun interface ReprocessingQueuePort {
 
 /**
  * The list of documents to resubmit. rules-svc only lists; it makes no resubmission call and has no port for one.
- * [add] is idempotent by (packType, version, docUuid): the queue delivers at least once, so a redelivered item must
- * not add a second entry.
+ * [add] is idempotent by the key (packType, version, entry.docUuid): the queue delivers at least once, so a
+ * redelivered item must not add a second entry.
  */
 interface ResubmissionStore {
     fun add(

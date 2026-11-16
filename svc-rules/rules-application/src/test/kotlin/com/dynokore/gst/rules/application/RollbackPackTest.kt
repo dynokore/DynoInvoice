@@ -22,6 +22,7 @@ class RollbackPackTest {
         val earlierOf: Map<String, EarlierPack>,
     ) : PackCorrectionRegistry {
         var transactions = 0
+        val specs = mutableListOf<SupersedingSpec>()
 
         override fun <T> inTransaction(work: (PackCorrectionRegistryTx) -> T): T {
             transactions++
@@ -40,12 +41,13 @@ class RollbackPackTest {
                             spec: SupersedingSpec,
                             copyFrom: String,
                         ): CorrectionPackRow {
+                            specs += spec
                             val row =
                                 CorrectionPackRow(
                                     spec.packType,
                                     spec.version,
                                     spec.effectiveFrom,
-                                    PackStatus.STAGED,
+                                    spec.status,
                                     spec.contentRef,
                                 )
                             state = State(state.rows + row, state.artefactCopies + (copyFrom to spec.version))
@@ -88,6 +90,8 @@ class RollbackPackTest {
         created.version shouldBe "2026.3-rollback"
         created.effectiveFrom shouldBe date
         created.contentRef shouldBe "c2"
+        created.status shouldBe PackStatus.ARMED
+        reg.specs shouldBe listOf(SupersedingSpec("GST", "2026.3-rollback", date, "c2", PackStatus.ARMED))
         reg.state.rows shouldBe listOf(earlierRow, badRow, created)
         reg.state.artefactCopies shouldBe listOf("2026.2" to "2026.3-rollback")
         reg.transactions shouldBe 1

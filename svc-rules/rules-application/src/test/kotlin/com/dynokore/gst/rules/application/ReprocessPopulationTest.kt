@@ -100,15 +100,20 @@ class ReprocessPopulationTest {
         }
     }
 
+    /** Idempotent by (pack type, version, Doc UUID), as the port KDoc states; keeps every call for the case. */
     private class Resubmissions : ResubmissionStore {
-        val entries = mutableListOf<ResubmissionEntry>()
+        val calls = mutableListOf<Pair<Triple<String, String, String>, ResubmissionEntry>>()
+        private val kept = linkedMapOf<Triple<String, String, String>, ResubmissionEntry>()
+        val entries: List<ResubmissionEntry> get() = kept.values.toList()
 
         override fun add(
             packType: String,
             version: String,
             entry: ResubmissionEntry,
         ) {
-            entries += entry
+            val key = Triple(packType, version, entry.docUuid)
+            calls += key to entry
+            kept[key] = entry
         }
     }
 
@@ -224,6 +229,29 @@ class ReprocessPopulationTest {
         e.uc.pageArrived(type, version, PopulationPage("E2", true, listOf(item(2)))).state shouldBe
             ReprocessingRunState.RUNNING
         e.uc.process(type, version, item(2)).state shouldBe ReprocessingRunState.COMPLETE
+    }
+
+    @Test
+    fun `INV-AC-24013 a redelivered item passes an equal key and entry and the store keeps one`() {
+        val e = Env(changedVerdict)
+        e.uc.start(type, version, listOf("E1"), "u", key)
+        e.uc.pageArrived(type, version, PopulationPage("E1", false, listOf(item(1))))
+        e.uc.process(type, version, item(1))
+        e.uc.process(type, version, item(1))
+        e.resubmissions.calls.size shouldBe 2
+        e.resubmissions.calls[0] shouldBe e.resubmissions.calls[1]
+        e.resubmissions.calls[0].first shouldBe Triple(type, version, item(1).docUuid)
+        e.resubmissions.entries shouldBe listOf(ResubmissionEntry(item(1).docUuid, "2026.3"))
+        e.runs.run!!.processed shouldBe 1
+        e.uc.pageArrived(type, version, PopulationPage("E1", true, emptyList())).state shouldBe
+            ReprocessingRunState.COMPLETE
+    }
+
+    @Test
+    fun `INV-AC-24013 entities A and B send exactly two requests, for A and for B`() {
+        val e = Env(changedVerdict)
+        e.uc.start(type, version, listOf("A", "B"), "u", key)
+        e.requests.calls shouldBe listOf("A", "B")
     }
 
     @Test
