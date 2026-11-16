@@ -30,6 +30,7 @@ dependencies {
     testImplementation(libs.assertj.core)
     testImplementation(libs.jsonSchemaValidator)
     testImplementation(testFixtures(project(":payload-adapters")))
+    testImplementation(testFixtures(libs.platform.serviceRuntime.impl))
 }
 
 // PayloadReadyOutboxDbTest reads the published schema from the pinned contract bundle staged by payload-contract.

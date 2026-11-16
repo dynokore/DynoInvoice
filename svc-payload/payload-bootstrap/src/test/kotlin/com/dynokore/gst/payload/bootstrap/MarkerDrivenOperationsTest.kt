@@ -110,6 +110,24 @@ class MarkerDrivenOperationsTest {
     }
 
     @Test
+    fun `a listed operation without a flow context is refused`() {
+        val operations = ContractDocument.operations(document)
+        val doubles = workload(operations)
+        ServedService.run(doubles) { service ->
+            val handler = service.handlers.single { it.method == "POST" && it.path.endsWith("/pre-issuance-checks") }
+            val operation = checkNotNull(ContractDocument.find(operations, handler))
+            val caller = doubles.tokenOf(allowedCallers(operation, doubles.services).first())
+            val before = service.counter.reaches.size
+            val answer = service.call(handler, caller, EndUserDoubles.USER_A, flowContext = false)
+            assertThat(answer.status).describedAs(answer.body).isEqualTo(403)
+            assertThat(answer.body).contains("SRT-004")
+            assertThat(service.counter.reaches.size).describedAs("use case calls").isEqualTo(before)
+            val signed = service.call(handler, caller, EndUserDoubles.USER_A)
+            assertThat(signed.status).describedAs(signed.body).isNotEqualTo(403)
+        }
+    }
+
+    @Test
     fun `INV-AC-8260 the marker decides which mapped operations meet the filter`() = assertMarkers(document)
 
     @Test

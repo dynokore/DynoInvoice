@@ -3,6 +3,9 @@ package com.dynokore.gst.payload.bootstrap
 import com.dynokore.gst.payload.adapters.PayloadDb
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.serviceruntime.identity.FlowContextKeys
+import com.dynokore.platform.serviceruntime.identity.FlowContextTestSupport
+import com.dynokore.platform.serviceruntime.identity.FlowEntity
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadTokenVerifier
 import com.dynokore.platform.serviceruntime.identity.WorkloadVerification
@@ -28,6 +31,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
 import org.yaml.snakeyaml.Yaml
 import java.nio.file.Files
+import java.time.Clock
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -122,6 +126,9 @@ class ReachConfiguration(
     }
 }
 
+/** The issuer of the harness's flow contexts; a probe swaps it for the outside issuer. */
+val flowContextIssuer = FlowContextTestSupport.issuer()
+
 /** The tokens of the doubles: `Bearer T-A` is user-a of tenant-a; every other token is refused. */
 object EndUserDoubles {
     val tenantA = TenantId(UUID.nameUUIDFromBytes("tenant-a".toByteArray()))
@@ -165,6 +172,9 @@ class WorkloadDoubles(
 
     fun tokenOf(service: String): String = "W:" + checkNotNull(subjects[service]) { "no subject for $service" }
 
+    /** The service a token of [tokenOf] stands for, or null for any other token (the unmapped one included). */
+    fun serviceOf(token: String?): String? = subjects.entries.firstOrNull { "W:" + it.value == token }?.key
+
     /** A verified token that no entry maps. */
     val unmappedToken = "W:subject-nobody"
 }
@@ -183,7 +193,44 @@ class ServedService(
     val handlers: List<MappedHandler>,
     val classLoader: ClassLoader,
     val context: org.springframework.context.ApplicationContext? = null,
+    private val workload: WorkloadDoubles? = null,
 ) {
+    /** The operations the served class path lists in `META-INF/gst/flow-context-operations.tsv`: method and path. */
+    private val flowOperations: List<Pair<String, Regex>> =
+        classLoader
+            .getResources("META-INF/gst/flow-context-operations.tsv")
+            .toList()
+            .flatMap { url -> url.readText().lines().drop(1).filter { it.isNotBlank() } }
+            .map { line ->
+                val (_, method, path) = line.split('\t')
+                method to Regex(path.replace(Regex("\\{[^}]+}"), "[^/]+"))
+            }
+
+    /**
+     * The `X-Flow-Context` header of a call, signed by the platform test fixtures: tenant of the end-user token (every
+     * token of these doubles resolves to [EndUserDoubles.tenantA]), the service of the workload token, entity `E-001`.
+     * Empty for a request the served class path does not list, and for a token that stands for no service.
+     */
+    private fun flowContextHeader(
+        method: String,
+        uri: String,
+        workloadToken: String?,
+    ): Map<String, String> {
+        val path = uri.substringBefore('?')
+        val caller = workload?.serviceOf(workloadToken)
+        if (caller == null || flowOperations.none { (m, p) -> m == method && p.matches(path) }) return emptyMap()
+        return mapOf(
+            "X-Flow-Context" to
+                FlowContextTestSupport.contextFor(
+                    tenant = EndUserDoubles.tenantA.toString(),
+                    entity = FlowEntity.entity("E-001"),
+                    principalKind = "HUMAN",
+                    callerService = caller,
+                    issuer = flowContextIssuer,
+                ),
+        )
+    }
+
     /** One request with a body of the caller's choosing; the same filters as [call]. */
     @Suppress("LongParameterList") // one request: method, uri, three headers, body
     fun send(
@@ -192,7 +239,7 @@ class ServedService(
         workload: String,
         authorization: String,
         body: String? = null,
-        flowContext: String? = null,
+        flowContext: Boolean = true,
     ): Answer {
         val request =
             MockMvcRequestBuilders
@@ -204,8 +251,10 @@ class ServedService(
                 .header("X-Workload-Token", workload)
                 .header("Authorization", authorization)
                 .contentType(MediaType.APPLICATION_JSON)
-                .apply { if (flowContext != null) header("X-Flow-Context", flowContext) }
-                .apply { if (body != null) content(body) }
+                .apply {
+                    if (body != null) content(body)
+                    if (flowContext) flowContextHeader(method, uri, workload).forEach { (n, v) -> header(n, v) }
+                }
         val response = mvc.perform(request).andReturn().response
         return Answer(response.status, response.contentAsString)
     }
@@ -215,6 +264,7 @@ class ServedService(
         workload: String?,
         authorization: String? = null,
         extra: Map<String, String> = emptyMap(),
+        flowContext: Boolean = true,
     ): Answer {
         val uri = handler.path.replace(Regex("\\{[^}]+}"), "x1")
         val request =
@@ -229,6 +279,7 @@ class ServedService(
                     if (handler.method != "GET") content("""{"entityRef":"E-001"}""")
                     if (workload != null) header("X-Workload-Token", workload)
                     if (authorization != null) header("Authorization", authorization)
+                    if (flowContext) flowContextHeader(handler.method, uri, workload).forEach { (n, v) -> header(n, v) }
                     extra.forEach { (name, value) -> header(name, value) }
                 }
         val response = mvc.perform(request).andReturn().response
@@ -308,6 +359,8 @@ class ServedService(
                     .web(mountRoot)
                     .withBean(EndUserPrincipalResolver::class.java, { resolver })
                     .withBean(WorkloadTokenVerifier::class.java, { workload.verifier })
+                    .withBean(FlowContextKeys::class.java, { FlowContextTestSupport.keys() })
+                    .withBean(Clock::class.java, { FlowContextTestSupport.CLOCK })
                     .withBean(ReachConfiguration::class.java, { ReachConfiguration(counter) })
                     .withPropertyValues(
                         "service-runtime.idempotency.schema=payload",
@@ -331,6 +384,7 @@ class ServedService(
                         mappedHandlers(web),
                         checkNotNull(context.classLoader),
                         context.sourceApplicationContext,
+                        workload,
                     ),
                 )
             }
