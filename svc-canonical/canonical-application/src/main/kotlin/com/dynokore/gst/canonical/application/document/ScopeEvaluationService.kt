@@ -36,8 +36,8 @@ class ScopeEvaluationService(
     }
 
     /**
-     * A line without a category code or rate, or lines that disagree on the pack versions or the document type code
-     * (null equals null only), give Unavailable: the document holds (fail closed, INV-REQ-1208).
+     * A line without a category code or rate, or lines that disagree on the pack versions, the applied packs or the
+     * document type code (null equals null only), give Unavailable: the document holds (fail closed, INV-REQ-1208).
      */
     private fun answerOf(verdicts: List<LineAnswer.Verdict>): ScopeAnswer {
         val first = verdicts.first()
@@ -48,6 +48,7 @@ class ScopeEvaluationService(
                 it.scopePackVersion != first.scopePackVersion ||
                     it.mappingPackVersion != first.mappingPackVersion ||
                     it.mdePackVersion != first.mdePackVersion ||
+                    it.appliedPacks != first.appliedPacks ||
                     it.documentTypeCode != first.documentTypeCode
             }
         return if (incomplete || disagree) {
@@ -60,6 +61,7 @@ class ScopeEvaluationService(
                 mappingPackVersion = first.mappingPackVersion,
                 mdePackVersion = first.mdePackVersion,
                 lineTax = lineTax,
+                appliedPacks = first.appliedPacks,
             )
         }
     }

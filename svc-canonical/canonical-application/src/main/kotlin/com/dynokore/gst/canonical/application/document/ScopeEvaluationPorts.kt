@@ -46,6 +46,13 @@ data class LineScopeFacts(
     val counterpartyScheme: SchemeFacts?,
 )
 
+/** One applied pack as the evaluation result names it: type, registry identifier and version, copied unchanged. */
+data class AppliedPackFact(
+    val packType: String,
+    val packIdentifier: String,
+    val version: String,
+)
+
 sealed interface LineAnswer {
     data class Verdict(
         val scopeVerdict: String,
@@ -55,6 +62,7 @@ sealed interface LineAnswer {
         val mappingPackVersion: String? = null,
         val mdePackVersion: String? = null,
         val documentTypeCode: String? = null,
+        val appliedPacks: List<AppliedPackFact> = emptyList(),
     ) : LineAnswer
 
     data object Unavailable : LineAnswer

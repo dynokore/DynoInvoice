@@ -4,6 +4,7 @@ import com.dynokore.gst.canonical.adapters.clients.rules.api.EvaluationApi
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluateDocumentRequest
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluateDocumentRequestCounterpartySchemeData
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluationResult
+import com.dynokore.gst.canonical.application.document.AppliedPackFact
 import com.dynokore.platform.serviceruntime.identity.FlowContext
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
@@ -24,6 +25,7 @@ private const val MDE = "MDE"
 private val PACK_TYPES = listOf(SCOPE, MAPPING, MDE)
 private const val HTTP_FORBIDDEN = 403
 private const val FLOW_CONTEXT_REFUSED = "SRT-004"
+
 private const val UNUSED_FLOW_CONTEXT = ""
 private val ENVELOPE = JsonMapper.builder().build()
 
@@ -75,6 +77,7 @@ sealed interface RulesAnswer {
         val scopePackVersion: String? = null,
         val mappingPackVersion: String? = null,
         val mdePackVersion: String? = null,
+        val appliedPacks: List<AppliedPackFact> = emptyList(),
     ) : RulesAnswer
 
     /** No answer: a 5xx, a timeout, an I/O error, an open breaker or a full bulkhead. The caller holds. */
@@ -152,7 +155,9 @@ class RulesClient(
     /**
      * The pack versions come from `packVersionsApplied` by exact, case-sensitive packType equality (no prefix, no case
      * folding); other types are ignored and an absent type is null. Two items of one wanted type with different
-     * versions are ambiguous: the answer fails closed to Unavailable (INV-Q-21510).
+     * versions are ambiguous, and an item of a wanted type without a (non-blank) packIdentifier is unusable: both fail
+     * closed to Unavailable (INV-Q-21510, INV-AC-22910). appliedPacks lists the wanted items in the order SCOPE,
+     * MAPPING, MDE, copied unchanged.
      */
     private fun verdictOf(body: EvaluationResult): RulesAnswer {
         val applied = body.packVersionsApplied.orEmpty()
@@ -160,7 +165,10 @@ class RulesClient(
             PACK_TYPES.associateWith { type ->
                 applied.filter { it.packType == type }.map { it.version }.toSet()
             }
-        return if (versions.values.any { it.size > 1 }) {
+        val wanted = applied.filter { it.packType in PACK_TYPES }
+        // fail closed: no identifier is derived from the pack type or the version (INV-AC-22910)
+        val missingIdentifier = wanted.any { it.packIdentifier.isNullOrBlank() }
+        return if (versions.values.any { it.size > 1 } || missingIdentifier) {
             RulesAnswer.Unavailable
         } else {
             RulesAnswer.Verdict(
@@ -171,6 +179,12 @@ class RulesClient(
                 scopePackVersion = versions.getValue(SCOPE).singleOrNull(),
                 mappingPackVersion = versions.getValue(MAPPING).singleOrNull(),
                 mdePackVersion = versions.getValue(MDE).singleOrNull(),
+                appliedPacks =
+                    PACK_TYPES.flatMap { type ->
+                        wanted.filter { it.packType == type }.map {
+                            AppliedPackFact(it.packType, requireNotNull(it.packIdentifier), it.version)
+                        }
+                    },
             )
         }
     }

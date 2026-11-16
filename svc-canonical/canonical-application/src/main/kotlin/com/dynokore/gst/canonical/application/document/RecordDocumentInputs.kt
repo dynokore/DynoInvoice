@@ -31,6 +31,7 @@ sealed interface ScopeAnswer {
         val mappingPackVersion: String? = null,
         val mdePackVersion: String? = null,
         val lineTax: List<LineTaxFact> = emptyList(),
+        val appliedPacks: List<AppliedPackFact> = emptyList(),
     ) : ScopeAnswer
 
     data object Unavailable : ScopeAnswer

@@ -1,5 +1,6 @@
 package com.dynokore.gst.canonical.adapters.clients
 
+import com.dynokore.gst.canonical.application.document.AppliedPackFact
 import com.dynokore.gst.canonical.application.document.LineAnswer
 import com.dynokore.gst.canonical.application.document.LineScopeFacts
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -62,7 +63,7 @@ class RulesAnswerFactsTest {
     private fun item(
         type: String,
         version: String,
-    ) = """{"packType":"$type","version":"$version"}"""
+    ) = """{"packType":"$type","version":"$version","packIdentifier":"id-$type"}"""
 
     @Test
     fun `INV-AC-21596 K1 the verdict carries the SCOPE and MAPPING versions, category, rate and type, no MDE`() {
@@ -76,6 +77,11 @@ class RulesAnswerFactsTest {
                 scopePackVersion = "S-2026.1",
                 mappingPackVersion = "M-3",
                 mdePackVersion = null,
+                appliedPacks =
+                    listOf(
+                        AppliedPackFact("SCOPE", "id-SCOPE", "S-2026.1"),
+                        AppliedPackFact("MAPPING", "id-MAPPING", "M-3"),
+                    ),
             )
     }
 
