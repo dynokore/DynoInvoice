@@ -1,6 +1,7 @@
 package com.dynokore.gst.evidence.adapters
 
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.assertions.withClue
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -58,11 +59,13 @@ class TenantTablesTest {
                             privileges.joinToString(", ") { "has_table_privilege('evidence_runtime', c.oid, '$it')" } +
                             " from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
                             "join pg_inherits i on i.inhrelid = c.oid join pg_class p on p.oid = i.inhparent " +
-                            "where n.nspname = 'evidence' and c.relispartition",
+                            "where n.nspname = 'evidence' and c.relispartition and c.relkind = 'r'",
                     ).use { rows ->
                         while (rows.next()) {
                             (2..privileges.size + 1).map { rows.getBoolean(it + 1) } shouldBe privileges.map { false }
-                            (rows.getString(2) in covered) shouldBe true
+                            withClue("parent ${rows.getString(2)} of partition ${rows.getString(1)}") {
+                                (rows.getString(2) in covered) shouldBe true
+                            }
                         }
                     }
             }

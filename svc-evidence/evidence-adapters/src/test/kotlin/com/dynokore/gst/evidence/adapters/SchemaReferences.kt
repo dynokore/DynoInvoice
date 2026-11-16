@@ -105,6 +105,8 @@ object SchemaReferences {
         val function: Long,
         val constrained: Long,
         val name: String,
+        /** `pg_trigger.tgparentid`: the trigger of the partitioned parent this one was cloned from, else 0. */
+        val parent: Long,
     )
 
     /** The catalogue rows the three kinds of reference are read from. */
@@ -137,8 +139,35 @@ object SchemaReferences {
                 text("conname"),
             ).map { Constraint(it.long(0), it.long(1), it.long(2), it.long(3), it.string(4), it.string(5)) }
         val triggers =
-            fetch(dsl, "pg_trigger", oid("oid"), oid("tgrelid"), oid("tgfoid"), oid("tgconstrrelid"), text("tgname"))
-                .map { Trigger(it.long(0), it.long(1), it.long(2), it.long(3), it.string(4)) }
+            fetch(
+                dsl,
+                "pg_trigger",
+                oid("oid"),
+                oid("tgrelid"),
+                oid("tgfoid"),
+                oid("tgconstrrelid"),
+                text("tgname"),
+                oid("tgparentid"),
+            ).map { Trigger(it.long(0), it.long(1), it.long(2), it.long(3), it.string(4), it.long(5)) }
+        private val triggerById = triggers.associateBy { it.id }
+
+        /**
+         * Partition inheritance: a trigger cloned onto a partition depends on the trigger it was cloned from. That
+         * one dependency is resolved, and only when the target is the `tgparentid` of the dependent trigger and
+         * belongs to a table of the schema; every other dependency on a trigger stays unresolved and is reported.
+         */
+        fun inheritedTrigger(dependency: Dependency): Boolean {
+            val from = triggerById[dependency.from.second]
+            val target = triggerById[dependency.to.second]
+            return dependency.from.first == CLASS_TRIGGER &&
+                dependency.to.first == CLASS_TRIGGER &&
+                from != null &&
+                target != null &&
+                from.parent != 0L &&
+                from.parent == target.id &&
+                target.relation in classesIn
+        }
+
         val rewrites = fetch(dsl, "pg_rewrite", oid("oid"), oid("ev_class")).map { it.long(0) to it.long(1) }
         val attrdefs = fetch(dsl, "pg_attrdef", oid("oid"), oid("adrelid")).map { it.long(0) to it.long(1) }
         val policies = fetch(dsl, "pg_policy", oid("oid"), oid("polrelid")).map { it.long(0) to it.long(1) }
@@ -221,6 +250,8 @@ object SchemaReferences {
             val from = c.owned[dependency.from]
             if (from == null || dependency.to.second == 0L || dependency.to.first in SCHEMALESS) {
                 null
+            } else if (c.inheritedTrigger(dependency)) {
+                Reference("depend", from.label, c.schema, from.owner)
             } else {
                 Reference("depend", from.label, c.placed(dependency.to), from.owner)
             }
