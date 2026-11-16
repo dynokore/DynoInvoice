@@ -19,6 +19,7 @@ import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.RequeueOutcome
 import com.dynokore.gst.submission.contract.model.SubmissionSummary
+import com.dynokore.gst.submission.contract.model.WithdrawRequest
 import com.dynokore.gst.submission.domain.listing.Direction
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.listing.SubmissionRow
@@ -287,6 +288,27 @@ class SubmissionExportControllerTest {
     fun `INV-AC-22284 an entity with no GSTN gets 503 SRT-013 and the source has zero calls`() {
         val f = fixture(FULL, gstn = null)
         refused { export(f) } shouldBe (503 to "SRT-013")
+        f.source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-22284 the unowned operation getTransaction still answers 501`() {
+        val f = fixture(FULL)
+        f.controller
+            .getTransaction(UUID.fromString("00000000-0000-0000-0000-0000000000d1"))
+            .statusCode
+            .value() shouldBe
+            501
+        f.source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-22284 the unowned operation withdrawSubmission still answers 501`() {
+        val f = fixture(FULL)
+        f.controller
+            .withdrawSubmission(UUID.fromString("00000000-0000-0000-0000-0000000000d1"), WithdrawRequest("placeholder"))
+            .statusCode
+            .value() shouldBe 501
         f.source.calls shouldBe 0
     }
 
