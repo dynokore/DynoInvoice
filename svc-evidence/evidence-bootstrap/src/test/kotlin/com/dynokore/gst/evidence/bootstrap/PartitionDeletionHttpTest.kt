@@ -482,7 +482,10 @@ class PartitionDeletionHttpTest {
 
     @Test
     fun `INV-AC-22964 the stop codes are members of the generated catalogue`() {
-        val known = com.dynokore.gst.catalogue.ErrorCode.entries.map { it.code }.toSet()
+        val known =
+            com.dynokore.gst.catalogue.ErrorCode.entries
+                .map { it.code }
+                .toSet()
         listOf("EVD-003", "EVD-004", "EVD-005", "EVD-006", "EVD-007", "EVD-008", "EVD-009").forEach {
             (it in known) shouldBe true
         }
