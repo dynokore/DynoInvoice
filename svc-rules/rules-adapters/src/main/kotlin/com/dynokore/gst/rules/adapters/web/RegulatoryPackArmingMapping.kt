@@ -17,7 +17,6 @@ import com.dynokore.platform.rulepackkernel.fence.FenceOutcome
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import tools.jackson.core.JacksonException
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.DeserializationFeature
 import tools.jackson.databind.json.JsonMapper
@@ -250,50 +249,47 @@ object ReviewPolicyValues {
     fun storedDays(text: String?): GraceDays? {
         if (text == null) return null
         val (key, days) = option(text, mapOf(VP57_PLATFORM_MAXIMUM to false, VP57_SHORTER to true))
-        return if (key == VP57_PLATFORM_MAXIMUM) null else GraceDays(days!!)
+        return if (key == VP57_PLATFORM_MAXIMUM) null else GraceDays(days ?: throw unreadable())
     }
 
     /** VP-79 at installation scope. */
     fun maximumDays(text: String?): GraceDays {
         if (text == null) return GraceDays(DEFAULT_MAXIMUM_DAYS)
         val (key, days) = option(text, mapOf(VP79_DAYS_14 to null, VP79_CUSTOM to true))
-        return GraceDays(if (key == VP79_DAYS_14) DEFAULT_MAXIMUM_DAYS else days!!)
+        return GraceDays(if (key == VP79_DAYS_14) DEFAULT_MAXIMUM_DAYS else days ?: throw unreadable())
     }
 
-    /**
-     * Parses one option. [allowed] maps each option key to whether it takes a day count: true required, false none,
-     * null optional and, when present, equal to [DEFAULT_MAXIMUM_DAYS].
-     */
+    /** Parses one option or throws [unavailable]; see [parse]. */
     private fun option(
         text: String,
         allowed: Map<String, Boolean?>,
-    ): Pair<String, Int?> {
-        val node =
-            try {
-                mapper.readTree(text)
-            } catch (_: JacksonException) {
-                throw unreadable()
-            }
-        if (!node.isArray || node.size() != 1 || !node[0].isObject) throw unreadable()
-        val option = node[0]
-        if (option.propertyNames().asSequence().any { it != KEY && it != VALUE }) throw unreadable()
-        val key = option[KEY]?.takeIf { it.isString }?.stringValue() ?: throw unreadable()
-        if (!allowed.containsKey(key)) throw unreadable()
+    ): Pair<String, Int?> = parse(text, allowed) ?: throw unreadable()
+
+    /**
+     * Parses one option, null when the text is not accepted. [allowed] maps each option key to whether it takes a day
+     * count: true required, false none, null optional and, when present, equal to [DEFAULT_MAXIMUM_DAYS].
+     */
+    private fun parse(
+        text: String,
+        allowed: Map<String, Boolean?>,
+    ): Pair<String, Int?>? {
+        val node = runCatching { mapper.readTree(text) }.getOrNull() ?: return null
+        val option = node.takeIf { it.isArray && it.size() == 1 && it[0].isObject }?.get(0) ?: return null
+        if (option.propertyNames().asSequence().any { it != KEY && it != VALUE }) return null
+        val key = option[KEY]?.takeIf { it.isString }?.stringValue()?.takeIf { allowed.containsKey(it) } ?: return null
         val value = option[VALUE]
-        val days =
-            if (value == null) {
-                null
-            } else {
-                if (!value.isIntegralNumber || !value.canConvertToInt()) throw unreadable()
-                value.intValue()
+        val days = if (value == null) null else intOf(value) ?: return null
+        val fits =
+            when (allowed.getValue(key)) {
+                true -> days != null && days >= 1
+                false -> days == null
+                null -> days == null || days == DEFAULT_MAXIMUM_DAYS
             }
-        when (allowed.getValue(key)) {
-            true -> if (days == null || days < 1) throw unreadable()
-            false -> if (days != null) throw unreadable()
-            null -> if (days != null && days != DEFAULT_MAXIMUM_DAYS) throw unreadable()
-        }
-        return key to (days ?: if (allowed.getValue(key) == null) DEFAULT_MAXIMUM_DAYS else null)
+        return if (fits) key to (days ?: if (allowed.getValue(key) == null) DEFAULT_MAXIMUM_DAYS else null) else null
     }
+
+    private fun intOf(node: tools.jackson.databind.JsonNode): Int? =
+        node.takeIf { it.isIntegralNumber && it.canConvertToInt() }?.intValue()
 
     private fun unreadable() = unavailable("the review policy value is not readable")
 }
