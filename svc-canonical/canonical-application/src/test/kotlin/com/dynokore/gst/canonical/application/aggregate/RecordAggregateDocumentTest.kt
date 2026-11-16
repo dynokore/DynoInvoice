@@ -100,13 +100,25 @@ class RecordAggregateDocumentTest {
             )
         }
 
+    private val identity = SupplierIdentity("0195:201912345A", "0195:201912345A", "201912345A")
+    private var supplierAnswer: SupplierAnswer = SupplierAnswer.Found(identity)
+
+    /** Each call: tenant, entity reference, date and the number of classifier calls made before it. */
+    private val supplierCalls = mutableListOf<List<Any>>()
+    private val supplier =
+        AggregateSupplierIdentity { t, ref, date ->
+            supplierCalls += listOf(t, ref, date, classifyCalls.size)
+            supplierAnswer
+        }
+
     private val useCase =
         RecordAggregateDocument(
             RecordSourceEvent(sourceStore, tx) { UUID(0, (++nextDoc).toLong()) },
             classifier,
             { _, _ -> entityId },
-            { lines, amounts, credit, type ->
-                jsonCalls += listOf(lines, amounts, credit, type)
+            supplier,
+            { lines, amounts, credit, type, who ->
+                jsonCalls += listOf(lines, amounts, credit, type, who)
                 "{}"
             },
             writer,
@@ -350,5 +362,35 @@ class RecordAggregateDocumentTest {
     fun `INV-AC-22850 amount with three decimals is refused`() {
         refusal(input(lines = listOf(AggregateLine("S1", d("1.005"))))) shouldBe "AMOUNT_SCALE"
         nothingWritten()
+    }
+
+    @Test
+    @DisplayName(
+        "INV-AC-23774 supplier identity is read once at the window end after the classification " +
+            "and passed unchanged to the builder",
+    )
+    fun `INV-AC-23774 supplier identity is read once and passed unchanged`() {
+        useCase.record(input(lines = listOf(AggregateLine("S1", d("100.00")), AggregateLine("Z1", d("10.00")))))
+        supplierCalls shouldBe listOf(listOf(tenant, "ENT-1", to, 2))
+        jsonCalls.size shouldBe 1
+        jsonCalls.single()[4] shouldBe identity
+        documents.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-23774 pending supplier identity retries and writes nothing`() {
+        supplierAnswer = SupplierAnswer.Retry("constitution unknown")
+        val e = assertThrows<AggregateRetry> { useCase.record(input()) }
+        e.message.orEmpty().contains("constitution unknown") shouldBe true
+        supplierCalls.size shouldBe 1
+        jsonCalls.size shouldBe 0
+        nothingWritten()
+    }
+
+    @Test
+    fun `INV-AC-23774 refused aggregate does not read the supplier identity`() {
+        refusal(input(lines = listOf(AggregateLine("X9", d("5.00"))))) shouldBe "UNMAPPED_TAX_CODE"
+        supplierCalls.size shouldBe 0
+        jsonCalls.size shouldBe 0
     }
 }

@@ -78,6 +78,33 @@ fun interface AggregateEntityIds {
     ): UUID?
 }
 
+/** The supplier identity triple the document JSON carries. */
+data class SupplierIdentity(
+    val senderId: String,
+    val supplierId: String,
+    val supplierGstn: String,
+)
+
+/** The answer of the supplier identity port. */
+sealed interface SupplierAnswer {
+    data class Found(
+        val identity: SupplierIdentity,
+    ) : SupplierAnswer
+
+    /** The identity is not available yet; the record rolls back and the event is retried. */
+    data class Retry(
+        val reason: String,
+    ) : SupplierAnswer
+}
+
+fun interface AggregateSupplierIdentity {
+    fun identityOf(
+        tenantId: UUID,
+        entityRef: String,
+        transactionDate: LocalDate,
+    ): SupplierAnswer
+}
+
 /** One line per distinct category code; [amount] is the merged taxable amount; [rate] is null for a PCP aggregate. */
 data class MergedLine(
     val categoryCode: String,
@@ -105,6 +132,7 @@ fun interface AggregateDocumentJson {
         amounts: AggregateAmounts,
         isCreditNote: Boolean,
         aggregateType: String,
+        supplier: SupplierIdentity,
     ): String
 }
 
@@ -136,6 +164,7 @@ class RecordAggregateDocument(
     private val sourceEvents: RecordSourceEvent,
     private val classifier: LineClassifier,
     private val entityIds: AggregateEntityIds,
+    private val supplier: AggregateSupplierIdentity,
     private val json: AggregateDocumentJson,
     private val writer: CanonicalVersionWriter,
 ) {
@@ -192,7 +221,13 @@ class RecordAggregateDocument(
         val merged = merge(classified, purchase)
         val verdict = LineVerdictCombination.combine(classified.map { it.second.lineVerdict })
         val lines = merged.map { MergedLine(it.categoryCode, it.taxable, it.rate) }
-        val canonical = json.build(lines, amounts(merged, purchase), input.isCreditNote, input.aggregateType)
+        val amounts = amounts(merged, purchase)
+        val identity =
+            when (val a = supplier.identityOf(input.tenantId, input.entityRef, c.windowTo)) {
+                is SupplierAnswer.Found -> a.identity
+                is SupplierAnswer.Retry -> throw AggregateRetry("supplier identity not available: ${a.reason}")
+            }
+        val canonical = json.build(lines, amounts, input.isCreditNote, input.aggregateType, identity)
         val derived = Derived(ScopeVerdict.valueOf(verdict), packs, canonical)
         writer.createFirst(document(docUuid, input, c, derived), facts(docUuid, input, c, derived))
     }
