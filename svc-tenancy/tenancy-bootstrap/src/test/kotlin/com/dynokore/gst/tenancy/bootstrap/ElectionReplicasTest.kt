@@ -325,7 +325,7 @@ class ElectionReplicasTest {
     fun `INV-AC-23120 the platform type is not refused as unexpected by the three handlers`() {
         run { _, env ->
             activatedHandlers(env).forEach { (name, handler) ->
-                assertThat(refusal(handler, "com.dynokore.gst.platform.RulePackActivated.v1") ?: "")
+                assertThat(refusal(handler, "com.dynokore.gst.platform.RulePackActivated.v1").orEmpty())
                     .describedAs(name)
                     .doesNotStartWith("unexpected ")
             }
