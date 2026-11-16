@@ -60,8 +60,8 @@ import java.security.MessageDigest
 import java.sql.Connection
 import java.sql.DriverManager
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.util.Base64
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
@@ -78,9 +78,10 @@ private const val APPROVE_KEY = "regulatory-pack.approve"
 private const val TYPE = "CALENDAR"
 private const val SCHEMATRON = "SCHEMATRON"
 
-// Relative to the real clock (the harness clock starts at Instant.now()), 60 days out: always beyond the
-// grace window that caps the lead time, so the window cases cannot expire with the calendar (P160).
-private val EFFECTIVE_DATE: LocalDate = LocalDate.now(ZoneOffset.UTC).plusDays(60)
+// Two fixed constants (P160, P161): the effective date, and the start of the harness clock 60 days before it.
+// 60 days is beyond the grace window that caps the lead time, so the window cases never depend on the calendar.
+private val EFFECTIVE_DATE: LocalDate = LocalDate.parse("2027-01-01")
+private val START: Instant = Instant.parse("2026-11-02T10:00:00Z")
 private val EFFECTIVE = EFFECTIVE_DATE.toString()
 private val DAY_AFTER_EFFECTIVE = EFFECTIVE_DATE.plusDays(1).toString()
 private val DAY_BEFORE_EFFECTIVE = EFFECTIVE_DATE.minusDays(1).toString()
@@ -189,6 +190,7 @@ open class ArmingHarness(
 
     @BeforeEach
     fun freshReplica() {
+        clock.advance(Duration.between(clock.instant(), START))
         ReplicaFallbackDouble.reset()
         CurrencyCalls.statuses.clear()
         replica.tracker.admitIncarnation(epoch.get())
