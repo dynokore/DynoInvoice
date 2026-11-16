@@ -4,12 +4,12 @@ import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
 import com.dynokore.gst.consoleBff.application.exceptions.EntityScope
 import com.dynokore.gst.consoleBff.application.exceptions.ExceptionQueue
 import com.dynokore.gst.consoleBff.application.exceptions.ListExceptions
+import com.dynokore.gst.consoleBff.application.exceptions.QueuedException
 import com.dynokore.gst.consoleBff.application.override.OverrideException
 import com.dynokore.gst.consoleBff.application.override.OwnerReply
 import com.dynokore.gst.consoleBff.application.override.PayloadOverrides
 import com.dynokore.gst.consoleBff.application.override.Release
 import com.dynokore.gst.consoleBff.application.override.SubmissionOverrides
-import com.dynokore.gst.consoleBff.application.exceptions.QueuedException
 import com.dynokore.gst.consoleBff.domain.badge.ItemState
 import com.dynokore.gst.consoleBff.domain.exceptions.ExceptionRow
 import com.dynokore.gst.consoleBff.domain.exceptions.ExceptionSortKey
@@ -89,8 +89,7 @@ class ExceptionsControllerTest {
                     noOverride(),
                     OverridesProblemMapper(),
                 ),
-            )
-            .setControllerAdvice(ExceptionsProblemAdvice())
+            ).setControllerAdvice(ExceptionsProblemAdvice())
             .build()
     }
 

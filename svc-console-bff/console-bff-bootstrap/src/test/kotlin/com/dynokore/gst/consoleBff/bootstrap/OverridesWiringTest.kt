@@ -19,8 +19,8 @@ import java.nio.file.Path
 
 /** INV-AC-21206 in the composed application (TPL-18): one controller per generated interface; the context starts. */
 class OverridesWiringTest {
-    /** A look-alike: a RestController that implements no generated interface. */
-    @RestController
+    /** A look-alike: a handler class that implements no generated interface (not a component: never scanned). */
+    @RequestMapping
     class LookAlike
 
     /** A second implementation of the generated interface of the exceptions tag. */
@@ -32,8 +32,7 @@ class OverridesWiringTest {
     private fun generatedInterfaces(): List<Class<*>> {
         val scanner =
             object : ClassPathScanningCandidateComponentProvider(false) {
-                override fun isCandidateComponent(definition: AnnotatedBeanDefinition) =
-                    definition.metadata.isInterface
+                override fun isCandidateComponent(definition: AnnotatedBeanDefinition) = definition.metadata.isInterface
             }
         scanner.addIncludeFilter(AssignableTypeFilter(Any::class.java))
         return scanner

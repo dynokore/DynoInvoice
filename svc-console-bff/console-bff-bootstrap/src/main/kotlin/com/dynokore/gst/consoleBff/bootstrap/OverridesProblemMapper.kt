@@ -32,15 +32,15 @@ class OverridesProblemMapper {
     ): StoredResponse =
         stored(
             Problems.renderRelayed(
-            RelayedRefusal(
-                status = refusal.status,
-                code = refusal.code,
-                title = refusal.title,
-                severity = refusal.severity,
-                disposition = refusal.disposition,
-                remediationOwner = refusal.remediationOwner,
-                detail = refusal.detail,
-            ),
+                RelayedRefusal(
+                    status = refusal.status,
+                    code = refusal.code,
+                    title = refusal.title,
+                    severity = refusal.severity,
+                    disposition = refusal.disposition,
+                    remediationOwner = refusal.remediationOwner,
+                    detail = refusal.detail,
+                ),
                 correlationId,
             ),
         )
@@ -48,4 +48,3 @@ class OverridesProblemMapper {
     private fun stored(response: com.dynokore.platform.serviceruntime.http.ProblemResponse) =
         StoredResponse(response.status, response.body)
 }
-
