@@ -26,7 +26,7 @@ class PinnedDeferralContractTest {
         }
         // The third pin bump (INV-T-21172) lists the relayed codes; see PinnedOverrideContractTest.
         val override = checkNotNull(ops["overrideException"]) { "overrideException is not in the pinned contract" }
-        val relayed = listOf("SRT-005", "SRT-004", "SRT-008", "PAY-017", "SRT-001")
+        val relayed = listOf("SRT-005", "SRT-004", "SRT-008", "PAY-017", "SRT-001", "SRT-013")
         check(override["x-error-codes"] == relayed) {
             "x-error-codes of overrideException is ${override["x-error-codes"]}"
         }

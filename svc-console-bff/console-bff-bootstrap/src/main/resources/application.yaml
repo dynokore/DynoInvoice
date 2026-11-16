@@ -27,6 +27,9 @@ console:
     per-principal: 300
     per-tenant: 3000
     ready-replicas: 1
+  # Required owner URLs of overrideException (INV-T-21207): no default here or in code; the chart sets them (12-factor).
+  payload-svc-url: ${CONSOLE_PAYLOAD_SVC_URL}
+  submission-svc-url: ${CONSOLE_SUBMISSION_SVC_URL}
   exceptions:
     max-limit: 500 # the `maximum` of the getExceptions limit parameter in the pinned contract
 management:

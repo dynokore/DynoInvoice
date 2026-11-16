@@ -53,11 +53,11 @@ class PinnedResolveGroupContractTest {
         val op = console.operation("resolveGroup")
         requireEq("method", op.method, "POST")
         requireEq("path", op.path, "/bff/entities/{entityRef}/group-resolutions")
-        requireEq("responses", (op.body["responses"] as Map<*, *>).keys, setOf("200", "409", "413", "default"))
+        requireEq("responses", (op.body["responses"] as Map<*, *>).keys, setOf("200", "409", "413", "503", "default"))
         requireEq(
             "x-error-codes",
             op.body["x-error-codes"],
-            listOf("MDM-001", "MDM-002", "MDM-003", "MDM-004", "MDM-006", "SRT-001", "SRT-004", "SRT-014", "SRT-015"),
+            listOf("MDM-001", "MDM-002", "MDM-003", "MDM-004", "MDM-006", "SRT-001", "SRT-004", "SRT-014", "SRT-015", "SRT-013"),
         )
         requireEq("x-timeout", op.body["x-timeout"], 5000)
     }

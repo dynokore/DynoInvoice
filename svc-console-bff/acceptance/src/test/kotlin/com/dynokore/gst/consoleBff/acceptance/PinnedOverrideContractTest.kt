@@ -56,14 +56,19 @@ class PinnedOverrideContractTest {
     }
 
     @Test
-    fun `INV-AC-21180 overrideException has 202 PendingOverride, five codes and 5000 ms`() {
+    fun `INV-AC-21180 overrideException has 202 PendingOverride, six codes and 5000 ms`() {
         val op = console.operation("overrideException")
-        requireEq("responses", (op.body["responses"] as Map<*, *>).keys, setOf("200", "202", "default"))
+        requireEq("responses", (op.body["responses"] as Map<*, *>).keys, setOf("200", "202", "503", "default"))
         requireEq("202 schema", op.schemaRef("202"), "#/components/schemas/PendingOverride")
+        requireEq(
+            "503 response",
+            (op.body["responses"] as Map<*, *>)["503"],
+            mapOf("\$ref" to "#/components/responses/Error"),
+        )
         requireEq(
             "x-error-codes",
             op.body["x-error-codes"],
-            listOf("SRT-005", "SRT-004", "SRT-008", "PAY-017", "SRT-001"),
+            listOf("SRT-005", "SRT-004", "SRT-008", "PAY-017", "SRT-001", "SRT-013"),
         )
         requireEq("x-timeout", op.body["x-timeout"], 5000)
         val pending = console.schema("PendingOverride")
