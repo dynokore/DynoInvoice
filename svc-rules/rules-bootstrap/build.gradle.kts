@@ -91,6 +91,8 @@ val egressAgentJar =
         }
     }
 
+val PACK_JOURNEY = "com.dynokore.gst.rules.bootstrap.PrivatePackImportJourneyBoundaryTest"
+
 tasks.test {
     dependsOn(egressAgentJar)
     jvmArgs(
@@ -103,7 +105,10 @@ tasks.test {
     // ArchitectureTest scans the generated contract layer of rules-contract
     dependsOn(":rules-contract:generateContractServer")
     useJUnitPlatform()
-    filter { excludeTestsMatching("*Gate") } // the two repository gates have their own tasks below
+    filter {
+        excludeTestsMatching("*Gate") // the two repository gates have their own tasks below
+        excludeTestsMatching(PACK_JOURNEY) // runs in its own JVM and database: packJourneyTest below
+    }
     jvmArgs("-Duser.timezone=UTC") // CS-41
     systemProperty("gst.repo.root", rootDir.absolutePath)
 }
@@ -156,3 +161,43 @@ tasks.named("check") { dependsOn(acKeyCoverage, verifyOperations) }
 // The shared unit-test job runs only `test`: finalizing it with the gates runs them there too, and a gate failure fails
 // the job (verify-rules disables the Test tasks, so the gates stay out of that job).
 tasks.named("test") { finalizedBy(acKeyCoverage, verifyOperations) }
+
+// INV-T-22759: DEP-001 is a platform-wide condition, so the journey class needs a database that holds only its own
+// packs. It runs in its own JVM (PostgresRules starts one container per JVM); `test` excludes it and is finalized by it.
+val packJourneyTest =
+    tasks.register<Test>("packJourneyTest") {
+        group = "verification"
+        description = "Runs PrivatePackImportJourneyBoundaryTest in its own JVM and database."
+        val testSet = sourceSets.test.get()
+        testClassesDirs = testSet.output.classesDirs
+        classpath = testSet.runtimeClasspath
+        dependsOn(egressAgentJar)
+        dependsOn(":rules-contract:generateContractServer")
+        useJUnitPlatform()
+        filter {
+            includeTestsMatching(PACK_JOURNEY)
+            isFailOnNoMatchingTests = true
+        }
+        jvmArgs(
+            "-javaagent:" +
+                layout.buildDirectory
+                    .file("egress-agent/egress-agent.jar")
+                    .get()
+                    .asFile.absolutePath,
+        )
+        jvmArgs("-Duser.timezone=UTC") // CS-41
+        systemProperty("gst.repo.root", rootDir.absolutePath)
+        // gate (fails closed): the class reports under this task only, never under `test`
+        val results = layout.buildDirectory.dir("test-results")
+        doLast {
+            val own = results.get().dir("packJourneyTest").asFile.listFiles { f -> f.name.startsWith("TEST-") }.orEmpty()
+            val named = { f: java.io.File -> Regex("<testsuite name=\"([^\"]*)\"").find(f.readText())?.groupValues?.get(1) }
+            check(own.any { named(it) == PACK_JOURNEY }) { "packJourneyTest holds no report of $PACK_JOURNEY" }
+            val cases = own.filter { named(it) == PACK_JOURNEY }.sumOf { Regex("<testcase ").findAll(it.readText()).count() }
+            check(cases == 3) { "packJourneyTest ran $cases cases of $PACK_JOURNEY, expected 3" }
+            val shared = results.get().dir("test").asFile.listFiles { f -> f.name.startsWith("TEST-") }.orEmpty()
+            check(shared.none { named(it) == PACK_JOURNEY }) { "$PACK_JOURNEY also ran under test: shared database" }
+        }
+    }
+
+tasks.named("test") { finalizedBy(packJourneyTest) }

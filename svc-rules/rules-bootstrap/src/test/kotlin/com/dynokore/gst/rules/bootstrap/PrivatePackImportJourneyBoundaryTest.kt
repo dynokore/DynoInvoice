@@ -320,13 +320,18 @@ class PrivatePackImportJourneyBoundaryTest(
         call("$SCHEMATRON/$v/approval", USER_B, null).statusCode() shouldBe 200
         ackAll(SCHEMATRON, v)
         arm(USER_B, SCHEMATRON, v, date).statusCode() shouldBe 200
+        // the clear: the pack is ARMED and no pack of the platform tenant is left unactivated (predicate of
+        // JooqPackCurrencyStore.unactivated), so the one row after the raised row is the clear of this version
+        status(SCHEMATRON, v) shouldBe "ARMED"
+        scalar(
+            "select count(*)::text from rules.pack_registry where status in ('STAGED', 'APPROVED', 'ACKNOWLEDGED')",
+        ) shouldBe "0"
         val after = currencyRows().drop(before)
         after.size shouldBe 2
-        // The cleared payload names no pack (PackCurrency.evaluate: null identifier and version when nothing is
-        // unactivated), so the row is tied to this journey by its position after the raised row of the version.
         after[1].let {
             it["depCode"] shouldBe "DEP-001"
             it["status"] shouldBe statuses[1]
+            // the schema names the pack "where known"; PackCurrency.evaluate gives null for both when none is left
             it["packIdentifier"] shouldBe null
             it["packVersion"] shouldBe null
             it["tenant"] shouldBe TenantId.PLATFORM.toString()
