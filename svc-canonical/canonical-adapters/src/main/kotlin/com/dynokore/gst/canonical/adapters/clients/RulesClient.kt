@@ -4,6 +4,7 @@ import com.dynokore.gst.canonical.adapters.clients.rules.api.EvaluationApi
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluateDocumentRequest
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluateDocumentRequestCounterpartySchemeData
 import com.dynokore.gst.canonical.adapters.clients.rules.model.EvaluationResult
+import com.dynokore.platform.serviceruntime.identity.FlowContext
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
@@ -14,11 +15,16 @@ import org.springframework.web.client.RestClientResponseException
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
+import tools.jackson.core.JacksonException
+import tools.jackson.databind.json.JsonMapper
 
 private const val SCOPE = "SCOPE"
 private const val MAPPING = "MAPPING"
 private const val MDE = "MDE"
 private val PACK_TYPES = listOf(SCOPE, MAPPING, MDE)
+private const val HTTP_FORBIDDEN = 403
+private const val FLOW_CONTEXT_REFUSED = "SRT-004"
+private val ENVELOPE = JsonMapper.builder().build()
 
 /** The sync edge canonical-svc -> rules-svc (sync-edges.yaml; `x-sync-edge` of `evaluateDocument`). */
 object RulesEdge {
@@ -94,6 +100,9 @@ class RulesClient(
     fun evaluate(facts: EvaluationFacts): RulesAnswer {
         // API-29: the deadline of the request being served; a call with none behind it gets the contract's 300 ms
         val deadline = CurrentDeadline.current() ?: Deadline.after(RulesEdge.DEADLINE, clock)
+        // the edge runs the block on its own thread and the held flow context is thread-bound:
+        // carry it over, never make one
+        val held = FlowContext.current()
         return registry.forEdge(RulesEdge.EDGE).execute(
             deadline,
             onCallNotPermitted = { RulesAnswer.Unavailable },
@@ -101,17 +110,18 @@ class RulesClient(
             onTimeout = { RulesAnswer.Unavailable },
         ) {
             try {
-                val body = api.evaluateDocumentWithHttpInfo(request(facts)).body
+                val call = { api.evaluateDocumentWithHttpInfo(request(facts)).body }
+                val body = if (held == null) call() else FlowContext.runWith(held, call)
                 if (body == null) {
                     RulesAnswer.Unavailable
                 } else {
                     verdictOf(body)
                 }
             } catch (failure: RestClientResponseException) {
-                if (failure.statusCode.is4xxClientError) {
-                    RulesAnswer.Refused(failure.statusCode.value())
-                } else {
-                    RulesAnswer.Unavailable
+                when {
+                    isFlowContextRefusal(failure) -> RulesAnswer.Unavailable
+                    failure.statusCode.is4xxClientError -> RulesAnswer.Refused(failure.statusCode.value())
+                    else -> RulesAnswer.Unavailable
                 }
             } catch (_: RestClientException) {
                 // an I/O error or an unreadable answer: no usable answer from the owner
@@ -119,6 +129,24 @@ class RulesClient(
             }
         }
     }
+
+    /**
+     * 403 whose API-20 error envelope (`application/problem+json`, field `code`) is exactly `SRT-004`: the callee
+     * refused the flow context (missing, expired or for another entity). That is a wiring fault, not a rules decision: the
+     * record is held and retried. Exact, case-sensitive equality; any other 403 stays a refusal.
+     */
+    private fun isFlowContextRefusal(failure: RestClientResponseException): Boolean =
+        failure.statusCode.value() == HTTP_FORBIDDEN &&
+            errorCodeOf(failure.responseBodyAsString) == FLOW_CONTEXT_REFUSED
+
+    /** The top-level `code` string of the envelope; null for a body that is not an object with a string `code`. */
+    private fun errorCodeOf(body: String): String? =
+        try {
+            val code = ENVELOPE.readTree(body)?.takeIf { it.isObject }?.get("code")
+            if (code != null && code.isString) code.asString() else null
+        } catch (_: JacksonException) {
+            null
+        }
 
     /**
      * The pack versions come from `packVersionsApplied` by exact, case-sensitive packType equality (no prefix, no case
