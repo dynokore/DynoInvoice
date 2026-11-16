@@ -41,6 +41,9 @@ import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicLong
 
+/** The X-Flow-Context value of the batch requests; the service-runtime filter verifies it, the controller does not. */
+internal const val TEST_FLOW_CONTEXT = "test-flow-context"
+
 /** Shared fixture of the aggregation boundary tests: the real controller over the online context. */
 open class BoundaryFixture {
     protected val mapper = ObjectMapper()
@@ -112,6 +115,7 @@ open class BoundaryFixture {
                         post("/internal/v1/aggregation/batches")
                             .contentType(MediaType.APPLICATION_JSON)
                             .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .header("X-Flow-Context", TEST_FLOW_CONTEXT)
                             .content(content),
                     ).andReturn()
                     .response

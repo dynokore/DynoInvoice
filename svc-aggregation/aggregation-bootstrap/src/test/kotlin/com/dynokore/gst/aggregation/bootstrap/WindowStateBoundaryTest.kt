@@ -96,6 +96,7 @@ class WindowStateBoundaryTest {
                         post("/internal/v1/aggregation/batches")
                             .contentType(MediaType.APPLICATION_JSON)
                             .header("Idempotency-Key", UUID.randomUUID().toString())
+                            .header("X-Flow-Context", TEST_FLOW_CONTEXT)
                             .content(
                                 """{"entityRef":"E-001","businessUnitRef":"BU-01","aggregateType":"POS",
                                 |"periodStart":"2027-03-31","periodEnd":"2027-03-31","underlyingRef":"BATCH-1",

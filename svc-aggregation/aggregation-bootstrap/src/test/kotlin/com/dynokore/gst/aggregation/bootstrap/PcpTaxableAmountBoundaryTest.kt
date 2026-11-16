@@ -68,7 +68,7 @@ class PcpTaxableAmountBoundaryTest {
                         post(path)
                             .contentType(MediaType.APPLICATION_JSON)
                             .header("Idempotency-Key", UUID.randomUUID().toString())
-                            .header("X-Flow-Context", "{}")
+                            .header("X-Flow-Context", TEST_FLOW_CONTEXT)
                             .content(content),
                     ).andReturn()
                     .response
