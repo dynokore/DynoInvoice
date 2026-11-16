@@ -182,4 +182,63 @@ class SeparabilityTest {
         probed { it.run("alter function evidence.binding_verified() rename to binding_verified_x") }
             .shouldName("function binding_verified()", "missing")
     }
+
+    // ---- partitions (INV-T-22969): inheritance of a cloned trigger is the one resolved trigger dependency ----
+
+    private val partitionedProbe =
+        "create table operational_probe.parent (id uuid not null, tenant_id uuid not null) " +
+            "partition by range (tenant_id);" +
+            "create trigger parent_noop before insert on operational_probe.parent " +
+            "for each row execute function operational_probe.noop();" +
+            "create table evidence.parent_p1 partition of operational_probe.parent " +
+            "for values from ('00000000-0000-0000-0000-000000000000') to ('ffffffff-ffff-ffff-ffff-ffffffffffff');"
+
+    @Test
+    fun `INV-AC-7871 the real migrations with partitions present give no finding`() {
+        EvidenceDb.superuser().use { connection ->
+            RetentionPartitionFixture.ensureRetentionPartition(
+                connection,
+                "decision_trace",
+                java.util.UUID.randomUUID(),
+                "E-1",
+                "2026-Q3",
+            )
+            connection.createStatement().use { statement ->
+                statement
+                    .executeQuery(
+                        "select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+                            "where n.nspname = 'evidence' and c.relispartition",
+                    ).use {
+                        it.next()
+                        (it.getInt(1) > 0) shouldBe true
+                    }
+            }
+            findings(connection).shouldBeEmpty()
+        }
+    }
+
+    @Test
+    fun `INV-AC-7871 a partition of schema evidence whose parent is in operational_probe is still reported`() {
+        probed { it.run(partitionedProbe) }.apply {
+            shouldName("trigger parent_noop", "operational_probe")
+            shouldName("trigger parent_noop", "depend", "unresolved")
+        }
+    }
+
+    @Test
+    fun `INV-AC-7871 a dependency on a trigger that is not the parent trigger of the dependent is reported`() {
+        probed {
+            it.run(
+                "create table evidence.dep_a (id uuid primary key, tenant_id uuid not null);" +
+                    "create table evidence.dep_b (id uuid primary key, tenant_id uuid not null);" +
+                    "create function evidence.dep_fn() returns trigger language plpgsql as " +
+                    "\$\$ begin return new; end \$\$;" +
+                    "create trigger dep_ta before insert on evidence.dep_a for each row execute function evidence.dep_fn();" +
+                    "create trigger dep_tb before insert on evidence.dep_b for each row execute function evidence.dep_fn();" +
+                    "insert into pg_catalog.pg_depend (classid, objid, objsubid, refclassid, refobjid, refobjsubid, deptype) " +
+                    "select 'pg_trigger'::regclass, a.oid, 0, 'pg_trigger'::regclass, b.oid, 0, 'n' " +
+                    "from pg_trigger a, pg_trigger b where a.tgname = 'dep_ta' and b.tgname = 'dep_tb'",
+            )
+        }.shouldName("trigger dep_ta", "unresolved")
+    }
 }

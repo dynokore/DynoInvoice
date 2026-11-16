@@ -140,6 +140,19 @@ class ArchiveVolumeContentColumnsTest {
         }
     }
 
+    @Test
+    fun `INV-AC-20663 a column marked class content on a partition of a chain table is reported unlisted`() {
+        rolledBack { connection ->
+            connection.run(
+                "create table evidence.decision_trace_p1 partition of evidence.decision_trace " +
+                    "for values from ('00000000-0000-0000-0000-000000000000', '', '') " +
+                    "to ('00000000-0000-0000-0000-000000000000', 'a', '')",
+            )
+            connection.run("comment on column evidence.decision_trace_p1.content is 'class: content'")
+            drift(connection) shouldBe setOf("unlisted:decision_trace_p1.content")
+        }
+    }
+
     // ---- pending record attribution (INV-Q-12744 A): a pending record counts for the entity of its locator ----
 
     private fun seedLocator(
