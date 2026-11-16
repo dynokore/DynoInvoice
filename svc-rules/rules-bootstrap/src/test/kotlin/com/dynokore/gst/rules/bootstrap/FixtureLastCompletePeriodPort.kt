@@ -16,19 +16,23 @@ class FixtureLastCompletePeriodPort : LastCompletePeriodPort {
 
     @Volatile var unavailable: Boolean = false
 
+    /** The last complete period of an entity that has its own calendar; the others answer [answer]. */
+    val byEntity = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     override fun lastCompletePeriod(
         tenant: TenantId,
         entityRef: String,
     ): String? {
         calls.incrementAndGet()
         if (unavailable) throw PeriodCalendarUnavailableException("the fixture calendar is switched off")
-        return answer
+        return byEntity[entityRef] ?: answer
     }
 
     fun reset() {
         calls.set(0)
         answer = LAST_PERIOD
         unavailable = false
+        byEntity.clear()
     }
 
     companion object {

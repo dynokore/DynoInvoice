@@ -1095,6 +1095,8 @@ private const val RT_CHANGED_CODE = "ZR"
 private const val RT_UNCHANGED_CODE = "SR"
 private const val REQUESTED_ENTITIES =
     "select data->>'entityRef' from rules.outbox where type = '$REQUESTED' and data->>'dryRunId' = ?"
+private const val TICK_TABLE = "pack_currency_state"
+private const val TICK_EVENT = "com.dynokore.gst.platform.PackCurrencyChanged.v1"
 private const val REQUESTS_OF_TENANT =
     "select tenant_id::text || '|' || data::text from rules.outbox where type = ? and tenant_id = ?::uuid"
 private const val RUN_OF_TENANT = "select id::text from rules.dry_run_delta where tenant_id = ?::uuid"
@@ -1117,6 +1119,9 @@ class EntityAwareSamples : HistoricalSamplePort {
     private val byEntity = ConcurrentHashMap<String, List<Map<String, Any?>>>()
     val reads = CopyOnWriteArrayList<String>()
 
+    /** The window of the run that each read was made with. */
+    val readWindows = CopyOnWriteArrayList<com.dynokore.gst.rules.application.DryRunWindow>()
+
     fun serve(docs: RegulatoryDocs) {
         byEntity[docs.entity] = listOf(docs.changed, docs.unchanged)
     }
@@ -1124,6 +1129,7 @@ class EntityAwareSamples : HistoricalSamplePort {
     fun clear() {
         byEntity.clear()
         reads.clear()
+        readWindows.clear()
     }
 
     override fun pages(
@@ -1132,6 +1138,7 @@ class EntityAwareSamples : HistoricalSamplePort {
         wait: java.time.Duration,
     ): List<SamplePage> {
         reads.add(dryRunId)
+        readWindows.add(window)
         val requested =
             java.sql
                 .DriverManager
@@ -1255,7 +1262,12 @@ open class RegulatoryDryRunSupport(
         return type to platformPack(type, "cand-${UUID.randomUUID().toString().take(6)}")
     }
 
-    /** Every table of the schema `rules` with its rows as text, all tenants (the superuser login). */
+    /**
+     * Every table of the schema `rules` with its rows as text, all tenants (the superuser login). The one background
+     * writer of the context is the scheduled pack-currency tick (`PackCurrencyScheduling`, every 30 s): it writes
+     * `pack_currency_state` and the `PackCurrencyChanged` outbox row for the staged platform packs that the tests
+     * register. Neither is written by a dry-run call, so both are left out; every other table and row is compared.
+     */
     protected fun everything(): Map<String, List<String>> =
         superuser { c ->
             val names =
@@ -1266,9 +1278,15 @@ open class RegulatoryDryRunSupport(
                                 "where table_schema = 'rules' and table_type = 'BASE TABLE' order by 1",
                         ).use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
                 }
-            names.associateWith { name ->
+            names.filter { it != TICK_TABLE }.associateWith { name ->
                 c.createStatement().use { st ->
-                    st.executeQuery("select to_jsonb(t)::text from rules.\"$name\" t order by 1").use { rs ->
+                    val rows =
+                        if (name == "outbox") {
+                            "select to_jsonb(t)::text from rules.outbox t where t.type <> '$TICK_EVENT' order by 1"
+                        } else {
+                            "select to_jsonb(t)::text from rules.\"$name\" t order by 1"
+                        }
+                    st.executeQuery(rows).use { rs ->
                         buildList { while (rs.next()) add(rs.getString(1)) }
                     }
                 }
@@ -1513,6 +1531,29 @@ class RegulatoryDryRunBoundaryTest(
         rows.all { it.first == t1.toString() } shouldBe true
         rows.none { it.second.get("entityRef").asString() == "E3" } shouldBe true
         rows.all { it.second.get("firstPeriodRef").asString() == "2026-Q3" } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20274 each sample request carries the window of its own entity`() {
+        val (t1, user1) = tenantWith("E1", "E2")
+        listOf("E1", "E2").forEach { samples.serve(docs(it)) }
+        periods.byEntity["E1"] = "2026-Q2"
+        periods.byEntity["E2"] = "2026-Q3"
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1).get("state").asString() shouldBe "SUCCEEDED"
+        val byEntity = requestsOf(t1).map { it.second }.associateBy { it.get("entityRef").asString() }
+        byEntity.keys shouldBe setOf("E1", "E2")
+        val expected = mapOf("E1" to "2026-Q2", "E2" to "2026-Q3")
+        expected.forEach { (entity, period) ->
+            val row = checkNotNull(byEntity[entity])
+            row.get("firstPeriodRef").asString() shouldBe period
+            row.get("lastPeriodRef").asString() shouldBe period
+            row.get("periodCount").asInt() shouldBe 1
+        }
+        // the run row carries the window of the first entity by sorted entityRef
+        val runWindow = samples.readWindows.single()
+        runWindow.firstPeriodRef shouldBe "2026-Q2"
+        runWindow.lastPeriodRef shouldBe "2026-Q2"
     }
 
     @Test

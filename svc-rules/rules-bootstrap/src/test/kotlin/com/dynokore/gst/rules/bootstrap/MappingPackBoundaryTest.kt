@@ -397,7 +397,11 @@ open class MappingPackSupport(
         return packId
     }
 
-    /** Every table of the schema as tenant A and the platform see it under row-level security. */
+    /**
+     * Every table of the schema as tenant A and the platform see it under row-level security. The scheduled
+     * pack-currency tick (every 30 s) is the one background writer: it writes `pack_currency_state` and the
+     * `PackCurrencyChanged` outbox rows for the staged platform packs that other tests register, so both are left out.
+     */
     protected fun snapshot(): Map<String, List<String>> {
         val platform = TenantId(UUID.fromString(PLATFORM))
         val tables =
@@ -406,10 +410,18 @@ open class MappingPackSupport(
                     "select table_name from information_schema.tables " +
                         "where table_schema = 'rules' and table_type = 'BASE TABLE' order by 1",
                 ).map { it["table_name"] as String }
+                .filter { it != "pack_currency_state" }
         return tables.associateWith { table ->
+            val rows =
+                if (table == "outbox") {
+                    "select t::text as r from rules.outbox t where t.type <> " +
+                        "'com.dynokore.gst.platform.PackCurrencyChanged.v1' order by 1"
+                } else {
+                    "select t::text as r from rules.\"$table\" t order by 1"
+                }
             listOf(TENANT_A, platform).flatMap { tenant ->
                 probe.inTenant(tenant) {
-                    fetchRows("select t::text as r from rules.\"$table\" t order by 1").map { "$tenant ${it["r"]}" }
+                    fetchRows(rows).map { "$tenant ${it["r"]}" }
                 }
             }
         }
