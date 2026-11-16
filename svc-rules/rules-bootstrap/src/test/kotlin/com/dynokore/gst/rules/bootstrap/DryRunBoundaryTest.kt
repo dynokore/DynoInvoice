@@ -10,6 +10,12 @@ import com.dynokore.gst.rules.domain.dryrun.DocumentOutcome
 import com.dynokore.gst.rules.domain.dryrun.SampledDocument
 import com.dynokore.gst.rules.served.TENANT_A
 import com.dynokore.gst.rules.served.workloadToken
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
+import com.dynokore.platform.serviceruntime.replica.EntityProfileChanged
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
@@ -17,12 +23,16 @@ import io.kotest.matchers.string.shouldContain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory
 import org.springframework.beans.factory.support.BeanDefinitionRegistry
 import org.springframework.beans.factory.support.BeanDefinitionRegistryPostProcessor
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.TestConfiguration
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
@@ -1077,3 +1087,556 @@ class DryRunLaneBindingTest(
 }
 
 private const val SAMPLE_WAIT_SECONDS = 37L
+
+// ---- the dry run of a staged regulatory pack (INV-T-20275; INV-AC-20274; owner ruling of 2026-11-16) ----
+
+private const val RT_TOKEN_PREFIX = "Bearer rt:"
+private const val RT_CHANGED_CODE = "ZR"
+private const val RT_UNCHANGED_CODE = "SR"
+private const val REQUESTED_ENTITIES =
+    "select data->>'entityRef' from rules.outbox where type = '$REQUESTED' and data->>'dryRunId' = ?"
+private const val TICK_TABLE = "pack_currency_state"
+private const val TICK_EVENT = "com.dynokore.gst.platform.PackCurrencyChanged.v1"
+private const val REQUESTS_OF_TENANT =
+    "select tenant_id::text || '|' || data::text from rules.outbox where type = ? and tenant_id = ?::uuid"
+private const val RUN_OF_TENANT = "select id::text from rules.dry_run_delta where tenant_id = ?::uuid"
+private const val OUTBOX_OF_TENANT = "select data::text from rules.outbox where tenant_id = ?::uuid"
+private const val RT_REGISTER =
+    "select rules.register_platform_pack(?::uuid, ?, ?, ?, ?, ?::date, null, '1.0.0', null, ?::timestamptz)"
+
+/** One entity's sample: two documents of period 2026-Q3, one the candidate pack changes and one it keeps. */
+class RegulatoryDocs(
+    val entity: String,
+    val changed: Map<String, Any?>,
+    val unchanged: Map<String, Any?>,
+)
+
+/**
+ * The fixture sample adapter of the regulatory runs. It answers like canonical-svc: only for the entities that the
+ * `PackDryRunSampleRequested` rows of the run name, so a document of an entity that was not requested never arrives.
+ */
+class EntityAwareSamples : HistoricalSamplePort {
+    private val byEntity = ConcurrentHashMap<String, List<Map<String, Any?>>>()
+    val reads = CopyOnWriteArrayList<String>()
+
+    /** The window of the run that each read was made with. */
+    val readWindows = CopyOnWriteArrayList<com.dynokore.gst.rules.application.DryRunWindow>()
+
+    fun serve(docs: RegulatoryDocs) {
+        byEntity[docs.entity] = listOf(docs.changed, docs.unchanged)
+    }
+
+    fun clear() {
+        byEntity.clear()
+        reads.clear()
+        readWindows.clear()
+    }
+
+    override fun pages(
+        dryRunId: String,
+        window: com.dynokore.gst.rules.application.DryRunWindow,
+        wait: java.time.Duration,
+    ): List<SamplePage> {
+        reads.add(dryRunId)
+        readWindows.add(window)
+        val requested =
+            java.sql
+                .DriverManager
+                .getConnection(PostgresRules.pg.jdbcUrl, PostgresRules.pg.username, PostgresRules.pg.password)
+                .use { c ->
+                    c.prepareStatement(REQUESTED_ENTITIES).use {
+                        it.setString(1, dryRunId)
+                        it.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+                    }
+                }
+        return listOf(SamplePage(1, true, requested.sorted().flatMap { byEntity[it].orEmpty() }))
+    }
+
+    override fun release(dryRunId: String) = Unit
+}
+
+/** The fixtures of the regulatory runs: any tenant is a principal by the token `rt:<user>:<tenant>`. */
+@TestConfiguration(proxyBeanMethods = false)
+@Import(MappingAllowingPorts::class, MappingDoubles::class, DryRunAllowingPermission::class)
+class RegulatoryDryRunFixtures {
+    @Bean fun entitySamples() = EntityAwareSamples()
+
+    @Bean fun fixturePeriods() = FixtureLastCompletePeriodPort()
+
+    @Bean fun fixtureEvaluation() = FixtureEvaluation()
+
+    @Bean fun clock(): SwitchableClock = SwitchableClock()
+
+    @Bean
+    @org.springframework.context.annotation.Primary
+    fun regulatoryPrincipals(
+        @Qualifier("mappingEndUserPrincipalResolver") base: EndUserPrincipalResolver,
+    ): EndUserPrincipalResolver =
+        EndUserPrincipalResolver { authorization ->
+            if (authorization != null && authorization.startsWith(RT_TOKEN_PREFIX)) {
+                val (user, tenant) = authorization.removePrefix(RT_TOKEN_PREFIX).split(":")
+                EndUserPrincipal(user, TenantId.of(tenant), emptySet())
+            } else {
+                base.resolve(authorization)
+            }
+        }
+}
+
+/** The calls, the fixtures and the comparisons of the regulatory runs. */
+open class RegulatoryDryRunSupport(
+    port: Int,
+    protected val replica: StructureReplica,
+    protected val samples: EntityAwareSamples,
+    protected val periods: FixtureLastCompletePeriodPort,
+    protected val evaluation: FixtureEvaluation,
+) : DryRunSupport(port) {
+    protected fun newTenant(): TenantId = TenantId.of(UUID.randomUUID().toString())
+
+    protected fun tokenOf(
+        user: String,
+        tenant: TenantId,
+    ) = "$RT_TOKEN_PREFIX$user:$tenant"
+
+    protected fun entity(
+        tenant: TenantId,
+        ref: String,
+    ) = replica.accept(
+        EntityProfileChanged(
+            tenant,
+            ref,
+            StructureNode(StructureNodeKind.ENTITY, null, false, "E", ref, emptyList(), 1),
+        ),
+    )
+
+    /** A changed and an unchanged document of [entity]; the candidate pack answers [RT_CHANGED_CODE] for the first. */
+    protected fun docs(entity: String): RegulatoryDocs {
+        val changed = UUID.randomUUID().toString()
+        val unchanged = UUID.randomUUID().toString()
+        evaluation.candidate[changed] = DocumentOutcome(RT_CHANGED_CODE)
+        val first = doc(changed, entity, "12345.67", "1111.11")
+        return RegulatoryDocs(entity, first, doc(unchanged, entity, "7654.32", "2222.22"))
+    }
+
+    private fun doc(
+        uuid: String,
+        entity: String,
+        taxable: String,
+        gst: String,
+    ): Map<String, Any?> = item(uuid, "2026-Q3", taxable, gst) + ("entityRef" to entity)
+
+    /** A platform pack row of [type]; [status] STAGED, APPROVED or ARMED. The candidate labels reach the fixture. */
+    protected fun platformPack(
+        type: String,
+        version: String,
+        status: String = "STAGED",
+        effective: String = "2027-01-01",
+    ): String {
+        if (status != "ARMED") CANDIDATE_LABELS.add(version)
+        value(
+            TenantId.PLATFORM,
+            RT_REGISTER,
+            UUID.randomUUID().toString(),
+            "$type-pack",
+            type,
+            version,
+            if (status == "ARMED") "ARMED" else "STAGED",
+            effective,
+            java.time.Instant
+                .now()
+                .toString(),
+        )
+        if (status == "APPROVED") value(TenantId.PLATFORM, "select rules.approve_platform_pack(?, ?)", type, version)
+        return "$type@$version"
+    }
+
+    /** A staged candidate of a fresh pack type and a pack of that type in force. */
+    protected fun stagedWithCurrent(): Pair<String, String> {
+        val type =
+            "RT" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .take(8)
+                    .uppercase()
+        platformPack(type, "cur-${UUID.randomUUID().toString().take(6)}", "ARMED", "2026-01-01")
+        return type to platformPack(type, "cand-${UUID.randomUUID().toString().take(6)}")
+    }
+
+    /**
+     * Every table of the schema `rules` with its rows as text, all tenants (the superuser login). The one background
+     * writer of the context is the scheduled pack-currency tick (`PackCurrencyScheduling`, every 30 s): it writes
+     * `pack_currency_state` and the `PackCurrencyChanged` outbox row for the staged platform packs that the tests
+     * register. Neither is written by a dry-run call, so both are left out; every other table and row is compared.
+     */
+    protected fun everything(): Map<String, List<String>> =
+        superuser { c ->
+            val names =
+                c.createStatement().use { st ->
+                    st
+                        .executeQuery(
+                            "select table_name from information_schema.tables " +
+                                "where table_schema = 'rules' and table_type = 'BASE TABLE' order by 1",
+                        ).use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+                }
+            names.filter { it != TICK_TABLE }.associateWith { name ->
+                c.createStatement().use { st ->
+                    val rows =
+                        if (name == "outbox") {
+                            "select to_jsonb(t)::text from rules.outbox t where t.type <> '$TICK_EVENT' order by 1"
+                        } else {
+                            "select to_jsonb(t)::text from rules.\"$name\" t order by 1"
+                        }
+                    st.executeQuery(rows).use { rs ->
+                        buildList { while (rs.next()) add(rs.getString(1)) }
+                    }
+                }
+            }
+        }
+
+    protected fun <T> superuser(block: (java.sql.Connection) -> T): T =
+        java.sql.DriverManager
+            .getConnection(PostgresRules.pg.jdbcUrl, PostgresRules.pg.username, PostgresRules.pg.password)
+            .use(block)
+
+    protected fun strings(
+        sql: String,
+        vararg binds: String,
+    ): List<String?> =
+        superuser { c ->
+            c.prepareStatement(sql).use { ps ->
+                binds.forEachIndexed { i, b -> ps.setString(i + 1, b) }
+                ps.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+            }
+        }
+
+    /** The PackDryRunSampleRequested payloads written for [tenant], parsed. */
+    protected fun requestsOf(tenant: TenantId): List<Pair<String, JsonNode>> =
+        strings(REQUESTS_OF_TENANT, REQUESTED, tenant.toString())
+            .map { checkNotNull(it) }
+            .map { it.substringBefore('|') to mapper.readTree(it.substringAfter('|')) }
+
+    /** The id of the only run of [tenant]. */
+    protected fun runOf(tenant: TenantId): String = checkNotNull(strings(RUN_OF_TENANT, tenant.toString()).single())
+
+    /** Starts the run under [user] and reads its status resource once it has ended. */
+    protected fun report(
+        ref: String,
+        user: String,
+        tenant: TenantId,
+    ): JsonNode {
+        val answer = dryRun(ref, null, user)
+        withClue(answer.body()) { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
+        return pollEnd(ref, runOf(tenant), user)
+    }
+
+    protected fun pollEnd(
+        ref: String,
+        id: String,
+        user: String,
+    ): JsonNode {
+        repeat(POLL_LIMIT) {
+            val status = json(getRun(ref, id, user))
+            if (status.get("state").asString() != "RUNNING") return status
+            Thread.sleep(POLL_MILLIS)
+        }
+        error("the dry run $id did not end")
+    }
+
+    protected fun mappingPackIdLike(
+        tenant: TenantId,
+        packId: String,
+    ) {
+        value(
+            tenant,
+            "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
+                "min_engine_version, registered_by, label, entity_ref) values (?::uuid, ?::uuid, ?, 'MAPPING', ?, " +
+                "'TENANT_MAPPING', 'DRAFT', '1.0.0', 'tenancy-probe', ?, 'E-1') returning id",
+            UUID.randomUUID().toString(),
+            tenant.toString(),
+            packId,
+            "v-" + UUID.randomUUID().toString().take(6),
+            "l-" + UUID.randomUUID().toString().take(6),
+        )
+    }
+
+    /** One ARMED mapping pack of [tenant] in force since yesterday: what a mapping candidate is compared with. */
+    protected fun armedMappingPack(tenant: TenantId) {
+        val yesterday =
+            java.time.LocalDate
+                .now(java.time.ZoneOffset.UTC)
+                .minusDays(1)
+                .toString()
+        value(
+            tenant,
+            "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
+                "effective_from, effective_to, min_engine_version, supersedes, registered_by, entity_ref) " +
+                "values (?::uuid, ?::uuid, ?, 'MAPPING', ?, 'TENANT_MAPPING', 'ARMED', ?::date, null, '1.0.0', " +
+                "null, 'tenancy-probe', 'E-1') returning id",
+            UUID.randomUUID().toString(),
+            tenant.toString(),
+            "MAP-cur-" + UUID.randomUUID().toString().take(6),
+            "cur-" + UUID.randomUUID().toString().take(6),
+            yesterday,
+        )
+    }
+
+    protected fun refusedAs(
+        answer: HttpResponse<String>,
+        status: Int,
+        code: String,
+        before: Map<String, List<String>>,
+    ) {
+        withClue(answer.body()) {
+            answer.statusCode() shouldBe status
+            json(answer).get("code").asString() shouldBe code
+        }
+        everything() shouldBe before
+    }
+}
+
+/**
+ * `dryRun` and `getDryRun` of a staged regulatory pack through the HTTP boundary, the real database, the fixture sample
+ * adapter and the structure replica (INV-T-20275; INV-AC-20274). A regulatory `packRef` is `<packType>@<version>`.
+ */
+@Suppress("TooManyFunctions") // one case per refusal and per owner-ruling consequence
+@ExtendWith(OutputCaptureExtension::class)
+@SpringBootTest(
+    classes = [RegulatoryDryRunFixtures::class, RulesApplication::class],
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+    properties = [WAIT_PROPERTY, IDEMPOTENCY, CALLER_0, SUBJECT_0, CALLER_1, SUBJECT_1],
+)
+class RegulatoryDryRunBoundaryTest(
+    @LocalServerPort port: Int,
+    @Autowired replica: StructureReplica,
+    @Autowired samples: EntityAwareSamples,
+    @Autowired periods: FixtureLastCompletePeriodPort,
+    @Autowired evaluation: FixtureEvaluation,
+) : RegulatoryDryRunSupport(port, replica, samples, periods, evaluation) {
+    @BeforeEach
+    @AfterEach
+    fun reset() {
+        samples.clear()
+        periods.reset()
+        evaluation.reset()
+    }
+
+    private fun tenantWith(vararg entities: String): Pair<TenantId, String> {
+        val tenant = newTenant()
+        entities.forEach { entity(tenant, it) }
+        return tenant to tokenOf("user-1", tenant)
+    }
+
+    // ---- (a) the resolution of a packRef ----
+
+    @Test
+    fun `INV-AC-20274 a packRef that names no pack answers 404 and writes no row`() {
+        val (_, user) = tenantWith("E1")
+        val before = everything()
+        refusedAs(dryRun("NOPACK@2026.4", null, user), 404, "SRT-005", before)
+        refusedAs(dryRun("UNKNOWN", null, user), 404, "SRT-005", before)
+    }
+
+    @Test
+    fun `INV-AC-20274 a staged regulatory pack with no pack in force answers 409 SRT-008 and starts no run`() {
+        val (_, user) = tenantWith("E1")
+        val type =
+            "RT" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .take(8)
+                    .uppercase()
+        val ref = platformPack(type, "cand-1")
+        val before = everything()
+        refusedAs(dryRun(ref, null, user), 409, "SRT-008", before)
+        strings("select count(*)::text from rules.dry_run_delta where pack_type = ?", type) shouldBe listOf("0")
+    }
+
+    @Test
+    fun `INV-AC-20274 the id of a mapping pack of another tenant answers 404`() {
+        val (_, user) = tenantWith("E1")
+        val packId = seedPack("rt-${UUID.randomUUID().toString().take(6)}")
+        val before = everything()
+        refusedAs(dryRun(packId, null, user), 404, "SRT-005", before)
+    }
+
+    @Test
+    fun `INV-AC-20274 a packRef that names a mapping pack of the tenant and a regulatory row answers 409 SRT-008`() {
+        val (tenant, user) = tenantWith("E1")
+        val (_, ref) = stagedWithCurrent()
+        mappingPackIdLike(tenant, ref)
+        armedMappingPack(tenant) // so that the mapping reading of the ref alone would be accepted
+        val before = everything()
+        refusedAs(dryRun(ref, null, user), 409, "SRT-008", before)
+    }
+
+    @Test
+    fun `INV-AC-20274 a regulatory row that is APPROVED answers 409 SRT-008 and starts no run`() {
+        val (_, user) = tenantWith("E1")
+        val type =
+            "RT" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .take(8)
+                    .uppercase()
+        platformPack(type, "cur-1", "ARMED", "2026-01-01")
+        val ref = platformPack(type, "cand-1", "APPROVED")
+        val before = everything()
+        refusedAs(dryRun(ref, null, user), 409, "SRT-008", before)
+    }
+
+    @Test
+    fun `INV-AC-20274 look-alike refs answer 404 and write nothing`() {
+        val (_, user) = tenantWith("E1")
+        val type =
+            "RT" +
+                UUID
+                    .randomUUID()
+                    .toString()
+                    .take(8)
+                    .uppercase()
+        platformPack(type, "cur-1", "ARMED", "2026-01-01")
+        platformPack(type, "2026.4")
+        val before = everything()
+        listOf(type, "$type@", "@2026.4", "${type.lowercase()}@2026.4", "$type@2026.4@x", "$type@2026.4%20").forEach {
+            refusedAs(dryRun(it, null, user), 404, "SRT-005", before)
+        }
+    }
+
+    @Test
+    fun `INV-AC-20274 getDryRun of a run of T1 under the ref of another version answers 404`() {
+        val (tenant, user) = tenantWith("E1")
+        samples.serve(docs("E1"))
+        val (type, ref) = stagedWithCurrent()
+        report(ref, user, tenant).get("state").asString() shouldBe "SUCCEEDED"
+        val other = platformPack(type, "other-1")
+        getRun(other, runOf(tenant), user).statusCode() shouldBe 404
+        getRun("$type@x", runOf(tenant), user).statusCode() shouldBe 404
+        getRun(ref, runOf(tenant), user).statusCode() shouldBe 200
+    }
+
+    // ---- (b) the sample and the report of the starting tenant (owner ruling of 2026-11-16) ----
+
+    @Test
+    fun `INV-AC-20274 a run of T1 samples the entities of T1 only`() {
+        val (t1, user1) = tenantWith("E1", "E2")
+        val (_, _) = tenantWith("E3")
+        listOf("E1", "E2", "E3").forEach { samples.serve(docs(it)) }
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1).get("state").asString() shouldBe "SUCCEEDED"
+        val rows = requestsOf(t1)
+        rows.map { it.second.get("entityRef").asString() }.toSet() shouldBe setOf("E1", "E2")
+        rows.size shouldBe 2
+        rows.all { it.first == t1.toString() } shouldBe true
+        rows.none { it.second.get("entityRef").asString() == "E3" } shouldBe true
+        rows.all { it.second.get("firstPeriodRef").asString() == "2026-Q3" } shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-20274 each sample request carries the window of its own entity`() {
+        val (t1, user1) = tenantWith("E1", "E2")
+        listOf("E1", "E2").forEach { samples.serve(docs(it)) }
+        periods.byEntity["E1"] = "2026-Q2"
+        periods.byEntity["E2"] = "2026-Q3"
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1).get("state").asString() shouldBe "SUCCEEDED"
+        val byEntity = requestsOf(t1).map { it.second }.associateBy { it.get("entityRef").asString() }
+        byEntity.keys shouldBe setOf("E1", "E2")
+        val expected = mapOf("E1" to "2026-Q2", "E2" to "2026-Q3")
+        expected.forEach { (entity, period) ->
+            val row = checkNotNull(byEntity[entity])
+            row.get("firstPeriodRef").asString() shouldBe period
+            row.get("lastPeriodRef").asString() shouldBe period
+            row.get("periodCount").asInt() shouldBe 1
+        }
+        // the run row carries the window of the first entity by sorted entityRef
+        val runWindow = samples.readWindows.single()
+        runWindow.firstPeriodRef shouldBe "2026-Q2"
+        runWindow.lastPeriodRef shouldBe "2026-Q2"
+    }
+
+    @Test
+    fun `INV-AC-20274 the report counts only the documents of the starting tenant`() {
+        val (t1, user1) = tenantWith("E1", "E2")
+        val (t2, user2) = tenantWith("E3")
+        listOf("E1", "E2", "E3").forEach { samples.serve(docs(it)) }
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1).get("result").get("changedCount").asInt() shouldBe 2
+        report(ref, user2, t2).get("result").get("changedCount").asInt() shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-20274 another tenant cannot read the report`() {
+        val (t1, user1) = tenantWith("E1")
+        val (_, user2) = tenantWith("E3")
+        samples.serve(docs("E1"))
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1)
+        val id = runOf(t1)
+        val before = everything()
+        refusedAs(getRun(ref, id, user2), 404, "SRT-005", before)
+        refusedAs(getRun(ref, UUID.randomUUID().toString(), user2), 404, "SRT-005", before)
+    }
+
+    @Test
+    fun `INV-AC-20274 another principal of the same tenant is refused as on the mapping path`() {
+        val (t1, user1) = tenantWith("E1")
+        samples.serve(docs("E1"))
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1)
+        val colleague = tokenOf("user-2", t1)
+        getRun(ref, runOf(t1), colleague).statusCode() shouldBe 404
+        getRun(ref, runOf(t1), user1).statusCode() shouldBe 200
+    }
+
+    @Test
+    fun `INV-AC-20274 a run of a tenant with no entity is not a complete report`() {
+        val (t1, user1) = tenantWith()
+        val (_, ref) = stagedWithCurrent()
+        val answer = dryRun(ref, null, user1)
+        withClue(answer.body()) { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
+        val status = pollEnd(ref, runOf(t1), user1)
+        status.get("state").asString() shouldBe "FAILED"
+        (status.has("result") && !status.get("result").isNull) shouldBe false
+        strings("select state from rules.dry_run_delta where tenant_id = ?::uuid", t1.toString()) shouldBe
+            listOf("SAMPLE_UNAVAILABLE")
+        requestsOf(t1).size shouldBe 0
+        samples.reads.size shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-20274 an entity without a period calendar refuses the call`() {
+        val (_, user1) = tenantWith("E1", "E2")
+        val (_, ref) = stagedWithCurrent()
+        val before = everything()
+        periods.unavailable = true
+        refusedAs(dryRun(ref, null, user1), 503, SRT_013, before)
+        periods.unavailable = false
+        periods.answer = null
+        refusedAs(dryRun(ref, null, user1), 503, SRT_013, before)
+    }
+
+    @Test
+    fun `INV-AC-20274 no document value reaches a log record or an outbox row`(output: CapturedOutput) {
+        val (t1, user1) = tenantWith("E1", "E2")
+        val fixtures = listOf("E1", "E2").map { docs(it).also(samples::serve) }
+        val (_, ref) = stagedWithCurrent()
+        report(ref, user1, t1).get("state").asString() shouldBe "SUCCEEDED"
+        val values =
+            fixtures.flatMap { listOf(it.changed, it.unchanged) }.flatMap {
+                listOf(it.getValue("docUuid"), it.getValue("taxableValue"), it.getValue("gstValue")).map(Any?::toString)
+            }
+        val outbox = strings(OUTBOX_OF_TENANT, t1.toString()).joinToString("\n")
+        val logs = output.all
+        values.forEach {
+            withClue("outbox holds $it") { outbox.contains(it) shouldBe false }
+            withClue("log holds $it") { logs.contains(it) shouldBe false }
+        }
+        listOf(RT_CHANGED_CODE, RT_UNCHANGED_CODE).forEach {
+            val word = Regex("(?<![A-Za-z0-9_])$it(?![A-Za-z0-9_])")
+            withClue("outbox holds the code $it") { word.containsMatchIn(outbox) shouldBe false }
+            withClue("log holds the code $it") { word.containsMatchIn(logs) shouldBe false }
+        }
+    }
+}

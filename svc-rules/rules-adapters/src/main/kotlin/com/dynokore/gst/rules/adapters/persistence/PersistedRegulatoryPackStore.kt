@@ -1,7 +1,7 @@
 package com.dynokore.gst.rules.adapters.persistence
 
-import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.DRY_RUN_DELTA
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
+import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.TENANTS_WITH_DELTA
 import com.dynokore.gst.rules.application.RegulatoryPackRecord
 import com.dynokore.gst.rules.application.RegulatoryPackStore
 import com.dynokore.gst.rules.domain.pack.PackStatus
@@ -41,16 +41,11 @@ class PersistedRegulatoryPackStore(
                 .and(PACK_REGISTRY.TENANT_ID.eq(TenantId.PLATFORM.value))
                 .and(PACK_REGISTRY.LAYER.eq(REGULATORY))
                 .fetchOne() ?: return null
-        // The arming rule is stated per pack, not per tenant: a COMPLETE run of this type and version is enough.
-        val delta =
-            dsl.fetchExists(
-                DSL
-                    .selectOne()
-                    .from(DRY_RUN_DELTA)
-                    .where(DRY_RUN_DELTA.PACK_TYPE.eq(packType))
-                    .and(DRY_RUN_DELTA.PACK_VERSION.eq(version))
-                    .and(DRY_RUN_DELTA.STATE.eq(COMPLETE)),
-            )
+        // The arming rule is stated per pack, not per tenant: a COMPLETE run of this type and version is enough. The
+        // runs belong to tenants and the row-level policy shows this binding the platform tenant's rows only, so the
+        // question goes through rules.tenants_with_delta (definer, platform binding only), which returns the tenant ID,
+        // the completion time and the acknowledgement flag and no document value.
+        val delta = dsl.fetchExists(DSL.selectFrom(TENANTS_WITH_DELTA.call(packType, version)))
         return RegulatoryPackRecord(
             status = PackStatus.valueOf(checkNotNull(row[PACK_REGISTRY.STATUS]) { "pack_registry.status is NOT NULL" }),
             stagedByUserId = row[PACK_REGISTRY.REGISTERED_BY]?.takeIf { it.isNotBlank() },
@@ -84,6 +79,5 @@ class PersistedRegulatoryPackStore(
         /** The workload principal a read of the approval decision runs as (ARC-21). */
         const val READER = "svc:rules-svc/op:approve-regulatory-pack"
         const val REGULATORY = "REGULATORY"
-        const val COMPLETE = "COMPLETE"
     }
 }

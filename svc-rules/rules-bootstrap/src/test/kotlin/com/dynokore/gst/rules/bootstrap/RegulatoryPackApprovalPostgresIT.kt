@@ -78,19 +78,23 @@ class RegulatoryPackApprovalPostgresIT(
     private fun addDryRun(
         version: String,
         state: String = "COMPLETE",
+        tenant: TenantId = TenantId.PLATFORM,
+        packType: String = PACK_TYPE,
     ) {
         val completed = if (state == "COMPLETE") "clock_timestamp()" else "null"
         val changed = if (state == "COMPLETE") "0" else "null"
-        platformValue(
-            "insert into rules.dry_run_delta (id, tenant_id, pack_type, pack_version, state, started_by, " +
-                "completed_at, changed_count, unavailable_reason) values (?::uuid, ?::uuid, ?, ?, ?, 'u-dry', " +
-                "$completed, $changed, ${if (state == "SAMPLE_UNAVAILABLE") "'none'" else "null"}) returning id",
-            UUID.randomUUID().toString(),
-            TenantId.PLATFORM.toString(),
-            PACK_TYPE,
-            version,
-            state,
-        )
+        probe.inTenant(tenant) {
+            fetchValue(
+                "insert into rules.dry_run_delta (id, tenant_id, pack_type, pack_version, state, started_by, " +
+                    "completed_at, changed_count, unavailable_reason) values (?::uuid, ?::uuid, ?, ?, ?, 'u-dry', " +
+                    "$completed, $changed, ${if (state == "SAMPLE_UNAVAILABLE") "'none'" else "null"}) returning id",
+                UUID.randomUUID().toString(),
+                tenant.toString(),
+                packType,
+                version,
+                state,
+            )
+        }
     }
 
     private fun column(
@@ -138,6 +142,34 @@ class RegulatoryPackApprovalPostgresIT(
         found.dryRunDeltaExists shouldBe false
         approve(v, "u-approver") shouldBe ApproveRegulatoryPackResult.NoDryRun
         column("status", v) shouldBe "STAGED"
+    }
+
+    private val tenantOne = TenantId(UUID.randomUUID())
+
+    @Test
+    fun `a COMPLETE run owned by a tenant other than the platform makes dryRunDeltaExists true`() {
+        val v = version()
+        seed(v)
+        checkNotNull(store.find(PACK_TYPE, v)).dryRunDeltaExists shouldBe false
+        addDryRun(v, tenant = tenantOne)
+        checkNotNull(store.find(PACK_TYPE, v)).dryRunDeltaExists shouldBe true
+    }
+
+    @Test
+    fun `a non-COMPLETE run of a tenant leaves dryRunDeltaExists false`() {
+        val v = version()
+        seed(v)
+        addDryRun(v, "SAMPLE_UNAVAILABLE", tenantOne)
+        checkNotNull(store.find(PACK_TYPE, v)).dryRunDeltaExists shouldBe false
+    }
+
+    @Test
+    fun `a COMPLETE run of another version or another pack type leaves dryRunDeltaExists false`() {
+        val v = version()
+        seed(v)
+        addDryRun(version(), tenant = tenantOne)
+        addDryRun(v, tenant = tenantOne, packType = "OTHER_TYPE")
+        checkNotNull(store.find(PACK_TYPE, v)).dryRunDeltaExists shouldBe false
     }
 
     @Test
