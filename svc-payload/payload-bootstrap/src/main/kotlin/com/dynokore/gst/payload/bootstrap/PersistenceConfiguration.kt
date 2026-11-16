@@ -1,7 +1,7 @@
 package com.dynokore.gst.payload.bootstrap
 
-import com.dynokore.gst.payload.adapters.persistence.JooqCapabilityRegistry
 import com.dynokore.gst.payload.adapters.packs.JooqMdePackSource
+import com.dynokore.gst.payload.adapters.persistence.JooqCapabilityRegistry
 import com.dynokore.gst.payload.adapters.persistence.JooqFindingsStore
 import com.dynokore.gst.payload.adapters.persistence.jooq.DefaultCatalog
 import com.dynokore.gst.payload.application.CapabilityRegistry
