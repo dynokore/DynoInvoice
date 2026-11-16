@@ -5,15 +5,31 @@ import com.dynokore.gst.payload.application.payload.PublishPayloadReady
 import com.dynokore.gst.payload.domain.PayloadSizeCheck
 import java.security.MessageDigest
 import java.util.HexFormat
+import java.time.LocalDate
 import java.util.UUID
 
-/** The stored canonical input of a version; the last three members are null when the event carried none. */
+/**
+ * The stored canonical input of a version; the last five members are null when the events carried none: the
+ * [connectionRef] of the type decision and the [transactionDate] of the canonical version are never defaulted.
+ */
 data class BuildInput(
     val entityRef: String,
     val canonicalDocument: String,
     val aggregateId: String?,
     val direction: String?,
     val counterpartyOnNetwork: Boolean?,
+    val connectionRef: String? = null,
+    val transactionDate: LocalDate? = null,
+) {
+    /** The one request both family reads of a build send (projector and publish). */
+    fun familyRequest(): FamilyRequest = FamilyRequest(entityRef, connectionRef, transactionDate)
+}
+
+/** What the family source needs: the entity, its connection, and the document date the family is read at (inclusive). */
+data class FamilyRequest(
+    val entityRef: String,
+    val connectionRef: String?,
+    val on: LocalDate?,
 )
 
 /** The result of projecting a canonical document: the payload bytes, or a blocking validation trace. */
@@ -64,7 +80,7 @@ fun interface PayloadProjector {
 }
 
 fun interface SpecificationFamilySource {
-    fun familyOf(entityRef: String): String
+    fun familyOf(request: FamilyRequest): String
 }
 
 fun interface BuildOutcomes {
@@ -154,7 +170,7 @@ class BuildPayload(
             docUuid = docUuid,
             version = version,
             submissionType = SubmissionType.fromDecision(decision).payloadSpelling,
-            specificationVersion = families.familyOf(input.entityRef),
+            specificationVersion = families.familyOf(input.familyRequest()),
             payloadBytes = bytes,
             payloadSha256 = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes)),
             aggregateId = input.aggregateId,

@@ -21,6 +21,7 @@ class JooqTypeDecisionStore(
         docUuid: UUID,
         version: Int,
         submissionType: String,
+        connectionRef: String? = null,
     ): Boolean {
         jobs.lockVersion(docUuid, version)
         return dsl
@@ -29,6 +30,7 @@ class JooqTypeDecisionStore(
             .set(table.DOC_UUID, docUuid)
             .set(table.VERSION, version)
             .set(table.SUBMISSION_TYPE, submissionType)
+            .set(table.CONNECTION_REF, connectionRef)
             .onConflictDoNothing()
             .execute() == 1
     }

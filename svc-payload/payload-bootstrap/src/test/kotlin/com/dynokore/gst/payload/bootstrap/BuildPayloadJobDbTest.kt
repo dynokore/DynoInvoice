@@ -11,6 +11,7 @@ import com.dynokore.gst.payload.application.build.BuildInputsReader
 import com.dynokore.gst.payload.application.build.BuildNotReady
 import com.dynokore.gst.payload.application.build.BuildOutcomes
 import com.dynokore.gst.payload.application.build.BuildPayload
+import com.dynokore.gst.payload.application.build.FamilyRequest
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.gst.payload.domain.version.VersionFacts
@@ -31,6 +32,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.time.LocalDate
 import java.util.Base64
 import java.util.HexFormat
 import java.util.UUID
@@ -87,7 +89,7 @@ class BuildPayloadJobDbTest {
                 runner.withBean(
                     "specificationFamilySource",
                     SpecificationFamilySource::class.java,
-                    { SpecificationFamilySource { "PINT_SG" } },
+                    { SpecificationFamilySource { _ -> "PINT_SG" } },
                 )
         }
         if (withPack) {
@@ -129,10 +131,12 @@ class BuildPayloadJobDbTest {
         doc: UUID,
         decision: String?,
         direction: String? = "SALE",
+        connectionRef: String? = null,
+        transactionDate: LocalDate? = null,
     ) = tx(tenant) {
         ctx.getBean(JooqVersionFactsStore::class.java).record(doc, 1, VersionFacts("E-001", null))
-        ctx.getBean(JooqCanonicalInputStore::class.java).store(doc, 1, document(), direction, true)
-        if (decision != null) ctx.getBean(JooqTypeDecisionStore::class.java).store(doc, 1, decision)
+        ctx.getBean(JooqCanonicalInputStore::class.java).store(doc, 1, document(), direction, true, transactionDate)
+        if (decision != null) ctx.getBean(JooqTypeDecisionStore::class.java).store(doc, 1, decision, connectionRef)
         ctx.getBean(JooqBuildJobs::class.java).enqueueOnce(doc, 1)
     }
 
@@ -210,6 +214,36 @@ class BuildPayloadJobDbTest {
         events(tenant.value, doc, rejectedType).size shouldBe 0
         outcomes(tenant.value, doc) shouldBe 1
         handler.runOnce() shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-23663 both family reads use the same request`(
+        @TempDir dir: Path,
+    ) {
+        val requests = java.util.Collections.synchronizedList(mutableListOf<FamilyRequest>())
+        var runner =
+            PayloadContext
+                .online(dir)
+                .withAllowBeanDefinitionOverriding(true)
+                .withBean(
+                    "specificationFamilySource",
+                    SpecificationFamilySource::class.java,
+                    { SpecificationFamilySource { request -> "PINT_SG".also { requests.add(request) } } },
+                ).withBean(
+                    ActivePackOffNetworkPrefix::class.java,
+                    { ActivePackOffNetworkPrefix { com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix("{}") } },
+                )
+        runner.run { ctx ->
+            val boundary = Boundary(ctx)
+            val tenant = TenantId(UUID.randomUUID())
+            val doc = UUID.randomUUID()
+            val date = LocalDate.of(2026, 3, 20)
+            boundary.seed(tenant, doc, "TYPE_2", connectionRef = "CONN-5", transactionDate = date)
+            boundary.handler(doc).runOnce() shouldBe true
+            events(tenant.value, doc, readyType).size shouldBe 1
+            requests.size shouldBe 2
+            requests.toSet() shouldBe setOf(FamilyRequest("E-001", "CONN-5", date))
+        }
     }
 
     @Test

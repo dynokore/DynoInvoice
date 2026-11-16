@@ -11,6 +11,8 @@ import com.dynokore.platform.outboxandqueue.HandleOutcome
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.format.DateTimeParseException
 import java.util.UUID
 
 /**
@@ -25,6 +27,7 @@ fun interface CanonicalInputWriter {
         canonicalDocument: String,
         direction: String?,
         counterpartyOnNetwork: Boolean?,
+        transactionDate: LocalDate? = null,
     ): Boolean
 }
 
@@ -53,7 +56,7 @@ class CanonicalVersionCreatedHandler(
         val direction = RoutingFacts.direction(routing)
         val onNetwork = RoutingFacts.counterpartyOnNetwork(routing)
         val factsStored = recordVersionFacts.record(docUuid, version, facts)
-        val inputStored = inputs.store(docUuid, version, json.writeValueAsString(document), direction, onNetwork)
+        val inputStored = inputs.store(docUuid, version, json.writeValueAsString(document), direction, onNetwork, transactionDate(data))
         trigger.onInputStored(docUuid, version)
         return if (factsStored || inputStored) HandleOutcome.APPLIED else HandleOutcome.IGNORED
     }
@@ -77,6 +80,17 @@ class CanonicalVersionCreatedHandler(
             throw ContractViolation("aggregateId is not a non-empty string")
         }
         return node.asString()
+    }
+
+    /** The optional `transactionDate` (ISO date): absent or null is null, never defaulted; a malformed one is refused. */
+    private fun transactionDate(data: JsonNode): LocalDate? {
+        val node = data.get("transactionDate")?.takeUnless { it.isNull } ?: return null
+        if (!node.isString) throw ContractViolation("transactionDate is not text")
+        return try {
+            LocalDate.parse(node.asString())
+        } catch (e: DateTimeParseException) {
+            throw ContractViolation("transactionDate is not an ISO date", e)
+        }
     }
 
     private fun total(document: JsonNode): BigDecimal? {

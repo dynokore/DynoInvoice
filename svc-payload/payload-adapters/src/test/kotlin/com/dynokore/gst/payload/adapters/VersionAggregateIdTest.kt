@@ -137,7 +137,7 @@ class VersionAggregateIdTest {
     }
 
     private companion object {
-        val NO_INPUT = CanonicalInputWriter { _, _, _, _, _ -> false }
+        val NO_INPUT = CanonicalInputWriter { _, _, _, _, _, _ -> false }
         val NO_TRIGGER =
             BuildTrigger(BuildInputs { _, _ -> false }, TypeDecisions { _, _ -> false }, BuildJobs { _, _ -> false })
     }

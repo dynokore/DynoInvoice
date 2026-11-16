@@ -4,6 +4,7 @@ import com.dynokore.gst.payload.adapters.persistence.jooq.tables.CanonicalInput
 import com.dynokore.gst.payload.adapters.persistence.jooq.tables.DocumentVersionFact
 import com.dynokore.gst.payload.application.build.BuildInput
 import com.dynokore.gst.payload.application.build.BuildInputsReader
+import com.dynokore.gst.payload.adapters.persistence.jooq.tables.SubmissionTypeDecision
 import org.jooq.DSLContext
 import java.util.UUID
 
@@ -18,6 +19,7 @@ class JooqBuildInputsReader(
 ) : BuildInputsReader {
     private val input = CanonicalInput.CANONICAL_INPUT
     private val fact = DocumentVersionFact.DOCUMENT_VERSION_FACT
+    private val decision = SubmissionTypeDecision.SUBMISSION_TYPE_DECISION
 
     override fun read(
         docUuid: UUID,
@@ -32,6 +34,8 @@ class JooqBuildInputsReader(
                     fact.AGGREGATE_ID,
                     input.DIRECTION,
                     input.COUNTERPARTY_ON_NETWORK,
+                    input.TRANSACTION_DATE,
+                    decision.CONNECTION_REF,
                 ).from(input)
                 .join(fact)
                 .on(
@@ -39,6 +43,12 @@ class JooqBuildInputsReader(
                         .eq(input.TENANT_ID)
                         .and(fact.DOC_UUID.eq(input.DOC_UUID))
                         .and(fact.VERSION.eq(input.VERSION)),
+                ).leftJoin(decision)
+                .on(
+                    decision.TENANT_ID
+                        .eq(input.TENANT_ID)
+                        .and(decision.DOC_UUID.eq(input.DOC_UUID))
+                        .and(decision.VERSION.eq(input.VERSION)),
                 ).where(
                     input.TENANT_ID
                         .eq(tenant)
@@ -51,6 +61,8 @@ class JooqBuildInputsReader(
             aggregateId = record.get(fact.AGGREGATE_ID),
             direction = record.get(input.DIRECTION),
             counterpartyOnNetwork = record.get(input.COUNTERPARTY_ON_NETWORK),
+            connectionRef = record.get(decision.CONNECTION_REF),
+            transactionDate = record.get(input.TRANSACTION_DATE),
         )
     }
 }

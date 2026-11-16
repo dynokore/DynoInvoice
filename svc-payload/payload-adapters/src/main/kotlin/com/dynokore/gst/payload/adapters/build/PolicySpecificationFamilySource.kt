@@ -1,5 +1,6 @@
 package com.dynokore.gst.payload.adapters.build
 
+import com.dynokore.gst.payload.application.build.FamilyRequest
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.domain.SpecificationFamily
 
@@ -11,14 +12,15 @@ import com.dynokore.gst.payload.domain.SpecificationFamily
 class PolicySpecificationFamilySource(
     private val lookup: FamilyLookup,
 ) : SpecificationFamilySource {
-    override fun familyOf(entityRef: String): String {
-        val key = lookup.optionKeyOf(entityRef) ?: error("no specification family resolved for entity $entityRef")
+    override fun familyOf(request: FamilyRequest): String {
+        val entityRef = request.entityRef
+        val key = lookup.optionKeyOf(request) ?: error("no specification family resolved for entity $entityRef")
         return SpecificationFamily.entries.firstOrNull { it.name == key }?.name
             ?: error("specification family $key of entity $entityRef is not known")
     }
 }
 
-/** The policy lookup of the specification family option key of an entity; null when the policy resolves none. */
+/** The policy lookup of the specification family option key of a family request; null when the policy resolves none. */
 fun interface FamilyLookup {
-    fun optionKeyOf(entityRef: String): String?
+    fun optionKeyOf(request: FamilyRequest): String?
 }

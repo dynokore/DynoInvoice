@@ -60,7 +60,7 @@ class BuildPayloadConfiguration {
     ): PayloadRejectedPublisher = OutboxPayloadRejectedPublisher(outbox, tenants)
 
     /**
-     * The family of an entity through the policy path (VP-71). The scope level and the date of that path are not
+     * The family of a request (entity, connection, document date) through the policy path (VP-71). The scope level and the date of that path are not
      * ruled (see the MR gaps), so the production lookup names no family and fails closed with an
      * [IllegalStateException]; the build then ends in a retry and publishes nothing. One bean replaces it.
      */
@@ -68,8 +68,8 @@ class BuildPayloadConfiguration {
     @ConditionalOnMissingBean(SpecificationFamilySource::class)
     fun specificationFamilySource(): SpecificationFamilySource =
         PolicySpecificationFamilySource(
-            FamilyLookup { entityRef ->
-                error("the policy scope of the specification family (VP-71) is not ruled; entity $entityRef")
+            FamilyLookup { request ->
+                error("the policy scope of the specification family (VP-71) is not ruled; entity ${request.entityRef}")
             },
         )
 

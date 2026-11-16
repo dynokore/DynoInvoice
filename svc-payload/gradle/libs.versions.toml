@@ -11,7 +11,7 @@ platformLibsBom = "0.206.0"
 # The generated ErrorCode / VariationPoint catalogue (STK-61), from platform-contracts' registry (226).
 gstCatalogue = "2.57.0"
 # The published platform-contracts bundle the contract module generates from (a main build of platform-contracts).
-platformContractsBundle = "0.0.0-dev+dac1380e"
+platformContractsBundle = "0.0.0-dev+20e4a0f9"
 springBoot = "4.1.1"
 jooq = "3.21.9"
 flyway = "12.4.0"

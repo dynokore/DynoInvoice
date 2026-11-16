@@ -56,7 +56,7 @@ class PintSgPayloadProjector(
         val direction = input.direction ?: throw blocking(DIRECTION_ABSENT)
         val document = mapper.readTree(input.canonicalDocument)
         val typeCode = typeCodeOf(document)
-        val family = SpecificationFamily.valueOf(families.familyOf(input.entityRef))
+        val family = SpecificationFamily.valueOf(families.familyOf(input.familyRequest()))
         val prefix = offNetworkPrefix() ?: throw BuildNotReady("no active MDE pack")
         val result =
             builderOf(BuilderKey(family, typeCode)).build(

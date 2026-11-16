@@ -13,7 +13,8 @@ import java.util.UUID
 /**
  * The consumer of `gst.submission.submission-type-decided.v1` for payload-svc: stores the decided type of the version
  * once and asks the [BuildTrigger] to enqueue the build. It runs in the inbox consumer's transaction. A payload that is
- * not JSON, or lacks or malforms docUuid, version, docsequence or submissionType, is a [ContractViolation].
+ * not JSON, or lacks or malforms docUuid, version, docsequence, submissionType or the optional connectionRef, is a
+ * [ContractViolation].
  */
 class SubmissionTypeDecidedHandler(
     private val decisions: JooqTypeDecisionStore,
@@ -30,9 +31,18 @@ class SubmissionTypeDecidedHandler(
         positiveInt(data, "docsequence")
         val type = text(data, "submissionType")
         if (type !in TYPES) throw ContractViolation("submissionType is not one of the four types")
-        if (!decisions.store(docUuid, version, type)) return HandleOutcome.IGNORED
+        if (!decisions.store(docUuid, version, type, connectionRef(data))) return HandleOutcome.IGNORED
         trigger.onDecisionStored(docUuid, version)
         return HandleOutcome.APPLIED
+    }
+
+    /** The optional `connectionRef`: absent or null is null; anything but 1 to 40 characters of text is refused. */
+    private fun connectionRef(data: JsonNode): String? {
+        val node = data.get("connectionRef")?.takeUnless { it.isNull } ?: return null
+        if (!node.isString || node.asString().isEmpty() || node.asString().length > MAX_CONNECTION_REF) {
+            throw ContractViolation("connectionRef is not a non-empty text of at most $MAX_CONNECTION_REF characters")
+        }
+        return node.asString()
     }
 
     private fun positiveInt(
@@ -61,6 +71,7 @@ class SubmissionTypeDecidedHandler(
         }
 
     private companion object {
+        const val MAX_CONNECTION_REF = 40
         val TYPES = setOf("TYPE_1A", "TYPE_1B", "TYPE_2", "TYPE_3")
     }
 }

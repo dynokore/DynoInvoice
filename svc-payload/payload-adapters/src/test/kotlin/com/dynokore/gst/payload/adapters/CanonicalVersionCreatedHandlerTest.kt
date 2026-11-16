@@ -48,6 +48,7 @@ class CanonicalVersionCreatedHandlerTest {
             canonicalDocument: String,
             direction: String?,
             counterpartyOnNetwork: Boolean?,
+            transactionDate: LocalDate?,
         ): Boolean = rows.add(docUuid to version)
     }
 

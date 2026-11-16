@@ -5,6 +5,7 @@ import com.dynokore.gst.payload.adapters.persistence.jooq.tables.CanonicalInput
 import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import org.jooq.impl.SQLDataType
+import java.time.LocalDate
 import java.util.UUID
 
 /**
@@ -25,6 +26,7 @@ class JooqCanonicalInputStore(
         canonicalDocument: String,
         direction: String?,
         counterpartyOnNetwork: Boolean?,
+        transactionDate: LocalDate?,
     ): Boolean {
         jobs.lockVersion(docUuid, version)
         return dsl
@@ -35,6 +37,7 @@ class JooqCanonicalInputStore(
             .set(table.CANONICAL_DOCUMENT, DSL.cast(canonicalDocument, SQLDataType.JSONB))
             .set(table.DIRECTION, direction)
             .set(table.COUNTERPARTY_ON_NETWORK, counterpartyOnNetwork)
+            .set(table.TRANSACTION_DATE, transactionDate)
             .onConflictDoNothing()
             .execute() == 1
     }
