@@ -163,6 +163,7 @@ class PcpTaxableAmountBoundaryTest {
             routes
                 .batch("PCP", """{"internalTaxCode":"S1","amount":"13.00","taxableAmount":"150.00"}""")
                 .status shouldBe 202
+            kit.update("update aggregation.aggregate_window set state = 'CLOSED' where tenant_id = '${kit.tenant}'")
             kit.handOn().size shouldBe 1
             val line = kit.ready().single().line("S1")
             line["amount"].asString() shouldBe "13.00"
