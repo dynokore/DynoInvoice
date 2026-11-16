@@ -3,20 +3,20 @@ package com.dynokore.gst.payload.bootstrap
 import com.dynokore.gst.payload.adapters.PayloadDb
 import com.dynokore.gst.payload.adapters.build.ActivePackRead
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
-import com.dynokore.gst.payload.adapters.events.OutboxPayloadReadyPublisher
-import com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix
 import com.dynokore.gst.payload.adapters.build.JooqBuildInputsReader
 import com.dynokore.gst.payload.adapters.build.JooqBuildOutcomes
 import com.dynokore.gst.payload.adapters.build.JooqTypeDecisionReader
 import com.dynokore.gst.payload.adapters.build.OutboxPayloadRejectedPublisher
 import com.dynokore.gst.payload.adapters.build.PintSgPayloadProjector
+import com.dynokore.gst.payload.adapters.events.OutboxPayloadReadyPublisher
+import com.dynokore.gst.payload.adapters.projection.MdePackOffNetworkPrefix
 import com.dynokore.gst.payload.application.build.BuildInputsReader
 import com.dynokore.gst.payload.application.build.BuildOutcomes
 import com.dynokore.gst.payload.application.build.BuildPayload
 import com.dynokore.gst.payload.application.build.PayloadProjector
 import com.dynokore.gst.payload.application.build.PayloadRejectedPublisher
-import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
+import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ClaimedItem
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -128,15 +128,15 @@ class PayloadReadyAggregateIdBoundaryTest {
     private fun document(aggregateType: String?): String {
         val member = aggregateType?.let { """"aggregateType":{"value":"$it"},""" }.orEmpty()
         return """
-        {$member"documentTypeCode":{"value":"380","classification":"NONE"},
-         "parties":{"value":{
-           "supplier":{"identifierScheme":"SG_UEN","identifierValue":"201912345A"},
-           "buyer":{"identifierScheme":"SG_UEN","identifierValue":"201888888A"}},"classification":"IDENTIFYING"},
-         "documentNumber":{"value":"INV-2026-000123","classification":"NONE"},
-         "documentDate":{"value":"2026-03-20","classification":"NONE"},
-         "identityTriple":{"value":{"senderId":"0195:201912345A","supplierId":"201912345A","supplierGstn":"M2-1234567-8"},
-           "classification":"IDENTIFYING"}}
-        """.trimIndent()
+            {$member"documentTypeCode":{"value":"380","classification":"NONE"},
+             "parties":{"value":{
+               "supplier":{"identifierScheme":"SG_UEN","identifierValue":"201912345A"},
+               "buyer":{"identifierScheme":"SG_UEN","identifierValue":"201888888A"}},"classification":"IDENTIFYING"},
+             "documentNumber":{"value":"INV-2026-000123","classification":"NONE"},
+             "documentDate":{"value":"2026-03-20","classification":"NONE"},
+             "identityTriple":{"value":{"senderId":"0195:201912345A","supplierId":"201912345A","supplierGstn":"M2-1234567-8"},
+               "classification":"IDENTIFYING"}}
+            """.trimIndent()
     }
 
     private fun envelope(
