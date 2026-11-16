@@ -76,7 +76,13 @@ interface ExpiryAlertLog {
     fun markRaised(grant: GrantRef)
 }
 
-/** Metric and log line for an unresolved recipient; carries the grant reference only, never an address or a name. */
-fun interface ExpiryNoticeTelemetry {
+/**
+ * Metric and log lines for an unresolved recipient or filing entity; they carry the grant reference only, never an
+ * address or a name.
+ */
+interface ExpiryNoticeTelemetry {
     fun recipientUnresolved(grantReference: String)
+
+    /** A due grant whose source gives no filing entity is skipped; this makes the skip visible. */
+    fun filingEntityUnresolved(grantReference: String)
 }

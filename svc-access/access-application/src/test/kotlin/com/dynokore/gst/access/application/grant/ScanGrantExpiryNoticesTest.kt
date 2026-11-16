@@ -51,6 +51,7 @@ class ScanGrantExpiryNoticesTest {
         val superseded = mutableMapOf<String, MutableSet<Int>>()
         val looked = mutableListOf<String>()
         val unresolved = mutableListOf<String>()
+        val noFiling = mutableListOf<String>()
         val raised = mutableSetOf<String>()
         val alerts = mutableListOf<Pair<String, String>>()
         var alertFails = false
@@ -86,7 +87,15 @@ class ScanGrantExpiryNoticesTest {
                         looked += it.value
                         addresses[it.value]
                     },
-                    { unresolved += it },
+                    object : ExpiryNoticeTelemetry {
+                        override fun recipientUnresolved(grantReference: String) {
+                            unresolved += grantReference
+                        }
+
+                        override fun filingEntityUnresolved(grantReference: String) {
+                            noFiling += grantReference
+                        }
+                    },
                 ),
                 ExpiryAlerting(
                     object : ExpiryAlertLog {
@@ -211,6 +220,44 @@ class ScanGrantExpiryNoticesTest {
         f.scan(d17)
         f.scan(d21)
         assertTrue(f.requests.isEmpty() && f.alerts.isEmpty() && f.noticed.isEmpty() && f.superseded.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-23963 grants without a filing entity are reported once per scan by reference only`() {
+        val f =
+            Fakes().apply {
+                items =
+                    listOf(
+                        expiring(grant("G1", ends20), entity = null),
+                        expiring(grant("G4", Instant.parse("2026-12-10T08:00:00Z")), entity = null, external = true),
+                    )
+            }
+        f.scan(d17)
+        f.scan(d17)
+        assertEquals(listOf("G1", "G4", "G1", "G4"), f.noFiling)
+        assertTrue(f.noFiling.none { it.contains("@") || it.startsWith("IDN-") })
+        assertTrue(f.requests.isEmpty() && f.alerts.isEmpty() && f.noticed.isEmpty() && f.superseded.isEmpty())
+        assertTrue(f.unresolved.isEmpty() && f.looked.isEmpty() && f.raised.isEmpty())
+    }
+
+    @Test
+    fun `INV-AC-23963 a grant with a filing entity gives no filing entity report`() {
+        val f = Fakes().apply { items = listOf(expiring(grant("G1", ends20))) }
+        f.scan(d17)
+        assertTrue(f.noFiling.isEmpty())
+        assertEquals(1, f.requests.size)
+    }
+
+    @Test
+    fun `INV-AC-23963 an unresolved recipient calls only recipientUnresolved`() {
+        val f =
+            Fakes().apply {
+                items = listOf(expiring(grant("G1", ends20)))
+                addresses = mapOf("IDN-ADMIN" to "a@x.sg")
+            }
+        f.scan(d17)
+        assertEquals(listOf("G1"), f.unresolved)
+        assertTrue(f.noFiling.isEmpty())
     }
 
     @Test

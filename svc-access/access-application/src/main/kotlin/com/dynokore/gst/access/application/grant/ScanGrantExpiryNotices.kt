@@ -77,8 +77,12 @@ class ScanGrantExpiryNotices(
     ) {
         val filing = item.filingEntity
         val until = item.grant.window.until
+        if (filing == null) {
+            recipients.telemetry.filingEntityUnresolved(item.grant.ref.value)
+            return
+        }
         when {
-            filing == null || until == null -> Unit
+            until == null -> Unit
             now.isBefore(until) -> notify(item, filing, now)
             else -> raiseExpired(item, filing)
         }
