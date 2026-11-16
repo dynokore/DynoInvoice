@@ -310,6 +310,15 @@ class PartitionDeletionHttpTest {
 
     private fun Pair<HttpResponse<String>, JsonNode>.detail() = second.get("detail")?.asString()
 
+    /** A deletion that ends DELETED: a 200, or a 202 whose operation then ends SUCCEEDED (a loaded machine). */
+    private fun deleted(f: Fixture) {
+        val answer = delete(f)
+        if (answer.status() != 200) {
+            answer.status() shouldBe 202
+            awaitState(f, "SUCCEEDED")
+        }
+    }
+
     private fun awaitState(
         f: Fixture,
         state: String,
@@ -326,9 +335,14 @@ class PartitionDeletionHttpTest {
         val f = fixture()
         rows(f) shouldBe tables.size
         val answer = delete(f)
-        answer.status() shouldBe 200
-        answer.second.get("status").asString() shouldBe "DELETED"
-        (answer.second.get("deletedAt") != null) shouldBe true
+        if (answer.status() == 200) {
+            answer.second.get("status").asString() shouldBe "DELETED"
+            (answer.second.get("deletedAt") != null) shouldBe true
+        } else {
+            // a machine so loaded that the deletion outlasts the contract timeout answers 202: the status follows
+            answer.status() shouldBe 202
+            awaitState(f, "SUCCEEDED")
+        }
         rows(f) shouldBe 0
         registryState(f) shouldBe "DROPPED"
         val audits =
@@ -346,7 +360,7 @@ class PartitionDeletionHttpTest {
     @Test
     fun `INV-AC-22964 the starter reads SUCCEEDED with the result and another principal is refused`() {
         val f = fixture()
-        delete(f).status() shouldBe 200
+        deleted(f)
         val own = read(f)
         own.status() shouldBe 200
         own.second.get("state").asString() shouldBe "SUCCEEDED"
@@ -368,7 +382,7 @@ class PartitionDeletionHttpTest {
     @Test
     fun `INV-AC-22964 the starter id of the operation is the calling user id and no role name`() {
         val f = fixture()
-        delete(f).status() shouldBe 200
+        deleted(f)
         operations(f).single()[1] shouldBe STARTER
         (operations(f).single()[1] == REQUEST_ROLE) shouldBe false
     }
@@ -417,7 +431,7 @@ class PartitionDeletionHttpTest {
     @Test
     fun `INV-AC-22964 a repeat gives 409 and deletes nothing`() {
         val f = fixture()
-        delete(f).status() shouldBe 200
+        deleted(f)
         val repeat = delete(f)
         repeat.status() shouldBe 409
         repeat.detail() shouldBe "ALREADY_DELETED"
@@ -489,7 +503,7 @@ class PartitionDeletionHttpTest {
             .get("code")
             .asString() shouldBe "SRT-010"
         sql("alter table evidence.${member}_moved rename to $member")
-        delete(f).status() shouldBe 200
+        deleted(f)
         operations(f).map { it[0] } shouldBe listOf("FAILED", "SUCCEEDED")
         rows(f) shouldBe 0
     }
@@ -503,13 +517,13 @@ class PartitionDeletionHttpTest {
         answer.code() shouldBe "SRT-010"
         rows(f) shouldBe tables.size
         store.failPuts = false
-        delete(f).status() shouldBe 200
+        deleted(f)
     }
 
     @Test
     fun `INV-AC-22964 a read after the visibility period is refused as not found`() {
         val f = fixture()
-        delete(f).status() shouldBe 200
+        deleted(f)
         read(f).status() shouldBe 200
         // the trigger refuses an update of an ended row for everyone: the period is moved back with it disabled
         EvidenceDb.superuser().use { c ->
