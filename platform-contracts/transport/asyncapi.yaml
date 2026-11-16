@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: transport events
-  version: 1.1.0
+  version: 1.2.0
   description: >-
     Every event transport produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -109,7 +109,7 @@ components:
       summary: AccessPointRouteChanged — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event AccessPointRouteChanged (model/architecture/events.yaml; class: domain; owner
-        rulings INV-Q-4872 and INV-Q-4993). Emitted by: transport-svc. Consumed by: tenancy-svc. Delivery:
+        rulings INV-Q-4872 and INV-Q-4993). Emitted by: transport-svc. Consumed by: tenancy-svc, submission-svc. Delivery:
         At-least-once. Payload: the connection, the elected acknowledgement route or its clearing,
         entityRefs (the whole list of entity refs assigned to the connection, possibly empty) and a
         per-connection version that rises by one on every change of the route or of the entity refs.
