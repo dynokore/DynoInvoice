@@ -17,6 +17,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.Record
 import org.jooq.impl.DSL
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -27,6 +28,8 @@ import java.util.UUID
  * placement into it. A part of a closed window is recorded by [closePart] (INV-T-14463); [recordLate] belongs to
  * INV-T-14464 and fails closed until then.
  */
+// The class implements every operation of the WindowRepository port; the late-transaction operations raise the count.
+@Suppress("TooManyFunctions")
 class JooqWindowStore(
     private val dsl: DSLContext,
     private val runner: TransactionRunner,
@@ -192,71 +195,69 @@ class JooqWindowStore(
     override fun closedPartsWithLateTransactions(): List<LatePart> =
         runner.inTransaction {
             val tenant = tenants.current().value
-            dsl
-                .selectDistinct(
-                    AGGREGATE_TRANSACTION.ENTITY_REF,
-                    AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF,
-                    AGGREGATE_TRANSACTION.AGGREGATE_TYPE,
-                    AGGREGATE_TRANSACTION.WINDOW_START,
-                    AGGREGATE_TRANSACTION.WINDOW_END,
-                    AGGREGATE_WINDOW_PART.PART_START,
-                    AGGREGATE_WINDOW_PART.PART_END,
-                    AGGREGATE_WINDOW_PART.PERIOD_REF,
-                    AGGREGATE_TRANSACTION.CREDIT_NOTE,
-                ).from(AGGREGATE_TRANSACTION)
-                .join(AGGREGATE_WINDOW)
-                .on(AGGREGATE_WINDOW.TENANT_ID.eq(AGGREGATE_TRANSACTION.TENANT_ID))
-                .and(AGGREGATE_WINDOW.ENTITY_REF.eq(AGGREGATE_TRANSACTION.ENTITY_REF))
-                .and(AGGREGATE_WINDOW.BUSINESS_UNIT_REF.eq(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF))
-                .and(AGGREGATE_WINDOW.AGGREGATE_TYPE.eq(AGGREGATE_TRANSACTION.AGGREGATE_TYPE))
-                .and(AGGREGATE_WINDOW.WINDOW_START.eq(AGGREGATE_TRANSACTION.WINDOW_START))
-                .and(AGGREGATE_WINDOW.WINDOW_END.eq(AGGREGATE_TRANSACTION.WINDOW_END))
-                .join(AGGREGATE_WINDOW_PART)
-                .on(AGGREGATE_WINDOW_PART.TENANT_ID.eq(AGGREGATE_WINDOW.TENANT_ID))
-                .and(AGGREGATE_WINDOW_PART.WINDOW_ID.eq(AGGREGATE_WINDOW.WINDOW_ID))
-                .and(
-                    AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(
-                        AGGREGATE_WINDOW_PART.PART_START,
-                        AGGREGATE_WINDOW_PART.PART_END,
-                    ),
-                ).join(AGGREGATE)
-                .on(AGGREGATE.TENANT_ID.eq(AGGREGATE_WINDOW_PART.TENANT_ID))
-                .and(AGGREGATE.AGGREGATE_ID.eq(AGGREGATE_WINDOW_PART.AGGREGATE_ID))
-                .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
-                .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
-                .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
-                .and(notReplaced(tenant))
-                .orderBy(
-                    AGGREGATE_WINDOW_PART.PART_START,
-                    AGGREGATE_TRANSACTION.ENTITY_REF,
-                    AGGREGATE_TRANSACTION.CREDIT_NOTE,
-                ).fetch()
-                .map {
-                    LatePart(
-                        window =
-                            OpenWindow(
-                                entityRef = checkNotNull(it.get(AGGREGATE_TRANSACTION.ENTITY_REF)),
-                                businessUnitRef = checkNotNull(it.get(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF)),
-                                aggregateType =
-                                    AggregateType.valueOf(
-                                        checkNotNull(it.get(AGGREGATE_TRANSACTION.AGGREGATE_TYPE)),
-                                    ),
-                                window =
-                                    AggregationWindow(
-                                        checkNotNull(it.get(AGGREGATE_TRANSACTION.WINDOW_START)),
-                                        checkNotNull(it.get(AGGREGATE_TRANSACTION.WINDOW_END)),
-                                    ),
-                            ),
-                        part =
-                            WindowPart(
-                                checkNotNull(it.get(AGGREGATE_WINDOW_PART.PART_START)),
-                                checkNotNull(it.get(AGGREGATE_WINDOW_PART.PART_END)),
-                                checkNotNull(it.get(AGGREGATE_WINDOW_PART.PERIOD_REF)),
-                            ),
-                        isCreditNote = checkNotNull(it.get(AGGREGATE_TRANSACTION.CREDIT_NOTE)),
-                    )
-                }
+            lateQuery(tenant).fetch().map(::latePartOf)
         }
+
+    private fun lateQuery(tenant: UUID) =
+        dsl
+            .selectDistinct(
+                AGGREGATE_TRANSACTION.ENTITY_REF,
+                AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF,
+                AGGREGATE_TRANSACTION.AGGREGATE_TYPE,
+                AGGREGATE_TRANSACTION.WINDOW_START,
+                AGGREGATE_TRANSACTION.WINDOW_END,
+                AGGREGATE_WINDOW_PART.PART_START,
+                AGGREGATE_WINDOW_PART.PART_END,
+                AGGREGATE_WINDOW_PART.PERIOD_REF,
+                AGGREGATE_TRANSACTION.CREDIT_NOTE,
+            ).from(AGGREGATE_TRANSACTION)
+            .join(AGGREGATE_WINDOW)
+            .on(AGGREGATE_WINDOW.TENANT_ID.eq(AGGREGATE_TRANSACTION.TENANT_ID))
+            .and(AGGREGATE_WINDOW.ENTITY_REF.eq(AGGREGATE_TRANSACTION.ENTITY_REF))
+            .and(AGGREGATE_WINDOW.BUSINESS_UNIT_REF.eq(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF))
+            .and(AGGREGATE_WINDOW.AGGREGATE_TYPE.eq(AGGREGATE_TRANSACTION.AGGREGATE_TYPE))
+            .and(AGGREGATE_WINDOW.WINDOW_START.eq(AGGREGATE_TRANSACTION.WINDOW_START))
+            .and(AGGREGATE_WINDOW.WINDOW_END.eq(AGGREGATE_TRANSACTION.WINDOW_END))
+            .join(AGGREGATE_WINDOW_PART)
+            .on(AGGREGATE_WINDOW_PART.TENANT_ID.eq(AGGREGATE_WINDOW.TENANT_ID))
+            .and(AGGREGATE_WINDOW_PART.WINDOW_ID.eq(AGGREGATE_WINDOW.WINDOW_ID))
+            .and(
+                AGGREGATE_TRANSACTION.TRANSACTION_DATE
+                    .between(AGGREGATE_WINDOW_PART.PART_START, AGGREGATE_WINDOW_PART.PART_END),
+            ).join(AGGREGATE)
+            .on(AGGREGATE.TENANT_ID.eq(AGGREGATE_WINDOW_PART.TENANT_ID))
+            .and(AGGREGATE.AGGREGATE_ID.eq(AGGREGATE_WINDOW_PART.AGGREGATE_ID))
+            .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
+            .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
+            .and(notReplaced(tenant))
+            .orderBy(
+                AGGREGATE_WINDOW_PART.PART_START,
+                AGGREGATE_TRANSACTION.ENTITY_REF,
+                AGGREGATE_TRANSACTION.CREDIT_NOTE,
+            )
+
+    private fun latePartOf(row: Record): LatePart =
+        LatePart(
+            window =
+                OpenWindow(
+                    entityRef = checkNotNull(row.get(AGGREGATE_TRANSACTION.ENTITY_REF)),
+                    businessUnitRef = checkNotNull(row.get(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF)),
+                    aggregateType = AggregateType.valueOf(checkNotNull(row.get(AGGREGATE_TRANSACTION.AGGREGATE_TYPE))),
+                    window =
+                        AggregationWindow(
+                            checkNotNull(row.get(AGGREGATE_TRANSACTION.WINDOW_START)),
+                            checkNotNull(row.get(AGGREGATE_TRANSACTION.WINDOW_END)),
+                        ),
+                ),
+            part =
+                WindowPart(
+                    checkNotNull(row.get(AGGREGATE_WINDOW_PART.PART_START)),
+                    checkNotNull(row.get(AGGREGATE_WINDOW_PART.PART_END)),
+                    checkNotNull(row.get(AGGREGATE_WINDOW_PART.PERIOD_REF)),
+                ),
+            isCreditNote = checkNotNull(row.get(AGGREGATE_TRANSACTION.CREDIT_NOTE)),
+        )
 
     /** The aggregates of the late source keys of the part and kind that hold at least one transaction. */
     override fun lateSupplementaryCount(late: LatePart): Int =

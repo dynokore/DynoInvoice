@@ -46,7 +46,6 @@ class CloseWindowsLateTest {
 
     /** A closed part with a sales aggregate [transmitted] or not and late transactions per kind. */
     private class Windows(
-        private val repo: AggregateRepo,
         private val window: OpenWindow,
         private val part: WindowPart,
     ) : WindowRepository {
@@ -107,7 +106,7 @@ class CloseWindowsLateTest {
         part: WindowPart,
     ) {
         val repo = AggregateRepo()
-        val windows = Windows(repo, window, part)
+        val windows = Windows(window, part)
         val run = CloseWindows(windows, { _, _, _ -> PeriodSpans.Unknown }, IntakeAggregate(Codes(), repo)) { }
     }
 

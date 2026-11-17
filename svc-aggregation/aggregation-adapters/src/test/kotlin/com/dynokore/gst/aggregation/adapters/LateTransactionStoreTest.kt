@@ -105,6 +105,7 @@ class LateTransactionStoreTest {
         val close =
             CloseWindows(windows, { _, _, _ -> spans }, IntakeAggregate(Codes(), aggregates), { })
 
+        @Suppress("LongParameterList")
         fun store(
             entity: String,
             ref: String,
