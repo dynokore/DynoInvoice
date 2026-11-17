@@ -40,7 +40,6 @@ dependencies {
     implementation(libs.swagger.annotations)
     implementation(libs.jooq)
     implementation(libs.poi.ooxml)
-    implementation(platform(libs.log4j.bom))
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)
     testFixturesImplementation(platform(libs.platform.bom))

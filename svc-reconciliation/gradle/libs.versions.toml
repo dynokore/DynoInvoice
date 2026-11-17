@@ -28,8 +28,6 @@ jsonSchemaValidator = "3.0.8"
 swaggerAnnotations = "2.2.55"
 # Apache POI (streaming SXSSF) for the XLSX export of INV-REQ-982; newest stable on Maven Central 2026-11-18 (ruling: library ruling option A, licence check STK-66).
 poi = "6.0.0"
-# The one Apache Log4j version of the POI graph (poi/poi-ooxml demand log4j-api 2.26.1); the BOM keeps log4j-api and log4j-to-slf4j at one version.
-log4j = "2.26.1"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -69,7 +67,6 @@ spring-context = { module = "org.springframework:spring-context" }
 jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
 # Library ruling option A (Apache-2.0, STK-66 licence check); used by reconciliation-adapters only (ARC-03).
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
-log4j-bom = { module = "org.apache.logging.log4j:log4j-bom", version.ref = "log4j" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }

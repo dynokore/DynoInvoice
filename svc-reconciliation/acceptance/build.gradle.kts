@@ -5,7 +5,6 @@ plugins {
 
 dependencies {
     testImplementation(platform(libs.springBoot.dependencies))
-    testImplementation(platform(libs.log4j.bom))
     testImplementation(project(":reconciliation-domain"))
     testImplementation(project(":reconciliation-contract"))
     testImplementation(project(":reconciliation-adapters"))
