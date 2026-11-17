@@ -2,6 +2,7 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.adapters.events.OffboardingExportRequestedHandler
+import com.dynokore.gst.evidence.adapters.persistence.JooqSourceDocumentReferences
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStorePackageStore
 import com.dynokore.gst.evidence.application.export.ExportChainIntegrity
 import com.dynokore.gst.evidence.application.export.ExportClassSource
@@ -390,6 +391,19 @@ class OffboardingExportWiringTest {
             val store = context.getBean(ExportPackageStore::class.java)
             assertThat(store).isInstanceOf(ObjectStorePackageStore::class.java)
             store.store(TenantId(UUID.randomUUID()), "OFF-1", files) shouldStartWith "x-test://"
+        }
+    }
+
+    @Test
+    fun `INV-AC-24168 the ExportClassSources bean binds five classes and leaves RECONCILIATION_WORK_PAPERS unbound`() {
+        runner(Recording()).withPropertyValues("$SCHEME=s3").run { context ->
+            assertThat(context.startupFailure).isNull()
+            val sources = context.getBean(ExportClassSources::class.java)
+            val unbound = PackageContentClass.entries.filter { sources.source(it) == null }
+            unbound shouldBe listOf(PackageContentClass.RECONCILIATION_WORK_PAPERS)
+            PackageContentClass.entries.size shouldBe 6
+            assertThat(sources.source(PackageContentClass.SOURCE_DOCUMENT_REFERENCES))
+                .isInstanceOf(JooqSourceDocumentReferences::class.java)
         }
     }
 

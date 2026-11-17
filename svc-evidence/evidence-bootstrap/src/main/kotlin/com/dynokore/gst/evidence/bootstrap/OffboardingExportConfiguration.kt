@@ -4,6 +4,7 @@ import com.dynokore.gst.evidence.adapters.events.OffboardingExportFinishedOutbox
 import com.dynokore.gst.evidence.adapters.events.OffboardingExportRequestedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqOffboardingExportJobs
+import com.dynokore.gst.evidence.adapters.persistence.JooqSourceDocumentReferences
 import com.dynokore.gst.evidence.adapters.persistence.JooqTenantPackageCandidates
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStorePackageStore
 import com.dynokore.gst.evidence.application.export.ExportChainIntegrity
@@ -13,6 +14,7 @@ import com.dynokore.gst.evidence.application.export.ExportPackageStore
 import com.dynokore.gst.evidence.application.export.ExportResultPublisher
 import com.dynokore.gst.evidence.application.export.ExportTenantEvidence
 import com.dynokore.platform.evidencestore.ObjectStore
+import com.dynokore.platform.evidencestore.exportpackage.PackageContentClass
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -59,7 +61,10 @@ class OffboardingExportConfiguration {
                 Long::class.javaObjectType,
                 DEFAULT_MAX_PACKAGE_BYTES,
             )
-        return ExportClassSources(JooqTenantPackageCandidates(dsl, maxBytes).sources())
+        val sources =
+            JooqTenantPackageCandidates(dsl, maxBytes).sources() +
+                (PackageContentClass.SOURCE_DOCUMENT_REFERENCES to JooqSourceDocumentReferences(dsl, maxBytes))
+        return ExportClassSources(sources)
     }
 
     @Bean
