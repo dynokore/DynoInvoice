@@ -1,8 +1,8 @@
 package com.dynokore.gst.controlPlane.application.commercial
 
-import io.kotest.matchers.booleans.shouldBeFalse
 import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 
 /** The kit references two scenario tests by `<class>#<method>`; the id must hold no whitespace. */
@@ -59,9 +59,26 @@ class ScenarioTestIdsTest {
         }
     }
 
-    /** A method without @Test, for the probe. */
-    @Suppress("unused")
-    fun helperWithoutTest() = Unit
+    /** Fixture methods, each breaking exactly one rule of `problems`; disabled so JUnit never runs them. */
+    @Disabled("probe fixture, inspected by reflection only")
+    class ProbeFixtures {
+        @Test
+        fun `INV-AC-935 a name holding spaces`() = Unit
+
+        @Test
+        fun `INV-AC-935-the-first-invitation-is-signed,-expires-after-the-call-and-is-messaged`() = Unit
+
+        @Test
+        fun `INV-AC-8570-INV-AC-8572-INV-AC-1331-a-Singapore-request-is-recorded-and-every-resource-carries-SG`() = Unit
+
+        @Suppress("unused")
+        fun `INV-AC-935_without_the_test_annotation`() = Unit
+    }
+
+    private fun probe(
+        criterion: String,
+        method: String,
+    ) = problems(Tuple(criterion, "$PKG.ScenarioTestIdsTest\$ProbeFixtures", method))
 
     @Test
     fun `INV-AC-24140 both designated scenario methods exist, carry @Test, hold no whitespace and hold their key`() {
@@ -69,40 +86,43 @@ class ScenarioTestIdsTest {
     }
 
     @Test
-    fun `INV-AC-24140 probe a method name holding a space fails`() {
-        problems(Tuple("INV-AC-935", SCENARIO_CLASS, M935.replace('_', ' '))).shouldNotBeEmpty()
+    fun `INV-AC-24140 probe a method name holding a space fails on the whitespace check only`() {
+        val name = "INV-AC-935 a name holding spaces"
+        probe("INV-AC-935", name) shouldBe listOf("whitespace in $name")
     }
 
     @Test
-    fun `INV-AC-24140 probe the hyphen form of the INV-AC-935 name fails`() {
-        problems(Tuple("INV-AC-935", SCENARIO_CLASS, M935.replace('_', '-'))).shouldNotBeEmpty()
-        holdsKey("INV-AC-935-the-first-invitation", "INV-AC-935").shouldBeFalse()
+    fun `INV-AC-24140 probe the hyphen form of the INV-AC-935 name fails on the whole-token check only`() {
+        val name = M935.replace('_', '-')
+        probe("INV-AC-935", name) shouldBe listOf("INV-AC-935 is not a whole token of $name")
     }
 
     @Test
-    fun `INV-AC-24140 probe the hyphen form of the INV-AC-1331 name fails`() {
-        problems(Tuple("INV-AC-1331", SCENARIO_CLASS, M1331.replace('_', '-'))).shouldNotBeEmpty()
-        holdsKey("INV-AC-1331-a-Singapore-request", "INV-AC-1331").shouldBeFalse()
+    fun `INV-AC-24140 probe the hyphen form of the INV-AC-1331 name fails on the whole-token check only`() {
+        val name = M1331.replace('_', '-')
+        probe("INV-AC-1331", name) shouldBe listOf("INV-AC-1331 is not a whole token of $name")
     }
 
     @Test
-    fun `INV-AC-24140 probe the same method name in another class of the package fails`() {
-        problems(Tuple("INV-AC-935", "$PKG.LicenceTest", M935)).shouldNotBeEmpty()
+    fun `INV-AC-24140 probe the same method name in another class of the package fails as absent`() {
+        problems(Tuple("INV-AC-935", "$PKG.LicenceTest", M935)) shouldBe
+            listOf("method $M935 absent from $PKG.LicenceTest")
     }
 
     @Test
-    fun `INV-AC-24140 probe a tuple naming an absent method fails`() {
-        problems(Tuple("INV-AC-935", SCENARIO_CLASS, "INV-AC-935_no_such_method")).shouldNotBeEmpty()
+    fun `INV-AC-24140 probe a tuple naming an absent method fails as absent`() {
+        val name = "INV-AC-935_no_such_method"
+        problems(Tuple("INV-AC-935", SCENARIO_CLASS, name)) shouldBe listOf("method $name absent from $SCENARIO_CLASS")
     }
 
     @Test
-    fun `INV-AC-24140 probe a prefix look-alike of the INV-AC-935 criterion fails`() {
-        problems(Tuple("INV-AC-93", SCENARIO_CLASS, M935)).shouldNotBeEmpty()
+    fun `INV-AC-24140 probe a prefix look-alike of the INV-AC-935 criterion fails on the whole-token check only`() {
+        problems(Tuple("INV-AC-93", SCENARIO_CLASS, M935)) shouldBe listOf("INV-AC-93 is not a whole token of $M935")
     }
 
     @Test
-    fun `INV-AC-24140 probe a method without @Test fails`() {
-        val t = Tuple("INV-AC-24140", "$PKG.ScenarioTestIdsTest", "helperWithoutTest")
-        problems(t).shouldNotBeEmpty()
+    fun `INV-AC-24140 probe a method without the test annotation fails on the annotation check only`() {
+        val name = "INV-AC-935_without_the_test_annotation"
+        probe("INV-AC-935", name) shouldBe listOf("no @Test on $name")
     }
 }
