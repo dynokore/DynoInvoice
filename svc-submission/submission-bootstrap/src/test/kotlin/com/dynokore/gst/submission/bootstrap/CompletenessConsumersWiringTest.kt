@@ -105,6 +105,7 @@ class CompletenessConsumersWiringTest {
                 SubmissionEvents.RULE_PACK_STAGED_TYPE to "gst.platform.rule-pack-staged.v1",
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to "gst.platform.rule-pack-activated.v1",
                 SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TYPE to SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TOPIC,
+                SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TYPE to SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TOPIC,
             )
     }
 

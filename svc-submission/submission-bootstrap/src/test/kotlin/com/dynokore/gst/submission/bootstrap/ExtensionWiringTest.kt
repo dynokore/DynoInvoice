@@ -152,6 +152,7 @@ class ExtensionWiringTest {
                 "rulePackStagedConsumer",
                 "rulePackActivatedConsumer",
                 "accessPointRouteChangedConsumer",
+                "acknowledgementReceivedConsumer",
             )
     }
 

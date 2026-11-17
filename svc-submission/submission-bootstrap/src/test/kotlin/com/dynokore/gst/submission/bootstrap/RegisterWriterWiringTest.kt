@@ -112,6 +112,7 @@ class RegisterWriterWiringTest {
                 SubmissionEvents.RULE_PACK_STAGED_TYPE to SubmissionEvents.RULE_PACK_STAGED_TOPIC,
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC,
                 SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TYPE to SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TOPIC,
+                SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TYPE to SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TOPIC,
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
@@ -152,6 +153,7 @@ class RegisterWriterWiringTest {
                 "rulePackStagedConsumer",
                 "rulePackActivatedConsumer",
                 "accessPointRouteChangedConsumer",
+                "acknowledgementReceivedConsumer",
             )
     }
 

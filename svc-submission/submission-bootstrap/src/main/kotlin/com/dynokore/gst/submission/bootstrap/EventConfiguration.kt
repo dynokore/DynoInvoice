@@ -95,6 +95,9 @@ object SubmissionEvents {
     const val ACCESS_POINT_ROUTE_CHANGED_TOPIC = "gst.transport.access-point-route-changed.v1"
     const val ACCESS_POINT_ROUTE_CHANGED_TYPE = "com.dynokore.gst.transport.AccessPointRouteChanged.v1"
 
+    const val ACKNOWLEDGEMENT_RECEIVED_TOPIC = "gst.transport.acknowledgement-received.v1"
+    const val ACKNOWLEDGEMENT_RECEIVED_TYPE = "com.dynokore.gst.transport.AcknowledgementReceived.v1"
+
     const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
     const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.platform.RulePackStaged.v1"
 
@@ -111,6 +114,7 @@ object SubmissionEvents {
      * feeding the entity node table, INV-REQ-978), `OrganisationStructureChanged` (producer tenancy-svc, no content
      * topic, INV-REQ-978, the entity node table),
      * `AccessPointRouteChanged` (producer transport-svc, no content topic, INV-AC-23662, the connection replica),
+     * `AcknowledgementReceived` (producer transport-svc, no content topic, INV-AC-24271, the acknowledgement writer),
      * `FeedHealthChanged` (producer ingestion-svc) and `AggregateWindowChanged` (producer aggregation-svc), no
      * content topic, the last two feeding the completeness rows (INV-REQ-792); submission-svc
      * is only their subscriber.
@@ -197,6 +201,13 @@ object SubmissionEvents {
             CatalogueEntry(
                 ACCESS_POINT_ROUTE_CHANGED_TYPE,
                 ACCESS_POINT_ROUTE_CHANGED_TOPIC,
+                setOf("transport-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                ACKNOWLEDGEMENT_RECEIVED_TYPE,
+                ACKNOWLEDGEMENT_RECEIVED_TOPIC,
                 setOf("transport-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,
