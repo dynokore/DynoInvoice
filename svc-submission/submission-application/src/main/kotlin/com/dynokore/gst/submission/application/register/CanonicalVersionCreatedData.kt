@@ -4,9 +4,12 @@ import com.dynokore.platform.outboxandqueue.ContractViolation
 import java.time.LocalDate
 
 /**
+ * [notSubmittableReason] and [precedingDocUuid] are null exactly when the event omits the member.
+ *
  * The members of a `CanonicalVersionCreated` event the register writer reads. [payload] holds the members that
  * `ListFactsPolicy.extract` reads (`canonicalDocument`, `routingFacts` and the canonical members it names).
  */
+@Suppress("LongParameterList") // the two members are ruled to follow payload (INV-T-24493), defaulted
 class CanonicalVersionCreatedData(
     val docUuid: String,
     val version: Int,
@@ -14,6 +17,8 @@ class CanonicalVersionCreatedData(
     val prescribedPeriodRef: String,
     val scopeVerdict: String,
     val payload: Map<String, Any?>,
+    val notSubmittableReason: String? = null,
+    val precedingDocUuid: String? = null,
 )
 
 /** Reads the event data JSON of a `CanonicalVersionCreated` (the JSON library stays in the adapters, ARC-03). */

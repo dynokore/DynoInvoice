@@ -54,6 +54,9 @@ class RegisterEntryStoreDbTest {
             "source_version",
             "transaction_date",
             "reason_code",
+            "scope_verdict",
+            "not_submittable_reason",
+            "preceding_doc_uuid",
         )
 
     @AfterEach
@@ -163,7 +166,7 @@ class RegisterEntryStoreDbTest {
         val text = row(a, doc)!!
         text.contains("INV-3") shouldBe true
         text.contains("2026-12-31") shouldBe true
-        text.endsWith(",3,,)") shouldBe true
+        text.endsWith(",3,,,,,)") shouldBe true
         allOrNone(a, doc)
     }
 
@@ -305,6 +308,83 @@ class RegisterEntryStoreDbTest {
             }
         } finally {
             bound.remove()
+        }
+    }
+
+    private fun scopeFactsOf(
+        tenant: UUID,
+        doc: String,
+    ): List<Any?> {
+        bound.set(tenant)
+        try {
+            return runner.inTransaction {
+                val r =
+                    dsl.fetchOne(
+                        "select scope_verdict, not_submittable_reason, preceding_doc_uuid, in_scope " +
+                            "from submission.obligation_register_entry where doc_uuid = ?",
+                        doc,
+                    )!!
+                listOf(r.get(0), r.get(1), r.get(2), r.get(3))
+            }
+        } finally {
+            bound.remove()
+        }
+    }
+
+    private val d0 = "0a1b2c3d-0000-4000-8000-00000000d0d0"
+
+    private fun e2(
+        doc: String,
+        version: Int,
+        reason: String,
+    ) = entry(doc, version).copy(
+        inScope = false,
+        scopeVerdict = "NOT_SUBMITTABLE",
+        notSubmittableReason = reason,
+        precedingDocUuid = d0,
+    )
+
+    @Test
+    fun `INV-AC-24492 the row holds the verdict, reason and preceding UUID column by column`() {
+        val a = UUID.randomUUID()
+        val d1 = "d1-$a"
+        upsert(a, e2(d1, 2, "BUYER_REJECTED")) shouldBe UpsertResult.INSERTED
+        scopeFactsOf(a, d1) shouldBe listOf("NOT_SUBMITTABLE", "BUYER_REJECTED", d0, false)
+        val e1 = "e1-$a"
+        upsert(a, entry(e1, 2).copy(scopeVerdict = "SUBMITTABLE")) shouldBe UpsertResult.INSERTED
+        scopeFactsOf(a, e1) shouldBe listOf("SUBMITTABLE", null, null, true)
+        val e3 = "e3-$a"
+        upsert(a, entry(e3, 2).copy(inScope = false, scopeVerdict = "NOT_SUBMITTABLE")) shouldBe UpsertResult.INSERTED
+        scopeFactsOf(a, e3) shouldBe listOf("NOT_SUBMITTABLE", null, null, false)
+        val e4 = "e4-$a"
+        upsert(a, entry(e4, 2).copy(scopeVerdict = "PRE_OBLIGATION")) shouldBe UpsertResult.INSERTED
+        scopeFactsOf(a, e4) shouldBe listOf("PRE_OBLIGATION", null, null, true)
+    }
+
+    @Test
+    fun `INV-AC-24492 a replay with a higher version updates the facts and a lower version leaves them`() {
+        val a = UUID.randomUUID()
+        val d1 = "d1-$a"
+        upsert(a, e2(d1, 2, "BUYER_REJECTED"))
+        upsert(a, e2(d1, 3, "ISSUANCE_REFUSED")) shouldBe UpsertResult.UPDATED
+        scopeFactsOf(a, d1) shouldBe listOf("NOT_SUBMITTABLE", "ISSUANCE_REFUSED", d0, false)
+        upsert(a, e2(d1, 1, "NETTED_INTO_REVISION")) shouldBe UpsertResult.UNCHANGED
+        scopeFactsOf(a, d1) shouldBe listOf("NOT_SUBMITTABLE", "ISSUANCE_REFUSED", d0, false)
+        upsert(a, e2(d1, 3, "BUYER_REJECTED")) shouldBe UpsertResult.UNCHANGED
+        scopeFactsOf(a, d1) shouldBe listOf("NOT_SUBMITTABLE", "ISSUANCE_REFUSED", d0, false)
+    }
+
+    @Test
+    fun `INV-AC-24492 the table refuses a reason without NOT_SUBMITTABLE and an unknown verdict or reason`() {
+        val a = UUID.randomUUID()
+        listOf(
+            entry("x1-$a", 1).copy(scopeVerdict = "SUBMITTABLE", notSubmittableReason = "BUYER_REJECTED"),
+            entry("x3-$a", 1).copy(scopeVerdict = "MAYBE"),
+            entry("x4-$a", 1).copy(scopeVerdict = "NOT_SUBMITTABLE", notSubmittableReason = "buyer_rejected"),
+        ).forEach {
+            runCatching { upsert(a, it) }.isFailure shouldBe true
+            connection.rollback()
+            row(a, it.docUuid) shouldBe null
         }
     }
 

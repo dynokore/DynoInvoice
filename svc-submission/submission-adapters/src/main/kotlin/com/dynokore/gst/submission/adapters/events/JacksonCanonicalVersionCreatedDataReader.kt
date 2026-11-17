@@ -8,6 +8,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
+import java.util.UUID
 
 /**
  * [CanonicalVersionCreatedDataReader] over Jackson (canonical-version-created-payload.schema.json). A missing or
@@ -16,6 +17,10 @@ import java.time.format.DateTimeParseException
  */
 class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataReader {
     private val mapper = ObjectMapper()
+
+    private companion object {
+        val REASONS = setOf("BUYER_REJECTED", "ISSUANCE_REFUSED", "NETTED_INTO_REVISION")
+    }
 
     override fun read(dataJson: String): CanonicalVersionCreatedData {
         val data =
@@ -27,15 +32,48 @@ class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataRead
         if (data == null || !data.isObject) {
             throw ContractViolation("CanonicalVersionCreated data is not a JSON object")
         }
+        val scopeVerdict = data.text("scopeVerdict")
         return CanonicalVersionCreatedData(
             docUuid = data.text("docUuid"),
             version = versionOf(data),
             transactionDate = dateOf(data.text("transactionDate")),
             prescribedPeriodRef = data.text("prescribedPeriodRef"),
-            scopeVerdict = data.text("scopeVerdict"),
+            scopeVerdict = scopeVerdict,
             payload = payloadOf(data),
+            notSubmittableReason = reasonOf(data, scopeVerdict),
+            precedingDocUuid = precedingOf(data),
         )
     }
+
+    /** Present only as one of the schema enum values and only with `NOT_SUBMITTABLE` (fail closed). */
+    private fun reasonOf(
+        data: JsonNode,
+        scopeVerdict: String,
+    ): String? {
+        val node = data.get("notSubmittableReason") ?: return null
+        val member = "CanonicalVersionCreated data member notSubmittableReason"
+        if (!node.isString || node.asString() !in REASONS) {
+            throw ContractViolation("$member is not an allowed reason")
+        }
+        if (scopeVerdict != "NOT_SUBMITTABLE") {
+            throw ContractViolation("$member needs a NOT_SUBMITTABLE verdict")
+        }
+        return node.asString()
+    }
+
+    /** Present only as a lower-case canonical UUID, the form of `docUuid` in the register. */
+    private fun precedingOf(data: JsonNode): String? {
+        val node = data.get("precedingDocUuid") ?: return null
+        val text = if (node.isString) node.asString() else null
+        val canonical = text != null && canonicalUuid(text)
+        if (!canonical) {
+            throw ContractViolation("CanonicalVersionCreated data member precedingDocUuid is not a canonical UUID")
+        }
+        return text
+    }
+
+    private fun canonicalUuid(text: String): Boolean =
+        runCatching { UUID.fromString(text).toString() == text }.getOrDefault(false)
 
     private fun JsonNode.text(name: String): String {
         val node = get(name)

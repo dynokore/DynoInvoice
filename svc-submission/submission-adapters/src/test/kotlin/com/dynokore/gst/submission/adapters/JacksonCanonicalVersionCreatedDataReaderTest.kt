@@ -1,11 +1,14 @@
 package com.dynokore.gst.submission.adapters
 
 import com.dynokore.gst.submission.adapters.events.JacksonCanonicalVersionCreatedDataReader
+import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedData
 import com.dynokore.gst.submission.domain.register.ListFactsPolicy
 import com.dynokore.gst.submission.domain.register.ListFactsResult
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import tools.jackson.databind.ObjectMapper
@@ -58,6 +61,81 @@ class JacksonCanonicalVersionCreatedDataReaderTest {
         listOf("docUuid", "version", "transactionDate", "prescribedPeriodRef", "scopeVerdict").forEach {
             shouldThrow<ContractViolation> { reader.read(without(it)) }
         }
+    }
+
+    private val d0 = "0a1b2c3d-0000-4000-8000-00000000d0d0"
+
+    private fun factsOf(d: CanonicalVersionCreatedData) =
+        listOf(d.scopeVerdict, d.notSubmittableReason, d.precedingDocUuid)
+
+    private fun with(vararg members: Pair<String, Any?>): String =
+        (mapper.readTree(sample) as ObjectNode)
+            .also { n ->
+                members.forEach { (k, v) ->
+                    when (v) {
+                        is String -> n.put(k, v)
+                        is Int -> n.put(k, v)
+                        else -> n.putNull(k)
+                    }
+                }
+            }.toString()
+
+    @Test
+    fun `INV-AC-24492 valid events E1 to E4 keep verdict, reason and preceding UUID`() {
+        val e1 = reader.read(sample)
+        factsOf(e1) shouldBe listOf("SUBMITTABLE", null, null)
+        val e2 =
+            reader.read(
+                with(
+                    "scopeVerdict" to "NOT_SUBMITTABLE",
+                    "notSubmittableReason" to "BUYER_REJECTED",
+                    "precedingDocUuid" to d0,
+                ),
+            )
+        factsOf(e2) shouldBe
+            listOf("NOT_SUBMITTABLE", "BUYER_REJECTED", d0)
+        val e3 = reader.read(with("scopeVerdict" to "NOT_SUBMITTABLE"))
+        factsOf(e3) shouldBe listOf("NOT_SUBMITTABLE", null, null)
+        val e4 = reader.read(with("scopeVerdict" to "PRE_OBLIGATION"))
+        factsOf(e4) shouldBe listOf("PRE_OBLIGATION", null, null)
+        listOf("ISSUANCE_REFUSED", "NETTED_INTO_REVISION").forEach {
+            val d = reader.read(with("scopeVerdict" to "NOT_SUBMITTABLE", "notSubmittableReason" to it))
+            d.notSubmittableReason shouldBe it
+        }
+    }
+
+    private fun violation(
+        json: String,
+        member: String,
+        value: String,
+    ) {
+        val m = shouldThrow<ContractViolation> { reader.read(json) }.message!!
+        m shouldContain member
+        m shouldNotContain value
+    }
+
+    @Test
+    fun `INV-AC-24492 E5 a reason with SUBMITTABLE is a ContractViolation naming the member`() {
+        violation(with("notSubmittableReason" to "BUYER_REJECTED"), "notSubmittableReason", "BUYER_REJECTED")
+    }
+
+    @Test
+    fun `INV-AC-24492 E6 and E7 a lower-case or unknown reason is a ContractViolation naming the member`() {
+        val nsv = "scopeVerdict" to "NOT_SUBMITTABLE"
+        violation(with(nsv, "notSubmittableReason" to "buyer_rejected"), "notSubmittableReason", "buyer_rejected")
+        violation(with(nsv, "notSubmittableReason" to "UNKNOWN_CAUSE"), "notSubmittableReason", "UNKNOWN_CAUSE")
+        violation(with(nsv, "notSubmittableReason" to " BUYER_REJECTED"), "notSubmittableReason", "BUYER_REJECTED ")
+        violation(with(nsv, "notSubmittableReason" to 7), "notSubmittableReason", "7")
+        violation(with(nsv, "notSubmittableReason" to null), "notSubmittableReason", "null")
+    }
+
+    @Test
+    fun `INV-AC-24492 E8 E9 E10 a malformed preceding UUID is a ContractViolation naming the member`() {
+        violation(with("precedingDocUuid" to "not-a-uuid"), "precedingDocUuid", "not-a-uuid")
+        violation(with("precedingDocUuid" to 7), "precedingDocUuid", "7")
+        violation(with("precedingDocUuid" to d0.uppercase()), "precedingDocUuid", d0.uppercase())
+        violation(with("precedingDocUuid" to null), "precedingDocUuid", "null")
+        violation(with("precedingDocUuid" to "1-1-1-1-1"), "precedingDocUuid", "1-1-1-1-1")
     }
 
     @Test

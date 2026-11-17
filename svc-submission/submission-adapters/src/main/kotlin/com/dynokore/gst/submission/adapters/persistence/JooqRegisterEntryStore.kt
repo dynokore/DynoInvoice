@@ -83,6 +83,9 @@ class JooqRegisterEntryStore(
             e.CATEGORY_CODES to f.categoryCodes.sorted().toTypedArray(),
             e.SOURCE_VERSION to entry.sourceVersion,
             e.TRANSACTION_DATE to entry.transactionDate,
+            e.SCOPE_VERDICT to entry.scopeVerdict,
+            e.NOT_SUBMITTABLE_REASON to entry.notSubmittableReason,
+            e.PRECEDING_DOC_UUID to entry.precedingDocUuid,
         )
     }
 }

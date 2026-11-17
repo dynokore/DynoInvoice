@@ -47,6 +47,9 @@ class CanonicalVersionCreatedHandler(
                 facts = facts,
                 sourceVersion = data.version,
                 transactionDate = data.transactionDate,
+                scopeVerdict = data.scopeVerdict,
+                notSubmittableReason = data.notSubmittableReason,
+                precedingDocUuid = data.precedingDocUuid,
             )
         return when (store.upsert(tenant, entry)) {
             UpsertResult.INSERTED, UpsertResult.UPDATED -> HandleOutcome.APPLIED

@@ -16,6 +16,9 @@ data class RegisterEntry(
     val facts: ListFacts,
     val sourceVersion: Int,
     val transactionDate: LocalDate? = null,
+    val scopeVerdict: String? = null,
+    val notSubmittableReason: String? = null,
+    val precedingDocUuid: String? = null,
 )
 
 enum class UpsertResult { INSERTED, UPDATED, UNCHANGED }

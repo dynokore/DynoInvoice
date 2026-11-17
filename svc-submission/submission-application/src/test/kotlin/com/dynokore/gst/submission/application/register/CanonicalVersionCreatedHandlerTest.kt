@@ -223,6 +223,64 @@ class CanonicalVersionCreatedHandlerTest {
     }
 
     @Test
+    fun `INV-AC-24492 the entry carries the verdict, reason and preceding UUID of the event`() {
+        val d0 = "0a1b2c3d-0000-4000-8000-00000000d0d0"
+        val e2 =
+            fixture(data = data("NOT_SUBMITTABLE").withScopeFacts("BUYER_REJECTED", d0))
+        e2.handler.handle(envelope()) shouldBe HandleOutcome.APPLIED
+        val e = e2.store.entries.single()
+        listOf(e.scopeVerdict, e.notSubmittableReason, e.precedingDocUuid, e.inScope) shouldBe
+            listOf("NOT_SUBMITTABLE", "BUYER_REJECTED", d0, false)
+        val e1 =
+            fixture()
+                .also { it.handler.handle(envelope()) }
+                .store.entries
+                .single()
+        factsOf(e1) shouldBe listOf("SUBMITTABLE", null, null)
+        val e3 =
+            fixture(data = data("NOT_SUBMITTABLE"))
+                .also { it.handler.handle(envelope()) }
+                .store.entries
+                .single()
+        factsOf(e3) shouldBe listOf("NOT_SUBMITTABLE", null, null)
+        val e4 =
+            fixture(data = data("PRE_OBLIGATION"))
+                .also { it.handler.handle(envelope()) }
+                .store.entries
+                .single()
+        factsOf(e4) shouldBe listOf("PRE_OBLIGATION", null, null)
+    }
+
+    @Test
+    fun `INV-AC-24492 a higher-version replay carries the new reason, an unrecognised verdict writes no row`() {
+        val replay = data("NOT_SUBMITTABLE").withScopeFacts("ISSUANCE_REFUSED", null)
+        val f = fixture(data = replay, answers = listOf(UpsertResult.UPDATED))
+        f.handler.handle(envelope()) shouldBe HandleOutcome.APPLIED
+        f.store.entries
+            .single()
+            .notSubmittableReason shouldBe "ISSUANCE_REFUSED"
+        val bad = fixture(data = data("MAYBE").withScopeFacts("BUYER_REJECTED", null))
+        shouldThrow<ContractViolation> { bad.handler.handle(envelope()) }
+        bad.store.entries.size shouldBe 0
+    }
+
+    private fun factsOf(e: RegisterEntry) = listOf(e.scopeVerdict, e.notSubmittableReason, e.precedingDocUuid)
+
+    private fun CanonicalVersionCreatedData.withScopeFacts(
+        reason: String?,
+        preceding: String?,
+    ) = CanonicalVersionCreatedData(
+        docUuid,
+        version,
+        transactionDate,
+        prescribedPeriodRef,
+        scopeVerdict,
+        payload,
+        reason,
+        preceding,
+    )
+
+    @Test
     fun `INV-AC-16339 UPDATED gives APPLIED`() {
         fixture(answers = listOf(UpsertResult.UPDATED)).handler.handle(envelope()) shouldBe HandleOutcome.APPLIED
     }
