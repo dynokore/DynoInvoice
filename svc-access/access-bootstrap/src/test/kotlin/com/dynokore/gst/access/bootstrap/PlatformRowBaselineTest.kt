@@ -88,4 +88,34 @@ class PlatformRowBaselineTest {
             remove(tenant, kept)
         }
     }
+
+    private fun membership(): List<String> =
+        BoundaryFixture.asSuperuser { c ->
+            c.createStatement().use { st ->
+                st
+                    .executeQuery(
+                        "select m.inherit_option || '/' || m.set_option from pg_auth_members m " +
+                            "join pg_roles r on r.oid = m.roleid join pg_roles g on g.oid = m.member " +
+                            "where r.rolname = 'access_sys' and g.rolname = 'access_migrate'",
+                    ).use { r -> generateSequence { if (r.next()) r.getString(1) else null }.toList() }
+            }
+        }
+
+    @Test
+    fun `PlatformGrantSeedFixture rebuilds its base after drop`() {
+        PlatformGrantSeedFixture.clone()
+        assertThat(membership()).containsExactly("false/true")
+        PlatformGrantSeedFixture.drop()
+        assertThat(membership()).isEmpty()
+        val second = PlatformGrantSeedFixture.clone()
+        try {
+            PlatformGrantSeedFixture.connect(second).use { c ->
+                c.createStatement().use { s -> s.executeQuery("select 1").use { r -> assertThat(r.next()).isTrue() } }
+            }
+            assertThat(membership()).containsExactly("false/true")
+        } finally {
+            PlatformGrantSeedFixture.drop()
+        }
+        assertThat(membership()).isEmpty()
+    }
 }

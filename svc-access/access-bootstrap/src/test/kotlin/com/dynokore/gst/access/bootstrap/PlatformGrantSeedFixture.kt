@@ -76,7 +76,7 @@ object PlatformGrantSeedFixture {
                 it.execute(BindingKeyMigration.ddl("access", "access_sys", "access_runtime"))
                 it.execute("RESET ROLE")
                 it.execute("ALTER SCHEMA access OWNER TO access_migrate")
-                it.execute("GRANT access_sys TO access_migrate")
+                it.execute("GRANT access_sys TO access_migrate WITH INHERIT TRUE")
             }
         }
         flyway(BASE, migrations, LAST_BEFORE_SEED).migrate()
@@ -150,10 +150,15 @@ object PlatformGrantSeedFixture {
         }
     }
 
+    @Synchronized
     fun drop() {
         BoundaryFixture.asSuperuser { c ->
             (clones + BASE).forEach { c.createStatement().use { s -> s.execute("drop database if exists $it") } }
+            // role memberships are cluster-wide: restore the state before base() so the next base() starts clean
+            c.createStatement().use { it.execute("REVOKE access_sys FROM access_migrate") }
         }
+        clones.clear()
+        built = false
     }
 
     fun strings(
