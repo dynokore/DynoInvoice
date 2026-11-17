@@ -26,6 +26,8 @@ tomcat = "11.0.25"
 jsonSchemaValidator = "3.0.8"
 # The generated server interfaces annotate with swagger (the version codegen-self-test pins).
 swaggerAnnotations = "2.2.55"
+# Apache POI (streaming SXSSF) for the XLSX export of INV-REQ-982; newest stable on Maven Central 2026-11-18 (ruling: library ruling option A, licence check STK-66).
+poi = "6.0.0"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -63,6 +65,8 @@ springBoot-test = { module = "org.springframework.boot:spring-boot-test" }
 springBoot-autoconfigure = { module = "org.springframework.boot:spring-boot-autoconfigure" }
 spring-context = { module = "org.springframework:spring-context" }
 jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+# Library ruling option A (Apache-2.0, STK-66 licence check); used by reconciliation-adapters only (ARC-03).
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
