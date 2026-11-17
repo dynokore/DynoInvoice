@@ -26,7 +26,7 @@ class RegistryNetworkRegistrationTest {
     ) = env.ce.inTenant { env.networkRegistration.confirmNetworkRegistration(entity, UUID.randomUUID()).body!! }
 
     @Test
-    fun `INV-AC-360-an-entity-whose-own-UEN-is-not-found-has-the-item-outstanding-and-a-miss-keeps-it-so`() =
+    fun `INV-AC-360,an,entity,whose,own,UEN,is,not,found,has,the,item,outstanding,and,a,miss,keeps,it,so`() =
         RegistryStub().use { stub ->
             runRegistry(directoryUrl = stub.baseUrl) { env ->
                 val entity = env.entity()

@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 
 /**
  * INV-T-24134: the seven scenario tests the certification kit references have ids
- * `<fully qualified class>#<method>` that the kit TEST_ID rule accepts (no whitespace).
+ * `<fully qualified class>#<method>` that the kit TEST_ID rule and the acKeyCoverage gate accept.
  */
 class ScenarioTestIdsTest {
     private data class Tuple(
@@ -22,105 +22,133 @@ class ScenarioTestIdsTest {
             Tuple(
                 "INV-AC-343",
                 "$pkg.CounterpartyResolutionTest",
-                "INV-AC-343-INV-AC-8374-a-customer-with-no-UEN-and-a-scheme-other-than-NONE-resolves-with-MDM-002",
+                "INV-AC-343,INV-AC-8374,a,customer,with,no,UEN,and,a,scheme,other,than,NONE,resolves,with,MDM-002",
             ),
             Tuple(
                 "INV-AC-344",
                 "$pkg.CounterpartyResolutionTest",
-                "INV-AC-344-INV-AC-8371-an-individual-under-a-personal-name-carries-NA-in-UEN,-name-and-address-and-passes",
+                "INV-AC-344,INV-AC-8371,an,individual,under,a,personal,name,carries,NA,in,UEN,,name,and,address,and,passes",
             ),
             Tuple(
                 "INV-AC-345",
                 "$pkg.CounterpartyResolutionTest",
-                "INV-AC-345-INV-AC-8371-an-overseas-customer-carries-its-registration-number-as-UEN-and-passes",
+                "INV-AC-345,INV-AC-8371,an,overseas,customer,carries,its,registration,number,as,UEN,and,passes",
             ),
             Tuple(
                 "INV-AC-357",
                 "$pkg.ImportTest",
-                "INV-AC-357-a-5000-row-file-with-40-invalid-UENs-and-12-duplicates-lists-52-rows-and-writes-nothing",
+                "INV-AC-357,a,5000,row,file,with,40,invalid,UENs,and,12,duplicates,lists,52,rows,and,writes,nothing",
             ),
             Tuple(
                 "INV-AC-760",
                 "$pkg.CounterpartySamenessTest",
-                "INV-AC-1823-INV-AC-760-resolution-sets-sameTenant-and-sameGroup-from-the-structure-events",
+                "INV-AC-1823,INV-AC-760,resolution,sets,sameTenant,and,sameGroup,from,the,structure,events",
             ),
             Tuple(
                 "INV-AC-360",
                 "$pkg.RegistryNetworkRegistrationTest",
-                "INV-AC-360-an-entity-whose-own-UEN-is-not-found-has-the-item-outstanding-and-a-miss-keeps-it-so",
+                "INV-AC-360,an,entity,whose,own,UEN,is,not,found,has,the,item,outstanding,and,a,miss,keeps,it,so",
             ),
             Tuple(
                 "INV-AC-845",
                 "$pkg.ConnectionHealthWiringTest",
-                "INV-AC-845-a-credential-expiring-in-10-days-raises-a-reminder-and-rotation-with-overlap-fails-no-call",
+                "INV-AC-845,a,credential,expiring,in,10,days,raises,a,reminder,and,rotation,with,overlap,fails,no,call",
             ),
         )
 
-    /** Returns the violations of one tuple; empty when the id is accepted. */
-    private fun violations(t: Tuple): List<String> {
-        val cls = runCatching { Class.forName(t.className) }.getOrNull()
-        val m = cls?.declaredMethods?.firstOrNull { it.name == t.method }
-        val key = t.criterion + "-"
-        return when {
-            cls == null -> {
-                listOf("class ${t.className} absent")
-            }
+    private val absent = "absent"
+    private val noTest = "no @Test"
+    private val whitespace = "whitespace"
+    private val notToken = "key not a whole token"
 
-            m == null -> {
-                listOf("method ${t.method} absent in ${t.className}")
-            }
+    /** Reflection: (method found by name equality, JUnit @Test present). */
+    private fun lookup(
+        className: String,
+        method: String,
+    ): Pair<Boolean, Boolean> {
+        val m = runCatching { Class.forName(className) }.getOrNull()?.declaredMethods?.firstOrNull { it.name == method }
+        return Pair(m != null, m?.isAnnotationPresent(Test::class.java) == true)
+    }
 
-            else -> {
-                listOfNotNull(
-                    "no @Test on ${t.method}".takeUnless { m.isAnnotationPresent(Test::class.java) },
-                    "whitespace in ${t.method}".takeIf { m.name.any { ch -> ch.isWhitespace() } },
-                    "${t.method} lacks $key at start or after a hyphen"
-                        .takeUnless { m.name.startsWith(key) || m.name.contains("-$key") },
-                )
-            }
+    private fun glued(c: Char?) = c != null && (c.isLetterOrDigit() || c == '_' || c == '-')
+
+    /** Same rule as wholeToken of the acKeyCoverage gate. */
+    private fun wholeToken(
+        name: String,
+        criterion: String,
+    ): Boolean =
+        Regex(Regex.escape(criterion)).findAll(name).any { m ->
+            val before = if (m.range.first == 0) null else name[m.range.first - 1]
+            val after = if (m.range.last + 1 >= name.length) null else name[m.range.last + 1]
+            !glued(before) && !glued(after)
         }
+
+    /** The complete list of violations of one (criterion, class, method); empty when the id is accepted. */
+    private fun violations(
+        criterion: String,
+        method: String,
+        found: Boolean,
+        hasTest: Boolean,
+    ): List<String> =
+        if (!found) {
+            listOf(absent)
+        } else {
+            listOfNotNull(
+                noTest.takeUnless { hasTest },
+                whitespace.takeIf { method.any { ch -> ch.isWhitespace() } },
+                notToken.takeUnless { wholeToken(method, criterion) },
+            )
+        }
+
+    private fun probe(
+        method: String,
+        hasTest: Boolean = true,
+    ) = violations("INV-AC-343", method, found = true, hasTest = hasTest)
+
+    private fun real(t: Tuple): List<String> {
+        val (found, hasTest) = lookup(t.className, t.method)
+        return violations(t.criterion, t.method, found, hasTest)
     }
 
     @Test
-    fun `INV-AC-24133 each of the seven designated methods has a space-free id with its criterion key`() {
+    fun `INV-AC-24133 each of the seven designated methods has a space-free id and its key as a whole token`() {
         assertThat(tuples).hasSize(7)
-        tuples.forEach { tuple -> assertThat(violations(tuple)).describedAs(tuple.method).isEmpty() }
+        tuples.forEach { tuple -> assertThat(real(tuple)).describedAs(tuple.method).isEmpty() }
     }
 
     @Test
-    fun `INV-AC-24133 probe a method name holding a space fails`() {
-        val t = Tuple("INV-AC-1", "$pkg.ScenarioTestIdsTest\$Fixture", "INV-AC-1 with a space")
-        assertThat(violations(t)).anyMatch { it.startsWith("whitespace") }
+    fun `INV-AC-24133 probe a method name holding a space gives the whitespace violation only`() {
+        assertThat(probe("INV-AC-343 a b")).containsExactly(whitespace)
     }
 
     @Test
-    fun `INV-AC-24133 probe the same method name in another class fails`() {
+    fun `INV-AC-24133 probe the same method name in another class of the package is absent`() {
         val t = tuples[0].copy(className = "$pkg.CounterpartySamenessTest")
-        assertThat(violations(t)).anyMatch { it.contains("absent") }
+        assertThat(real(t)).containsExactly(absent)
     }
 
     @Test
-    fun `INV-AC-24133 probe a tuple naming an absent method fails`() {
-        val t = tuples[0].copy(method = tuples[0].method + "-x")
-        assertThat(violations(t)).anyMatch { it.contains("absent") }
+    fun `INV-AC-24133 probe a tuple naming an absent method`() {
+        assertThat(real(tuples[0].copy(method = tuples[0].method + ",x"))).containsExactly(absent)
     }
 
     @Test
-    fun `INV-AC-24133 probe a prefix look-alike criterion fails`() {
-        val t = tuples[4].copy(criterion = "INV-AC-76")
-        assertThat(violations(t)).anyMatch { it.contains("lacks") }
+    fun `INV-AC-24133 probe a prefix look-alike criterion is not a whole token`() {
+        assertThat(real(tuples[4].copy(criterion = "INV-AC-76"))).containsExactly(notToken)
     }
 
     @Test
-    fun `INV-AC-24133 probe a method without Test annotation fails`() {
-        val t = Tuple("INV-AC-2", "$pkg.ScenarioTestIdsTest\$Fixture", "INV-AC-2-no-test-annotation")
-        assertThat(violations(t)).anyMatch { it.startsWith("no @Test") }
+    fun `INV-AC-24133 probe a hyphen after the criterion key is not a whole token`() {
+        assertThat(probe("INV-AC-343-x")).containsExactly(notToken)
     }
 
-    @Suppress("unused")
-    private class Fixture {
-        fun `INV-AC-1 with a space`() = Unit
+    @Test
+    fun `INV-AC-24133 probe an underscore after the criterion key is not a whole token`() {
+        assertThat(probe("INV-AC-343_x")).containsExactly(notToken)
+    }
 
-        fun `INV-AC-2-no-test-annotation`() = Unit
+    @Test
+    fun `INV-AC-24133 probe a method without the Test annotation gives the annotation violation only`() {
+        assertThat(probe("INV-AC-343,x", hasTest = false)).containsExactly(noTest)
     }
 }

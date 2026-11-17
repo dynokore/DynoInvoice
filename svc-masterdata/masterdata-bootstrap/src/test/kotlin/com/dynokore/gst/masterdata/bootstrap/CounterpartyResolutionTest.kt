@@ -19,7 +19,7 @@ class CounterpartyResolutionTest {
     private val block = { code: String -> Triple(code, "BLOCK", "MANUAL") }
 
     @Test
-    fun `INV-AC-343-INV-AC-8374-a-customer-with-no-UEN-and-a-scheme-other-than-NONE-resolves-with-MDM-002`() =
+    fun `INV-AC-343,INV-AC-8374,a,customer,with,no,UEN,and,a,scheme,other,than,NONE,resolves,with,MDM-002`() =
         runCounterparty { env ->
             val entity = unique("ENT")
             val gstn = unique("M2")
@@ -33,7 +33,7 @@ class CounterpartyResolutionTest {
         }
 
     @Test
-    fun `INV-AC-344-INV-AC-8371-an-individual-under-a-personal-name-carries-NA-in-UEN,-name-and-address-and-passes`() =
+    fun `INV-AC-344,INV-AC-8371,an,individual,under,a,personal,name,carries,NA,in,UEN,,name,and,address,and,passes`() =
         runCounterparty { env ->
             val entity = unique("ENT")
             val gstn = unique("M2")
@@ -53,7 +53,7 @@ class CounterpartyResolutionTest {
         }
 
     @Test
-    fun `INV-AC-345-INV-AC-8371-an-overseas-customer-carries-its-registration-number-as-UEN-and-passes`() =
+    fun `INV-AC-345,INV-AC-8371,an,overseas,customer,carries,its,registration,number,as,UEN,and,passes`() =
         runCounterparty { env ->
             val entity = unique("ENT")
             val registration = unique("OV-REG")

@@ -241,7 +241,7 @@ class ConnectionHealthWiringTest {
     }
 
     @Test
-    fun `INV-AC-845-a-credential-expiring-in-10-days-raises-a-reminder-and-rotation-with-overlap-fails-no-call`() =
+    fun `INV-AC-845,a,credential,expiring,in,10,days,raises,a,reminder,and,rotation,with,overlap,fails,no,call`() =
         on { env ->
             val ref = env.create(expiresIn = Duration.ofDays(10))
             assertThat(expiryAndRotation(env, ref)).isZero()

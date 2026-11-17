@@ -154,7 +154,7 @@ class ImportTest {
     private fun uen(n: Int) = "%08d".format(java.util.Locale.ROOT, n) + "X"
 
     @Test
-    fun `INV-AC-357-a-5000-row-file-with-40-invalid-UENs-and-12-duplicates-lists-52-rows-and-writes-nothing`() =
+    fun `INV-AC-357,a,5000,row,file,with,40,invalid,UENs,and,12,duplicates,lists,52,rows,and,writes,nothing`() =
         runRegistry { env ->
             val tag = UUID.randomUUID().toString().take(8)
             val rows = mutableListOf<String>()
