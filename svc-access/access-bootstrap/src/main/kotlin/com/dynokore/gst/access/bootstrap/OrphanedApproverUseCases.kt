@@ -49,6 +49,7 @@ class OrphanedApproverUseCases {
         clock: Clock,
     ): OrphanAlertState = JooqOrphanAlertState(dsl, clock)
 
+    @Suppress("LongParameterList") // one collaborator per port of the check
     @Bean
     fun orphanedApprovers(
         active: ActiveApprovers,
@@ -59,6 +60,7 @@ class OrphanedApproverUseCases {
         clock: Clock,
     ) = OrphanedApprovers(active, held, state, directory, alerts, clock)
 
+    @Suppress("LongParameterList") // one collaborator per port of the scan
     @Bean
     fun orphanedApproverScan(
         dsl: DSLContext,
