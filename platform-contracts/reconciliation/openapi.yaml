@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: reconciliation API
-  version: 1.3.0
+  version: 1.4.0
   description: >-
     Contract-first source of truth for reconciliation (API-01, STK-44). The
     `reconciliation-contract` module generates its server interfaces and DTOs
@@ -352,7 +352,7 @@ paths:
                     unexplainedResidual: "0.00"
                     supportingDocuments: ["s3://reconciliation/E-001/2026-Q1/schedule.pdf"]
                     attestation:
-                      attestedBy: "tax.approver:jane.tan"
+                      attestedBy: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                       attestedAt: "2026-04-28T09:30:00Z"
         default:
           $ref: '#/components/responses/Error'
@@ -511,7 +511,7 @@ paths:
               examples:
                 default:
                   value:
-                    attestedBy: "tax.approver:jane.tan"
+                    attestedBy: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                     attestedAt: "2026-04-28T09:30:00Z"
         default:
           $ref: '#/components/responses/Error'
@@ -773,6 +773,21 @@ components:
         attestedAt:
           type: string
           format: date-time
+        soleAttester:
+          type: object
+          description: >-
+            Present exactly when one person attested under the sole-operator acknowledgement, and absent when a preparer and a separate approver attested.
+            INV-REQ-994 item 2: "The reconciliation work-paper of each affected period shows it".
+          properties:
+            acknowledgedBy:
+              type: string
+              minLength: 1
+              description: The acting user ID of the person who acknowledged, never a role name.
+            acknowledgedOn:
+              type: string
+              format: date
+              description: The date of the acknowledgement.
+          required: [acknowledgedBy, acknowledgedOn]
       required: [attestedBy, attestedAt]
     WorkPaper:
       type: object

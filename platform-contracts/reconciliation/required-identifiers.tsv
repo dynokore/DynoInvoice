@@ -33,3 +33,6 @@ annotateVariance.PER-015	operation_error_code	openapi.yaml	INV-REQ-633
 attestWorkPaper	operation	openapi.yaml	INV-REQ-2588
 uploadGstReturn	operation	openapi.yaml	INV-REQ-2588
 irasFilingReference	property	schemas/gst-return-recorded-payload.schema.json	INV-REQ-653
+Attestation.soleAttester	schema_property	openapi.yaml	INV-REQ-947
+acknowledgedBy	property	openapi.yaml	INV-REQ-947
+acknowledgedOn	property	openapi.yaml	INV-REQ-947
