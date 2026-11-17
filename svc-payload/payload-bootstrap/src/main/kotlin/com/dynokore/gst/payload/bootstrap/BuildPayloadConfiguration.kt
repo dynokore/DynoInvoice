@@ -2,7 +2,7 @@ package com.dynokore.gst.payload.bootstrap
 
 import com.dynokore.gst.payload.adapters.build.ActivePackRead
 import com.dynokore.gst.payload.adapters.build.BuildPayloadJobHandler
-import com.dynokore.gst.payload.adapters.build.FamilyLookup
+import com.dynokore.gst.payload.adapters.build.ConnectionFamilyLookup
 import com.dynokore.gst.payload.adapters.build.JooqBuildInputsReader
 import com.dynokore.gst.payload.adapters.build.JooqBuildOutcomes
 import com.dynokore.gst.payload.adapters.build.JooqTypeDecisionReader
@@ -19,6 +19,7 @@ import com.dynokore.gst.payload.application.build.PayloadRejectedPublisher
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.gst.payload.application.payload.PublishPayloadReady
+import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.WorkQueue
@@ -31,8 +32,8 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The beans of the claimed build job: the readers, the outcomes, the `PayloadRejected` publisher, the projector, the
- * use case and the handler. `SpecificationFamilySource` is not ruled yet (see the MR gaps): the family bean fails
- * closed. The active pack is read from the replica once per call of [ActivePackOffNetworkPrefix]; with no active
+ * use case and the handler. `SpecificationFamilySource` reads the family of the connection on the document date
+ * (VP-71). The active pack is read from the replica once per call of [ActivePackOffNetworkPrefix]; with no active
  * pack a build is `BuildNotReady`.
  */
 @Configuration(proxyBeanMethods = false)
@@ -62,19 +63,17 @@ class BuildPayloadConfiguration {
     ): PayloadRejectedPublisher = OutboxPayloadRejectedPublisher(outbox, tenants)
 
     /**
-     * The family of a request (entity, connection, document date) through the policy path (VP-71). The scope level
-     * and the date of that path are not ruled (see the MR gaps), so the production lookup names no family and fails
-     * closed with an [IllegalStateException]; the build then ends in a retry and publishes nothing. One bean
-     * replaces it.
+     * The family of a request (entity, connection, document date) through the policy path (VP-71): the option the
+     * service's [PolicyReader] resolves for the connection on the document date (INV-REQ-2467). The platform's
+     * `JdbcPolicyReader` is the one `PolicyReader` bean of the service (service-runtime `ConfigResolverWiring`). A
+     * request without a connection or a date fails closed, and the build then ends in a retry and publishes nothing.
      */
     @Bean
     @ConditionalOnMissingBean(SpecificationFamilySource::class)
-    fun specificationFamilySource(): SpecificationFamilySource =
-        PolicySpecificationFamilySource(
-            FamilyLookup { request ->
-                error("the policy scope of the specification family (VP-71) is not ruled; entity ${request.entityRef}")
-            },
-        )
+    fun specificationFamilySource(
+        policy: PolicyReader,
+        tenants: TenantContext,
+    ): SpecificationFamilySource = PolicySpecificationFamilySource(ConnectionFamilyLookup(policy) { tenants.current() })
 
     /**
      * One read of the active MDE pack per call (INV-AC-23595): no cache, no static state, so the next build reads a

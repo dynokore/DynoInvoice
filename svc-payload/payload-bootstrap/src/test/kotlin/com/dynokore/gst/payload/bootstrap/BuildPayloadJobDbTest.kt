@@ -16,6 +16,13 @@ import com.dynokore.gst.payload.application.build.FamilyRequest
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.application.build.TypeDecisionReader
 import com.dynokore.gst.payload.domain.version.VersionFacts
+import com.dynokore.platform.configresolver.PolicyReader
+import com.dynokore.platform.configresolver.PolicyScope
+import com.dynokore.platform.configresolver.PolicySource
+import com.dynokore.platform.configresolver.ResolvedSetting
+import com.dynokore.platform.configresolver.ScopeLevel
+import com.dynokore.platform.configresolver.SelectedOption
+import com.dynokore.platform.configresolver.VariationPointKey
 import com.dynokore.platform.outboxandqueue.ClaimedItem
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.outboxandqueue.WorkQueue
@@ -257,6 +264,96 @@ class BuildPayloadJobDbTest {
             events(tenant.value, doc, readyType).size shouldBe 1
             requests.size shouldBe 2
             requests.toSet() shouldBe setOf(FamilyRequest("E-001", "CONN-5", date))
+        }
+    }
+
+    /** The production family source over a policy reader: SG_PEPPOL_BIS for CONN-A from the election date on. */
+    private fun policyContext(
+        dir: Path,
+        election: LocalDate,
+    ) = PayloadContext
+        .online(dir)
+        .withAllowBeanDefinitionOverriding(true)
+        .withBean(
+            PolicyReader::class.java,
+            {
+                object : PolicyReader {
+                    override fun resolve(
+                        key: VariationPointKey,
+                        scope: PolicyScope,
+                        at: LocalDate,
+                    ): ResolvedSetting {
+                        val elected = scope.ref(ScopeLevel.AP_CONNECTION)?.id == "CONN-A" && !at.isBefore(election)
+                        return ResolvedSetting(
+                            key,
+                            at,
+                            listOf(SelectedOption(if (elected) "SG_PEPPOL_BIS" else "PINT_SG")),
+                            PolicySource.CatalogueDefault,
+                        )
+                    }
+                }
+            },
+        ).withBean(
+            ActivePackOffNetworkPrefix::class.java,
+            {
+                ActivePackOffNetworkPrefix {
+                    ActivePackRead(
+                        "DB-TEST",
+                        com.dynokore.gst.payload.adapters.projection
+                            .MdePackOffNetworkPrefix("{}"),
+                        "{}",
+                    )
+                }
+            },
+        )
+
+    @Test
+    fun `INV-AC-23664 PayloadReady specificationVersion equals the family of the projector`(
+        @TempDir dir: Path,
+    ) {
+        val election = LocalDate.of(2026, 3, 20)
+        policyContext(dir, election).run { ctx ->
+            val boundary = Boundary(ctx)
+            val tenant = TenantId(UUID.randomUUID())
+            val onDay = UUID.randomUUID()
+            val dayBefore = UUID.randomUUID()
+            boundary.seed(tenant, onDay, "TYPE_2", connectionRef = "CONN-A", transactionDate = election)
+            boundary.seed(
+                tenant,
+                dayBefore,
+                "TYPE_2",
+                connectionRef = "CONN-A",
+                transactionDate = election.minusDays(1),
+            )
+            boundary.handler(onDay).runOnce() shouldBe true
+            boundary.handler(dayBefore).runOnce() shouldBe true
+            events(tenant.value, dayBefore, readyType).single()["specificationVersion"].asString() shouldBe "PINT_SG"
+            // GAP (reported): no SG_PEPPOL_BIS builder exists yet, so the projector asked for the BIS family and
+            // the build is rejected with NO_BUILDER naming that family; nothing is published as PINT_SG.
+            events(tenant.value, onDay, readyType).size shouldBe 0
+            events(tenant.value, onDay, rejectedType).single()["validationTrace"]["key"].asString() shouldBe
+                "SG_PEPPOL_BIS:380"
+        }
+    }
+
+    @Test
+    fun `INV-AC-23664 a version with no connectionRef ends in a retry and publishes nothing`(
+        @TempDir dir: Path,
+    ) {
+        policyContext(dir, LocalDate.of(2026, 3, 20)).run { ctx ->
+            val boundary = Boundary(ctx)
+            val tenant = TenantId(UUID.randomUUID())
+            val doc = UUID.randomUUID()
+            boundary.seed(tenant, doc, "TYPE_2", transactionDate = LocalDate.of(2026, 3, 20))
+            shouldThrow<BuildJobFailed> {
+                boundary
+                    .handler(
+                        doc,
+                    ).runOnce()
+            }.cause.shouldBeInstanceOf<IllegalStateException>()
+            events(tenant.value, doc, readyType).size shouldBe 0
+            events(tenant.value, doc, rejectedType).size shouldBe 0
+            outcomes(tenant.value, doc) shouldBe 0
         }
     }
 
