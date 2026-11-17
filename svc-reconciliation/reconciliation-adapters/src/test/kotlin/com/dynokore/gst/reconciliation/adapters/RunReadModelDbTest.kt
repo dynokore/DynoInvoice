@@ -23,6 +23,12 @@ import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+private fun line(
+    n: Int,
+    amount: String,
+    tax: String,
+) = DocumentLineFacts(n, "SR", BigDecimal(amount), BigDecimal(tax))
+
 /**
  * INV-AC-24341 at the database (INV-T-24344): the run read model over a real PostgreSQL schema with the runtime login
  * and the tenant bound; no fakes.
@@ -56,22 +62,20 @@ class RunReadModelDbTest {
         block: (JooqRunReadModel) -> T,
     ): T = inTenant(tenant) { block(JooqRunReadModel(DSL.using(it, SQLDialect.POSTGRES))) }
 
-    private fun line(
-        n: Int,
-        amount: String,
-        tax: String,
-    ) = DocumentLineFacts(n, "SR", BigDecimal(amount), BigDecimal(tax))
+    private class Money(
+        val currency: String = "SGD",
+        val rate: String? = null,
+        val excl: String? = null,
+        val tax: String? = null,
+        val lines: List<DocumentLineFacts> = listOf(line(1, "100.00", "9.00"), line(2, "50.00", "4.50")),
+    )
 
     private fun facts(
         doc: String,
         version: Int = 1,
         sequence: Long = 10,
         period: String = "2026-Q1",
-        currency: String = "SGD",
-        rate: String? = null,
-        excl: String? = null,
-        tax: String? = null,
-        lines: List<DocumentLineFacts> = listOf(line(1, "100.00", "9.00"), line(2, "50.00", "4.50")),
+        money: Money = Money(),
     ) = DocumentVersionFacts(
         doc,
         version,
@@ -81,21 +85,24 @@ class RunReadModelDbTest {
         "IN_SCOPE",
         null,
         Direction.SALE,
-        currency,
-        rate?.let(::BigDecimal),
-        excl?.let(::BigDecimal),
-        tax?.let(::BigDecimal),
-        lines,
+        money.currency,
+        money.rate?.let(::BigDecimal),
+        money.excl?.let(::BigDecimal),
+        money.tax?.let(::BigDecimal),
+        money.lines,
     )
 
     private fun d2Facts() =
         facts(
             d2,
-            currency = "USD",
-            rate = "1.35",
-            excl = "182.25",
-            tax = "16.40",
-            lines = listOf(line(1, "100.00", "9.00"), line(2, "35.00", "3.15")),
+            money =
+                Money(
+                    currency = "USD",
+                    rate = "1.35",
+                    excl = "182.25",
+                    tax = "16.40",
+                    lines = listOf(line(1, "100.00", "9.00"), line(2, "35.00", "3.15")),
+                ),
         )
 
     private fun sqlState(block: () -> Unit): String? {
@@ -129,7 +136,7 @@ class RunReadModelDbTest {
     fun `INV-AC-24341 recordVersion is true once and false on the repeat which leaves the stored row unchanged`() {
         val t1 = UUID.randomUUID()
         model(t1) { it.recordVersion(t1.toString(), "E1", facts(d1)) } shouldBe true
-        val changed = facts(d1, currency = "USD", lines = listOf(line(1, "1.00", "0.00")))
+        val changed = facts(d1, money = Money(currency = "USD", lines = listOf(line(1, "1.00", "0.00"))))
         model(t1) { it.recordVersion(t1.toString(), "E1", changed) } shouldBe false
         scalar("select currency from reconciliation.document_version where tenant_id = '$t1'") shouldBe "SGD"
         scalar("select count(*) from reconciliation.document_line where tenant_id = '$t1'") shouldBe 2L
@@ -222,8 +229,8 @@ class RunReadModelDbTest {
     fun `INV-AC-24341 a missing SGD total is NotReconcilable and a document without lines is kept`() {
         val t1 = UUID.randomUUID()
         model(t1) {
-            it.recordVersion(t1.toString(), "E1", facts(d4, currency = "USD", rate = "1.35"))
-            it.recordVersion(t1.toString(), "E1", facts(d5, lines = emptyList()))
+            it.recordVersion(t1.toString(), "E1", facts(d4, money = Money(currency = "USD", rate = "1.35")))
+            it.recordVersion(t1.toString(), "E1", facts(d5, money = Money(lines = emptyList())))
         }
         val loaded = model(t1) { it.load(t1.toString(), "E1", "2026-Q1") }.associateBy { it.docUuid }
         loaded.keys shouldBe setOf(d4, d5)
