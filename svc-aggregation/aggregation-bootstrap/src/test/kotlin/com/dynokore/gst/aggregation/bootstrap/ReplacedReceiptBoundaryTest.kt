@@ -30,7 +30,7 @@ class ReplacedReceiptBoundaryTest {
     ) = exclude(entity, receipt).let { response -> response.status to json(response) }
 
     @Test
-    fun `INV-AC-458 a replaced receipt is excluded, not aggregated, or refused with ING-014 once sent`(
+    fun `INV-AC-458,a,replaced,receipt,is,excluded,,not,aggregated,,or,refused,with,ING-014,once,sent`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { kit ->

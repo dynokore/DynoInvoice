@@ -45,7 +45,7 @@ class AggregateContentBoundaryTest {
         ).single()
 
     @Test
-    fun `INV-AC-455 sales and refunds of one window give two aggregates and the sales are not netted`(
+    fun `INV-AC-455,sales,and,refunds,of,one,window,give,two,aggregates,and,the,sales,are,not,netted`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { kit ->

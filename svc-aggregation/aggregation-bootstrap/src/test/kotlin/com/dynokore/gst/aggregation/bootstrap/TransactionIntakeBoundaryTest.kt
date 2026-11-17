@@ -174,7 +174,7 @@ class TransactionIntakeBoundaryTest {
     private val twoQuarters = PeriodBoundarySource { _, _, _ -> PeriodSpans.Known(listOf(q1, q2)) }
 
     @Test
-    fun `INV-AC-457 a weekly window from 28 Mar to 3 Apr is split into two aggregates at 31 Mar`(
+    fun `INV-AC-457,a,weekly,window,from,28,Mar,to,3,Apr,is,split,into,two,aggregates,at,31,Mar`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, Cadence.WEEKLY) { boundary ->

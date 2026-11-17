@@ -97,7 +97,7 @@ class DrillDownBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-448 a transmitted aggregate lists all its underlying transactions, counted as declared`(
+    fun `INV-AC-448,a,transmitted,aggregate,lists,all,its,underlying,transactions,,counted,as,declared`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { kit ->

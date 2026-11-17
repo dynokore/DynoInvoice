@@ -114,7 +114,7 @@ class AggregateHandOffBoundaryTest : BoundaryFixture() {
         }
 
     @Test
-    fun `INV-AC-454 a POS day with SR and ZR sales gives one aggregate with two lines`(
+    fun `INV-AC-454,a,POS,day,with,SR,and,ZR,sales,gives,one,aggregate,with,two,lines`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
@@ -142,7 +142,7 @@ class AggregateHandOffBoundaryTest : BoundaryFixture() {
         }
 
     @Test
-    fun `INV-AC-456 INV-REQ-434 late POS lines after transmission give a supplementary aggregate`(
+    fun `INV-AC-456,INV-REQ-434,late,POS,lines,after,transmission,give,a,supplementary,aggregate`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
