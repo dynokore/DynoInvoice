@@ -1,5 +1,6 @@
 package com.dynokore.gst.aggregation.bootstrap
 
+import com.dynokore.gst.aggregation.adapters.AggregationDb
 import com.dynokore.gst.aggregation.adapters.events.ConsumedSubmissionEvents
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
 import java.nio.file.Path
+import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 import com.dynokore.platform.outboxandqueue.CorrelationId as EventCorrelation
@@ -75,6 +77,28 @@ class SubmissionDespatchedBoundaryTest : BoundaryFixture() {
             tenant,
         ) { it.getString(1) }
 
+    private fun rowsExcept(
+        tenant: UUID,
+        aggregateId: String,
+    ): List<String> =
+        query(
+            "select to_jsonb(a)::text from aggregation.aggregate a where tenant_id = ? " +
+                "and aggregate_id::text <> '$aggregateId' order by aggregate_id",
+            tenant,
+        ) { it.getString(1) }
+
+    /** The marked row in every column other than transmitted_at. */
+    private fun contentOf(
+        tenant: UUID,
+        aggregateId: String,
+        whole: Boolean = false,
+    ): List<String> =
+        query(
+            "select (to_jsonb(a)${if (whole) "" else " - 'transmitted_at'"})::text from aggregation.aggregate a " +
+                "where tenant_id = ? and aggregate_id = '$aggregateId'",
+            tenant,
+        ) { it.getString(1) }
+
     private fun handedOn(
         boundary: Boundary,
         tenant: UUID,
@@ -94,14 +118,23 @@ class SubmissionDespatchedBoundaryTest : BoundaryFixture() {
             val tenant = boundary.tenant()
             val id = handedOn(boundary, tenant)
             boundary.handOn(tenant).size shouldBe 1
+            val sibling = handedOn(boundary, tenant, "K-2")
+            val bystander = boundary.tenant().also { handedOn(boundary, it) }
             transmittedAt(tenant, id) shouldBe listOf("null")
+            val others = rowsExcept(tenant, id)
+            val foreign = rowsExcept(bystander, "")
+            val content = contentOf(tenant, id)
             boundary.deliver(context, tenant, event("\"$id\"")) shouldBe HandleOutcome.APPLIED
             val marked = transmittedAt(tenant, id).single()
             (marked != "null") shouldBe true
-            val row = rowOf(tenant, 1)
+            val row = contentOf(tenant, id, true)
             boundary.deliver(context, tenant, event("\"$id\"")) shouldBe HandleOutcome.IGNORED
             transmittedAt(tenant, id) shouldBe listOf(marked)
-            rowOf(tenant, 1) shouldBe row
+            contentOf(tenant, id, true) shouldBe row
+            transmittedAt(tenant, sibling) shouldBe listOf("null")
+            rowsExcept(tenant, id) shouldBe others
+            rowsExcept(bystander, "") shouldBe foreign
+            contentOf(tenant, id) shouldBe content
         }
 
     @Test
@@ -147,5 +180,24 @@ class SubmissionDespatchedBoundaryTest : BoundaryFixture() {
             subscription.topic shouldBe "gst.submission.submission-despatched.v1"
             ConsumedSubmissionEvents.SUBMISSION_DESPATCHED shouldBe
                 "com.dynokore.gst.submission.SubmissionDespatched.v1"
+        }
+
+    @Test
+    fun `INV-AC-22474 the runtime login may update transmitted_at and no content column of aggregate`(
+        @TempDir dir: Path,
+    ): Unit =
+        inContext(dir) {
+            AggregationDb.connect(AggregationDb.RUNTIME, AggregationDb.RUNTIME_PASSWORD).use { connection ->
+                connection.createStatement().use {
+                    it.executeUpdate("update aggregation.aggregate set transmitted_at = now() where false") shouldBe 0
+                }
+                listOf("entity_ref", "document_number", "tenant_id").forEach { column ->
+                    shouldThrow<SQLException> {
+                        connection.createStatement().use {
+                            it.executeUpdate("update aggregation.aggregate set $column = $column where false")
+                        }
+                    }.sqlState shouldBe "42501"
+                }
+            }
         }
 }
