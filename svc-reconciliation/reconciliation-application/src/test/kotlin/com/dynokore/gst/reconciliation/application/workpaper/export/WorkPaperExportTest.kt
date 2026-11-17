@@ -58,6 +58,17 @@ class WorkPaperExportTest {
     }
 
     @Test
+    fun `INV-AC-24293 many items are sorted by document version and line`() {
+        val docs = (1..30).map { "D$it" }
+        val items = docs.flatMap { d -> listOf(3, 1, 2).map { v -> item(d, v, 10 - v) } }.reversed()
+        val rows = ExportRows.of(export(boxes = listOf(box("1", docs, items))))
+        rows.map { Triple(it.docUuid, it.version, it.lineNumber) } shouldBe
+            items
+                .map { Triple(it.docUuid, it.version, it.lineNumber) }
+                .sortedWith(compareBy({ it.first }, { it.second }, { it.third }))
+    }
+
+    @Test
     fun `INV-AC-24293 second read equals the first`() {
         val e = export()
         ExportRows.of(e) shouldBe ExportRows.of(e)
