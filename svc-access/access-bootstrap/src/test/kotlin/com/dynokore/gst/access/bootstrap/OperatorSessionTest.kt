@@ -31,6 +31,8 @@ import com.sun.net.httpserver.HttpServer
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.catchThrowable
 import org.assertj.core.api.Assertions.catchThrowableOfType
+import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
 import tools.jackson.databind.json.JsonMapper
@@ -133,6 +135,9 @@ class OperatorSessionTest {
             identity: String,
             role: String,
         ) = BoundaryFixture.asSuperuser { c ->
+            val grantRef = "GRT-${UUID.randomUUID().toString().take(8)}"
+            insertedGrants.add(grantRef)
+            insertedIdentities.add(identity)
             c.createStatement().use {
                 it.execute(
                     "insert into access.identity (id, tenant_id, identity_ref, grantee_kind, created_at, created_by, " +
@@ -144,7 +149,7 @@ class OperatorSessionTest {
                     "insert into access.role_grant (id, tenant_id, grant_ref, identity_ref, role, scope_level, " +
                         "scope_ref, valid_from, valid_until, status, grant_source, created_at, created_by, " +
                         "updated_at, updated_by, version) values (gen_random_uuid(), '$platform', " +
-                        "'GRT-${UUID.randomUUID().toString().take(8)}', '$identity', '$role', 'TENANT', '$platform', " +
+                        "'$grantRef', '$identity', '$role', 'TENANT', '$platform', " +
                         "now() - interval '1 day', now() + interval '30 days', 'ACTIVE', 'BY_HAND', now(), 'mig', " +
                         "now(), 'mig', 0)",
                 )
@@ -644,4 +649,25 @@ class OperatorSessionTest {
                     .asString()
             assertThat(Base64.getDecoder().decode(published)).isEqualTo(env.operatorKey.toECPublicKey().encoded)
         }
+
+    companion object {
+        private val baseline = PlatformRowBaseline()
+        private val insertedGrants = java.util.concurrent.CopyOnWriteArrayList<String>()
+        private val insertedIdentities = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+        @BeforeAll
+        @JvmStatic
+        fun baselineBegin() = baseline.begin()
+
+        /** Removes exactly the platform rows this class inserted, also after a failed test, then checks the counts. */
+        @AfterAll
+        @JvmStatic
+        fun removePlatformRows() {
+            try {
+                PlatformRowBaseline.delete(PlatformRowBaseline.PLATFORM, insertedGrants, insertedIdentities)
+            } finally {
+                baseline.end()
+            }
+        }
+    }
 }

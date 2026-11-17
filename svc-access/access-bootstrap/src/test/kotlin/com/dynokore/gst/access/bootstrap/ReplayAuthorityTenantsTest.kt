@@ -12,6 +12,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterAll
+import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import java.io.File
 import java.sql.Connection
@@ -38,17 +39,25 @@ class ReplayAuthorityTenantsTest {
         tenant: UUID,
         tag: String,
     ) {
-        exec(
-            c,
-            "insert into access.identity (id, tenant_id, identity_ref, grantee_kind, created_at, created_by, " +
-                "updated_at, updated_by, version) values (gen_random_uuid(), '$tenant', 'user:$tag', 'STAFF', " +
-                "now(), 's', now(), 's', 0) on conflict do nothing",
-        )
+        val grantRef = "GRT-$tag-${UUID.randomUUID()}"
+        val platformTenant = tenant.toString() == PlatformRowBaseline.PLATFORM
+        val identityInserted =
+            c.createStatement().use {
+                it.executeUpdate(
+                    "insert into access.identity (id, tenant_id, identity_ref, grantee_kind, created_at, created_by, " +
+                        "updated_at, updated_by, version) values (gen_random_uuid(), '$tenant', 'user:$tag', " +
+                        "'STAFF', now(), 's', now(), 's', 0) on conflict do nothing",
+                )
+            } == 1
+        if (platformTenant) {
+            platformGrants.add(grantRef)
+            if (identityInserted) platformIdentities.add("user:$tag")
+        }
         exec(
             c,
             "insert into access.role_grant (id, tenant_id, grant_ref, identity_ref, role, scope_level, scope_ref, " +
                 "valid_from, status, grant_source, created_at, created_by, updated_at, updated_by, version) values " +
-                "(gen_random_uuid(), '$tenant', 'GRT-$tag-${UUID.randomUUID()}', 'user:$tag', 'auditor', 'TENANT', " +
+                "(gen_random_uuid(), '$tenant', '$grantRef', 'user:$tag', 'auditor', 'TENANT', " +
                 "'$tenant', now(), 'ACTIVE', 'BY_HAND', now(), 's', now(), 's', 0)",
         )
     }
@@ -296,8 +305,24 @@ class ReplayAuthorityTenantsTest {
     }
 
     companion object {
+        private val baseline = PlatformRowBaseline()
+        private val platformGrants = java.util.concurrent.CopyOnWriteArrayList<String>()
+        private val platformIdentities = java.util.concurrent.CopyOnWriteArrayList<String>()
+
+        @BeforeAll
+        @JvmStatic
+        fun baselineBegin() = baseline.begin()
+
+        /** Removes exactly the platform rows this class inserted, also after a failed test, then checks the counts. */
         @AfterAll
         @JvmStatic
-        fun drop() = PlatformGrantSeedFixture.drop()
+        fun drop() {
+            try {
+                PlatformRowBaseline.delete(PlatformRowBaseline.PLATFORM, platformGrants, platformIdentities)
+                PlatformGrantSeedFixture.drop()
+            } finally {
+                baseline.end()
+            }
+        }
     }
 }
