@@ -1,1 +1,2 @@
 ../openapi.yaml#/components/schemas/UploadGstReturnRequest upload-gst-return-request-*.json
+../schemas/gst-return-recorded-payload.schema.json gst-return-recorded-payload-*.json

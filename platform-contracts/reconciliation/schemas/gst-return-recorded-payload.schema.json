@@ -32,7 +32,7 @@
     "irasFilingReference": {
       "type": "string",
       "minLength": 1,
-      "description": "IRAS filing reference. Added 26 Sep 2026 (standards review): submission-svc's filing fact needs the same evidence on every path (FR-AF.36)."
+      "description": "IRAS filing reference. Added 26 Sep 2026 (standards review): submission-svc's filing fact needs the same evidence on every path (FR-AF.36). Optional: the property is absent when the upload carried no filing reference (INV-REQ-653 behavior 6: \"the reference where present\")."
     },
     "acknowledgementHash": {
       "type": "string",
@@ -45,8 +45,7 @@
     "period",
     "form",
     "returnVersion",
-    "filedAt",
-    "irasFilingReference"
+    "filedAt"
   ],
   "additionalProperties": true
 }
