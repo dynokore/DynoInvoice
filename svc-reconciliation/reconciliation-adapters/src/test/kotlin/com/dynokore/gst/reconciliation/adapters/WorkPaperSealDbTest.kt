@@ -187,6 +187,16 @@ class WorkPaperSealDbTest {
     }
 
     @Test
+    fun `INV-AC-24183 latest carries its own tenant predicate when row-level security is bypassed`() {
+        val t1 = newTenant()
+        val t2 = newTenant()
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
+        // the superuser bypasses row-level security: only the predicate of the query keeps T1's row from T2
+        ReconciliationDb.superuser().use { store(it, FakeStore()).latest(t2.toString(), "R1") } shouldBe null
+        ReconciliationDb.superuser().use { store(it, FakeStore()).latest(t1.toString(), "R1") }?.sha256Hex shouldBe h1
+    }
+
+    @Test
     fun `INV-AC-24183 a second put of a committed version is refused and the row keeps the first hash`() {
         val t1 = newTenant()
         inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
