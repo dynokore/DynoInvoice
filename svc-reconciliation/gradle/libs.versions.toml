@@ -40,6 +40,8 @@ platform-configResolver-api = { module = "com.dynokore.platform:config-resolver-
 platform-configResolver-impl = { module = "com.dynokore.platform:config-resolver" }
 platform-serviceRuntime-api = { module = "com.dynokore.platform:service-runtime-api" }
 platform-serviceRuntime-impl = { module = "com.dynokore.platform:service-runtime" }
+platform-evidenceStore-api = { module = "com.dynokore.platform:evidence-store-api" }
+platform-evidenceStore-impl = { module = "com.dynokore.platform:evidence-store" }
 platform-productRuntime-api = { module = "com.dynokore.platform:product-runtime-api" }
 platform-productRuntime-impl = { module = "com.dynokore.platform:product-runtime" }
 platform-tenancyJooq-api = { module = "com.dynokore.platform:tenancy-jooq-api" }

@@ -33,6 +33,7 @@ dependencies {
     implementation(libs.platform.outboxAndQueue.impl)
     implementation(libs.platform.auditLog.impl)
     implementation(libs.platform.configResolver.impl)
+    implementation(libs.platform.evidenceStore.impl)
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterValidation)

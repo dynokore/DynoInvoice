@@ -9,10 +9,13 @@ dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":reconciliation-adapters"))
+    implementation(project(":reconciliation-application"))
     implementation(project(":reconciliation-contract"))
     implementation(libs.platform.serviceRuntime.impl)
+    implementation(libs.platform.productRuntime.api)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.outboxAndQueue.impl)
+    implementation(libs.platform.evidenceStore.api)
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.springBoot.starterWeb)
     implementation(libs.springBoot.starterActuator)
@@ -26,6 +29,7 @@ dependencies {
     testImplementation(libs.kotest.assertionsCore)
     testImplementation(libs.springBoot.test)
     testImplementation(libs.assertj.core)
+    testImplementation(project(":reconciliation-domain"))
     testImplementation(testFixtures(project(":reconciliation-adapters")))
     testImplementation(libs.platform.serviceRuntime.api) {
         capabilities { requireCapability("com.dynokore.platform:service-runtime-test-fixtures") }

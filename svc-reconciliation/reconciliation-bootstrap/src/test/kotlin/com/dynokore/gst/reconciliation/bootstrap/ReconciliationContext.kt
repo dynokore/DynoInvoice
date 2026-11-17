@@ -22,15 +22,23 @@ object ReconciliationContext {
     /** No connection is opened at start: the pool is lazy (TPL-16). */
     fun offline(mountRoot: Path): ApplicationContextRunner {
         secrets(mountRoot)
-        return base(mountRoot)
+        return base(mountRoot, RETENTION_DAYS)
     }
 
-    private fun base(mountRoot: Path): ApplicationContextRunner =
+    /** The retention of a sealed work-paper the tests supply; the property has no default in the service. */
+    const val RETENTION_DAYS = "30"
+    private const val RETENTION_KEY = "reconciliation.work-paper.retention-days"
+
+    private fun base(
+        mountRoot: Path,
+        retentionDays: String?,
+    ): ApplicationContextRunner =
         ApplicationContextRunner()
             // the real application.yaml (TPL-16), then the overrides below
             .withInitializer(ConfigDataApplicationContextInitializer())
             .withUserConfiguration(ReconciliationApplication::class.java)
             .withPropertyValues(*overrides(mountRoot))
+            .let { runner -> retentionDays?.let { runner.withPropertyValues("$RETENTION_KEY=$it") } ?: runner }
 
     private fun overrides(mountRoot: Path): Array<String> =
         arrayOf(
@@ -64,6 +72,7 @@ object ReconciliationContext {
             .resourceLoader(DefaultResourceLoader(loader))
             .properties(
                 *overrides(mountRoot),
+                "$RETENTION_KEY=$RETENTION_DAYS",
                 "spring.datasource.url=${ReconciliationDb.jdbcUrl}",
                 "server.port=0",
                 *properties,
@@ -71,8 +80,11 @@ object ReconciliationContext {
     }
 
     /** Over the Testcontainers database; the login password and the binding key come from a mounted secret store. */
-    fun online(mountRoot: Path): ApplicationContextRunner {
+    fun online(
+        mountRoot: Path,
+        retentionDays: String? = RETENTION_DAYS,
+    ): ApplicationContextRunner {
         secrets(mountRoot)
-        return base(mountRoot).withPropertyValues("spring.datasource.url=${ReconciliationDb.jdbcUrl}")
+        return base(mountRoot, retentionDays).withPropertyValues("spring.datasource.url=${ReconciliationDb.jdbcUrl}")
     }
 }
