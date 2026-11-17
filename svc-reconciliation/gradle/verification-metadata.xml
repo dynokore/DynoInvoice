@@ -3603,6 +3603,10 @@
          <artifact name="bc-jdk18on-bom-1.84.pom">
             <pgp value="7B121B76A7ED6CE6E60AD51784E913A8E3A748C0"/>
          </artifact>
+         <artifact name="bc-jdk18on-bom-1.84.module">
+            <pgp value="7B121B76A7ED6CE6E60AD51784E913A8E3A748C0"/>
+            <sha256 value="88ab8884a5e7412e98f091c146eec144d79e8f8c958f380bc2d4cd0f0ad46869" origin="Maven Central .sha256, equal to sha256sum of the cached and a fresh download"/>
+         </artifact>
       </component>
       <component group="org.checkerframework" name="checker-qual" version="3.19.0">
          <artifact name="checker-qual-3.19.0.jar">
