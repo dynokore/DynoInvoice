@@ -10,6 +10,7 @@ import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
 import com.dynokore.gst.payload.domain.party.PartyInput
 import com.dynokore.gst.payload.domain.party.RefusalReason
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.w3c.dom.NodeList
 
@@ -114,12 +115,16 @@ class PartyProjectionTest {
     }
 
     @Test
-    fun `registry refuses key PINT_SG 383 with NoBuilder and holds exactly 380 and 381`() {
+    fun `registry refuses key PINT_SG 383 with NoBuilder and holds exactly the four keys`() {
         val key = BuilderKey(SpecificationFamily.PINT_SG, "383")
         registry.find(key) shouldBe BuilderLookup.NoBuilder(key)
-        registry.find(BuilderKey(SpecificationFamily.SG_PEPPOL_BIS, "380")) shouldBe
-            BuilderLookup.NoBuilder(BuilderKey(SpecificationFamily.SG_PEPPOL_BIS, "380"))
+        registry.find(BuilderKey(SpecificationFamily.SG_PEPPOL_BIS, "380")).shouldBeInstanceOf<BuilderLookup.Found>()
         registry.keys() shouldBe
-            setOf(BuilderKey(SpecificationFamily.PINT_SG, "380"), BuilderKey(SpecificationFamily.PINT_SG, "381"))
+            setOf(
+                BuilderKey(SpecificationFamily.PINT_SG, "380"),
+                BuilderKey(SpecificationFamily.PINT_SG, "381"),
+                BuilderKey(SpecificationFamily.SG_PEPPOL_BIS, "380"),
+                BuilderKey(SpecificationFamily.SG_PEPPOL_BIS, "381"),
+            )
     }
 }

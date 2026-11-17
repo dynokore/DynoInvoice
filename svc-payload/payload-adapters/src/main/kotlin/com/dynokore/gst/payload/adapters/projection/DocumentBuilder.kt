@@ -91,8 +91,19 @@ class DocumentBuilderRegistry(
     fun keys(): Set<BuilderKey> = byKey.keys
 
     companion object {
-        /** The two builders of INV-T-7178: 380 (Invoice) and 381 (CreditNote) of PINT-SG-1.0. */
+        /**
+         * The four builders: `BuilderKey(PINT_SG, "380")` and `BuilderKey(PINT_SG, "381")` (INV-T-7178), and
+         * `BuilderKey(SG_PEPPOL_BIS, "380")` and `BuilderKey(SG_PEPPOL_BIS, "381")` (INV-REQ-508). Any other key,
+         * for example type code 383, has no builder.
+         */
         fun standard(): DocumentBuilderRegistry =
-            DocumentBuilderRegistry(listOf(PintSgInvoiceBuilder(), PintSgCreditNoteBuilder()))
+            DocumentBuilderRegistry(
+                listOf(
+                    PintSgInvoiceBuilder(),
+                    PintSgCreditNoteBuilder(),
+                    SgPeppolBisInvoiceBuilder(),
+                    SgPeppolBisCreditNoteBuilder(),
+                ),
+            )
     }
 }
