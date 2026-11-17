@@ -15,6 +15,10 @@ import com.dynokore.gst.payload.application.build.BuildPayload
 import com.dynokore.gst.payload.application.build.FamilyRequest
 import com.dynokore.gst.payload.application.build.SpecificationFamilySource
 import com.dynokore.gst.payload.application.build.TypeDecisionReader
+import com.dynokore.gst.payload.domain.CustomizationId
+import com.dynokore.gst.payload.domain.CustomizationIdResult
+import com.dynokore.gst.payload.domain.SpecificationFamily
+import com.dynokore.gst.payload.domain.SubmissionType
 import com.dynokore.gst.payload.domain.version.VersionFacts
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyScope
@@ -307,8 +311,16 @@ class BuildPayloadJobDbTest {
             },
         )
 
+    private fun customizationIdOf(ready: JsonNode): String {
+        val xml = String(Base64.getDecoder().decode(ready["payloadBytes"].asString()), Charsets.UTF_8)
+        return Regex("<(?:\\w+:)?CustomizationID>([^<]*)<").find(xml)!!.groupValues[1]
+    }
+
+    private fun expectedCustomization(family: SpecificationFamily) =
+        (CustomizationId.expected(family, SubmissionType.TYPE_2) as CustomizationIdResult.Selected).value
+
     @Test
-    fun `INV-AC-23664 PayloadReady specificationVersion equals the family of the projector`(
+    fun `INV-AC-23664 the document dated d is built in SG_PEPPOL_BIS and the one dated the day before in PINT_SG`(
         @TempDir dir: Path,
     ) {
         val election = LocalDate.of(2026, 3, 20)
@@ -327,12 +339,31 @@ class BuildPayloadJobDbTest {
             )
             boundary.handler(onDay).runOnce() shouldBe true
             boundary.handler(dayBefore).runOnce() shouldBe true
-            events(tenant.value, dayBefore, readyType).single()["specificationVersion"].asString() shouldBe "PINT_SG"
-            // GAP (reported): no SG_PEPPOL_BIS builder exists yet, so the projector asked for the BIS family and
-            // the build is rejected with NO_BUILDER naming that family; nothing is published as PINT_SG.
-            events(tenant.value, onDay, readyType).size shouldBe 0
-            events(tenant.value, onDay, rejectedType).single()["validationTrace"]["key"].asString() shouldBe
-                "SG_PEPPOL_BIS:380"
+            val bis = events(tenant.value, onDay, readyType).single()
+            val pint = events(tenant.value, dayBefore, readyType).single()
+            bis["specificationVersion"].asString() shouldBe SpecificationFamily.SG_PEPPOL_BIS.name
+            pint["specificationVersion"].asString() shouldBe SpecificationFamily.PINT_SG.name
+            customizationIdOf(bis) shouldBe expectedCustomization(SpecificationFamily.SG_PEPPOL_BIS)
+            customizationIdOf(pint) shouldBe expectedCustomization(SpecificationFamily.PINT_SG)
+            events(tenant.value, onDay, rejectedType).size shouldBe 0
+            events(tenant.value, dayBefore, rejectedType).size shouldBe 0
+        }
+    }
+
+    @Test
+    fun `INV-AC-23664 PayloadReady specificationVersion equals the family of the projector`(
+        @TempDir dir: Path,
+    ) {
+        val election = LocalDate.of(2026, 3, 20)
+        policyContext(dir, election).run { ctx ->
+            val boundary = Boundary(ctx)
+            val tenant = TenantId(UUID.randomUUID())
+            val doc = UUID.randomUUID()
+            boundary.seed(tenant, doc, "TYPE_2", connectionRef = "CONN-A", transactionDate = election)
+            boundary.handler(doc).runOnce() shouldBe true
+            val source = ctx.getBean(SpecificationFamilySource::class.java)
+            val family = boundary.tx(tenant) { source.familyOf(FamilyRequest("E-001", "CONN-A", election)) }
+            events(tenant.value, doc, readyType).single()["specificationVersion"].asString() shouldBe family
         }
     }
 
