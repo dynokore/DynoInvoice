@@ -43,17 +43,16 @@ class ListRelaxedControls(
         if (!view.current()) {
             throw RelaxedControlsUnavailable("the policy view is not current; the relaxed controls cannot be listed")
         }
-        return view
-            .controls()
-            .mapNotNull { control ->
-                val ref = view.relaxationAckRef(tenant, entityRef, control.code, on)
-                when {
-                    ref == null -> null
-                    ref.isBlank() -> throw RelaxedControlsUnavailable(
-                        "blank relaxation acknowledgement reference for control ${control.code}",
-                    )
-                    else -> ExportRelaxedControl(control.code, control.description)
-                }
-            }.sortedBy { it.code }
+        val relaxed = mutableListOf<ExportRelaxedControl>()
+        for (control in view.controls()) {
+            val ref = view.relaxationAckRef(tenant, entityRef, control.code, on) ?: continue
+            if (ref.isBlank()) {
+                throw RelaxedControlsUnavailable(
+                    "blank relaxation acknowledgement reference for control ${control.code}",
+                )
+            }
+            relaxed += ExportRelaxedControl(control.code, control.description)
+        }
+        return relaxed.sortedBy { it.code }
     }
 }
