@@ -10,9 +10,9 @@ class ListRelaxedControlsTest {
         var current: Boolean = true,
         var controls: List<RelaxableControl> =
             listOf(
+                RelaxableControl("VP-C", "Control C"),
                 RelaxableControl("VP-A", "Control A"),
                 RelaxableControl("VP-B", "Control B"),
-                RelaxableControl("VP-C", "Control C"),
             ),
         var refs: Map<String, String?> = mapOf("VP-C" to "ACK-1", "VP-A" to "ACK-2", "VP-B" to null),
     ) : PolicyView {
@@ -67,9 +67,9 @@ class ListRelaxedControlsTest {
         ListRelaxedControls(view).relaxed("T1", "E2", day) shouldBe emptyList()
         view.asked shouldBe
             listOf(
+                listOf("T1", "E2", "VP-C", day),
                 listOf("T1", "E2", "VP-A", day),
                 listOf("T1", "E2", "VP-B", day),
-                listOf("T1", "E2", "VP-C", day),
             )
     }
 }
