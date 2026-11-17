@@ -68,8 +68,9 @@ class CanonicalVersionCreatedHandler(
         if (node.isMissingNode || node.isNull) return null
         if (!node.isString) throw ContractViolation("sourceDocumentRef is not a string")
         val ref = node.asString()
-        if (ref.isBlank()) throw ContractViolation("sourceDocumentRef is blank")
-        if (ref.length > MAX_REF) throw ContractViolation("sourceDocumentRef is longer than $MAX_REF characters")
+        if (ref.isBlank() || ref.length > MAX_REF) {
+            throw ContractViolation("sourceDocumentRef is blank or longer than $MAX_REF characters")
+        }
         return ref
     }
 

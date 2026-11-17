@@ -2,6 +2,7 @@ package com.dynokore.gst.evidence.adapters
 
 import com.dynokore.gst.evidence.adapters.events.CanonicalVersionCreatedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
+import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -11,7 +12,6 @@ import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import com.dynokore.gst.evidence.adapters.persistence.JooqLocatorStore
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
