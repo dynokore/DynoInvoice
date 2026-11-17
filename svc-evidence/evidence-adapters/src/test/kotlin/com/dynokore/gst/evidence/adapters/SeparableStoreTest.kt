@@ -247,6 +247,8 @@ class SeparableStoreTest {
                     "evidence-entity_ref",
                     "evidence-period_ref",
                 )
+                // prior_evidence (V24) is the fifth member of the unit; it is not a chain table of the fixture
+                createPriorEvidencePartition(superuser)
                 // the registry row the function wrote is the unit the notice and approval rows refer to
                 val unit =
                     DSL
@@ -268,6 +270,25 @@ class SeparableStoreTest {
                 }
             }
         }
+
+    /** prior_evidence (V24) is the fifth member of the sample unit; it is not a chain table of the fixture. */
+    private fun createPriorEvidencePartition(superuser: java.sql.Connection) {
+        superuser.autoCommit = false
+        SignedBindings.bind(superuser, tenant)
+        superuser
+            .prepareStatement(
+                "select evidence.create_retention_partition(" +
+                    "'evidence.prior_evidence'::regclass, ?, ?, ?, ? || chr(1))",
+            ).use { statement ->
+                statement.setObject(1, tenant)
+                statement.setString(2, "evidence-entity_ref")
+                statement.setString(3, "evidence-period_ref")
+                statement.setString(4, "evidence-period_ref")
+                statement.executeQuery().close()
+            }
+        superuser.commit()
+        superuser.autoCommit = true
+    }
 
     private fun runtimeMaySelect(
         dsl: org.jooq.DSLContext,

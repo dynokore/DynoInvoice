@@ -315,7 +315,8 @@ class RetentionPartitionsDbTest {
                         "where n.nspname = 'evidence' and p.partstrat = 'r'",
                 ).use { st ->
                     st.executeQuery().use { rs ->
-                        generateSequence { if (rs.next()) rs.getString(1) else null }.toSet() shouldBe tables.toSet()
+                        generateSequence { if (rs.next()) rs.getString(1) else null }.toSet() shouldBe
+                            (tables + "prior_evidence").toSet()
                     }
                 }
         }
