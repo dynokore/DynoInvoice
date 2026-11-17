@@ -74,7 +74,14 @@ data class ExportUnmappedLine(
     val version: Int,
     val lineNumber: Int,
     val taxCode: String,
-)
+) {
+    init {
+        requireText("docUuid", docUuid)
+        require(version >= 1) { "version must be at least 1: $version" }
+        require(lineNumber >= 1) { "lineNumber must be at least 1: $lineNumber" }
+        requireText("taxCode", taxCode)
+    }
+}
 
 data class WorkPaperExport(
     val runId: String,

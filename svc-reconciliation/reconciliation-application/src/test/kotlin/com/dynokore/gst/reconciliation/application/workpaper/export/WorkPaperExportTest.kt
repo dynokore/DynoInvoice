@@ -130,4 +130,13 @@ class WorkPaperExportTest {
     fun `INV-AC-24293 amount with trailing newline is refused`() {
         assertThrows<IllegalArgumentException> { item(amount = "1.00\n") }
     }
+
+    @Test
+    fun `INV-AC-24293 unmapped line with blank document, version 0, line 0 or blank tax code is refused`() {
+        ExportUnmappedLine("D1", 1, 1, "S").docUuid shouldBe "D1"
+        assertThrows<IllegalArgumentException> { ExportUnmappedLine(" ", 1, 1, "S") }
+        assertThrows<IllegalArgumentException> { ExportUnmappedLine("D1", 0, 1, "S") }
+        assertThrows<IllegalArgumentException> { ExportUnmappedLine("D1", 1, 0, "S") }
+        assertThrows<IllegalArgumentException> { ExportUnmappedLine("D1", 1, 1, "") }
+    }
 }
