@@ -85,18 +85,13 @@ class PlatformGrantWriteSurfaceTest {
             )
     }
 
-    /** Platform-tenant rows carrying this test's suffix: parallel forks write other platform grants (INV-Q-16901). */
-    private fun platformRows(
-        connection: Connection,
-        suffix: String,
-    ): List<String> =
+    /** The rows of the platform tenant, all columns, in a stable order; the superuser sees every tenant's rows. */
+    private fun platformRows(connection: Connection): List<String> =
         connection
             .prepareStatement(
-                "select g::text from access.role_grant g where g.tenant_id = ?::uuid and strpos(g::text, ?) > 0 " +
-                    "order by g.id",
+                "select g::text from access.role_grant g where g.tenant_id = ?::uuid order by g.id",
             ).use { statement ->
                 statement.setString(1, platformId)
-                statement.setString(2, suffix)
                 statement.executeQuery().use { rows ->
                     generateSequence { if (rows.next()) rows.getString(1) else null }.toList()
                 }
@@ -177,13 +172,13 @@ class PlatformGrantWriteSurfaceTest {
                 BoundaryFixture.runner().run { context ->
                     context.startupFailure?.let { throw it }
                     val platform = context.getBean(PlatformTenantBinding::class.java)
-                    val before = platformRows(connection, suffix)
+                    val before = platformRows(connection)
                     assertThat(before).hasSize(1)
                     // the actor holds no grant, so the refusal is the caller check's: 403 ACCESS_DENIED
                     writerCalls(context, suffix, grantRef).forEach { (name, call) ->
                         val refusal = platform.bindPlatform("user:operator-$suffix") { refusalCode(call) }
                         assertThat(refusal).describedAs(name).isEqualTo(ClosedErrorCode.ACCESS_DENIED)
-                        assertThat(platformRows(connection, suffix)).describedAs(name).isEqualTo(before)
+                        assertThat(platformRows(connection)).describedAs(name).isEqualTo(before)
                     }
                 }
             } finally {
