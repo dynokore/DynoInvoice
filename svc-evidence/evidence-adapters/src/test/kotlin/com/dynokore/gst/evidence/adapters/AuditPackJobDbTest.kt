@@ -249,4 +249,26 @@ class AuditPackJobDbTest {
             }
         seen shouldBe 0
     }
+
+    @Test
+    fun `INV-AC-24320 row-level security is enabled and forced and the tenant_isolation policy exists`() {
+        val flags =
+            EvidenceDb.superuser().use { c ->
+                c
+                    .createStatement()
+                    .use { st ->
+                        st
+                            .executeQuery(
+                                "select c.relrowsecurity || '|' || c.relforcerowsecurity || '|' || " +
+                                    "(select count(*) from pg_policy p where p.polrelid = c.oid and " +
+                                    "p.polname = 'tenant_isolation') from pg_class c " +
+                                    "where c.oid = 'evidence.audit_pack_job'::regclass",
+                            ).use { rs ->
+                                rs.next()
+                                rs.getString(1)
+                            }
+                    }
+            }
+        flags shouldBe "true|true|1"
+    }
 }
