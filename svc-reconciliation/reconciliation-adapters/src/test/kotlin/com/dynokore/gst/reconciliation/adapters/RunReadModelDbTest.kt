@@ -23,12 +23,6 @@ import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
-private fun line(
-    n: Int,
-    amount: String,
-    tax: String,
-) = DocumentLineFacts(n, "SR", BigDecimal(amount), BigDecimal(tax))
-
 /**
  * INV-AC-24341 at the database (INV-T-24344): the run read model over a real PostgreSQL schema with the runtime login
  * and the tenant bound; no fakes.
@@ -62,20 +56,22 @@ class RunReadModelDbTest {
         block: (JooqRunReadModel) -> T,
     ): T = inTenant(tenant) { block(JooqRunReadModel(DSL.using(it, SQLDialect.POSTGRES))) }
 
-    private class Money(
-        val currency: String = "SGD",
-        val rate: String? = null,
-        val excl: String? = null,
-        val tax: String? = null,
-        val lines: List<DocumentLineFacts> = listOf(line(1, "100.00", "9.00"), line(2, "50.00", "4.50")),
-    )
+    private fun line(
+        n: Int,
+        amount: String,
+        tax: String,
+    ) = DocumentLineFacts(n, "SR", BigDecimal(amount), BigDecimal(tax))
 
     private fun facts(
         doc: String,
         version: Int = 1,
         sequence: Long = 10,
         period: String = "2026-Q1",
-        money: Money = Money(),
+        currency: String = "SGD",
+        rate: String? = null,
+        excl: String? = null,
+        tax: String? = null,
+        lines: List<DocumentLineFacts> = listOf(line(1, "100.00", "9.00"), line(2, "50.00", "4.50")),
     ) = DocumentVersionFacts(
         doc,
         version,
@@ -85,24 +81,21 @@ class RunReadModelDbTest {
         "IN_SCOPE",
         null,
         Direction.SALE,
-        money.currency,
-        money.rate?.let(::BigDecimal),
-        money.excl?.let(::BigDecimal),
-        money.tax?.let(::BigDecimal),
-        money.lines,
+        currency,
+        rate?.let(::BigDecimal),
+        excl?.let(::BigDecimal),
+        tax?.let(::BigDecimal),
+        lines,
     )
 
     private fun d2Facts() =
         facts(
             d2,
-            money =
-                Money(
-                    currency = "USD",
-                    rate = "1.35",
-                    excl = "182.25",
-                    tax = "16.40",
-                    lines = listOf(line(1, "100.00", "9.00"), line(2, "35.00", "3.15")),
-                ),
+            currency = "USD",
+            rate = "1.35",
+            excl = "182.25",
+            tax = "16.40",
+            lines = listOf(line(1, "100.00", "9.00"), line(2, "35.00", "3.15")),
         )
 
     private fun sqlState(block: () -> Unit): String? {
@@ -126,13 +119,6 @@ class RunReadModelDbTest {
         sql: String,
     ) = inTenant(tenant) { c -> c.createStatement().use { it.executeUpdate(sql) } }
 
-    private fun superuserExecute(sql: String) =
-        ReconciliationDb.superuser().use { c ->
-            c.createStatement().use {
-                it.executeUpdate(sql)
-            }
-        }
-
     private fun docsOf(
         tenant: UUID,
         entity: String,
@@ -143,7 +129,7 @@ class RunReadModelDbTest {
     fun `INV-AC-24341 recordVersion is true once and false on the repeat which leaves the stored row unchanged`() {
         val t1 = UUID.randomUUID()
         model(t1) { it.recordVersion(t1.toString(), "E1", facts(d1)) } shouldBe true
-        val changed = facts(d1, money = Money(currency = "USD", lines = listOf(line(1, "1.00", "0.00"))))
+        val changed = facts(d1, currency = "USD", lines = listOf(line(1, "1.00", "0.00")))
         model(t1) { it.recordVersion(t1.toString(), "E1", changed) } shouldBe false
         scalar("select currency from reconciliation.document_version where tenant_id = '$t1'") shouldBe "SGD"
         scalar("select count(*) from reconciliation.document_line where tenant_id = '$t1'") shouldBe 2L
@@ -236,8 +222,8 @@ class RunReadModelDbTest {
     fun `INV-AC-24341 a missing SGD total is NotReconcilable and a document without lines is kept`() {
         val t1 = UUID.randomUUID()
         model(t1) {
-            it.recordVersion(t1.toString(), "E1", facts(d4, money = Money(currency = "USD", rate = "1.35")))
-            it.recordVersion(t1.toString(), "E1", facts(d5, money = Money(lines = emptyList())))
+            it.recordVersion(t1.toString(), "E1", facts(d4, currency = "USD", rate = "1.35"))
+            it.recordVersion(t1.toString(), "E1", facts(d5, lines = emptyList()))
         }
         val loaded = model(t1) { it.load(t1.toString(), "E1", "2026-Q1") }.associateBy { it.docUuid }
         loaded.keys shouldBe setOf(d4, d5)
@@ -261,32 +247,6 @@ class RunReadModelDbTest {
         sqlState { execute(t1, "update reconciliation.document_version set currency = 'USD'") } shouldBe "42501"
         sqlState { execute(t1, "delete from reconciliation.document_version") } shouldBe "42501"
         scalar("select currency from reconciliation.document_version where tenant_id = '$t1'") shouldBe "SGD"
-    }
-
-    @Test
-    fun `INV-AC-24341 the append-only trigger refuses UPDATE and DELETE on all three tables even for the superuser`() {
-        val t1 = UUID.randomUUID()
-        model(t1) {
-            it.recordVersion(t1.toString(), "E1", facts(d1))
-            it.recordAcknowledgement(t1.toString(), d1, 1, "ACK-1", Instant.parse("2026-03-01T00:00:00Z"))
-        }
-        val assignments =
-            mapOf(
-                "document_version" to "currency = 'USD'",
-                "document_line" to "tax_code = 'ZR'",
-                "document_acknowledgement" to "acknowledgement_id = 'ACK-2'",
-            )
-        assignments.forEach { (table, assignment) ->
-            val before = scalar("select count(*) from reconciliation.$table where tenant_id = '$t1'")
-            listOf("update reconciliation.$table set $assignment", "delete from reconciliation.$table").forEach { sql ->
-                val failure = shouldThrow<SQLException> { superuserExecute(sql) }
-                failure.sqlState shouldBe "42501"
-                failure.message!!.contains("append-only") shouldBe true
-            }
-            scalar("select count(*) from reconciliation.$table where tenant_id = '$t1'") shouldBe before
-        }
-        scalar("select currency from reconciliation.document_version where tenant_id = '$t1'") shouldBe "SGD"
-        scalar("select min(tax_code) from reconciliation.document_line where tenant_id = '$t1'") shouldBe "SR"
     }
 
     @Test

@@ -14,10 +14,7 @@ import com.dynokore.gst.reconciliation.domain.sgd.AllocationLine
 import com.dynokore.gst.reconciliation.domain.sgd.SgdAllocator
 import com.dynokore.gst.reconciliation.domain.sgd.StatedSgd
 import com.dynokore.gst.reconciliation.domain.variance.DocumentFacts
-import org.jooq.Cursor
 import org.jooq.DSLContext
-import org.jooq.Record
-import org.jooq.impl.DSL
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.ZoneOffset
@@ -127,114 +124,120 @@ class JooqRunReadModel(
         entityRef: String,
         periodRef: String,
     ): List<RunDocument> {
+        val tenantId = UUID.fromString(tenant)
+        val ack = DOCUMENT_ACKNOWLEDGEMENT
+        val acknowledged = ack.ACKNOWLEDGEMENT_ID.isNotNull
+        val cursor =
+            dsl
+                .select(
+                    DOCUMENT_VERSION.DOC_UUID,
+                    DOCUMENT_VERSION.VERSION,
+                    DOCUMENT_VERSION.SCOPE_VERDICT,
+                    DOCUMENT_VERSION.NOT_SUBMITTABLE_REASON,
+                    DOCUMENT_VERSION.DIRECTION,
+                    DOCUMENT_VERSION.CURRENCY,
+                    DOCUMENT_VERSION.EXCHANGE_RATE,
+                    DOCUMENT_VERSION.SGD_TOTAL_EXCLUDING_TAX,
+                    DOCUMENT_VERSION.SGD_TOTAL_TAX,
+                    acknowledged,
+                    DOCUMENT_LINE.LINE_NUMBER,
+                    DOCUMENT_LINE.TAX_CODE,
+                    DOCUMENT_LINE.LINE_AMOUNT,
+                    DOCUMENT_LINE.TAX_AMOUNT,
+                ).from(DOCUMENT_PERIOD)
+                .join(DOCUMENT_VERSION)
+                .on(DOCUMENT_VERSION.TENANT_ID.eq(DOCUMENT_PERIOD.TENANT_ID))
+                .and(DOCUMENT_VERSION.DOC_UUID.eq(DOCUMENT_PERIOD.DOC_UUID))
+                .leftJoin(DOCUMENT_LINE)
+                .on(DOCUMENT_LINE.TENANT_ID.eq(DOCUMENT_VERSION.TENANT_ID))
+                .and(DOCUMENT_LINE.DOC_UUID.eq(DOCUMENT_VERSION.DOC_UUID))
+                .and(DOCUMENT_LINE.VERSION.eq(DOCUMENT_VERSION.VERSION))
+                .leftJoin(ack)
+                .on(ack.TENANT_ID.eq(DOCUMENT_VERSION.TENANT_ID))
+                .and(ack.DOC_UUID.eq(DOCUMENT_VERSION.DOC_UUID))
+                .and(ack.VERSION.eq(DOCUMENT_VERSION.VERSION))
+                .where(DOCUMENT_PERIOD.TENANT_ID.eq(tenantId))
+                .and(DOCUMENT_PERIOD.ENTITY_REF.eq(entityRef))
+                .and(DOCUMENT_PERIOD.PERIOD_REF.eq(periodRef))
+                .orderBy(DOCUMENT_VERSION.DOC_UUID, DOCUMENT_VERSION.VERSION, DOCUMENT_LINE.LINE_NUMBER)
+                .fetchSize(FETCH_SIZE)
+                .fetchLazy()
         val documents = LinkedHashMap<UUID, MutableMap<Int, PendingVersion>>()
-        selectRun(UUID.fromString(tenant), entityRef, periodRef).use { cursor ->
-            for (row in cursor) {
+        cursor.use {
+            for (row in it) {
                 val doc = checkNotNull(row.get(DOCUMENT_VERSION.DOC_UUID))
                 val version = checkNotNull(row.get(DOCUMENT_VERSION.VERSION))
-                val pending = documents.getOrPut(doc) { LinkedHashMap() }.getOrPut(version) { pendingOf(row) }
-                row.get(DOCUMENT_LINE.LINE_NUMBER)?.let { pending.lines += lineOf(row, it) }
+                val pending =
+                    documents.getOrPut(doc) { LinkedHashMap() }.getOrPut(version) {
+                        PendingVersion(
+                            version = version,
+                            acknowledged = row.get(acknowledged) == true,
+                            facts =
+                                DocumentFacts(
+                                    row.get(DOCUMENT_VERSION.SCOPE_VERDICT),
+                                    row.get(DOCUMENT_VERSION.NOT_SUBMITTABLE_REASON),
+                                ),
+                            direction = Direction.valueOf(checkNotNull(row.get(DOCUMENT_VERSION.DIRECTION))),
+                            currency = row.get(DOCUMENT_VERSION.CURRENCY).orEmpty(),
+                            stated =
+                                stated(
+                                    row.get(DOCUMENT_VERSION.EXCHANGE_RATE),
+                                    row.get(DOCUMENT_VERSION.SGD_TOTAL_EXCLUDING_TAX),
+                                    row.get(DOCUMENT_VERSION.SGD_TOTAL_TAX),
+                                ),
+                        )
+                    }
+                row.get(DOCUMENT_LINE.LINE_NUMBER)?.let { number ->
+                    pending.lines +=
+                        AllocationLine(
+                            lineNumber = number,
+                            lineAmount = row.get(DOCUMENT_LINE.LINE_AMOUNT) ?: BigDecimal.ZERO,
+                            taxAmount = row.get(DOCUMENT_LINE.TAX_AMOUNT) ?: BigDecimal.ZERO,
+                            taxCode = row.get(DOCUMENT_LINE.TAX_CODE).orEmpty(),
+                        )
+                }
             }
         }
-        return documents.map { (doc, versions) -> RunDocument(doc.toString(), versions.values.map(::versionOf)) }
+        return documents.map { (doc, versions) ->
+            RunDocument(
+                doc.toString(),
+                versions.values.map {
+                    RunDocumentVersion(
+                        it.version,
+                        it.acknowledged,
+                        it.facts,
+                        it.direction,
+                        SgdAllocator.allocate(it.currency, it.lines, it.stated),
+                    )
+                },
+            )
+        }
     }
 
-    /** One pass over a cursor: the versions of the documents whose current period is the one asked for. */
-    private fun selectRun(
-        tenantId: UUID,
-        entityRef: String,
-        periodRef: String,
-    ): Cursor<Record> {
-        val ack = DOCUMENT_ACKNOWLEDGEMENT
-        return dsl
-            .select(
-                DOCUMENT_VERSION.fields().asList() +
-                    DOCUMENT_LINE.LINE_NUMBER +
-                    DOCUMENT_LINE.TAX_CODE +
-                    DOCUMENT_LINE.LINE_AMOUNT +
-                    DOCUMENT_LINE.TAX_AMOUNT +
-                    ack.ACKNOWLEDGEMENT_ID.isNotNull.`as`(ACKNOWLEDGED),
-            ).from(DOCUMENT_PERIOD)
-            .join(DOCUMENT_VERSION)
-            .on(DOCUMENT_VERSION.TENANT_ID.eq(DOCUMENT_PERIOD.TENANT_ID))
-            .and(DOCUMENT_VERSION.DOC_UUID.eq(DOCUMENT_PERIOD.DOC_UUID))
-            .leftJoin(DOCUMENT_LINE)
-            .on(DOCUMENT_LINE.TENANT_ID.eq(DOCUMENT_VERSION.TENANT_ID))
-            .and(DOCUMENT_LINE.DOC_UUID.eq(DOCUMENT_VERSION.DOC_UUID))
-            .and(DOCUMENT_LINE.VERSION.eq(DOCUMENT_VERSION.VERSION))
-            .leftJoin(ack)
-            .on(ack.TENANT_ID.eq(DOCUMENT_VERSION.TENANT_ID))
-            .and(ack.DOC_UUID.eq(DOCUMENT_VERSION.DOC_UUID))
-            .and(ack.VERSION.eq(DOCUMENT_VERSION.VERSION))
-            .where(DOCUMENT_PERIOD.TENANT_ID.eq(tenantId))
-            .and(DOCUMENT_PERIOD.ENTITY_REF.eq(entityRef))
-            .and(DOCUMENT_PERIOD.PERIOD_REF.eq(periodRef))
-            .orderBy(DOCUMENT_VERSION.DOC_UUID, DOCUMENT_VERSION.VERSION, DOCUMENT_LINE.LINE_NUMBER)
-            .fetchSize(FETCH_SIZE)
-            .fetchLazy()
-    }
-
-    private fun pendingOf(row: Record): PendingVersion {
-        val rate = row.get(DOCUMENT_VERSION.EXCHANGE_RATE)
-        val excludingTax = row.get(DOCUMENT_VERSION.SGD_TOTAL_EXCLUDING_TAX)
-        val tax = row.get(DOCUMENT_VERSION.SGD_TOTAL_TAX)
-        val stated =
-            if (rate == null || excludingTax == null ||
-                tax == null
-            ) {
-                null
-            } else {
-                StatedSgd(excludingTax, tax, rate)
-            }
-        return PendingVersion(
-            version = checkNotNull(row.get(DOCUMENT_VERSION.VERSION)),
-            acknowledged = row.get(ACKNOWLEDGED, Boolean::class.java) == true,
-            facts =
-                DocumentFacts(
-                    row.get(DOCUMENT_VERSION.SCOPE_VERDICT),
-                    row.get(DOCUMENT_VERSION.NOT_SUBMITTABLE_REASON),
-                ),
-            direction = Direction.valueOf(checkNotNull(row.get(DOCUMENT_VERSION.DIRECTION))),
-            money = Money(row.get(DOCUMENT_VERSION.CURRENCY).orEmpty(), stated),
-        )
-    }
-
-    private fun lineOf(
-        row: Record,
-        number: Int,
-    ) = AllocationLine(
-        lineNumber = number,
-        lineAmount = row.get(DOCUMENT_LINE.LINE_AMOUNT) ?: BigDecimal.ZERO,
-        taxAmount = row.get(DOCUMENT_LINE.TAX_AMOUNT) ?: BigDecimal.ZERO,
-        taxCode = row.get(DOCUMENT_LINE.TAX_CODE).orEmpty(),
-    )
-
-    private fun versionOf(pending: PendingVersion) =
-        RunDocumentVersion(
-            pending.version,
-            pending.acknowledged,
-            pending.facts,
-            pending.direction,
-            SgdAllocator.allocate(pending.money.currency, pending.lines, pending.money.stated),
-        )
-
-    private class Money(
-        val currency: String,
-        val stated: StatedSgd?,
-    )
+    private fun stated(
+        rate: BigDecimal?,
+        excludingTax: BigDecimal?,
+        tax: BigDecimal?,
+    ): StatedSgd? =
+        if (rate == null || excludingTax == null ||
+            tax == null
+        ) {
+            null
+        } else {
+            StatedSgd(excludingTax, tax, rate)
+        }
 
     private class PendingVersion(
         val version: Int,
         val acknowledged: Boolean,
         val facts: DocumentFacts,
         val direction: Direction,
-        val money: Money,
-    ) {
-        val lines: MutableList<AllocationLine> = mutableListOf()
-    }
+        val currency: String,
+        val stated: StatedSgd?,
+        val lines: MutableList<AllocationLine> = mutableListOf(),
+    )
 
     private companion object {
         const val FETCH_SIZE = 500
-        val ACKNOWLEDGED = DSL.field(DSL.name("acknowledged"), Boolean::class.java)
     }
 }
