@@ -49,7 +49,40 @@ class CloseWindows(
             }
             if (!complete) held += open
         }
+        lateSupplementaries()
         return CloseResult(closed, held)
+    }
+
+    /**
+     * Late transactions of a closed part whose aggregate is transmitted (INV-REQ-439): one supplementary aggregate per
+     * part and kind, sales and credit note apart (INV-REQ-438). The source key ends in k, 1 plus the late
+     * supplementaries of the part that already hold transactions, so a second firing finds no late transaction and
+     * creates nothing, and a supplementary made but not yet filled by a failed run is replayed and filled by the next.
+     */
+    private fun lateSupplementaries() {
+        for (late in windows.closedPartsWithLateTransactions()) {
+            val open = late.window
+            val part = late.part
+            val prefix = if (late.isCreditNote) "window-late-credit" else "window-late"
+            val k = windows.lateSupplementaryCount(late) + 1
+            val command =
+                IntakeCommand(
+                    entityRef = open.entityRef,
+                    businessUnitRef = open.businessUnitRef,
+                    aggregateType = open.aggregateType,
+                    periodStart = part.start,
+                    periodEnd = part.end,
+                    sourceKey = "$prefix:${open.entityRef}:${open.aggregateType}:${part.start}:${part.end}:$k",
+                    sourceRevision = 1,
+                    isCreditNote = late.isCreditNote,
+                    isSupplementary = true,
+                )
+            when (val outcome = intake.execute(command)) {
+                is IntakeOutcome.Created -> windows.assignLate(late, outcome.aggregate.aggregateId)
+                is IntakeOutcome.Replayed -> windows.assignLate(late, outcome.aggregate.aggregateId)
+                else -> Unit
+            }
+        }
     }
 
     /**

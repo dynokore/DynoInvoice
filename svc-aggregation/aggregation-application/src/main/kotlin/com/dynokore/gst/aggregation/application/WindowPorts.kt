@@ -101,7 +101,37 @@ interface WindowRepository {
         part: WindowPart,
         aggregateId: UUID,
     ) {}
+
+    /**
+     * The closed parts whose sales aggregate has `transmitted_at` set and that hold transactions dated inside the part
+     * with no aggregate (they arrived after the part closed), one entry per part and kind (sales or credit note). A
+     * part whose aggregate is not transmitted is not listed (INV-REQ-439).
+     */
+    fun closedPartsWithLateTransactions(): List<LatePart> = emptyList()
+
+    /**
+     * The number of late supplementary aggregates of [late] (same kind) that already hold transactions; the closing
+     * run keys the next one on this number plus one, so a second firing replays and a half-done part is finished.
+     */
+    fun lateSupplementaryCount(late: LatePart): Int = 0
+
+    /**
+     * Hands the unassigned late transactions of [late] (its kind only) to [aggregateId] and stores its lines, in one
+     * transaction. The transmitted aggregate, its lines and its transaction rows are never written.
+     */
+    fun assignLate(
+        late: LatePart,
+        aggregateId: UUID,
+    ) {}
 }
+
+/** A closed part of a transmitted aggregate that holds late transactions of one kind. */
+data class LatePart(
+    val window: OpenWindow,
+    val part: WindowPart,
+    /** True for the refunds and returns of the part, which are never netted with its sales (INV-REQ-438). */
+    val isCreditNote: Boolean,
+)
 
 /** One state change of a window part, made by the closing run. */
 data class WindowChange(

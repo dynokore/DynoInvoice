@@ -51,6 +51,11 @@ data class IntakeCommand(
     val lines: List<AggregateLine> = emptyList(),
     /** True for the credit-note aggregate (document type 381) of refunds and returns (INV-REQ-438). */
     val isCreditNote: Boolean = false,
+    /**
+     * True sends the command to the supplementary path of [IntakeAggregate.create]: the aggregate is stored as
+     * supplementary with the next sequence and its own number, never as a revision of an earlier one (INV-REQ-439).
+     */
+    val isSupplementary: Boolean = false,
 )
 
 data class NewAggregate(
@@ -211,6 +216,10 @@ class IntakeAggregate(
         alreadyKnown(command) ?: when {
             crossesBoundary(command) -> {
                 IntakeOutcome.CrossesPeriodBoundary
+            }
+
+            command.isSupplementary -> {
+                create(command, supplementary = true)
             }
 
             else -> {

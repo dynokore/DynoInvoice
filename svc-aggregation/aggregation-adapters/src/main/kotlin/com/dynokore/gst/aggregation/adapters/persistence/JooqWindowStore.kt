@@ -1,8 +1,10 @@
 package com.dynokore.gst.aggregation.adapters.persistence
 
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.Aggregate.Companion.AGGREGATE
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateTransaction.Companion.AGGREGATE_TRANSACTION
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindow.Companion.AGGREGATE_WINDOW
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindowPart.Companion.AGGREGATE_WINDOW_PART
+import com.dynokore.gst.aggregation.application.LatePart
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.application.Placement
 import com.dynokore.gst.aggregation.application.WindowRepository
@@ -15,6 +17,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -181,6 +184,139 @@ class JooqWindowStore(
             dsl.storeLinesOf(tenant, aggregateId)
         }
     }
+
+    /**
+     * The closed parts whose sales aggregate is transmitted and that hold unassigned transactions dated inside the
+     * part, one row per part and kind. Read only: nothing of the transmitted aggregate is written (INV-REQ-439).
+     */
+    override fun closedPartsWithLateTransactions(): List<LatePart> =
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            dsl
+                .selectDistinct(
+                    AGGREGATE_TRANSACTION.ENTITY_REF,
+                    AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF,
+                    AGGREGATE_TRANSACTION.AGGREGATE_TYPE,
+                    AGGREGATE_TRANSACTION.WINDOW_START,
+                    AGGREGATE_TRANSACTION.WINDOW_END,
+                    AGGREGATE_WINDOW_PART.PART_START,
+                    AGGREGATE_WINDOW_PART.PART_END,
+                    AGGREGATE_WINDOW_PART.PERIOD_REF,
+                    AGGREGATE_TRANSACTION.CREDIT_NOTE,
+                ).from(AGGREGATE_TRANSACTION)
+                .join(AGGREGATE_WINDOW)
+                .on(AGGREGATE_WINDOW.TENANT_ID.eq(AGGREGATE_TRANSACTION.TENANT_ID))
+                .and(AGGREGATE_WINDOW.ENTITY_REF.eq(AGGREGATE_TRANSACTION.ENTITY_REF))
+                .and(AGGREGATE_WINDOW.BUSINESS_UNIT_REF.eq(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF))
+                .and(AGGREGATE_WINDOW.AGGREGATE_TYPE.eq(AGGREGATE_TRANSACTION.AGGREGATE_TYPE))
+                .and(AGGREGATE_WINDOW.WINDOW_START.eq(AGGREGATE_TRANSACTION.WINDOW_START))
+                .and(AGGREGATE_WINDOW.WINDOW_END.eq(AGGREGATE_TRANSACTION.WINDOW_END))
+                .join(AGGREGATE_WINDOW_PART)
+                .on(AGGREGATE_WINDOW_PART.TENANT_ID.eq(AGGREGATE_WINDOW.TENANT_ID))
+                .and(AGGREGATE_WINDOW_PART.WINDOW_ID.eq(AGGREGATE_WINDOW.WINDOW_ID))
+                .and(
+                    AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(
+                        AGGREGATE_WINDOW_PART.PART_START,
+                        AGGREGATE_WINDOW_PART.PART_END,
+                    ),
+                ).join(AGGREGATE)
+                .on(AGGREGATE.TENANT_ID.eq(AGGREGATE_WINDOW_PART.TENANT_ID))
+                .and(AGGREGATE.AGGREGATE_ID.eq(AGGREGATE_WINDOW_PART.AGGREGATE_ID))
+                .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
+                .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
+                .and(AGGREGATE.TRANSMITTED_AT.isNotNull)
+                .and(notReplaced(tenant))
+                .orderBy(
+                    AGGREGATE_WINDOW_PART.PART_START,
+                    AGGREGATE_TRANSACTION.ENTITY_REF,
+                    AGGREGATE_TRANSACTION.CREDIT_NOTE,
+                ).fetch()
+                .map {
+                    LatePart(
+                        window =
+                            OpenWindow(
+                                entityRef = checkNotNull(it.get(AGGREGATE_TRANSACTION.ENTITY_REF)),
+                                businessUnitRef = checkNotNull(it.get(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF)),
+                                aggregateType =
+                                    AggregateType.valueOf(
+                                        checkNotNull(it.get(AGGREGATE_TRANSACTION.AGGREGATE_TYPE)),
+                                    ),
+                                window =
+                                    AggregationWindow(
+                                        checkNotNull(it.get(AGGREGATE_TRANSACTION.WINDOW_START)),
+                                        checkNotNull(it.get(AGGREGATE_TRANSACTION.WINDOW_END)),
+                                    ),
+                            ),
+                        part =
+                            WindowPart(
+                                checkNotNull(it.get(AGGREGATE_WINDOW_PART.PART_START)),
+                                checkNotNull(it.get(AGGREGATE_WINDOW_PART.PART_END)),
+                                checkNotNull(it.get(AGGREGATE_WINDOW_PART.PERIOD_REF)),
+                            ),
+                        isCreditNote = checkNotNull(it.get(AGGREGATE_TRANSACTION.CREDIT_NOTE)),
+                    )
+                }
+        }
+
+    /** The aggregates of the late source keys of the part and kind that hold at least one transaction. */
+    override fun lateSupplementaryCount(late: LatePart): Int =
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            val prefix = lateKeyPrefix(late)
+            dsl
+                .select(DSL.countDistinct(AGGREGATE_TRANSACTION.AGGREGATE_ID))
+                .from(AGGREGATE_TRANSACTION)
+                .join(AGGREGATE)
+                .on(AGGREGATE.TENANT_ID.eq(AGGREGATE_TRANSACTION.TENANT_ID))
+                .and(AGGREGATE.AGGREGATE_ID.eq(AGGREGATE_TRANSACTION.AGGREGATE_ID))
+                .where(AGGREGATE_TRANSACTION.TENANT_ID.eq(tenant))
+                .and(AGGREGATE.ENTITY_REF.eq(late.window.entityRef))
+                .and(AGGREGATE.SOURCE_KEY.startsWith(prefix))
+                .fetchOne()
+                ?.value1() ?: 0
+        }
+
+    /**
+     * Sets `aggregate_id` of the unassigned transactions of the part and kind to [aggregateId] and stores the lines
+     * of that aggregate, in one transaction. Only `aggregate_transaction.aggregate_id` of rows with a null value and
+     * the new aggregate's own lines are written; the transmitted aggregate is not touched.
+     */
+    override fun assignLate(
+        late: LatePart,
+        aggregateId: UUID,
+    ) {
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            dsl
+                .update(AGGREGATE_TRANSACTION)
+                .set(AGGREGATE_TRANSACTION.AGGREGATE_ID, aggregateId)
+                .where(lateTransactions(late, tenant))
+                .execute()
+            dsl.storeLinesOf(tenant, aggregateId)
+        }
+    }
+
+    private fun lateKeyPrefix(late: LatePart): String {
+        val kind = if (late.isCreditNote) "window-late-credit" else "window-late"
+        val w = late.window
+        return "$kind:${w.entityRef}:${w.aggregateType}:${late.part.start}:${late.part.end}:"
+    }
+
+    private fun lateTransactions(
+        late: LatePart,
+        tenant: UUID,
+    ): Condition =
+        AGGREGATE_TRANSACTION.TENANT_ID
+            .eq(tenant)
+            .and(AGGREGATE_TRANSACTION.ENTITY_REF.eq(late.window.entityRef))
+            .and(AGGREGATE_TRANSACTION.BUSINESS_UNIT_REF.eq(late.window.businessUnitRef))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_TYPE.eq(late.window.aggregateType.name))
+            .and(AGGREGATE_TRANSACTION.WINDOW_START.eq(late.window.window.start))
+            .and(AGGREGATE_TRANSACTION.WINDOW_END.eq(late.window.window.end))
+            .and(AGGREGATE_TRANSACTION.TRANSACTION_DATE.between(late.part.start, late.part.end))
+            .and(AGGREGATE_TRANSACTION.AGGREGATE_ID.isNull)
+            .and(AGGREGATE_TRANSACTION.CREDIT_NOTE.eq(late.isCreditNote))
+            .and(notReplaced(tenant))
 
     private fun closeWindowIfCovered(
         window: OpenWindow,
