@@ -26,9 +26,9 @@ import java.util.UUID
 /**
  * The windows of `aggregation.aggregate_window` (INV-REQ-1316, INV-REQ-435). A window is opened by the first
  * placement into it. A part of a closed window is recorded by [closePart] (INV-T-14463); [recordLate] belongs to
- * INV-T-14464 and fails closed until then.
+ * INV-T-14464 and fails closed until then. The late-transaction operations (INV-REQ-439) are the three last ones of the
+ * port; the class implements every operation of the port, so the function count is suppressed.
  */
-// The class implements every operation of the WindowRepository port; the late-transaction operations raise the count.
 @Suppress("TooManyFunctions")
 class JooqWindowStore(
     private val dsl: DSLContext,
