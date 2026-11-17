@@ -105,7 +105,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 32,
-            "description": "The opaque calendar reference of the period, inside the sample window, that contains the document's transactionDate, in the vocabulary of firstPeriodRef of the request. The producer sets it and a consumer uses it to group by period without computing a period."
+            "description": "The opaque calendar reference of the period that contains the document's transactionDate. The producer sets it and a consumer uses it only to group by period, without computing a period; no vocabulary is defined."
           },
           "sgdValuesAbsent": {
             "type": "boolean",
