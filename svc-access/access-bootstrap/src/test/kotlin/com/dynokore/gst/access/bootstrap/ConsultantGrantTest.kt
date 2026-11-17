@@ -182,6 +182,22 @@ class ConsultantGrantTest {
                     "and role = '${Role.IMPLEMENTATION_CONSULTANT.wire}'",
             ) { listOf(it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getString(5)) }
 
+        fun granteeKind(identity: String): List<String> =
+            sql(
+                "select grantee_kind from access.identity where tenant_id = '$a' and identity_ref = '$identity'",
+            ) { it.getString(1) }
+
+        fun seedStaffIdentity(identity: String) =
+            BoundaryFixture.asSuperuser { c ->
+                c.createStatement().use {
+                    it.execute(
+                        "insert into access.identity (id, tenant_id, identity_ref, grantee_kind, created_at, " +
+                            "created_by, updated_at, updated_by, version) values (gen_random_uuid(), '$a', " +
+                            "'$identity', 'STAFF', now(), 'mig', now(), 'mig', 0)",
+                    )
+                }
+            }
+
         fun statusOf(ref: String): String =
             sql(
                 "select status from access.consultant_grant_request where request_ref = '$ref'",
@@ -389,6 +405,19 @@ class ConsultantGrantTest {
             val again = env.request()
             assertThat(again.requestRef).isEqualTo(first.requestRef)
             assertThat(env.requestRows()).isEqualTo(1)
+        }
+
+    @Test
+    fun `INV-AC-1942 an approved grant stores a new identity as EXTERNAL and leaves an existing STAFF row STAFF`() =
+        run { env ->
+            val fresh = env.request()
+            assertThat(env.granteeKind(env.consultant)).isEmpty()
+            env.decide(fresh.requestRef)
+            assertThat(env.granteeKind(env.consultant)).containsExactly("EXTERNAL")
+            val staff = user("staff-consultant")
+            env.seedStaffIdentity(staff)
+            env.decide(env.request(identity = staff).requestRef)
+            assertThat(env.granteeKind(staff)).containsExactly("STAFF")
         }
 
     // ---- INV-AC-2494 ---------------------------------------------------------------------------------------------

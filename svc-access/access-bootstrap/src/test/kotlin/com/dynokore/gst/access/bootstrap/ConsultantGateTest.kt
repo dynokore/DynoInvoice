@@ -11,11 +11,16 @@ import java.io.File
  * role of the grant written (data) and is taken from the `Role` constant, so it never appears as a literal either.
  */
 class ConsultantGateTest {
+    /** The repository root: the nearest ancestor of the working directory that holds settings.gradle(.kts). */
+    private val repoRoot: File =
+        generateSequence(File("").absoluteFile) { it.parentFile }
+            .first { File(it, "settings.gradle.kts").isFile || File(it, "settings.gradle").isFile }
+
     private val roots =
         listOf(
-            "../access-domain/src/main/kotlin/com/dynokore/gst/access/domain/consultant",
-            "../access-application/src/main/kotlin/com/dynokore/gst/access/application/consultant",
-            "../access-adapters/src/main/kotlin/com/dynokore/gst/access/adapters/consultant",
+            "access-domain/src/main/kotlin/com/dynokore/gst/access/domain/consultant",
+            "access-application/src/main/kotlin/com/dynokore/gst/access/application/consultant",
+            "access-adapters/src/main/kotlin/com/dynokore/gst/access/adapters/consultant",
         )
 
     private val forbidden =
@@ -34,7 +39,7 @@ class ConsultantGateTest {
     private fun subject(): Map<String, String> =
         roots
             .flatMap { dir ->
-                File(dir).listFiles { f -> f.isFile && f.name.endsWith(".kt") }.orEmpty().toList()
+                File(repoRoot, dir).listFiles { f -> f.isFile && f.name.endsWith(".kt") }.orEmpty().toList()
             }.associate { it.path to it.readText() }
 
     @Test
@@ -42,6 +47,19 @@ class ConsultantGateTest {
         val files = subject()
         assertThat(files.keys).anyMatch { it.endsWith("ConsultantGrants.kt") }.allMatch { it.contains("src/main") }
         assertThat(files.filterValues { findings(it).isNotEmpty() }.keys).isEmpty()
+    }
+
+    @Test
+    fun `the subject holds the adapters consultant file and none of the look-alike directories`() {
+        val files = subject().keys
+        assertThat(files).anyMatch { it.endsWith("adapters/consultant/ConsultantGrantEndpoints.kt") }
+        assertThat(files).anyMatch { it.endsWith("application/consultant/ConsultantGrants.kt") }
+        assertThat(files).noneMatch { it.contains("/consultants/") || it.contains("/grant/") }
+        listOf("consultants", "grant").forEach { look ->
+            val dir = "access-adapters/src/main/kotlin/com/dynokore/gst/access/adapters/$look"
+            assertThat(roots).doesNotContain(dir)
+        }
+        assertThat(roots).allMatch { !it.startsWith("..") && it.endsWith("/consultant") }
     }
 
     @Test
