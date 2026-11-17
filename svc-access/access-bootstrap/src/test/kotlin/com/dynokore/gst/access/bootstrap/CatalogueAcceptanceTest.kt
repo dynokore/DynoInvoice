@@ -176,7 +176,7 @@ class CatalogueAcceptanceTest {
     }
 
     @Test
-    fun `INV-AC-1047 INV-AC-7955 private tax approver arms, deployment operator imports only`() =
+    fun `INV-AC-1047,INV-AC-7955,private,tax,approver,arms,,deployment,operator,imports,only`() =
         run("PRIVATE") { env ->
             val operator = env.holding("IDN-OP", "deployment.operator")
             val approver = env.holding("IDN-AP", "tax.approver")

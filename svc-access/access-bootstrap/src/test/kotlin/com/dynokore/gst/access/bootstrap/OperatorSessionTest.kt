@@ -387,7 +387,7 @@ class OperatorSessionTest {
         }
 
     @Test
-    fun `INV-AC-922 content mode is MASKED without an elevation and ELEVATED during one, only for its holder`() =
+    fun `INV-AC-922,content,mode,is,MASKED,without,an,elevation,and,ELEVATED,during,one,,only,for,its,holder`() =
         run { env, _ ->
             assertThat(env.open(env.support).contentMode).isEqualTo(OperatorSessionResponse.ContentMode.MASKED)
             env.elevate(env.support)

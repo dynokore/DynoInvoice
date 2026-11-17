@@ -127,7 +127,7 @@ class SignedLinkVerifyTest {
     private fun wrong(passcode: String) = if (passcode == "000000") "000001" else "000000"
 
     @Test
-    fun `INV-AC-2765 the fifth wrong passcode invalidates the link and raises ACC-004`() =
+    fun `INV-AC-2765,the,fifth,wrong,passcode,invalidates,the,link,and,raises,ACC-004`() =
         run { env ->
             val ref = env.seed()
             (1..4).forEach { n ->

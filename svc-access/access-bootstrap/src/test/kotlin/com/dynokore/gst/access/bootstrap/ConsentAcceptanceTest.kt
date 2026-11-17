@@ -286,7 +286,7 @@ class ConsentAcceptanceTest {
         }
 
     @Test
-    fun `INV-AC-933 after FILE_GST_RETURN is withdrawn the next filing operation is refused`() =
+    fun `INV-AC-933,after,FILE_GST_RETURN,is,withdrawn,the,next,filing,operation,is,refused`() =
         run { env ->
             val consent = env.grant("CLI-A", setOf(ScopeItem.FILE_GST_RETURN))
             assertThat(env.decide("CLI-A", filing)).isEqualTo(ALLOW)

@@ -46,7 +46,7 @@ class ApprovalPackDecisionTest {
     ) = listOf(Decision.ALLOW, null, option, soleOperator, ackRef, outstanding)
 
     @Test
-    fun `INV-AC-2246 INV-AC-1908 INV-AC-1049 the default refuses the author and allows a different staff approver`() =
+    fun `INV-AC-2246,INV-AC-1908,INV-AC-1049,the,default,refuses,the,author,and,allows,a,different,staff,approver`() =
         approvalRun { env ->
             env.seed("IDN-U", Role.TAX_APPROVER, "ENT-1")
             env.seed("IDN-V", Role.TAX_APPROVER, "ENT-1")
@@ -192,7 +192,7 @@ class ApprovalPackDecisionTest {
     }
 
     @Test
-    fun `INV-AC-2248 INV-AC-1050 INV-AC-9557 the agent default needs a second agent person and the client`() =
+    fun `INV-AC-2248,INV-AC-1050,INV-AC-9557,the,agent,default,needs,a,second,agent,person,and,the,client`() =
         approvalRun { env ->
             agentSetUp(env)
             val option = Option.AGENT_SECOND_PERSON_CLIENT_ACK

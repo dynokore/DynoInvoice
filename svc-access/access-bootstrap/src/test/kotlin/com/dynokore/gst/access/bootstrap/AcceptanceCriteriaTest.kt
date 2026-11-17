@@ -250,7 +250,7 @@ class AcceptanceCriteriaTest {
         }
 
     @Test
-    fun `INV-AC-925 a deployment operator is refused invoice content but may export the support bundle`() =
+    fun `INV-AC-925,a,deployment,operator,is,refused,invoice,content,but,may,export,the,support,bundle`() =
         run { _, env ->
             env.entity(tenantA, "ENT-OP")
             env.grant(tenantA, "IDN-OPERATOR", "deployment.operator", "entity:ENT-OP")

@@ -79,7 +79,7 @@ class ApprovalInstallationFactTest {
         }
 
     @Test
-    fun `INV-AC-1048 the installer records the fact, a later value updates it and a read answers it`() =
+    fun `INV-AC-1048,the,installer,records,the,fact,,a,later,value,updates,it,and,a,read,answers,it`() =
         withInstallation { served ->
             assertThat(served.get().status).isEqualTo(404)
             assertThat(json(served.get()).toString()).contains("SRT-005")
@@ -95,7 +95,7 @@ class ApprovalInstallationFactTest {
         }
 
     @Test
-    fun `INV-AC-9553 INV-AC-1063 a deployment without a distinct approver reads false and one with reads true`() =
+    fun `INV-AC-9553,INV-AC-1063,a,deployment,without,a,distinct,approver,reads,false,and,one,with,reads,true`() =
         withInstallation { served ->
             served.put(INSTALLER, false)
             val d1 = listOf(factOf(served.get()), factOf(served.get()))

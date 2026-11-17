@@ -74,7 +74,7 @@ class MachinePermissionTest {
     }
 
     @Test
-    fun `INV-AC-920 and INV-AC-8615 the set test is the replica's, a foreign type's key is not refused here`() =
+    fun `INV-AC-920,and,INV-AC-8615,the,set,test,is,the,replica's,,a,foreign,type's,key,is,not,refused,here`() =
         PrincipalKit.run { kit ->
             val workflow = kit.create("FILING_WORKFLOW", scope = "entity:ENT-1")
             assertThat(kit.decide(workflow.principalRef, "readiness.run", "entity:ENT-1")).isEqualTo("ALLOW")
