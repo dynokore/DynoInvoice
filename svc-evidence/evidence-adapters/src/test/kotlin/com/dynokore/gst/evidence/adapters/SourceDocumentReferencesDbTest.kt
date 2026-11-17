@@ -118,11 +118,11 @@ class SourceDocumentReferencesDbTest {
     }
 
     @Test
-    fun `INV-AC-24168 on a connection bound to T2 the source asked for T1 returns nothing, the predicate is the guard`() {
+    fun `INV-AC-24168 a T2-bound connection asked for T1 returns nothing, the predicate is the guard`() {
         fixture()
         val asT1 = tx(t2) { dsl -> JooqSourceDocumentReferences(dsl, 1_000_000).candidates(TenantId(t1)) }
         asT1 shouldBe emptyList()
-        // the T1 total is 20 bytes; a T2-bound sum of T1 is 0, so a limit of 5 refuses only when the sum lacks the predicate
+        // T1 holds 20 bytes; a T2-bound sum of T1 is 0, so a limit of 5 refuses only when the sum lacks the predicate
         val small = tx(t2) { dsl -> JooqSourceDocumentReferences(dsl, 5).candidates(TenantId(t1)) }
         small shouldBe emptyList()
     }
