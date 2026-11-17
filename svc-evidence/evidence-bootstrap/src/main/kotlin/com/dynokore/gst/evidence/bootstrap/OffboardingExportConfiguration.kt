@@ -4,6 +4,7 @@ import com.dynokore.gst.evidence.adapters.events.OffboardingExportFinishedOutbox
 import com.dynokore.gst.evidence.adapters.events.OffboardingExportRequestedHandler
 import com.dynokore.gst.evidence.adapters.persistence.ChainWiring
 import com.dynokore.gst.evidence.adapters.persistence.JooqOffboardingExportJobs
+import com.dynokore.gst.evidence.adapters.persistence.JooqReconciliationWorkPapers
 import com.dynokore.gst.evidence.adapters.persistence.JooqSourceDocumentReferences
 import com.dynokore.gst.evidence.adapters.persistence.JooqTenantPackageCandidates
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStorePackageStore
@@ -54,6 +55,7 @@ class OffboardingExportConfiguration {
     fun offboardingExportClassSources(
         dsl: DSLContext,
         environment: Environment,
+        objectStore: ObjectStore,
     ): ExportClassSources {
         val maxBytes =
             environment.getProperty(
@@ -63,7 +65,11 @@ class OffboardingExportConfiguration {
             )
         val sources =
             JooqTenantPackageCandidates(dsl, maxBytes).sources() +
-                (PackageContentClass.SOURCE_DOCUMENT_REFERENCES to JooqSourceDocumentReferences(dsl, maxBytes))
+                mapOf(
+                    PackageContentClass.SOURCE_DOCUMENT_REFERENCES to JooqSourceDocumentReferences(dsl, maxBytes),
+                    PackageContentClass.RECONCILIATION_WORK_PAPERS to
+                        JooqReconciliationWorkPapers(dsl, objectStore, maxBytes),
+                )
         return ExportClassSources(sources)
     }
 

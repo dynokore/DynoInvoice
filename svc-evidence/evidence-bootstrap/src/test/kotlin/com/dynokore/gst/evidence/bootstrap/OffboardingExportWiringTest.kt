@@ -2,6 +2,7 @@ package com.dynokore.gst.evidence.bootstrap
 
 import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.adapters.events.OffboardingExportRequestedHandler
+import com.dynokore.gst.evidence.adapters.persistence.JooqReconciliationWorkPapers
 import com.dynokore.gst.evidence.adapters.persistence.JooqSourceDocumentReferences
 import com.dynokore.gst.evidence.adapters.persistence.ObjectStorePackageStore
 import com.dynokore.gst.evidence.application.export.ExportChainIntegrity
@@ -395,15 +396,26 @@ class OffboardingExportWiringTest {
     }
 
     @Test
-    fun `INV-AC-24168 the ExportClassSources bean binds five classes and leaves RECONCILIATION_WORK_PAPERS unbound`() {
+    fun `INV-AC-24168 the ExportClassSources bean binds every class, none is unbound`() {
         runner(Recording()).withPropertyValues("$SCHEME=s3").run { context ->
             assertThat(context.startupFailure).isNull()
             val sources = context.getBean(ExportClassSources::class.java)
             val unbound = PackageContentClass.entries.filter { sources.source(it) == null }
-            unbound shouldBe listOf(PackageContentClass.RECONCILIATION_WORK_PAPERS)
+            unbound shouldBe emptyList()
             PackageContentClass.entries.size shouldBe 6
             assertThat(sources.source(PackageContentClass.SOURCE_DOCUMENT_REFERENCES))
                 .isInstanceOf(JooqSourceDocumentReferences::class.java)
+        }
+    }
+
+    @Test
+    fun `INV-AC-24184 the context binds RECONCILIATION_WORK_PAPERS to its own source, the unbound set is empty`() {
+        runner(Recording()).withPropertyValues("$SCHEME=s3").run { context ->
+            assertThat(context.startupFailure).isNull()
+            val sources = context.getBean(ExportClassSources::class.java)
+            PackageContentClass.entries.filter { sources.source(it) == null }.toSet() shouldBe emptySet()
+            assertThat(sources.source(PackageContentClass.RECONCILIATION_WORK_PAPERS))
+                .isInstanceOf(JooqReconciliationWorkPapers::class.java)
         }
     }
 
