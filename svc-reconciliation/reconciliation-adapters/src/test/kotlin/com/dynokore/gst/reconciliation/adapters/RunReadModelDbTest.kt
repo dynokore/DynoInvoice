@@ -126,6 +126,13 @@ class RunReadModelDbTest {
         sql: String,
     ) = inTenant(tenant) { c -> c.createStatement().use { it.executeUpdate(sql) } }
 
+    private fun superuserExecute(sql: String) =
+        ReconciliationDb.superuser().use { c ->
+            c.createStatement().use {
+                it.executeUpdate(sql)
+            }
+        }
+
     private fun docsOf(
         tenant: UUID,
         entity: String,
@@ -254,6 +261,32 @@ class RunReadModelDbTest {
         sqlState { execute(t1, "update reconciliation.document_version set currency = 'USD'") } shouldBe "42501"
         sqlState { execute(t1, "delete from reconciliation.document_version") } shouldBe "42501"
         scalar("select currency from reconciliation.document_version where tenant_id = '$t1'") shouldBe "SGD"
+    }
+
+    @Test
+    fun `INV-AC-24341 the append-only trigger refuses UPDATE and DELETE on all three tables even for the superuser`() {
+        val t1 = UUID.randomUUID()
+        model(t1) {
+            it.recordVersion(t1.toString(), "E1", facts(d1))
+            it.recordAcknowledgement(t1.toString(), d1, 1, "ACK-1", Instant.parse("2026-03-01T00:00:00Z"))
+        }
+        val assignments =
+            mapOf(
+                "document_version" to "currency = 'USD'",
+                "document_line" to "tax_code = 'ZR'",
+                "document_acknowledgement" to "acknowledgement_id = 'ACK-2'",
+            )
+        assignments.forEach { (table, assignment) ->
+            val before = scalar("select count(*) from reconciliation.$table where tenant_id = '$t1'")
+            listOf("update reconciliation.$table set $assignment", "delete from reconciliation.$table").forEach { sql ->
+                val failure = shouldThrow<SQLException> { superuserExecute(sql) }
+                failure.sqlState shouldBe "42501"
+                failure.message!!.contains("append-only") shouldBe true
+            }
+            scalar("select count(*) from reconciliation.$table where tenant_id = '$t1'") shouldBe before
+        }
+        scalar("select currency from reconciliation.document_version where tenant_id = '$t1'") shouldBe "SGD"
+        scalar("select min(tax_code) from reconciliation.document_line where tenant_id = '$t1'") shouldBe "SR"
     }
 
     @Test
