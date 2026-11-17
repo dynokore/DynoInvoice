@@ -15,6 +15,7 @@ data class DocumentLocator(
     val transactionDate: LocalDate,
     val traceReference: String,
     val documentNumber: String?,
+    val sourceDocumentRef: String? = null,
 ) {
     val chain: ChainKey get() = ChainKey(entityRef, periodRef)
 }

@@ -43,6 +43,7 @@ class CanonicalVersionCreatedHandler(
                         .path("value")
                         .takeIf { it.isString }
                         ?.asString(),
+                sourceDocumentRef = sourceDocumentRef(data),
             )
         return if (recorder.record(
                 event.tenant,
@@ -56,6 +57,20 @@ class CanonicalVersionCreatedHandler(
         } else {
             HandleOutcome.IGNORED
         }
+    }
+
+    /**
+     * The `canonicalDocument.sourceDocumentRef.value` (INV-REQ-646): absent or JSON null is null; a present value that
+     * is not a string, is blank or exceeds [MAX_REF] characters is a contract violation (dead letter, nothing stored).
+     */
+    private fun sourceDocumentRef(data: JsonNode): String? {
+        val node = data.path("canonicalDocument").path("sourceDocumentRef").path("value")
+        if (node.isMissingNode || node.isNull) return null
+        if (!node.isString) throw ContractViolation("sourceDocumentRef is not a string")
+        val ref = node.asString()
+        if (ref.isBlank()) throw ContractViolation("sourceDocumentRef is blank")
+        if (ref.length > MAX_REF) throw ContractViolation("sourceDocumentRef is longer than $MAX_REF characters")
+        return ref
     }
 
     /** The distinct non-blank string `taxCode` values of the lines, as written, in first-seen order. */
@@ -118,4 +133,8 @@ class CanonicalVersionCreatedHandler(
     private fun date(data: JsonNode): LocalDate =
         runCatching { LocalDate.parse(text(data, "transactionDate")) }
             .getOrElse { throw ContractViolation("transactionDate is not a date", it) }
+
+    private companion object {
+        const val MAX_REF = 512
+    }
 }

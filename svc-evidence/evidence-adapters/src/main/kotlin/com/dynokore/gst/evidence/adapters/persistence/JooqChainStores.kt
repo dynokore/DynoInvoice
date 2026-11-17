@@ -45,6 +45,7 @@ class JooqLocatorStore(
                     checkNotNull(it.transactionDate),
                     checkNotNull(it.traceReference),
                     it.documentNumber,
+                    it.sourceDocumentRef,
                 )
             }
 
@@ -64,6 +65,7 @@ class JooqLocatorStore(
             .set(DOCUMENT_LOCATOR.TRANSACTION_DATE, locator.transactionDate)
             .set(DOCUMENT_LOCATOR.TRACE_REFERENCE, locator.traceReference)
             .set(DOCUMENT_LOCATOR.DOCUMENT_NUMBER, locator.documentNumber)
+            .set(DOCUMENT_LOCATOR.SOURCE_DOCUMENT_REF, locator.sourceDocumentRef)
             .set(DOCUMENT_LOCATOR.SOURCE_EVENT_ID, eventId)
             .set(DOCUMENT_LOCATOR.RECORDED_AT, recordedAt.utc())
             .onConflictDoNothing()
