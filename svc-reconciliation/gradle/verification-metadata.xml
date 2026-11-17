@@ -28,6 +28,7 @@
          <trusted-key id="1BD97A6A154E7810EE0BC832E2F38302C8075E3D" group="org.gradle.toolchains" name="foojay-resolver" version="1.0.0"/>
          <trusted-key id="1D217F8475EEE9F19AB8DD6B793FD5751A0F0780" group="^com[.]squareup($|([.].*))" regex="true"/>
          <trusted-key id="1D2C7EF8ADA0F794B58C7C63436902AF59EDF60E" group="dev.equo.ide" name="solstice" version="1.8.2"/>
+         <trusted-key id="1D657819C1D8DE42D96881C1D5C6377EDE50786B" group="com.github.virtuald" name="curvesapi" version="1.08"/>
          <trusted-key id="1D85469D8559C2E1DF5F925131D2D79DF7E85DD3" group="org.jcommander" name="jcommander" version="1.85"/>
          <trusted-key id="1F47744C9B6E14F2049C2857F1F111AF65925306" group="io.github.classgraph" name="classgraph" version="4.8.184"/>
          <trusted-key id="1F6774B9D58C5EA6BF84D534704514F6556102E5" group="io.swagger"/>
@@ -105,7 +106,7 @@
             <trusting group="io.pact.plugin.driver"/>
             <trusting group="^au[.]com[.]dius[.]pact($|([.].*))" regex="true"/>
          </trusted-key>
-         <trusted-key id="6BA4DA8B1C88A49428A29C3D0C69C1EF41181E13" group="^org[.]apache($|([.].*))" regex="true"/>
+         <trusted-key id="6BA4DA8B1C88A49428A29C3D0C69C1EF41181E13" group="^org[.]apache[.](poi|xmlbeans)$" regex="true"/>
          <trusted-key id="6D2AF456B8CB597387901C786F29F72839B3A8E7" group="org.jboss.logging" name="jboss-logging" version="3.6.3.Final"/>
          <trusted-key id="6D2CEFAF48CADC28E644B22BBA9255C2CA445309" group="com.samskivert" name="jmustache" version="1.16"/>
          <trusted-key id="6DD3B8C64EF75253BEB2C53AD908A43FB7EC07AC" group="jakarta.activation" name="jakarta.activation-api" version="2.1.3"/>

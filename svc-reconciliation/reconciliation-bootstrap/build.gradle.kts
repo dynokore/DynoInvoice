@@ -8,6 +8,7 @@ plugins {
 dependencies {
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
+    implementation(platform(libs.log4j.bom))
     implementation(project(":reconciliation-adapters"))
     implementation(project(":reconciliation-application"))
     implementation(project(":reconciliation-contract"))
