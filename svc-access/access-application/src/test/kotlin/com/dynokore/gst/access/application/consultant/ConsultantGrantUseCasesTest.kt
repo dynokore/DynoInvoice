@@ -185,8 +185,17 @@ class ConsultantGrantUseCasesTest {
         assertEquals(Instant.parse("2027-01-05T00:00:00Z"), grant.window.from)
         assertEquals(Instant.parse("2027-02-09T00:00:00Z"), grant.window.until)
         assertEquals(listOf("user:u2"), rig.ports.audit.map { it.actor })
-        assertTrue(rig.decisionAudit.audit.map { it.actor }.all { it.startsWith("user:") })
-        assertEquals("user:u2", rig.decisionAudit.audit.last().actor)
+        assertTrue(
+            rig.decisionAudit.audit
+                .map { it.actor }
+                .all { it.startsWith("user:") },
+        )
+        assertEquals(
+            "user:u2",
+            rig.decisionAudit.audit
+                .last()
+                .actor,
+        )
     }
 
     @Test
@@ -198,7 +207,12 @@ class ConsultantGrantUseCasesTest {
         assertEquals(ConsultantRequestStatus.DENIED, denied.status)
         assertTrue(rig.ports.grants.isEmpty())
         assertTrue(rig.ports.kinds.isEmpty())
-        assertEquals(ConsultantRequestStatus.DENIED, rig.requests.rows.getValue(r.ref).status)
+        assertEquals(
+            ConsultantRequestStatus.DENIED,
+            rig.requests.rows
+                .getValue(r.ref)
+                .status,
+        )
     }
 
     @Test
@@ -208,7 +222,12 @@ class ConsultantGrantUseCasesTest {
         assertEquals(ConsultantDecisionOutcome.SameActor, rig.decide.handle(u1, r.ref, true, null))
         assertEquals(ConsultantDecisionOutcome.SameActor, rig.decide.handle(u1, r.ref, false, null))
         assertTrue(rig.ports.grants.isEmpty())
-        assertEquals(ConsultantRequestStatus.PENDING, rig.requests.rows.getValue(r.ref).status)
+        assertEquals(
+            ConsultantRequestStatus.PENDING,
+            rig.requests.rows
+                .getValue(r.ref)
+                .status,
+        )
     }
 
     @Test
@@ -231,7 +250,12 @@ class ConsultantGrantUseCasesTest {
         val edge = rig.pending(at = LocalDate.parse("2026-12-06"))
         assertEquals(ConsultantDecisionOutcome.EndsNotAfterApproval, rig.decide.handle(u2, edge.ref, true, 30))
         assertTrue(rig.ports.grants.isEmpty())
-        assertEquals(ConsultantRequestStatus.PENDING, rig.requests.rows.getValue(edge.ref).status)
+        assertEquals(
+            ConsultantRequestStatus.PENDING,
+            rig.requests.rows
+                .getValue(edge.ref)
+                .status,
+        )
     }
 
     @Test
@@ -253,7 +277,12 @@ class ConsultantGrantUseCasesTest {
         val out = rig.decide.handle(u2, r.ref, true, null)
         val refused = assertInstanceOf(ConsultantDecisionOutcome.GrantRefused::class.java, out)
         assertEquals(GrantRoleOutcome.UnknownRole(Role.IMPLEMENTATION_CONSULTANT.wire), refused.outcome)
-        assertEquals(ConsultantRequestStatus.PENDING, rig.requests.rows.getValue(r.ref).status)
+        assertEquals(
+            ConsultantRequestStatus.PENDING,
+            rig.requests.rows
+                .getValue(r.ref)
+                .status,
+        )
         assertTrue(rig.ports.grants.isEmpty())
     }
 
