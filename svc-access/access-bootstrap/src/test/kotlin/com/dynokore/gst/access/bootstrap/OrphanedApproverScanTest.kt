@@ -1,6 +1,7 @@
 package com.dynokore.gst.access.bootstrap
 
 import com.dynokore.gst.access.adapters.persistence.jooq.tables.references.ORPHAN_ALERT_STATE
+import com.dynokore.gst.access.application.alert.AccessAlerts
 import com.dynokore.gst.access.application.alert.ActiveApprovers
 import com.dynokore.gst.access.application.alert.HeldApprover
 import com.dynokore.gst.access.application.alert.OrphanAlertState
@@ -8,11 +9,15 @@ import com.dynokore.gst.access.application.alert.OrphanedApprovers
 import com.dynokore.gst.access.application.grant.EntityDirectory
 import com.dynokore.gst.access.domain.grant.EntityMembership
 import com.dynokore.gst.access.domain.grant.EntityRef
+import com.dynokore.gst.access.domain.grant.GroupRef
 import com.dynokore.gst.access.domain.grant.Scope
+import com.dynokore.gst.access.domain.grant.TenantRef
 import com.dynokore.gst.access.domain.grant.ValidityWindow
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.serviceruntime.replica.OrganisationStructureChanged
 import com.dynokore.platform.serviceruntime.replica.StructureChange
+import com.dynokore.platform.serviceruntime.replica.StructureNode
+import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
@@ -41,6 +46,8 @@ internal object OrphanEnv {
         "select data::text from access.outbox where tenant_id = ? and type like ? order by seq"
     private const val OPEN_SQL =
         "insert into access.orphan_alert_state (tenant_id, entity_ref, opened_at) values (?, ?, now())"
+    val PRIVILEGES = listOf("SELECT", "INSERT", "DELETE", "UPDATE", "TRUNCATE", "REFERENCES")
+    const val PRIVILEGE_SQL = "select has_table_privilege('access_runtime', 'access.orphan_alert_state', ?)"
     private const val ALERT_TYPE_LIKE = "%AccessAlertRaised%"
 
     private fun column(rows: java.sql.ResultSet) = generateSequence { if (rows.next()) rows.getString(1) else null }
@@ -301,6 +308,167 @@ class OrphanedApproverScanTest {
             val tenants = context.getBean(TenantContext::class.java)
             val tx = context.getBean(TransactionRunner::class.java)
             assertThat(tenants.bind(tenant, "t") { tx.inTransaction { held.everHeld(EntityRef("E3")) } }).isFalse()
+        }
+    }
+
+    private fun inGroup(
+        context: AssertableWebApplicationContext,
+        tenant: TenantId,
+        ref: String,
+    ) {
+        val replica = context.getBean(StructureReplica::class.java)
+        replica.accept(
+            OrganisationStructureChanged(
+                tenant,
+                "GRP-1",
+                StructureChange.CREATED,
+                StructureNode(StructureNodeKind.GROUP, null, false, "group", null, emptyList(), 1),
+            ),
+        )
+        replica.accept(
+            OrganisationStructureChanged(
+                tenant,
+                ref,
+                StructureChange.CREATED,
+                StructureNode(StructureNodeKind.ENTITY, "GRP-1", false, "entity", null, emptyList(), 1),
+            ),
+        )
+    }
+
+    @Test
+    fun `INV-AC-23855 access_runtime holds SELECT INSERT and DELETE on the state table and no other privilege`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val held =
+                BoundaryFixture.asSuperuser { c ->
+                    OrphanEnv.PRIVILEGES.associateWith { p ->
+                        c.prepareStatement(OrphanEnv.PRIVILEGE_SQL).use {
+                            it.setString(1, p)
+                            it.executeQuery().use { r ->
+                                r.next()
+                                r.getBoolean(1)
+                            }
+                        }
+                    }
+                }
+            assertThat(held.filterValues { it }.keys).containsExactlyInAnyOrder("SELECT", "INSERT", "DELETE")
+        }
+    }
+
+    @Test
+    fun `INV-AC-23855 after close no row of the entity remains and a later tryOpen returns true again`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val tenant = TenantId(UUID.randomUUID())
+            val state = context.getBean(OrphanAlertState::class.java)
+            val tenants = context.getBean(TenantContext::class.java)
+            val tx = context.getBean(TransactionRunner::class.java)
+            val e = EntityRef("E1")
+            tenants.bind(tenant, "t") {
+                tx.inTransaction {
+                    assertThat(state.tryOpen(e)).isTrue()
+                    assertThat(state.tryOpen(e)).isFalse()
+                    state.close(e)
+                }
+            }
+            assertThat(OrphanEnv.openRows(tenant)).isEmpty()
+            assertThat(tenants.bind(tenant, "t") { tx.inTransaction { state.tryOpen(e) } }).isTrue()
+        }
+    }
+
+    @Test
+    fun `INV-AC-23855 an entity absent from the structure replica is asked with the tenant and no group`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val tenants = context.getBean(TenantContext::class.java)
+            val tx = context.getBean(TransactionRunner::class.java)
+            val active = context.getBean(ActiveApprovers::class.java)
+            val held = context.getBean(HeldApprover::class.java)
+            val now = context.getBean(java.time.Clock::class.java).instant()
+            val open = { n: Instant -> ValidityWindow(n.minus(Duration.ofDays(1)), null) }
+            val unknown = EntityRef("GHOST")
+
+            fun probe(spec: SeedSpec): Pair<Int, Boolean> {
+                val tenant = TenantId(UUID.randomUUID())
+                Seeds.grant(context, tenant, spec)
+                return tenants.bind(tenant, "t") {
+                    tx.inTransaction { active.countFor(unknown, now) to held.everHeld(unknown) }
+                }
+            }
+            val tenantWide = probe(SeedSpec("user:a", Role.TAX_APPROVER, window = open))
+            assertThat(tenantWide).isEqualTo(1 to true)
+            val entityLevel = probe(SeedSpec("user:a", Role.TAX_APPROVER, Scope.Entity(unknown), window = open))
+            assertThat(entityLevel).isEqualTo(1 to true)
+            val groupScope = Scope.Group(GroupRef("GRP-1"), TenantRef("x"))
+            val groupOnly = probe(SeedSpec("user:a", Role.TAX_APPROVER, groupScope, window = open))
+            assertThat(groupOnly).isEqualTo(0 to false)
+            val otherScope = Scope.Entity(EntityRef("OTHER"))
+            val otherEntity = probe(SeedSpec("user:a", Role.TAX_APPROVER, otherScope, window = open))
+            assertThat(otherEntity.first).isEqualTo(0)
+
+            // the same group grant counts when the replica holds the entity inside that group
+            val tenant = TenantId(UUID.randomUUID())
+            inGroup(context, tenant, "GHOST")
+            val own = Scope.Group(GroupRef("GRP-1"), TenantRef(tenant.toString()))
+            Seeds.grant(context, tenant, SeedSpec("user:a", Role.TAX_APPROVER, own, window = open))
+            val inside =
+                tenants.bind(
+                    tenant,
+                    "t",
+                ) { tx.inTransaction { active.countFor(unknown, now) to held.everHeld(unknown) } }
+            assertThat(inside).isEqualTo(1 to true)
+        }
+    }
+
+    @Test
+    fun `INV-AC-23855 the scan never binds the platform tenant and still evaluates a look-alike id`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val tenants = context.getBean(TenantContext::class.java)
+            val seen = mutableListOf<TenantId>()
+            val real = context.getBean(EntityDirectory::class.java)
+            val directory =
+                object : EntityDirectory {
+                    override fun membership(entity: EntityRef): EntityMembership? = real.membership(entity)
+
+                    override fun entitiesCoveredBy(scope: Scope): Set<EntityRef> {
+                        seen += tenants.current()
+                        return setOf(EntityRef("E1"))
+                    }
+                }
+            val counted = mutableListOf<TenantId>()
+            val approvers =
+                OrphanedApprovers(
+                    { _, _ ->
+                        counted += tenants.current()
+                        1
+                    },
+                    { false },
+                    context.getBean(OrphanAlertState::class.java),
+                    directory,
+                    AccessAlerts { _, _ -> },
+                    context.getBean(java.time.Clock::class.java),
+                )
+
+            fun scan(claimed: List<TenantId>) =
+                OrphanedApproverScan(
+                    { claimed },
+                    approvers,
+                    directory,
+                    tenants,
+                    context.getBean(PlatformTenantBinding::class.java),
+                    context.getBean(TransactionRunner::class.java),
+                )
+            val t = TenantId(UUID.randomUUID())
+            assertThat(scan(listOf(TenantId.PLATFORM, t)).runOnce()).isEqualTo(0)
+            assertThat(seen).containsExactly(t)
+            assertThat(counted).containsExactly(t)
+            seen.clear()
+            val p = TenantId.PLATFORM.value
+            val lookAlike = TenantId(UUID(p.mostSignificantBits, p.leastSignificantBits xor 1L))
+            assertThat(lookAlike.isPlatform).isFalse()
+            assertThat(scan(listOf(lookAlike)).runOnce()).isEqualTo(0)
+            assertThat(seen).containsExactly(lookAlike)
         }
     }
 
