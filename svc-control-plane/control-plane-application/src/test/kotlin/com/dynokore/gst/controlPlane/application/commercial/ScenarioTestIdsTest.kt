@@ -80,6 +80,12 @@ class ScenarioTestIdsTest {
     }
 
     @Test
+    fun `INV-AC-24140 probe the hyphen form of the INV-AC-1331 name fails`() {
+        problems(Tuple("INV-AC-1331", SCENARIO_CLASS, M1331.replace('_', '-'))).shouldNotBeEmpty()
+        holdsKey("INV-AC-1331-a-Singapore-request", "INV-AC-1331").shouldBeFalse()
+    }
+
+    @Test
     fun `INV-AC-24140 probe the same method name in another class of the package fails`() {
         problems(Tuple("INV-AC-935", "$PKG.LicenceTest", M935)).shouldNotBeEmpty()
     }
