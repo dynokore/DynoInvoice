@@ -509,6 +509,7 @@ topics:
       - access-svc
       - masterdata-svc
       - payload-svc
+      - reconciliation-svc
       - rules-svc
     subscribers:
       - evidence-svc
@@ -1871,6 +1872,7 @@ replay_topics:
       - console-bff
   - topic: gst.reconciliation.replay-evidence.v1
     event_types:
+      - com.dynokore.gst.platform.EvidenceArtefactRecorded.v1
       - com.dynokore.gst.platform.ReplayCompleted.v1
       - com.dynokore.gst.reconciliation.GstReturnRecorded.v1
     content_topic: false

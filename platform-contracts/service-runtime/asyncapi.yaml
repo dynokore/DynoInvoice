@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.27.0
+  version: 1.28.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -739,7 +739,7 @@ components:
       summary: EvidenceArtefactRecorded — catalogued in model/architecture/events.yaml (§19.8).
       description: >-
         Catalogued event EvidenceArtefactRecorded (model/architecture/events.yaml, INV-NOTE-3 §19.8, §28.18,
-        INV-REQ-1226; class: platform). Emitted by: access-svc, masterdata-svc, payload-svc,
+        INV-REQ-1226; class: platform). Emitted by: access-svc, masterdata-svc, payload-svc, reconciliation-svc,
         rules-svc. Consumed by: evidence-svc. Delivery: At-least-once — platform event (AD-27). Payload (catalogue
         text): artefact type, reference, hash — artefactType an extensible UPPER_SNAKE_CASE enumeration,
         hash the SHA-256 of the artefact bytes as 64 lowercase hex characters (INV-Q-3341). Written through the producing service's own outbox in the
