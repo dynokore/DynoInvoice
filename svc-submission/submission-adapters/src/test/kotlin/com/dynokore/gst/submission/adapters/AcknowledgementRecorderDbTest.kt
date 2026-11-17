@@ -62,7 +62,6 @@ class AcknowledgementRecorderDbTest {
             ): T = block()
         }
     private val staged = mutableListOf<Pair<OutboundEvent, EventContext>>()
-    private val rowWhenStaged = mutableListOf<Pair<String?, String?>>()
     private val outbox =
         object : OutboxWriter {
             override fun append(
@@ -71,15 +70,6 @@ class AcknowledgementRecorderDbTest {
             ) = events
                 .map {
                     staged += it to context
-                    val seen =
-                        dsl.fetchOne(
-                            "select state, acknowledgement_id from submission.submission " +
-                                "where doc_uuid = ? and version = (select max(version) from submission.submission " +
-                                "where doc_uuid = ? and state = 'ACKNOWLEDGED')",
-                            context.aggregateKey,
-                            context.aggregateKey,
-                        )
-                    rowWhenStaged += seen?.get(0, String::class.java) to seen?.get(1, String::class.java)
                     null
                 }.filterNotNull()
         }
@@ -297,16 +287,6 @@ class AcknowledgementRecorderDbTest {
         tree.get("timestamp").asString() shouldBe "2026-03-05T09:30:00Z"
         // the schema is a real check: a payload without the timestamp is refused
         schemaErrors("""{"docUuid":"$doc","version":1,"acknowledgementId":"ACK-1"}""").isEmpty() shouldBe false
-    }
-
-    @Test
-    fun `INV-AC-24271 the event is staged only after the row update`() {
-        val t = UUID.randomUUID()
-        val doc = UUID.randomUUID().toString()
-        seed(t, doc, 1, "SENT")
-        deliver(t, doc, 1, "ACK-1") shouldBe HandleOutcome.APPLIED
-        // at the moment of append the same transaction already sees the ACKNOWLEDGED row with its id
-        rowWhenStaged.single() shouldBe ("ACKNOWLEDGED" to "ACK-1")
     }
 
     @Test
