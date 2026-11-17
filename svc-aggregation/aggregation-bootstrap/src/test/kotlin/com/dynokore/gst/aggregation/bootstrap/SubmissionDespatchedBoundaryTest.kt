@@ -2,6 +2,8 @@ package com.dynokore.gst.aggregation.bootstrap
 
 import com.dynokore.gst.aggregation.adapters.AggregationDb
 import com.dynokore.gst.aggregation.adapters.events.ConsumedSubmissionEvents
+import com.dynokore.gst.aggregation.adapters.persistence.JooqAggregateStore
+import com.dynokore.gst.aggregation.adapters.persistence.JooqHandOffStore
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.ContractViolation
@@ -10,9 +12,13 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.HandleOutcome
+import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import org.jooq.SQLDialect
+import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
@@ -199,5 +205,44 @@ class SubmissionDespatchedBoundaryTest : BoundaryFixture() {
                     }.sqlState shouldBe "42501"
                 }
             }
+        }
+
+    @Test
+    fun `INV-AC-22474 markTransmitted of another tenant's aggregate marks nothing without row security`(
+        @TempDir dir: Path,
+    ): Unit =
+        inContext(dir) { context ->
+            val boundary = Boundary(context)
+            val mine = boundary.tenant()
+            val other = boundary.tenant()
+            handedOn(boundary, mine)
+            val foreign = handedOn(boundary, other)
+            AggregationDb.superuser().use { connection ->
+                val runner =
+                    object : TransactionRunner {
+                        override fun <R> inTransaction(block: () -> R): R = block()
+                    }
+                val tenants =
+                    object : TenantContext {
+                        override fun current() = TenantId(mine)
+
+                        override fun currentActor(): String = actor
+
+                        override fun <R> bind(
+                            tenant: TenantId,
+                            actor: String,
+                            block: () -> R,
+                        ): R = block()
+                    }
+                val store =
+                    JooqHandOffStore(
+                        DSL.using(connection, SQLDialect.POSTGRES),
+                        runner,
+                        tenants,
+                        context.getBean(JooqAggregateStore::class.java),
+                    )
+                store.markTransmitted(UUID.fromString(foreign)) shouldBe false
+            }
+            transmittedAt(other, foreign) shouldBe listOf("null")
         }
 }
