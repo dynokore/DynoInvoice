@@ -72,7 +72,7 @@ class FilingEntityTest {
     private val tenantScope get() = Scope.Tenant(TenantRef(tenant.toString()))
 
     @Test
-    fun `INV-AC-2250 a tenant scope over ENT-9 ENT-10 and ENT-2 files under ENT-10 by string order, not ENT-9 or ENT-2`() {
+    fun `INV-AC-2250 a tenant scope over ENT-9 ENT-10 ENT-2 files under ENT-10 by string order`() {
         entities(tenant, "ENT-9", "ENT-10", "ENT-2")
         assertThat(filing(tenantScope)).isEqualTo(EntityRef("ENT-10"))
     }
@@ -92,7 +92,8 @@ class FilingEntityTest {
                 ),
             )
         }
-        assertThat(filingEntityOf(tenantScope, ReplicaEntityDirectory(reversed, tenants))).isEqualTo(EntityRef("ENT-10"))
+        val viaReversed = filingEntityOf(tenantScope, ReplicaEntityDirectory(reversed, tenants))
+        assertThat(viaReversed).isEqualTo(EntityRef("ENT-10"))
     }
 
     @Test
