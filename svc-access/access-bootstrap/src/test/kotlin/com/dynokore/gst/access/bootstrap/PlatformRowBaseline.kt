@@ -41,7 +41,7 @@ class PlatformRowBaseline(
                 Counts(count(c, "access.role_grant", tenant), count(c, "access.identity", tenant))
             }
 
-        /** Deletes the grants with these `grant_ref`s and the identities with these `identity_ref`s of [tenant], nothing else. */
+        /** Deletes the grants with these grant refs and the identities with these identity refs of [tenant]. */
         fun delete(
             tenant: String,
             grantRefs: Collection<String>,
