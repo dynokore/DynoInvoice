@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit ee16235ac20eaa2a9dbfc7444e7263395cb5df1b (2026-11-16), the merge of invoice-docs INV-T-23952 adding EVD-003 to EVD-009, the retention deletion refusal codes of deleteAtRetentionEnd (INV-T-23954, coordinator ruling (delegated) HIGH option A of the answered design question of INV-T-22971, breakdown tooling/gap22971b-gap.md);
+# pinned at commit 36e16dcccd878c8110f5ea58d509ef14ddb436e6 (2026-11-18), the merge of invoice-docs INV-T-24412 adding PER-016, reconciliation not readable yet, HTTP 503 with Retry-After (INV-T-24414, INV-REQ-657, coordinator ruling (delegated) HIGH of breakdown tooling/req-breakdown-149.md Round 8);
+# previously pinned at ee16235ac20eaa2a9dbfc7444e7263395cb5df1b (2026-11-16), the merge of invoice-docs INV-T-23952 adding EVD-003 to EVD-009, the retention deletion refusal codes of deleteAtRetentionEnd (INV-T-23954, coordinator ruling (delegated) HIGH option A of the answered design question of INV-T-22971, breakdown tooling/gap22971b-gap.md);
 # previously pinned at 02e15b6b6fce623a1f250ed515955f3550b210fb (2026-11-15), the merge of invoice-docs INV-T-22951 adding EVD-002, export not finished, HTTP 409 (INV-T-22952, coordinator ruling of breakdown tooling/req49-gap.md Round 5);
 # previously pinned at 0fae8dc0cd382fe12bed1c1c43a48808cc4d270d (2026-11-13), the merge of invoice-docs INV-T-22014 adding SUB-026 to SUB-028, the credential rotation refusals (INV-T-22003, coordinator ruling (delegated) HIGH option A on the refusal codes of rotateCredential, breakdown tooling/gap18676-gap.md);
 # previously pinned at 0d26d2de1cdc959de01882fe034ee56cdf42c1bd (2026-11-12), the merge of invoice-docs INV-T-21274 adding SRT-015, group has members already submitted (INV-T-21276, coordinator ruling round zt of tooling/wave1/crun/chains/req137-pending-rulings.txt);
@@ -634,6 +635,11 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+- code: PER-016
+  condition: 'The reconciliation of a period cannot be read yet: a return is recorded for the period and no run has completed, so nothing is compared and the same read is retried (HTTP 503 with a Retry-After header; INV-REQ-657)'
+  severity: INFO
+  disposition: AUTO_RETRY
+  owner: Platform
 - code: DEP-001
   condition: Newer regulatory pack published but not activated; or the control-plane feed unreachable, or no bundle imported,
     for longer than the installation's silence limit (VP-72; extended 25 Sep 2026, Keel INV-Q-2343). Tiers count days to the
