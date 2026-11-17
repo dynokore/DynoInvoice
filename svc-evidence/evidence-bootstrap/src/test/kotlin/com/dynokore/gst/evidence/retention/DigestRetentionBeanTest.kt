@@ -105,7 +105,7 @@ class DigestRetentionBeanTest {
                 correlation = CorrelationId("corr-1"),
                 causation = CausationId("cause-1"),
                 dataJson =
-                    """{"entityRef":"$entity","period":"$period","form":"GST F5","returnVersion":1,""" +
+                    """{"entityRef":"$entity","period":"$period","form":"GST F5","returnVersion":"1",""" +
                         """"filedAt":"$filedAt","irasFilingReference":"IRAS-1"}""",
             ),
         )

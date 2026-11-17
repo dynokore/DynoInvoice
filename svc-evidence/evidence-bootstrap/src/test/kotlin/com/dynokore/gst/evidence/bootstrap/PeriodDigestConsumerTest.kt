@@ -49,13 +49,16 @@ import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.EnumSource
+import org.junit.jupiter.params.provider.MethodSource
 import org.springframework.context.ApplicationContext
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.stream.Stream
 import com.dynokore.platform.outboxandqueue.EntityRef as EventEntityRef
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException as S3NoSuchKey
 
@@ -231,7 +234,7 @@ class PeriodDigestConsumerTest {
             dataJson =
                 data
                     ?: """{"entityRef":"$entity","period":"$forPeriod","form":"GST F5",""" +
-                    """"returnVersion":$returnVersion,""" +
+                    """"returnVersion":"$returnVersion",""" +
                     """"filedAt":"$filedAt","irasFilingReference":"IRAS-1"}""",
         ),
     )
@@ -388,6 +391,36 @@ class PeriodDigestConsumerTest {
         val noVersion = """{"entityRef":"$entity","period":"$period","filedAt":"$filedAt"}"""
         log.add(returnRecorded(tenant, "bad-1", data = noVersion))
         consumer.pollOnce() shouldBe result(0, 0, 1)
+        digests(tenant).size shouldBe 0
+    }
+
+    private fun versionData(raw: String) =
+        """{"entityRef":"$entity","period":"$period","form":"GST F5","returnVersion":$raw,""" +
+            """"filedAt":"$filedAt"}"""
+
+    @ParameterizedTest(name = "{displayName} [{0}] {1}")
+    @MethodSource("appliedVersions")
+    fun `INV-AC-24359 a returnVersion that is a string of decimal digits is applied with its integer`(
+        version: EvidenceDb.Version,
+        raw: String,
+        expectedVersion: Int,
+        @TempDir dir: Path,
+    ) = run(dir, version) { tenant ->
+        log.add(returnRecorded(tenant, "ret-1", data = versionData(raw)))
+        consumer.pollOnce() shouldBe result(1, 0, 0)
+        digests(tenant).single().returnVersion shouldBe expectedVersion
+    }
+
+    @ParameterizedTest(name = "{displayName} [{0}] {1}")
+    @MethodSource("refusedVersions")
+    fun `INV-AC-24359 any other returnVersion type or spelling goes to the dead letter`(
+        version: EvidenceDb.Version,
+        raw: String,
+        @TempDir dir: Path,
+    ) = run(dir, version) { tenant ->
+        log.add(returnRecorded(tenant, "bad-1", data = versionData(raw)))
+        consumer.pollOnce() shouldBe result(0, 0, 1)
+        deadLetters(tenant) shouldBe 1
         digests(tenant).size shouldBe 0
     }
 
@@ -562,5 +595,31 @@ class PeriodDigestConsumerTest {
             tenant: TenantId,
             entry: PeriodDigestEntry,
         ) = real.insert(tenant, entry.copy(chains = entry.chains.take(2) + entry.chains[1]))
+    }
+
+    companion object {
+        private fun withVersions(vararg rows: Array<Any>): Stream<Arguments> =
+            EvidenceDb.Version.entries
+                .stream()
+                .flatMap { v -> rows.map { Arguments.of(v, *it) }.stream() }
+
+        @JvmStatic
+        fun appliedVersions(): Stream<Arguments> = withVersions(arrayOf("\"1\"", 1), arrayOf("\"2\"", 2))
+
+        @JvmStatic
+        fun refusedVersions(): Stream<Arguments> =
+            withVersions(
+                arrayOf("1"),
+                arrayOf("null"),
+                arrayOf("\"\""),
+                arrayOf("\"0\""),
+                arrayOf("\"01\""),
+                arrayOf("\"-1\""),
+                arrayOf("\"1.0\""),
+                arrayOf("\" 1\""),
+                arrayOf("\"\\u0661\""),
+                arrayOf("\"2147483648\""),
+                arrayOf("[1]"),
+            )
     }
 }

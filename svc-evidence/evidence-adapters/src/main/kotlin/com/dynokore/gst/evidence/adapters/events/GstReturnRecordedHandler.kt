@@ -17,6 +17,10 @@ import java.time.Instant
  * transaction, so the digest rows, the inbox row and the offset commit together; the dedupe on the event id is the
  * inbox's.
  *
+ * `returnVersion` is read as the contract types it: a JSON string of ASCII decimal digits that starts with 1 to 9 (no
+ * sign, no leading zero, no spaces, no fraction) and fits a positive 32-bit integer; it becomes the integer of the
+ * digest entry, so the digest text is unchanged. Any other type or text is a contract violation (fail closed).
+ *
  * A payload without a usable `entityRef`, `period`, `returnVersion` or `filedAt`, and an object store key that holds
  * other bytes than the digest, are refused with [ContractViolation]: poison records that go to the dead letter.
  */
@@ -56,10 +60,23 @@ class GstReturnRecordedHandler(
             ?: throw ContractViolation("$name is missing or not a text")
 
     private fun returnVersion(data: JsonNode): Int =
-        data.get("returnVersion")?.takeIf { it.isIntegralNumber && it.canConvertToInt() && it.asInt() >= 1 }?.asInt()
-            ?: throw ContractViolation("returnVersion is missing or not a positive integer")
+        data
+            .get("returnVersion")
+            ?.takeIf { it.isString }
+            ?.asString()
+            ?.takeIf { it.length <= MAX_VERSION_DIGITS && it.matches(VERSION_DIGITS) }
+            ?.toIntOrNull()
+            ?: throw ContractViolation(
+                "returnVersion is not a string of decimal digits for a positive integer " +
+                    "([1-9][0-9]*, at most 2147483647)",
+            )
 
     private fun filedAt(data: JsonNode): Instant =
         runCatching { Instant.parse(data.get("filedAt")?.takeIf { it.isString }?.asString()) }
             .getOrElse { throw ContractViolation("filedAt is missing or not a timestamp", it) }
+
+    private companion object {
+        val VERSION_DIGITS = Regex("[1-9][0-9]*")
+        const val MAX_VERSION_DIGITS = 10
+    }
 }
