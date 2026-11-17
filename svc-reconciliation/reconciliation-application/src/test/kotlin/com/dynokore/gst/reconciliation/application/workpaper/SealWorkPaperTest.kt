@@ -129,8 +129,13 @@ class SealWorkPaperTest {
     }
 
     @Test
-    fun `INV-AC-24173 two builds of the same content have the same member order and bytes`() {
-        String(build(true)) shouldBe String(build(true))
-        String(build(true)) shouldBe """{"attestation":{"by":"U1"},"boxes":[],"runId":"R1"}"""
+    fun `INV-AC-24173 two seals of two builds of the same content store the same bytes in the same member order`() {
+        val first = Fakes().apply { doc = build(true) }
+        val second = Fakes().apply { doc = build(true) }
+        first.useCase.execute("T1", "R1")
+        second.useCase.execute("T1", "R1")
+        String(first.stored[0].second) shouldBe """{"attestation":{"by":"U1"},"boxes":[],"runId":"R1"}"""
+        String(second.stored[0].second) shouldBe String(first.stored[0].second)
+        second.facts[0].hash shouldBe first.facts[0].hash
     }
 }
