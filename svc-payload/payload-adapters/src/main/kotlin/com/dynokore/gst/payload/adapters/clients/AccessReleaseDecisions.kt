@@ -1,6 +1,6 @@
 package com.dynokore.gst.payload.adapters.clients
 
-import com.dynokore.gst.payload.adapters.clients.api.SeparationOfDutyApi
+import com.dynokore.gst.payload.adapters.clients.access.api.SeparationOfDutyApi
 import com.dynokore.gst.payload.application.override.ReleaseDecisions
 import com.dynokore.gst.payload.application.override.ReleaseRequest
 import com.dynokore.gst.payload.domain.override.ReleaseOutcome

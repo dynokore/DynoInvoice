@@ -31,8 +31,9 @@ dependencies {
 }
 
 // The services staged from the bundle; the marker covers the list, so a changed list restages. `access` is staged for
-// the client of decideOverrideRelease that payload-adapters generates (INV-T-17184).
-val stagedServices = listOf("payload", "access")
+// the client of decideOverrideRelease and `masterdata` for the client of getRegisterAndRates that payload-adapters
+// generates (INV-T-17184, INV-T-24313).
+val stagedServices = listOf("payload", "access", "masterdata")
 
 // gst.contract-server resolves `platform-contracts:payload:+` while the task graph is built, so the layout
 // is staged while this project is configured, once per bundle version (the marker file).
