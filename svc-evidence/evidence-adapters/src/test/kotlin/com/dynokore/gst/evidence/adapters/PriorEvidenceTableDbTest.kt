@@ -52,6 +52,11 @@ class PriorEvidenceTableDbTest {
         tenants.clear()
     }
 
+    private fun ddl(
+        c: Connection,
+        sql: String,
+    ) = c.createStatement().use { it.execute(sql) }
+
     private fun <T> superuser(block: (Connection) -> T): T = EvidenceDb.superuser().use(block)
 
     private fun scalar(
@@ -326,28 +331,33 @@ class PriorEvidenceTableDbTest {
     @Test
     fun `INV-AC-24306 a parent that is not one of the five tables is refused with 22023`() {
         val u = unit()
-        listOf("decision_trace_legacy", "prior_evidence_x", "retention_partition").forEach { name ->
-            runtime(
-                u.tenant,
-                "select evidence.create_retention_partition(cast(? as regclass), ?, 'E1', '2026-Q1', ?)",
-                "evidence.$name",
-                u.tenant,
-                "2026-Q1\u0001",
-            ) shouldBe if (name == "retention_partition") "22023" else "42P01"
-        }
-        // A look-alike that exists as a table is refused by the function itself (22023), not by name resolution.
-        superuser { c -> c.createStatement().use { it.execute("create table evidence.prior_evidence_x (id int)") } }
+        // Both look-alikes exist as real tables, so the refusal comes from the function, not from name resolution.
+        val lookAlikes = listOf("decision_trace_legacy", "prior_evidence_x")
+        superuser { c -> lookAlikes.forEach { ddl(c, "create table evidence.$it (id int)") } }
         try {
-            runtime(
-                u.tenant,
-                "select evidence.create_retention_partition(" +
-                    "cast('evidence.prior_evidence_x' as regclass), ?, 'E1', '2026-Q1', ?)",
-                u.tenant,
-                "2026-Q1\u0001",
-            ) shouldBe "22023"
+            (lookAlikes + "retention_partition").forEach { name ->
+                runtime(
+                    u.tenant,
+                    "select evidence.create_retention_partition(cast(? as regclass), ?, 'E1', '2026-Q1', ?)",
+                    "evidence.$name",
+                    u.tenant,
+                    "2026-Q1\u0001",
+                ) shouldBe "22023"
+            }
         } finally {
-            superuser { c -> c.createStatement().use { it.execute("drop table evidence.prior_evidence_x") } }
+            superuser { c -> lookAlikes.forEach { ddl(c, "drop table evidence.$it") } }
         }
+    }
+
+    @Test
+    fun `INV-AC-24306 the runtime login holds select and insert only on the prior table`() {
+        fun has(privilege: String) =
+            scalar("select has_table_privilege('evidence_runtime', 'evidence.prior_evidence', '$privilege')::text")
+        has("SELECT") shouldBe "true"
+        has("INSERT") shouldBe "true"
+        has("UPDATE") shouldBe "false"
+        has("DELETE") shouldBe "false"
+        has("TRUNCATE") shouldBe "false"
     }
 
     private companion object {
