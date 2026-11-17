@@ -215,7 +215,8 @@ class PeriodSpansBoundaryTest {
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
-            boundary.context.getBeansOfType(JdbcInboxConsumer::class.java).size shouldBe 1
+            boundary.context.getBeansOfType(JdbcInboxConsumer::class.java).keys shouldBe
+                setOf("periodRecordsChangedConsumer", "submissionDespatchedConsumer")
             val subscription =
                 boundary.context.getBean(
                     "periodRecordsChangedSubscription",

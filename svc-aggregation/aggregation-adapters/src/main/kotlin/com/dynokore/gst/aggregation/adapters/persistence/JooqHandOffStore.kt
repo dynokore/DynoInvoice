@@ -50,6 +50,18 @@ class JooqHandOffStore(
         }
     }
 
+    /** Writes `transmitted_at` once for an aggregate of the current tenant (INV-REQ-439); true when it was written. */
+    fun markTransmitted(aggregateId: UUID): Boolean =
+        runner.inTransaction {
+            dsl
+                .update(AGGREGATE)
+                .set(AGGREGATE.TRANSMITTED_AT, DSL.currentOffsetDateTime())
+                .where(AGGREGATE.TENANT_ID.eq(tenants.current().value))
+                .and(AGGREGATE.AGGREGATE_ID.eq(aggregateId))
+                .and(AGGREGATE.TRANSMITTED_AT.isNull)
+                .execute() > 0
+        }
+
     private fun hasLines(tenant: UUID): Condition =
         DSL.exists(
             DSL
