@@ -67,6 +67,7 @@ class SeparableStoreTest {
             "integrity_failure.kind" to "BROKEN_CHAIN", // the sampled failing_seq is set, which only this kind allows
             "offboarding_export_job.scope" to "TENANT",
             "offboarding_export_job.state" to "REQUESTED",
+            "audit_pack_job.state" to "PENDING",
             "partition_deletion_operation.state" to "RUNNING", // completed_at stays unset: null if and only if RUNNING
             "job_run.status" to "SUCCEEDED",
             "job_run.trigger" to "SCHEDULED",
