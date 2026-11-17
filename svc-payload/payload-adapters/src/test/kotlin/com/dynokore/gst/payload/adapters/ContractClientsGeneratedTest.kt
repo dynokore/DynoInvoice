@@ -22,28 +22,32 @@ class ContractClientsGeneratedTest {
         val query: List<Pair<String, String>>,
     )
 
-    @Test
-    fun `INV-AC-24311 the generated masterdata client calls getRegisterAndRates with the four query parameters`() {
-        val seen = CopyOnWriteArrayList<Seen>()
-        val body = """{"register":{"status":"REGISTERED","asOf":"2026-03-19"}}""".toByteArray()
+    private fun stub(
+        seen: MutableList<Seen>,
+        body: ByteArray,
+    ): HttpServer {
         val server = HttpServer.create(InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0)
         server.createContext("/") { exchange ->
             val raw = exchange.requestURI.rawQuery.orEmpty()
-            seen +=
-                Seen(
-                    exchange.requestMethod,
-                    exchange.requestURI.path,
-                    raw.split('&').filter { it.isNotEmpty() }.map {
-                        URLDecoder.decode(it.substringBefore('='), Charsets.UTF_8) to
-                            URLDecoder.decode(it.substringAfter('=', ""), Charsets.UTF_8)
-                    },
-                )
+            val query =
+                raw.split('&').filter { it.isNotEmpty() }.map {
+                    URLDecoder.decode(it.substringBefore('='), Charsets.UTF_8) to
+                        URLDecoder.decode(it.substringAfter('=', ""), Charsets.UTF_8)
+                }
+            seen += Seen(exchange.requestMethod, exchange.requestURI.path, query)
             exchange.responseHeaders.add("Content-Type", "application/json")
             exchange.sendResponseHeaders(200, body.size.toLong())
             exchange.responseBody.use { it.write(body) }
             exchange.close()
         }
         server.start()
+        return server
+    }
+
+    @Test
+    fun `INV-AC-24311 the generated masterdata client calls getRegisterAndRates with the four query parameters`() {
+        val seen = CopyOnWriteArrayList<Seen>()
+        val server = stub(seen, """{"register":{"status":"REGISTERED","asOf":"2026-03-19"}}""".toByteArray())
         try {
             val api = RegisterAndRatesApi("http://127.0.0.1:${server.address.port}")
             val result =
