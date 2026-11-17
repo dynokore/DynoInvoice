@@ -67,4 +67,13 @@ class SgPeppolBisBuildersTest {
         shouldThrow<IllegalArgumentException> { build(SgPeppolBisInvoiceBuilder(), SpecificationFamily.PINT_SG) }
         shouldThrow<IllegalArgumentException> { build(SgPeppolBisCreditNoteBuilder(), SpecificationFamily.PINT_SG) }
     }
+
+    @Test
+    fun `INV-AC-24265 a registry without the BIS keys answers NoBuilder, never the PINT_SG builder`() {
+        val pintOnly = DocumentBuilderRegistry(listOf(PintSgInvoiceBuilder(), PintSgCreditNoteBuilder()))
+        for (code in listOf("380", "381")) {
+            val key = BuilderKey(SpecificationFamily.SG_PEPPOL_BIS, code)
+            pintOnly.find(key) shouldBe BuilderLookup.NoBuilder(key)
+        }
+    }
 }
