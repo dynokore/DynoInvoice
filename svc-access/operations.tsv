@@ -54,6 +54,6 @@ operation	getMappingAcknowledgement	INV-T-4936	done
 operation	recordInstallationApproverFact	INV-T-4936	done
 operation	getInstallationApproverFact	INV-T-4936	done
 channel	accessAuthorityHeadObserved	INV-T-9054	done
-operation	requestConsultantGrant	INV-T-15800	open
-operation	decideConsultantGrant	INV-T-15800	open
+operation	requestConsultantGrant	INV-T-15800	done
+operation	decideConsultantGrant	INV-T-15800	done
 operation	bumpAuthorityIncarnation	INV-T-22072	open

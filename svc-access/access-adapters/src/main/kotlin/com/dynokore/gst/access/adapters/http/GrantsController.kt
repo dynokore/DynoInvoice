@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.adapters.http
 
+import com.dynokore.gst.access.adapters.consultant.ConsultantGrantEndpoints
 import com.dynokore.gst.access.application.grant.GrantRoleCommand
 import com.dynokore.gst.access.application.grant.GrantRoleOutcome
 import com.dynokore.gst.access.application.grant.GrantRoleUseCase
@@ -10,6 +11,9 @@ import com.dynokore.gst.access.application.landing.LandingScreens
 import com.dynokore.gst.access.contract.api.GrantsApi
 import com.dynokore.gst.access.contract.model.AcceptFirstAdministratorInvitationRequest
 import com.dynokore.gst.access.contract.model.AcceptFirstAdministratorInvitationResponse
+import com.dynokore.gst.access.contract.model.ConsultantGrantDecisionRequest
+import com.dynokore.gst.access.contract.model.ConsultantGrantRequest
+import com.dynokore.gst.access.contract.model.ConsultantGrantRequestResponse
 import com.dynokore.gst.access.contract.model.FirstAdministratorRequest
 import com.dynokore.gst.access.contract.model.FirstAdministratorResponse
 import com.dynokore.gst.access.contract.model.GrantRequest
@@ -46,6 +50,8 @@ internal const val OPERATOR_ROLE_REFUSED_DETAIL = "an operator role cannot be gr
  * identity, role and scope returns the original grant (repeatKey of the contract).
  */
 @RestController
+// one function per operation of the grants tag and one collaborator per use case
+@Suppress("TooManyFunctions", "LongParameterList")
 // open: the generated API interface is @Validated, so Spring proxies the controller (no kotlin-spring plugin in the
 // template)
 open class GrantsController(
@@ -55,7 +61,20 @@ open class GrantsController(
     private val manager: GrantManagerCheck,
     private val landing: LandingScreens,
     private val firstAdministrator: FirstAdministratorEndpoints,
+    private val consultant: ConsultantGrantEndpoints,
 ) : GrantsApi {
+    override fun requestConsultantGrant(
+        idempotencyKey: UUID,
+        consultantGrantRequest: ConsultantGrantRequest,
+    ): ResponseEntity<ConsultantGrantRequestResponse> = consultant.request(idempotencyKey, consultantGrantRequest)
+
+    override fun decideConsultantGrant(
+        requestRef: String,
+        idempotencyKey: UUID,
+        consultantGrantDecisionRequest: ConsultantGrantDecisionRequest,
+    ): ResponseEntity<ConsultantGrantRequestResponse> =
+        consultant.decide(requestRef, idempotencyKey, consultantGrantDecisionRequest)
+
     override fun grantRole(
         idempotencyKey: UUID,
         grantRequest: GrantRequest,
