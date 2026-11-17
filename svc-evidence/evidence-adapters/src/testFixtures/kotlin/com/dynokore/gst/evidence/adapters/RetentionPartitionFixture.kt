@@ -16,6 +16,42 @@ object RetentionPartitionFixture {
     /** The chain tables of schema `evidence`, the only names the fixture accepts (exact string equality). */
     val CHAIN_TABLES: List<String> = listOf("decision_trace", "evidence_payload", "acknowledgement", "audit_log")
 
+    /** The fifth member of a retention unit (V24, INV-T-24308); not part of [CHAIN_TABLES]. */
+    const val PRIOR_EVIDENCE: String = "prior_evidence"
+
+    /** Creates the `prior_evidence` member of the unit (and the unit, if missing), as the chain members are created. */
+    fun ensurePriorEvidencePartition(
+        connection: Connection,
+        tenantId: UUID,
+        entityRef: String,
+        periodRef: String,
+    ) = createMember(connection, PRIOR_EVIDENCE, tenantId, entityRef, periodRef)
+
+    /** Inserts one imported row (document number, transaction date) into the unit's `prior_evidence` partition. */
+    fun insertPriorEvidence(
+        connection: Connection,
+        tenantId: UUID,
+        entityRef: String,
+        periodRef: String,
+        row: Pair<String, java.time.LocalDate>,
+    ) {
+        val (documentNumber, transactionDate) = row
+        connection
+            .prepareStatement(
+                "insert into evidence.prior_evidence (id, tenant_id, entity_ref, period_ref, document_number, " +
+                    "transaction_date, acknowledgement_ref, prior_solution, imported_at, imported_by) " +
+                    "values (?, ?, ?, ?, ?, ?, 'ACK-LEGACY', 'LEGACY', now(), 'u-importer')",
+            ).use { st ->
+                st.setObject(1, UUID.randomUUID())
+                st.setObject(2, tenantId)
+                st.setString(3, entityRef)
+                st.setString(4, periodRef)
+                st.setString(5, documentNumber)
+                st.setObject(6, transactionDate)
+                st.executeUpdate()
+            }
+    }
+
     fun ensureRetentionPartitions(
         connection: Connection,
         tenantId: UUID,
@@ -69,6 +105,16 @@ object RetentionPartitionFixture {
         periodRef: String,
     ) {
         require(chainTable in CHAIN_TABLES) { "not a chain table: $chainTable" }
+        createMember(connection, chainTable, tenantId, entityRef, periodRef)
+    }
+
+    private fun createMember(
+        connection: Connection,
+        chainTable: String,
+        tenantId: UUID,
+        entityRef: String,
+        periodRef: String,
+    ) {
         val partitioned =
             connection
                 .prepareStatement(
