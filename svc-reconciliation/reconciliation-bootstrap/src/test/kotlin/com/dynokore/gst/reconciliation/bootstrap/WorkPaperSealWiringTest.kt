@@ -2,8 +2,11 @@ package com.dynokore.gst.reconciliation.bootstrap
 
 import com.dynokore.gst.reconciliation.adapters.ReconciliationDb
 import com.dynokore.gst.reconciliation.application.workpaper.ArtefactRecordedPublisher
+import com.dynokore.gst.reconciliation.application.workpaper.SealOutcome
 import com.dynokore.gst.reconciliation.application.workpaper.SealWorkPaper
 import com.dynokore.gst.reconciliation.application.workpaper.SealedWorkPapers
+import com.dynokore.gst.reconciliation.application.workpaper.SourceWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperSource
 import com.dynokore.gst.reconciliation.domain.workpaper.WorkPaperReference
 import com.dynokore.gst.reconciliation.domain.workpaper.WorkPaperSeal
 import com.dynokore.platform.evidencestore.ObjectKey
@@ -75,7 +78,7 @@ class WorkPaperSealWiringTest {
     ): String =
         getBean(TenantScope::class.java).bind(TenantId(tenant), actor) {
             getBean(TransactionRunner::class.java).inTransaction {
-                val reference = getBean(SealedWorkPapers::class.java).put(tenant.toString(), "R1", 1, b1)
+                val reference = getBean(SealedWorkPapers::class.java).put(tenant.toString(), entity, "R1", 1, b1)
                 getBean(ArtefactRecordedPublisher::class.java)
                     .publish(tenant.toString(), entity, SealWorkPaper.ARTEFACT_TYPE, reference, h1)
                 check(!failAfter) { "forced failure after the publish" }
@@ -143,6 +146,44 @@ class WorkPaperSealWiringTest {
                 reference,
                 h1,
             ) shouldBe 1
+        }
+    }
+
+    @Test
+    fun `INV-AC-24183 SealWorkPaper over the real adapters records the entity E1 and never the run id R1`(
+        @TempDir dir: Path,
+    ) {
+        val tenant = UUID.randomUUID()
+        val store = FakeStore()
+        runner(dir, store).run { context ->
+            val source = WorkPaperSource { _, runId -> if (runId == "R1") SourceWorkPaper("E1", b1) else null }
+            val outcome =
+                context.getBean(TenantScope::class.java).bind(TenantId(tenant), actor) {
+                    context.getBean(TransactionRunner::class.java).inTransaction {
+                        SealWorkPaper(
+                            source,
+                            context.getBean(SealedWorkPapers::class.java),
+                            context.getBean(ArtefactRecordedPublisher::class.java),
+                        ).execute(tenant.toString(), "R1")
+                    }
+                }
+            outcome shouldBe SealOutcome.SEALED
+            val reference = WorkPaperReference.of(tenant.toString(), "R1", 1)
+            store.puts.single().key shouldBe reference
+            count(
+                "select count(*) from reconciliation.work_paper_seal " +
+                    "where tenant_id = ? and run_id = ? and entity_ref = ?",
+                tenant,
+                "R1",
+                "E1",
+            ) shouldBe 1
+            count(
+                "select count(*) from reconciliation.work_paper_seal where tenant_id = ? and entity_ref = ?",
+                tenant,
+                "R1",
+            ) shouldBe 0
+            outboxRows(tenant, "E1", reference) shouldBe 1
+            anyOutboxRows(tenant) shouldBe 1
         }
     }
 

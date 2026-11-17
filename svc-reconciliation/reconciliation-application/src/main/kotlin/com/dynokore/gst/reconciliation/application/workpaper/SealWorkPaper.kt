@@ -9,12 +9,22 @@ data class SealedRef(
     val sealVersion: Int,
 )
 
-/** Source of the canonical JSON bytes of a run's work-paper; null when the run has none. */
+/** The canonical JSON bytes of a run's work-paper and the entity the run is for (never the run id). */
+class SourceWorkPaper(
+    val entityRef: String,
+    val canonicalJson: ByteArray,
+) {
+    init {
+        require(entityRef.isNotBlank()) { "the entity reference of a work-paper is never blank" }
+    }
+}
+
+/** Source of the work-paper of a run; null when the run has none. */
 fun interface WorkPaperSource {
-    fun canonicalBytes(
+    fun load(
         tenant: String,
         runId: String,
-    ): ByteArray?
+    ): SourceWorkPaper?
 }
 
 interface SealedWorkPapers {
@@ -23,9 +33,10 @@ interface SealedWorkPapers {
         runId: String,
     ): SealedRef?
 
-    /** Stores the bytes as the given seal version and returns the reference. */
+    /** Stores the bytes as the given seal version of the work-paper of [entityRef] and returns the reference. */
     fun put(
         tenant: String,
+        entityRef: String,
         runId: String,
         sealVersion: Int,
         bytes: ByteArray,
@@ -53,15 +64,15 @@ class SealWorkPaper(
         tenant: String,
         runId: String,
     ): SealOutcome {
-        val canonical = source.canonicalBytes(tenant, runId) ?: return SealOutcome.NO_WORK_PAPER
-        val seal = WorkPaperSeal.of(canonical)
+        val loaded = source.load(tenant, runId) ?: return SealOutcome.NO_WORK_PAPER
+        val seal = WorkPaperSeal.of(loaded.canonicalJson)
         val latest = store.latest(tenant, runId)
         val outcome =
             if (latest != null && latest.sha256Hex == seal.sha256Hex) {
                 SealOutcome.ALREADY_SEALED
             } else {
-                val reference = store.put(tenant, runId, (latest?.sealVersion ?: 0) + 1, seal.bytes)
-                publisher.publish(tenant, runId, ARTEFACT_TYPE, reference, seal.sha256Hex)
+                val reference = store.put(tenant, loaded.entityRef, runId, (latest?.sealVersion ?: 0) + 1, seal.bytes)
+                publisher.publish(tenant, loaded.entityRef, ARTEFACT_TYPE, reference, seal.sha256Hex)
                 SealOutcome.SEALED
             }
         return outcome

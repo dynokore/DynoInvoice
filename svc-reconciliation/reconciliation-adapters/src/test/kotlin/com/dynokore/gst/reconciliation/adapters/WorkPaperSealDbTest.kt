@@ -129,7 +129,7 @@ class WorkPaperSealDbTest {
         val t1 = newTenant()
         val fake = FakeStore()
         val key = WorkPaperReference.of(t1.toString(), "R1", 1)
-        val returned = inTenant(t1) { store(it, fake).put(t1.toString(), "R1", 1, b1) }
+        val returned = inTenant(t1) { store(it, fake).put(t1.toString(), "E1", "R1", 1, b1) }
         returned shouldBe key
         fake.puts.size shouldBe 1
         fake.puts[0].key shouldBe key
@@ -142,13 +142,15 @@ class WorkPaperSealDbTest {
         rows[0][2] shouldBe h1
         (rows[0][2] as String).matches(Regex("^[0-9a-f]{64}$")) shouldBe true
         rows[0][3] shouldBe clock.instant()
+        rows[0][4] shouldBe "E1"
+        (rows[0][4] == "R1") shouldBe false
     }
 
     @Test
     fun `INV-AC-24183 latest returns the sealed reference to its tenant only`() {
         val t1 = newTenant()
         val t2 = newTenant()
-        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b1) }
         val latest = inTenant(t1) { store(it, FakeStore()).latest(t1.toString(), "R1") }
         latest?.reference shouldBe WorkPaperReference.of(t1.toString(), "R1", 1)
         latest?.sha256Hex shouldBe h1
@@ -161,8 +163,8 @@ class WorkPaperSealDbTest {
         val t1 = newTenant()
         inTenant(t1) {
             val sealed = store(it, FakeStore())
-            sealed.put(t1.toString(), "R1", 1, b1)
-            sealed.put(t1.toString(), "R1", 2, b2)
+            sealed.put(t1.toString(), "E1", "R1", 1, b1)
+            sealed.put(t1.toString(), "E1", "R1", 2, b2)
         }
         val latest = inTenant(t1) { store(it, FakeStore()).latest(t1.toString(), "R1") }
         latest?.sealVersion shouldBe 2
@@ -173,7 +175,7 @@ class WorkPaperSealDbTest {
     fun `INV-AC-24183 latest does not read the seal row of another tenant even with a bound foreign tenant`() {
         val t1 = newTenant()
         val t2 = newTenant()
-        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b1) }
         // the binding is T2 and the query asks for T1: the tenant predicate and the row-level security both refuse it
         inTenant(t2) { store(it, FakeStore()).latest(t1.toString(), "R1") } shouldBe null
         inTenant(t2) { connection ->
@@ -190,7 +192,7 @@ class WorkPaperSealDbTest {
     fun `INV-AC-24183 latest carries its own tenant predicate when row-level security is bypassed`() {
         val t1 = newTenant()
         val t2 = newTenant()
-        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b1) }
         // the superuser bypasses row-level security: only the predicate of the query keeps T1's row from T2
         ReconciliationDb.superuser().use { store(it, FakeStore()).latest(t2.toString(), "R1") } shouldBe null
         ReconciliationDb.superuser().use { store(it, FakeStore()).latest(t1.toString(), "R1") }?.sha256Hex shouldBe h1
@@ -199,8 +201,8 @@ class WorkPaperSealDbTest {
     @Test
     fun `INV-AC-24183 a second put of a committed version is refused and the row keeps the first hash`() {
         val t1 = newTenant()
-        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
-        shouldThrow<Exception> { inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b2) } }
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b1) }
+        shouldThrow<Exception> { inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b2) } }
         val rows = sealRows(t1, "R1")
         rows.size shouldBe 1
         rows[0][2] shouldBe h1
@@ -212,7 +214,7 @@ class WorkPaperSealDbTest {
         val fake = FakeStore().also { it.failure = IllegalStateException("store down") }
         val thrown =
             shouldThrow<IllegalStateException> {
-                inTenant(t1) { store(it, fake).put(t1.toString(), "R1", 1, b1) }
+                inTenant(t1) { store(it, fake).put(t1.toString(), "E1", "R1", 1, b1) }
             }
         thrown.message shouldBe "store down"
         sealRows(t1, "R1") shouldBe emptyList()
@@ -221,7 +223,7 @@ class WorkPaperSealDbTest {
     @Test
     fun `INV-AC-24183 an update and a delete of the seal row are refused for the runtime login`() {
         val t1 = newTenant()
-        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b1) }
         shouldThrow<SQLException> {
             inTenant(t1) {
                 it.prepareStatement("update reconciliation.work_paper_seal set sha256 = ?").use { st ->
@@ -239,7 +241,7 @@ class WorkPaperSealDbTest {
     @Test
     fun `INV-AC-24183 the append-only trigger refuses an update and a delete even for the superuser`() {
         val t1 = newTenant()
-        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "R1", 1, b1) }
+        inTenant(t1) { store(it, FakeStore()).put(t1.toString(), "E1", "R1", 1, b1) }
         ReconciliationDb.superuser().use { connection ->
             shouldThrow<SQLException> {
                 connection.prepareStatement("update reconciliation.work_paper_seal set sha256 = ?").use { st ->

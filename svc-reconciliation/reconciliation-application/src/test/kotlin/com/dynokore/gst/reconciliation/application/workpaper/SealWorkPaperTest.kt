@@ -22,7 +22,7 @@ class SealWorkPaperTest {
         val facts = mutableListOf<Fact>()
         val order = mutableListOf<String>()
         var storeThrows = false
-        val source = WorkPaperSource { _, _ -> doc }
+        val source = WorkPaperSource { _, _ -> doc?.let { SourceWorkPaper("R1", it) } }
         val store =
             object : SealedWorkPapers {
                 override fun latest(
@@ -35,6 +35,7 @@ class SealWorkPaperTest {
 
                 override fun put(
                     tenant: String,
+                    entityRef: String,
                     runId: String,
                     sealVersion: Int,
                     bytes: ByteArray,
@@ -137,5 +138,42 @@ class SealWorkPaperTest {
         String(first.stored[0].second) shouldBe """{"attestation":{"by":"U1"},"boxes":[],"runId":"R1"}"""
         String(second.stored[0].second) shouldBe String(first.stored[0].second)
         second.facts[0].hash shouldBe first.facts[0].hash
+    }
+
+    @Test
+    fun `INV-AC-24183 a source work-paper with a blank entity reference is refused`() {
+        assertThrows<IllegalArgumentException> { SourceWorkPaper("", ByteArray(0)) }
+        assertThrows<IllegalArgumentException> { SourceWorkPaper("  ", ByteArray(0)) }
+    }
+
+    @Test
+    fun `INV-AC-24183 the entity of the source work-paper not the run id goes to the store and the publisher`() {
+        val f = Fakes().apply { doc = build(false) }
+        val seen = mutableListOf<String>()
+        val useCase =
+            SealWorkPaper(
+                WorkPaperSource { _, _ -> SourceWorkPaper("E1", build(false)) },
+                object : SealedWorkPapers {
+                    override fun latest(
+                        tenant: String,
+                        runId: String,
+                    ): SealedRef? = null
+
+                    override fun put(
+                        tenant: String,
+                        entityRef: String,
+                        runId: String,
+                        sealVersion: Int,
+                        bytes: ByteArray,
+                    ): String {
+                        seen += "put:$entityRef"
+                        return "ref"
+                    }
+                },
+                ArtefactRecordedPublisher { _, e, _, _, _ -> seen += "publish:$e" },
+            )
+        useCase.execute("T1", "R1") shouldBe SealOutcome.SEALED
+        seen shouldBe listOf("put:E1", "publish:E1")
+        f.facts.size shouldBe 0
     }
 }

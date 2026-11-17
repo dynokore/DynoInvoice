@@ -8,13 +8,14 @@ create table reconciliation.work_paper_seal (
     tenant_id uuid not null,
     run_id text not null,
     seal_version int not null check (seal_version > 0),
-    entity_ref text not null,
+    entity_ref text not null check (entity_ref <> ''),
     reference text not null,
     sha256 char(64) not null check (sha256 ~ '^[0-9a-f]{64}$'),
     sealed_at timestamptz not null,
     primary key (tenant_id, run_id, seal_version),
     unique (tenant_id, reference)
 );
+comment on column reconciliation.work_paper_seal.entity_ref is 'class: operational; the entity reference of the work-paper (the entity the run is for), never the run id';
 comment on column reconciliation.work_paper_seal.reference is 'class: operational';
 comment on column reconciliation.work_paper_seal.sha256 is 'class: operational';
 ALTER TABLE reconciliation.work_paper_seal ENABLE ROW LEVEL SECURITY;

@@ -48,6 +48,7 @@ class JooqSealedWorkPapers(
 
     override fun put(
         tenant: String,
+        entityRef: String,
         runId: String,
         sealVersion: Int,
         bytes: ByteArray,
@@ -61,7 +62,7 @@ class JooqSealedWorkPapers(
             .set(WORK_PAPER_SEAL.TENANT_ID, tenantId)
             .set(WORK_PAPER_SEAL.RUN_ID, runId)
             .set(WORK_PAPER_SEAL.SEAL_VERSION, sealVersion)
-            .set(WORK_PAPER_SEAL.ENTITY_REF, runId)
+            .set(WORK_PAPER_SEAL.ENTITY_REF, entityRef)
             .set(WORK_PAPER_SEAL.REFERENCE, reference)
             .set(WORK_PAPER_SEAL.SHA256, WorkPaperSeal.of(bytes).sha256Hex)
             .set(WORK_PAPER_SEAL.SEALED_AT, now.atOffset(ZoneOffset.UTC))
