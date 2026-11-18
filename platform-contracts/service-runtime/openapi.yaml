@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: service-runtime shared contract components
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Not a service: the shared OpenAPI components every other directory's
     openapi.yaml references by relative $ref (error envelope, API-20) rather
@@ -925,10 +925,74 @@ components:
       enum:
       - SCOPE
       - FULL_SYNC
+      description: SCOPE for a replay by scope (scope required), FULL_SYNC for a full sync (no scope)
+        (INV-REQ-1205 b4); extensible (API-09).
+    ReplayModeResponse:
+      type: string
+      enum:
+      - SCOPE
+      - FULL_SYNC
       x-extensible-enum: true
       description: SCOPE for a replay by scope (scope required), FULL_SYNC for a full sync (no scope)
         (INV-REQ-1205 b4); extensible (API-09).
     ReplayScope:
+      type: object
+      description: The scope of a replay by scope, present only with mode SCOPE; a tagged union on kind (owner
+        ruling INV-Q-3671), the same shape as ReplayRequested.scope (schemas/replay-requested-payload.schema.json)
+        - TENANT {tenantId}; ENTITY {tenantId, entityRef}; PERIOD {from, to, tenantId?}, a half-open range
+        [from, to) on the time the producer's state was last changed, across all tenants unless narrowed by
+        tenantId. A tenantId or entityRef outside the token's entity set is 403 (API-24).
+      required:
+      - kind
+      properties:
+        kind:
+          type: string
+          enum:
+          - TENANT
+          - ENTITY
+          - PERIOD
+          description: Which scope shape this is (INV-Q-3671); extensible (API-09).
+        tenantId:
+          type: string
+          maxLength: 40
+          description: Required for TENANT and ENTITY; optional for PERIOD, narrowing it to one tenant.
+        entityRef:
+          type: string
+          maxLength: 40
+          description: Required for ENTITY.
+        from:
+          type: string
+          format: date-time
+          description: PERIOD only, required there; inclusive start.
+        to:
+          type: string
+          format: date-time
+          description: PERIOD only, required there; exclusive end, later than from.
+      allOf:
+      - if:
+          properties:
+            kind:
+              const: TENANT
+        then:
+          required:
+          - tenantId
+      - if:
+          properties:
+            kind:
+              const: ENTITY
+        then:
+          required:
+          - tenantId
+          - entityRef
+      - if:
+          properties:
+            kind:
+              const: PERIOD
+        then:
+          required:
+          - from
+          - to
+    ReplayScopeResponse:
       type: object
       description: The scope of a replay by scope, present only with mode SCOPE; a tagged union on kind (owner
         ruling INV-Q-3671), the same shape as ReplayRequested.scope (schemas/replay-requested-payload.schema.json)
@@ -1022,9 +1086,9 @@ components:
             or 'every service'), every catalogue producer of the topic in event-log/topics.yaml otherwise
             (owner ruling INV-Q-3788 A, INV-API-3656).
         mode:
-          $ref: '#/components/schemas/ReplayMode'
+          $ref: '#/components/schemas/ReplayModeResponse'
         scope:
-          $ref: '#/components/schemas/ReplayScope'
+          $ref: '#/components/schemas/ReplayScopeResponse'
         requestedAt:
           type: string
           format: date-time
@@ -1042,10 +1106,30 @@ components:
       - FEED
       - AP_CONNECTION
       - CLIENT_ENTITY
+      description: The seven scope levels of config-resolver's ScopeLevel (INV-REQ-1242 b1). A variation point
+        allows only the levels its catalogue row lists; another is POL-003.
+    PolicyScopeLevelResponse:
+      type: string
+      enum:
+      - INSTALLATION
+      - TENANT
+      - GROUP
+      - ENTITY
+      - FEED
+      - AP_CONNECTION
+      - CLIENT_ENTITY
       x-extensible-enum: true
       description: The seven scope levels of config-resolver's ScopeLevel (INV-REQ-1242 b1). A variation point
         allows only the levels its catalogue row lists; another is POL-003.
     PolicySource:
+      type: string
+      enum:
+      - OVERRIDE
+      - PROFILE
+      default: OVERRIDE
+      description: OVERRIDE for a value set directly, PROFILE for a value written by console-bff's
+        applyOperatingProfile through setPolicy (INV-Q-2979, INV-Q-5022).
+    PolicySourceResponse:
       type: string
       enum:
       - OVERRIDE
@@ -1197,7 +1281,7 @@ components:
           type: string
           format: date
         source:
-          $ref: '#/components/schemas/PolicySource'
+          $ref: '#/components/schemas/PolicySourceResponse'
     PolicySettingState:
       type: object
       description: setPolicy response (INV-REQ-1243 b2, INV-Q-5172).
@@ -1215,7 +1299,7 @@ components:
           type: string
           pattern: ^VP-[0-9]+$
         scopeLevel:
-          $ref: '#/components/schemas/PolicyScopeLevel'
+          $ref: '#/components/schemas/PolicyScopeLevelResponse'
         scopeRef:
           $ref: '#/components/schemas/PolicyScopeRef'
         entityRef:
@@ -1225,7 +1309,7 @@ components:
           items:
             $ref: '#/components/schemas/SelectedOption'
         source:
-          $ref: '#/components/schemas/PolicySource'
+          $ref: '#/components/schemas/PolicySourceResponse'
         profileRef:
           type: string
         profileVersion:
@@ -1361,7 +1445,7 @@ components:
           type: string
           pattern: ^VP-[0-9]+$
         scopeLevel:
-          $ref: '#/components/schemas/PolicyScopeLevel'
+          $ref: '#/components/schemas/PolicyScopeLevelResponse'
         scopeRef:
           $ref: '#/components/schemas/PolicyScopeRef'
         entityRef:

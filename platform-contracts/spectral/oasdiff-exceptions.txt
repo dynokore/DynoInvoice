@@ -195,3 +195,7 @@ POST /v1/ap/{adapterId}/notifications request property `kind` was restricted to 
 POST /internal/v1/rules/mapping-packs/import request property `rows/items/sourceClass` was restricted to a list of enum values
 POST /internal/v1/rules/mapping-packs/{packId}/entries request property `schemeTag` was restricted to a list of enum values
 POST /internal/v1/rules/mapping-packs/{packId}/entries request property `sourceClass` was restricted to a list of enum values
+# Request enumeration closed (API-09): answered design question on the request-enumeration findings, tooling/gap25007-gap.md (INV-T-25194); INV-Q-3569 reasoning applies: no train is cut and no consumer is deployed.
+POST /internal/v1/event-consumers/rebuilds request property `mode` was restricted to a list of enum values
+# Request enumeration closed (API-09): answered design question on the request-enumeration findings, tooling/gap25007-gap.md (INV-T-25194); INV-Q-3569 reasoning applies: no train is cut and no consumer is deployed.
+POST /internal/v1/event-consumers/rebuilds request property `scope/kind` was restricted to a list of enum values
