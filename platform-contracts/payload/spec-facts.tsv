@@ -1,0 +1,6 @@
+# INV-T-25188 (owner ruling 2026-11-18, option (A); breakdown tooling/gap25007-gap.md): the two request enumerations of payload are closed, so the marker x-extensible-enum is gone and the members stay.
+file	pointer	relation	value	requirement
+openapi.yaml	/components/schemas/DraftDocument/properties/submissionType/x-extensible-enum	absent	-	INV-REQ-957
+openapi.yaml	/components/schemas/DraftDocument/properties/submissionType/enum	equals	["TYPE_1A","TYPE_1B","TYPE_2","TYPE_3"]	INV-REQ-957
+openapi.yaml	/components/schemas/RecordRenditionSampleRequest/properties/submissionType/x-extensible-enum	absent	-	INV-REQ-1033
+openapi.yaml	/components/schemas/RecordRenditionSampleRequest/properties/submissionType/enum	equals	["TYPE_1A","TYPE_1B","TYPE_2","TYPE_3"]	INV-REQ-1033

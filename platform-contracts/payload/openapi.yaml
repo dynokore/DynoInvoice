@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 2.2.0
+  version: 2.3.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -949,7 +949,6 @@ components:
         submissionType:
           type: string
           enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
-          x-extensible-enum: true
           description: Same values as `ValidateIssuanceRequest.submissionType`.
         supplierGstn:
           type: string
@@ -1255,7 +1254,6 @@ components:
         submissionType:
           type: string
           enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
-          x-extensible-enum: true
         sampleContent:
           type: string
           contentEncoding: base64

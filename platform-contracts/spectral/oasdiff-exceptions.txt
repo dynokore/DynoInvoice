@@ -111,3 +111,9 @@ POST /internal/v1/payload/pre-issuance-checks the request property `submissionTy
 POST /internal/v1/payload/pre-issuance-checks the request property `supplierGstn` became required
 POST /internal/v1/payload/pre-issuance-checks the request property `invoiceDate` became required
 POST /internal/v1/payload/pre-issuance-checks the request property `gstAmount` became required
+# INV-T-25188 (owner ruling 2026-11-18, option (A); breakdown tooling/gap25007-gap.md; answered design question on the request-enumeration findings; precedent INV-Q-3569):
+# submissionType of DraftDocument (checkPreIssuance) and of RecordRenditionSampleRequest (recordRenditionSample, runSampleCheck) loses x-extensible-enum; the members are unchanged.
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569). After the first published train a request enum restriction is breaking (API-03).
+POST /internal/v1/payload/entities/{entityRef}/rendition-sample-checks request property `submissionType` was restricted to a list of enum values
+POST /internal/v1/payload/entities/{entityRef}/rendition-samples request property `submissionType` was restricted to a list of enum values
+POST /internal/v1/payload/pre-issuance-checks request property `submissionType` was restricted to a list of enum values
