@@ -16,6 +16,7 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.springframework.context.ApplicationContext
+import java.io.File
 import java.nio.file.Path
 import java.time.Clock
 
@@ -115,7 +116,7 @@ class AcknowledgementConsumerWiringTest {
     @Test
     fun `INV-AC-24271 operations tsv names this task on the submission-acknowledged channel`() {
         // the module directory is the working directory of the test task; the table is at the repository root
-        val lines = java.io.File("../operations.tsv").readLines().filter { it.contains("submission-acknowledged") }
+        val lines = File("../operations.tsv").readLines().filter { it.contains("submission-acknowledged") }
         lines shouldBe listOf("channel\tgst.submission.submission-acknowledged.v1\tINV-T-24275")
     }
 }
