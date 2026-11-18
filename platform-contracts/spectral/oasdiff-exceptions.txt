@@ -117,3 +117,5 @@ POST /internal/v1/payload/pre-issuance-checks the request property `gstAmount` b
 POST /internal/v1/payload/entities/{entityRef}/rendition-sample-checks request property `submissionType` was restricted to a list of enum values
 POST /internal/v1/payload/entities/{entityRef}/rendition-samples request property `submissionType` was restricted to a list of enum values
 POST /internal/v1/payload/pre-issuance-checks request property `submissionType` was restricted to a list of enum values
+# INV-T-25186, answered design question on the request-enumeration findings (closing each finding in its contract), breakdown tooling/gap25007-gap.md; Coordinator ruling, delegated, owner 2026-10-14, on INV-Q-3569's reasoning (no train is cut and no consumer is deployed): AlertPolicyRequest channels/items loses x-extensible-enum; the enum members are unchanged and the request type is closed (1.18.0).
+PUT /internal/v1/notification/entities/{entityRef}/alert-policies/{alertClass} request property `channels/items/` was restricted to a list of enum values
