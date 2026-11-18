@@ -53,3 +53,12 @@ data class BoxAggregation(
     val boxes: Map<String, BigDecimal>,
     val unmappedLines: List<UnmappedLine>,
 )
+
+/** The amount one document line adds to one Box, at scale 2 and signed as [BoxAggregator.aggregate] sums it. */
+data class LineContribution(
+    val box: String,
+    val docUuid: String,
+    val version: Int,
+    val lineNumber: Int,
+    val amount: BigDecimal,
+)

@@ -64,6 +64,31 @@ object BoxAggregator {
         )
     }
 
+    /**
+     * The amount each line adds to each Box: the mapping and the signed scale-2 arithmetic of [aggregate], so the
+     * contributions of a Box sum to its aggregate. Zero amounts are kept; a line with no mapping contributes nothing.
+     * Sorted by box, docUuid, version, lineNumber.
+     */
+    fun contributions(
+        entries: List<MappingEntry>,
+        lines: List<DocumentLine>,
+    ): List<LineContribution> {
+        aggregate(entries, lines)
+        val byKey = entries.associateBy { it.categoryCode to it.direction }
+        return lines
+            .flatMap { line ->
+                val entry = byKey[line.line.taxCode to line.direction] ?: return@flatMap emptyList()
+                entry.boxes.map { feed ->
+                    val amount =
+                        when (feed.basis) {
+                            Basis.TAXABLE_AMOUNT -> line.line.taxableAmountSgd
+                            Basis.TAX_AMOUNT -> line.line.taxAmountSgd
+                        }
+                    LineContribution(feed.box, line.docUuid, line.version, line.line.lineNumber, amount.setScale(SCALE))
+                }
+            }.sortedWith(compareBy({ it.box }, { it.docUuid }, { it.version }, { it.lineNumber }))
+    }
+
     private fun requireScale(amount: BigDecimal) =
         require(amount.scale() <= SCALE || amount.stripTrailingZeros().scale() <= SCALE) {
             "amount $amount has more than $SCALE decimal places"

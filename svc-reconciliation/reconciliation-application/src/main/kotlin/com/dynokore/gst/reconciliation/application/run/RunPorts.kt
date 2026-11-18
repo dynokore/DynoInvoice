@@ -1,6 +1,7 @@
 package com.dynokore.gst.reconciliation.application.run
 
 import com.dynokore.gst.reconciliation.domain.boxes.MappingEntry
+import com.dynokore.gst.reconciliation.domain.run.ReconcilingItem
 import com.dynokore.gst.reconciliation.domain.run.ReturnFigures
 import com.dynokore.gst.reconciliation.domain.run.RunDocument
 import com.dynokore.gst.reconciliation.domain.run.RunOutcome
@@ -60,4 +61,12 @@ sealed interface AssembledRun {
         val run: RecordedRun,
         val outcome: RunOutcome.Completed,
     ) : AssembledRun
+}
+
+/** The stored reconciling items of a run, ordered by box, docUuid, version, lineNumber (INV-REQ-982). */
+fun interface RunItems {
+    fun items(
+        tenant: String,
+        runId: String,
+    ): List<ReconcilingItem>
 }

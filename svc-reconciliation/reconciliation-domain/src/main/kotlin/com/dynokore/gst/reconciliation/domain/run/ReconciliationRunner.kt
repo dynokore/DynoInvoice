@@ -12,6 +12,7 @@ import com.dynokore.platform.reconciliationengine.Category
 import com.dynokore.platform.reconciliationengine.ClassificationRule
 import com.dynokore.platform.reconciliationengine.EvidenceRecord
 import com.dynokore.platform.reconciliationengine.ReconciliationEngine
+import com.dynokore.platform.reconciliationengine.ReconciliationResult
 
 /** Runs a reconciliation for one (entity, period) over values only (INV-Q-7239 A). Pure: no I/O, no clock. */
 object ReconciliationRunner {
@@ -49,6 +50,7 @@ object ReconciliationRunner {
 
         val submittedAggregation = BoxAggregator.aggregate(entries, submitted.flatMap(::linesOf))
         val evidence = mutableMapOf<String, MutableList<EvidenceRecord>>()
+        val docEvidence = mutableMapOf<Pair<String, String>, DocumentEvidence>()
         val unmapped = submittedAggregation.unmappedLines.toMutableList()
         for (c in unsubmitted) {
             val aggregation = BoxAggregator.aggregate(entries, linesOf(c))
@@ -57,7 +59,9 @@ object ReconciliationRunner {
             aggregation.boxes
                 .filterValues { it.signum() != 0 }
                 .forEach { (box, amount) ->
-                    evidence.getOrPut(box) { mutableListOf() } += DocumentEvidence(c.docUuid, amount, varianceClass)
+                    val record = DocumentEvidence(c.docUuid, amount, varianceClass)
+                    docEvidence[box to c.docUuid] = record
+                    evidence.getOrPut(box) { mutableListOf() } += record
                 }
         }
         val boxKeys = returnFigures.boxes.keys + submittedAggregation.boxes.keys + evidence.keys
@@ -70,7 +74,38 @@ object ReconciliationRunner {
             unmappedLines = unmapped.sortedWith(lineOrder),
             notReconcilable = notReconcilableOf(submitted + unsubmitted),
             raisesPer003 = result.hasUnexplained,
+            reconcilingItems = itemsOf(entries, unsubmitted, docEvidence, result),
         )
+    }
+
+    /** An item's references: the evidence reference of its document linked by a classified variance, else docUuid. */
+    private fun itemsOf(
+        entries: List<MappingEntry>,
+        unsubmitted: List<Chosen>,
+        docEvidence: Map<Pair<String, String>, DocumentEvidence>,
+        result: ReconciliationResult,
+    ): List<ReconcilingItem> {
+        val linked =
+            result.classifiedVariances.groupBy({ it.key }, { it.linkedRecords }).mapValues { (_, v) ->
+                v.flatten().toSet()
+            }
+        val contributions =
+            unsubmitted.flatMap { c ->
+                BoxAggregator.contributions(entries, linesOf(c)).filter { it.amount.signum() != 0 }.map { c to it }
+            }
+        return contributions
+            .map { (c, contribution) ->
+                val record = docEvidence[contribution.box to c.docUuid]
+                val refs = listOfNotNull(record?.reference?.takeIf { it in linked[contribution.box].orEmpty() })
+                ReconcilingItem(
+                    contribution.box,
+                    contribution.docUuid,
+                    contribution.version,
+                    contribution.lineNumber,
+                    contribution.amount,
+                    refs.ifEmpty { listOf(c.docUuid) },
+                )
+            }.sortedWith(compareBy({ it.box }, { it.docUuid }, { it.version }, { it.lineNumber }))
     }
 
     private fun requireDistinct(documents: List<RunDocument>) {

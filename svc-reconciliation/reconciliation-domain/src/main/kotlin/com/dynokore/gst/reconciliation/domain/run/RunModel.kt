@@ -44,6 +44,24 @@ data class DocumentEvidence(
     val varianceClass: VarianceClass?,
 ) : EvidenceRecord
 
+/**
+ * One document line that adds a non-zero amount to a Box of an unsubmitted current version, with the references
+ * of the evidence that supports it (INV-REQ-982).
+ */
+data class ReconcilingItem(
+    val box: String,
+    val docUuid: String,
+    val version: Int,
+    val lineNumber: Int,
+    val amount: BigDecimal,
+    val evidenceRefs: List<String>,
+) {
+    init {
+        require(evidenceRefs.isNotEmpty()) { "a reconciling item needs at least one evidence reference" }
+        require(evidenceRefs.none { it.isBlank() }) { "an evidence reference is blank" }
+    }
+}
+
 sealed interface RunOutcome {
     /** No return recorded for the period: no comparison exists (INV-REQ-657). */
     data class NoReturn(
@@ -56,6 +74,7 @@ sealed interface RunOutcome {
         val unmappedLines: List<UnmappedLine>,
         val notReconcilable: List<NotReconcilableDocument>,
         val raisesPer003: Boolean,
+        val reconcilingItems: List<ReconcilingItem>,
     ) : RunOutcome
 
     companion object {
