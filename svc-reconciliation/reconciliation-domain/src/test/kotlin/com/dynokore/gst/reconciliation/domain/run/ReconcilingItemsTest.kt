@@ -108,15 +108,6 @@ class ReconcilingItemsTest {
     }
 
     @Test
-    fun `INV-AC-24461 a fake CompletedRuns receives the same list`() {
-        val received = mutableListOf<List<ReconcilingItem>>()
-        val record = { o: RunOutcome.Completed -> received += o.reconcilingItems }
-        val o = outcome()
-        record(o)
-        received.single() shouldBe o.reconcilingItems
-    }
-
-    @Test
     fun `INV-AC-24461 an item needs a non-empty list without a blank reference`() {
         shouldThrow<IllegalArgumentException> { item("D1", 1, 1, "1.00") }
         shouldThrow<IllegalArgumentException> { item("D1", 1, 1, "1.00", " ") }
