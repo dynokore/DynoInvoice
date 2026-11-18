@@ -32,6 +32,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -49,9 +50,9 @@ class PolicyReplicaRelaxedControlsTest {
     private class MovableClock(
         private var now: Instant,
     ) : Clock() {
-        override fun getZone() = ZoneOffset.UTC
+        override fun getZone(): ZoneId = ZoneOffset.UTC
 
-        override fun withZone(zone: java.time.ZoneId?): Clock = this
+        override fun withZone(zone: ZoneId?): Clock = this
 
         override fun instant(): Instant = now
 
