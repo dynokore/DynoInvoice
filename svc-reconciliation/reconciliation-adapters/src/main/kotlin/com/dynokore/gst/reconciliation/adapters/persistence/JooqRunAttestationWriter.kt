@@ -8,9 +8,9 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * The write side of the append-only attestation store (INV-T-24435, INV-AC-24434, INV-REQ-947, INV-REQ-994): one row per
- * run, never updated or deleted (NIST SP 800-53 AU-9). A repeat for the same run stores nothing and answers false; the
- * stored fact is never rewritten. The caller binds the tenant and opens the transaction; the statement names the
+ * The write side of the append-only attestation store (INV-T-24435, INV-AC-24434, INV-REQ-947, INV-REQ-994): one row
+ * per run, never updated or deleted (NIST SP 800-53 AU-9). A repeat for the same run stores nothing and answers false;
+ * the stored fact is never rewritten. The caller binds the tenant and opens the transaction; the statement names the
  * tenant in its values as well as the bound tenant of the row-level security. The acting user ID is stored, never a
  * role (INV-Q-10647).
  */
