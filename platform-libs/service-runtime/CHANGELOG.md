@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.23.0] - 2026-11-19
+### Changed
+- Version step only (G-DVS, INV-T-24774, INV-AC-24773): the published bytes change because the dependency `evidence-store` steps to 2.6.0; no code change in this module.
+
 ## [13.22.1] - 2026-11-18
 ### Changed
 - `TracedEventHandler` forwards `handle(event, record)` under the same CONSUMER span, so the log record reaches the wrapped handler; no new public member (INV-T-24593, INV-AC-24592); outbox-and-queue steps to 6.30.0.

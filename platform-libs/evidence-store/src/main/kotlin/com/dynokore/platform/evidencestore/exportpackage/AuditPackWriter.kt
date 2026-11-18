@@ -42,12 +42,25 @@ object AuditPackWriter {
     private const val README = "README.txt"
     private const val MANIFEST = "manifest-sha256.txt"
     private const val TAG_MANIFEST = "tagmanifest-sha256.txt"
+    private const val VERIFICATION_REPORT = "verification-report.txt"
 
     fun write(
         scope: PackageScope,
         items: List<PackageItem>,
         generatedAt: Instant,
+        verificationReport: String?,
     ): PackageFiles {
+        when (scope) {
+            is PackageScope.EntityPeriod -> {
+                require(!verificationReport.isNullOrBlank()) {
+                    "an entity-and-period package needs a non-blank verification report"
+                }
+            }
+
+            is PackageScope.WholeTenant -> {
+                require(verificationReport == null) { "a whole-tenant package holds no verification report" }
+            }
+        }
         val payload = TreeMap<String, ByteArray>()
         for (item in items) {
             val path = "data/${item.contentClass.directory}/${item.name}"
@@ -65,6 +78,11 @@ object AuditPackWriter {
                 README to text(readme()),
                 MANIFEST to text(manifest),
             )
+        if (verificationReport != null) {
+            tagged[VERIFICATION_REPORT] =
+                (if (verificationReport.endsWith("\n")) verificationReport else verificationReport + "\n")
+                    .toByteArray(StandardCharsets.UTF_8)
+        }
         val tagManifest = tagged.map { (path, bytes) -> "${ContentHash.of(bytes).hex}  $path" }
         val all = TreeMap<String, ByteArray>(payload)
         all.putAll(tagged)
@@ -122,6 +140,8 @@ object AuditPackWriter {
                 "and the item count of each class.",
                 "manifest-sha256.txt lists the SHA-256 of every file under data/;",
                 "tagmanifest-sha256.txt lists the SHA-256 of the other description files.",
+                "verification-report.txt, when present, states the integrity status of the period at export time",
+                "and is listed in tagmanifest-sha256.txt.",
                 "",
                 "To check the content, run this from the package root:",
                 "  sha256sum -c manifest-sha256.txt",

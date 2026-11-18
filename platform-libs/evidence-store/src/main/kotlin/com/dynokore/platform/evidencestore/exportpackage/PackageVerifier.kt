@@ -31,6 +31,7 @@ object PackageVerifier {
         )
     private val REQUIRED_LABELS =
         listOf("Package-Kind", "Tenant", "Generated-At", OXUM) + DIRECTORIES.map { COUNT_LABEL + it }
+    private const val VERIFICATION_REPORT = "verification-report.txt"
     private val TAG_FILES = listOf(DECLARATION, BAG_INFO, README, MANIFEST)
     private val EXPECTED_DECLARATION = listOf("BagIt-Version: 1.0", "Tag-File-Character-Encoding: UTF-8")
     private val MANIFEST_LINE = Regex("^([0-9A-Fa-f]{$SHA_256_HEX})[ \t]+(.+)$")
@@ -245,7 +246,15 @@ object PackageVerifier {
     private fun checkTags(files: Files) {
         val listed = readManifest(files, TAG_MANIFEST, PackageProblemCode.MISSING_TAG_MANIFEST, payloadOnly = false)
         if (!files.has(TAG_MANIFEST)) return
-        for (file in TAG_FILES) {
+        // The report is optional (whole-tenant packages and older bags have none): checked by its exact path
+        // when it is present or listed.
+        val checked =
+            if (files.has(VERIFICATION_REPORT) || VERIFICATION_REPORT in listed) {
+                TAG_FILES + VERIFICATION_REPORT
+            } else {
+                TAG_FILES
+            }
+        for (file in checked) {
             val expected = listed[file]
             val bytes = files.read(file)
             when {

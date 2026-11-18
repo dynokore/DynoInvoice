@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.6.0] - 2026-11-19
+### Changed
+- `AuditPackWriter.write` and `AuditPackAssembler.assemble` gain the parameter `verificationReport: String?` (no default): an entity-and-period package refuses a null or blank report and writes it as the root tag file `verification-report.txt`, listed in `tagmanifest-sha256.txt` and named in README.txt; a whole-tenant package refuses a report. `PackageVerifier` also checks the exact path `verification-report.txt` against the tag manifest when it is present or listed (`TAG_DIGEST_MISMATCH`, `TAG_FILE_NOT_LISTED`); a bag without it stays valid. The six content classes, `bag-info.txt` and the Payload-Oxum are unchanged (INV-REQ-988, INV-T-24774; INV-AC-24773).
+
 ## [2.5.0] - 2026-11-12
 ### Added
 - `EvidenceIndex.version` (optional `Int?`, default null) and `JdbcEvidenceLedger(versionColumn = false)`: a ledger told its table has a nullable `version` column stores and reads back the document version of a DECISION_TRACE record; `append` refuses a version on another record type, a version below 1, or a version on a ledger not told of the column, with `IllegalArgumentException` before any statement. The version is outside the content hash; with `versionColumn` false the statements and `COLUMNS` are unchanged (INV-REQ-942, INV-T-20747; INV-AC-20746).

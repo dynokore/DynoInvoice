@@ -531,4 +531,58 @@ class PackageVerifierTest {
             assertTrue(PackageProblem(code, path) in problems(verify(files, failing))) { "$code $path" }
         }
     }
+
+    private val reportPath = "verification-report.txt"
+    private val reportBytes = "Result: PASSED\n".toByteArray()
+
+    private fun withReport(): MutableMap<String, ByteArray> {
+        val f = bag(full())
+        f[reportPath] = reportBytes
+        val tags = listOf("bagit.txt", "bag-info.txt", "README.txt", "manifest-sha256.txt", reportPath)
+        f["tagmanifest-sha256.txt"] = tags.joinToString("") { "${sha(f.getValue(it))}  $it\n" }.toByteArray()
+        return f
+    }
+
+    @Test
+    fun `INV-AC-24773 a bag with the report listed and intact is valid`() {
+        assertIs<PackageVerification.Valid>(verify(withReport()))
+    }
+
+    @Test
+    fun `INV-AC-24773 one changed byte of the report is one tag digest mismatch`() {
+        val f = withReport()
+        f[reportPath] = f.getValue(reportPath).also { it[0] = (it[0].toInt() xor 1).toByte() }
+        single(verify(f), TAG_DIGEST_MISMATCH, reportPath)
+    }
+
+    @Test
+    fun `INV-AC-24773 the report present with its tag line removed is not listed`() {
+        val f = withReport()
+        f["tagmanifest-sha256.txt"] =
+            String(f.getValue("tagmanifest-sha256.txt"))
+                .lines()
+                .filterNot { it.endsWith(reportPath) || it.isEmpty() }
+                .joinToString("") { it + "\n" }
+                .toByteArray()
+        single(verify(f), PackageProblemCode.TAG_FILE_NOT_LISTED, reportPath)
+    }
+
+    @Test
+    fun `INV-AC-24773 the tag line present and the report removed is a tag digest mismatch`() {
+        val f = withReport()
+        f.remove(reportPath)
+        single(verify(f), TAG_DIGEST_MISMATCH, reportPath)
+    }
+
+    @Test
+    fun `INV-AC-24773 a bag with neither the report nor its line is valid`() {
+        assertIs<PackageVerification.Valid>(verify(bag(full())))
+    }
+
+    @Test
+    fun `INV-AC-24773 a changed file with a look-alike name is not checked as the report`() {
+        val f = bag(full())
+        f["Verification-Report.txt"] = byteArrayOf(1, 2, 3)
+        assertIs<PackageVerification.Valid>(verify(f))
+    }
 }
