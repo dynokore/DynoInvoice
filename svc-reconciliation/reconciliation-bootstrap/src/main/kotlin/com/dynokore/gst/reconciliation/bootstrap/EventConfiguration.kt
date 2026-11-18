@@ -16,7 +16,10 @@ import org.springframework.context.annotation.Configuration
 class EventConfiguration {
     @Bean
     fun eventCatalogue(): EventCatalogue =
-        EventCatalogue(ReconciliationEvents.entries + ReconciliationEvents.consumedEntries)
+        EventCatalogue(
+            ReconciliationEvents.entries + ReconciliationEvents.consumedEntries +
+                ReconciliationEvents.platformConsumedEntries,
+        )
 }
 
 object ReconciliationEvents {
@@ -80,4 +83,20 @@ object ReconciliationEvents {
                 retainedWhileResolvable = false,
             ),
         )
+
+    /**
+     * The platform event the service consumes for its policy replica (INV-REQ-982 item 3): every service may emit it,
+     * as svc-evidence declares the same entry; type and topic come from product-runtime.
+     */
+    val platformConsumedEntries: List<CatalogueEntry> =
+        listOf(PlatformEventCatalogue.POLICY_CHANGED).map {
+            CatalogueEntry(
+                it.eventType,
+                checkNotNull(it.topic),
+                setOf(CatalogueEntry.EVERY_SERVICE),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            )
+        }
 }

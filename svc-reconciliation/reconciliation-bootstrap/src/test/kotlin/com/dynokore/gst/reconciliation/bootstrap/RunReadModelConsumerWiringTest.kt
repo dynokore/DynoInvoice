@@ -66,7 +66,10 @@ class RunReadModelConsumerWiringTest {
         ReconciliationContext.offline(dir).run { context ->
             val catalogue = context.getBean(EventCatalogue::class.java)
             val entries = catalogue.entries().toList()
-            entries.size shouldBe ReconciliationEvents.entries.size + 3
+            entries.size shouldBe ReconciliationEvents.entries.size + 4
+            ReconciliationEvents.platformConsumedEntries.map { it.eventType to it.topic } shouldContainExactly
+                listOf("com.dynokore.gst.platform.PolicyChanged.v1" to "gst.platform.policy-changed.v1")
+            entries.containsAll(ReconciliationEvents.platformConsumedEntries) shouldBe true
             ReconciliationEvents.entries.forEach { produced -> entries.contains(produced) shouldBe true }
             ReconciliationEvents.topicByType.keys shouldBe
                 setOf(
