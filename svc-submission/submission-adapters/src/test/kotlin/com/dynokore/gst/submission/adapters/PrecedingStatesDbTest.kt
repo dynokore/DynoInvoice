@@ -129,6 +129,13 @@ class PrecedingStatesDbTest {
         read(t2, p4) shouldBe listOf(LifecycleState.ACKNOWLEDGED)
         read(t2, p1) shouldBe null
         read(t1, p4) shouldBe null
+        // The bound tenant is T1 but the call names T2: the explicit predicate of the register query decides.
+        SignedBindings.bind(connection, t1)
+        try {
+            reader.of(TenantId(t2), p1) shouldBe null
+        } finally {
+            connection.rollback()
+        }
     }
 
     @Test
