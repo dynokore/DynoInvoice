@@ -154,3 +154,6 @@ POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request 
 # Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
 # After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
 POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request property `gate` was restricted to a list of enum values
+# INV-T-25184 (answered design question on the request-enumeration findings, owner 2026-11-18 "Accept all 42 recommendations", option A; breakdown tooling/gap25007-gap.md) on INV-Q-3569's reasoning (no train is published and no consumer is deployed): CreateConnectionRequest externalService and environmentTag lose x-extensible-enum; the enum members are unchanged and the generated request type is closed (masterdata 1.24.0 to 1.25.0).
+POST /internal/v1/masterdata/connections request property `environmentTag` was restricted to a list of enum values
+POST /internal/v1/masterdata/connections request property `externalService` was restricted to a list of enum values

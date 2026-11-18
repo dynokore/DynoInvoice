@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: masterdata API
-  version: 1.24.0
+  version: 1.25.0
   description: >-
     Contract-first source of truth for masterdata (API-01, STK-44). The
     `masterdata-contract` module generates its server interfaces and DTOs
@@ -1992,13 +1992,11 @@ components:
         externalService:
           type: string
           enum: [DIRECTORY, CHECK_GST_REGISTER, RATE_SOURCE]
-          x-extensible-enum: true
         endpoint: { type: string, format: uri, maxLength: 512 }
         credentialRef: { type: string, maxLength: 100, description: 'The secret-store key, never the secret.' }
         environmentTag:
           type: string
           enum: [PRODUCTION, SANDBOX]
-          x-extensible-enum: true
         ownerService: { type: string, maxLength: 40 }
         credentialExpiresAt: { type: string, format: date-time, description: When the credential expires; drives the expiry reminder (INV-REQ-837). }
       required: [externalService, endpoint, credentialRef, environmentTag, ownerService]
