@@ -1,0 +1,3 @@
+file	pointer	relation	value	requirement
+openapi.yaml	/components/schemas/AlertPolicyRequest/properties/channels/items/x-extensible-enum	absent	-	INV-REQ-957
+openapi.yaml	/components/schemas/AlertPolicyRequest/properties/channels/items/enum	equals	["EMAIL","SMS","WEBHOOK","CHAT_WEBHOOK"]	INV-REQ-957

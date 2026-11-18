@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: notification API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for notification (API-01, STK-44). The
     `notification-contract` module generates its server interfaces and DTOs
@@ -1224,7 +1224,6 @@ components:
           items:
             type: string
             enum: [EMAIL, SMS, WEBHOOK, CHAT_WEBHOOK]
-            x-extensible-enum: true
         escalationTiers:
           type: array
           description: >-
