@@ -63,7 +63,8 @@ class WorkPaperSourceDbTest : RunStoreDbFixture() {
                 line(comparison("1", "100.00", "90.00", "10.00"), "10.00"),
                 line(comparison("2", "50.5", "47.5", "3"), "3"),
             )
-        val run = record(tenant, "2026-11-19T09:00:00Z", outcome(lines = lines).copy(unmappedLines = listOf(UnmappedLine(UUID.randomUUID().toString(), 1, 3, "XX")))).runId
+        val unmapped = listOf(UnmappedLine(UUID.randomUUID().toString(), 1, 3, "XX"))
+        val run = record(tenant, "2026-11-19T09:00:00Z", outcome(lines = lines).copy(unmappedLines = unmapped)).runId
         val annotated =
             asTenant(tenant) {
                 session.runner.inTransaction {
@@ -121,9 +122,13 @@ class WorkPaperSourceDbTest : RunStoreDbFixture() {
                 names == names.sorted() && node.properties().all { sortedKeys(it.value) }
             }
 
-            node.isArray -> node.all { sortedKeys(it) }
+            node.isArray -> {
+                node.all { sortedKeys(it) }
+            }
 
-            else -> true
+            else -> {
+                true
+            }
         }
 
     @Test

@@ -188,6 +188,21 @@ class WorkPaperSealWiringTest {
     }
 
     @Test
+    fun `INV-AC-24381 the context holds exactly one SealWorkPaper bean and no bean fires it`(
+        @TempDir dir: Path,
+    ) {
+        val store = FakeStore()
+        val before = count("select count(*) from reconciliation.work_paper_seal")
+        runner(dir, store).run { context ->
+            context.startupFailure shouldBe null
+            context.getBeansOfType(SealWorkPaper::class.java).size shouldBe 1
+            store.puts.size shouldBe 0
+            // the seal table is shared by the other cases: no row is added by starting the context
+            count("select count(*) from reconciliation.work_paper_seal") shouldBe before
+        }
+    }
+
+    @Test
     fun `INV-AC-24183 a rolled-back transaction leaves neither a seal row nor an outbox row`(
         @TempDir dir: Path,
     ) {
