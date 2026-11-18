@@ -39,3 +39,7 @@ irasFilingReference	property	schemas/gst-return-recorded-payload.schema.json	INV
 Attestation.soleAttester	schema_property	openapi.yaml	INV-REQ-947
 acknowledgedBy	property	openapi.yaml	INV-REQ-947
 acknowledgedOn	property	openapi.yaml	INV-REQ-947
+attestWorkPaper.PER-017	operation_error_code	openapi.yaml	INV-REQ-947
+attestWorkPaper.PER-018	operation_error_code	openapi.yaml	INV-REQ-947
+attestWorkPaper.403	operation_response	openapi.yaml	INV-REQ-947
+attestWorkPaper.409	operation_response	openapi.yaml	INV-REQ-947
