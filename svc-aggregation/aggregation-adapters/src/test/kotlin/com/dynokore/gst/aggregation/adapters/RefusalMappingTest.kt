@@ -59,7 +59,10 @@ class RefusalMappingTest {
                 aggregateId: UUID,
             ) = Unit
 
-            override fun recordLate(window: com.dynokore.gst.aggregation.application.OpenWindow) = Unit
+            override fun recordLate(
+                window: com.dynokore.gst.aggregation.application.OpenWindow,
+                part: com.dynokore.gst.aggregation.domain.WindowPart,
+            ) = false
         }
 
     private val noAggregates =
@@ -149,6 +152,11 @@ class RefusalMappingTest {
                     windows,
                     store,
                     noReplaced,
+                    { _, _, _ -> PeriodSpans.Unknown },
+                    {},
+                    object : com.dynokore.platform.tenancykernel.TransactionRunner {
+                        override fun <T> inTransaction(block: () -> T): T = block()
+                    },
                 )
             send(controller, 5) shouldBe 202
 

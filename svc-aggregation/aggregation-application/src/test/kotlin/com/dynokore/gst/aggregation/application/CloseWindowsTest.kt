@@ -85,7 +85,10 @@ class CloseWindowsTest {
             closedParts += window to part
         }
 
-        override fun recordLate(window: OpenWindow) = Unit
+        override fun recordLate(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = false
     }
 
     private class Published : WindowChangePublisher {
@@ -232,7 +235,10 @@ class CloseWindowsTest {
             aggregateId: UUID,
         ) = error("a replayed part is not closed again")
 
-        override fun recordLate(window: OpenWindow) = Unit
+        override fun recordLate(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = false
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.Aggregate.C
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateTransaction.Companion.AGGREGATE_TRANSACTION
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindow.Companion.AGGREGATE_WINDOW
 import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindowPart.Companion.AGGREGATE_WINDOW_PART
+import com.dynokore.gst.aggregation.adapters.persistence.jooq.tables.AggregateWindowPartLate.Companion.AGGREGATE_WINDOW_PART_LATE
 import com.dynokore.gst.aggregation.application.LatePart
 import com.dynokore.gst.aggregation.application.OpenWindow
 import com.dynokore.gst.aggregation.application.Placement
@@ -25,8 +26,8 @@ import java.util.UUID
 
 /**
  * The windows of `aggregation.aggregate_window` (INV-REQ-1316, INV-REQ-435). A window is opened by the first
- * placement into it. A part of a closed window is recorded by [closePart] (INV-T-14463); [recordLate] belongs to
- * INV-T-14464 and fails closed until then. The late-transaction operations (INV-REQ-439) are the three last ones of the
+ * placement into it. A part of a closed window is recorded by [closePart] (INV-T-14463); [recordLate] records a part
+ * LATE (INV-T-24764). The late-transaction operations (INV-REQ-439) are the three last ones of the
  * port; the class implements every operation of the port, so the function count is suppressed.
  */
 @Suppress("TooManyFunctions")
@@ -99,14 +100,21 @@ class JooqWindowStore(
     ): Boolean =
         runner.inTransaction {
             val windowId = windowId(window) ?: return@inTransaction false
-            dsl.fetchExists(
-                dsl
-                    .selectFrom(AGGREGATE_WINDOW_PART)
-                    .where(AGGREGATE_WINDOW_PART.TENANT_ID.eq(tenants.current().value))
-                    .and(AGGREGATE_WINDOW_PART.WINDOW_ID.eq(windowId))
-                    .and(AGGREGATE_WINDOW_PART.PART_START.eq(part.start)),
-            )
+            partClosed(tenants.current().value, windowId, part)
         }
+
+    private fun partClosed(
+        tenant: UUID,
+        windowId: UUID,
+        part: WindowPart,
+    ): Boolean =
+        dsl.fetchExists(
+            dsl
+                .selectFrom(AGGREGATE_WINDOW_PART)
+                .where(AGGREGATE_WINDOW_PART.TENANT_ID.eq(tenant))
+                .and(AGGREGATE_WINDOW_PART.WINDOW_ID.eq(windowId))
+                .and(AGGREGATE_WINDOW_PART.PART_START.eq(part.start)),
+        )
 
     /**
      * Records the part with its aggregate and hands the transactions dated inside the part to that aggregate. The
@@ -357,6 +365,25 @@ class JooqWindowStore(
             .fetchOne()
             ?.value1()
 
-    override fun recordLate(window: OpenWindow): Unit =
-        throw UnsupportedOperationException("the closing run is built by INV-T-14464")
+    /**
+     * Records the closed [part] as LATE, once: the first call inserts the row and returns true, a later one inserts
+     * nothing and returns false. A part that is not closed is refused; nothing of the closed aggregate is written.
+     */
+    override fun recordLate(
+        window: OpenWindow,
+        part: WindowPart,
+    ): Boolean =
+        runner.inTransaction {
+            val tenant = tenants.current().value
+            val windowId = windowId(window)
+            check(windowId != null && partClosed(tenant, windowId, part)) { "only a closed part is recorded LATE" }
+            dsl
+                .insertInto(AGGREGATE_WINDOW_PART_LATE)
+                .set(AGGREGATE_WINDOW_PART_LATE.TENANT_ID, tenant)
+                .set(AGGREGATE_WINDOW_PART_LATE.WINDOW_ID, windowId)
+                .set(AGGREGATE_WINDOW_PART_LATE.PART_START, part.start)
+                .set(AGGREGATE_WINDOW_PART_LATE.PART_END, part.end)
+                .onConflictDoNothing()
+                .execute() == 1
+        }
 }

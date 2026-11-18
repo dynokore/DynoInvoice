@@ -9,6 +9,10 @@ import org.junit.jupiter.api.Test
 import java.time.LocalDate
 
 class IntakeTransactionsTest {
+    private object Direct : com.dynokore.platform.tenancykernel.TransactionRunner {
+        override fun <T> inTransaction(block: () -> T): T = block()
+    }
+
     private class Windows : WindowRepository {
         val placed = mutableListOf<LocalDate>()
         val units = mutableListOf<String>()
@@ -38,7 +42,10 @@ class IntakeTransactionsTest {
             aggregateId: java.util.UUID,
         ) = Unit
 
-        override fun recordLate(window: OpenWindow) = Unit
+        override fun recordLate(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = false
     }
 
     private class Store : TransactionRepository {
@@ -69,7 +76,13 @@ class IntakeTransactionsTest {
 
     private val windows = Windows()
     private val store = Store()
-    private val intake = IntakeTransactions({ _, type, _ -> Cadence.defaultFor(type) }, windows, store)
+    private val intake =
+        IntakeTransactions({ _, type, _ ->
+            Cadence.defaultFor(
+                type,
+            )
+        }, windows, store, { _, _, _ -> PeriodSpans.Unknown }, {
+        }, Direct)
 
     private fun tx(
         ref: String,
@@ -90,7 +103,15 @@ class IntakeTransactionsTest {
 
     @Test
     fun `a weekly cadence puts the transactions of one week in one window`() {
-        val weekly = IntakeTransactions({ _, _, _ -> Cadence.WEEKLY }, windows, store)
+        val weekly =
+            IntakeTransactions(
+                { _, _, _ -> Cadence.WEEKLY },
+                windows,
+                store,
+                { _, _, _ -> PeriodSpans.Unknown },
+                {},
+                Direct,
+            )
         val outcome = weekly.execute(command(tx("T1", LocalDate.of(2027, 4, 5)), tx("T2", LocalDate.of(2027, 4, 11))))
         outcome.placed
             .map { it.placement.window }

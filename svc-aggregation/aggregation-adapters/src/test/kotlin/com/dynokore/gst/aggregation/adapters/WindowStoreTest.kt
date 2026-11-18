@@ -9,9 +9,7 @@ import com.dynokore.gst.aggregation.domain.WindowPart
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
@@ -60,25 +58,6 @@ class WindowStoreTest {
                 "and table_name = 'aggregate' and column_name like 'window\\_%' order by 1",
         ) shouldBe listOf("window_end", "window_start", "window_state")
     }
-
-    private inline fun <reified T : Any> unused(): T =
-        java.lang.reflect.Proxy.newProxyInstance(T::class.java.classLoader, arrayOf(T::class.java)) { _, _, _ ->
-            error("not called")
-        } as T
-
-    private val store =
-        JooqWindowStore(DSL.using(SQLDialect.POSTGRES), unused<TransactionRunner>(), unused<TenantContext>())
-    private val day = LocalDate.of(2027, 3, 31)
-    private val window = OpenWindow("E-001", "BU-01", AggregateType.POS, AggregationWindow(day, day))
-
-    private fun failsClosed(call: () -> Unit) {
-        val failure = shouldThrow<UnsupportedOperationException> { call() }
-        failure.javaClass shouldBe UnsupportedOperationException::class.java
-        failure.message!! shouldContain "INV-T-14464"
-    }
-
-    @Test
-    fun `recordLate fails closed with the INV-T-14464 token`() = failsClosed { store.recordLate(window) }
 
     private fun d(
         m: Int,

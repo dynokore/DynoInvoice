@@ -6,10 +6,12 @@ import com.dynokore.gst.aggregation.application.DatedTransaction
 import com.dynokore.gst.aggregation.application.ExcludeReplacedReceipt
 import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.IntakeTransactions
+import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.PlacedTransaction
 import com.dynokore.gst.aggregation.application.ReplacedReceiptOutcome
 import com.dynokore.gst.aggregation.application.TransactionsCommand
 import com.dynokore.gst.aggregation.application.TransactionsOutcome
+import com.dynokore.gst.aggregation.application.WindowChangePublisher
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsReceipt
 import com.dynokore.gst.aggregation.contract.model.AggregationTransactionsRequest
@@ -21,6 +23,7 @@ import com.dynokore.gst.aggregation.domain.AggregateType
 import com.dynokore.gst.aggregation.domain.IntakeVerdict
 import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.serviceruntime.http.IngestionErrorCode
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -33,12 +36,16 @@ import java.util.UUID
  * (entityRef, sourceKey, sourceRevision) answers the receipt of the first call and stores nothing.
  */
 @RestController
+@Suppress("LongParameterList")
 open class TransactionIntakeController(
     intake: IntakeAggregate,
     private val cadences: CadenceSource,
     private val windows: WindowRepository,
     private val transactions: JooqTransactionStore,
     private val replaced: ExcludeReplacedReceipt,
+    private val periods: PeriodBoundarySource,
+    private val publisher: WindowChangePublisher,
+    private val runner: TransactionRunner,
 ) : IntakeController(intake) {
     override fun intakeAggregationTransactions(
         idempotencyKey: UUID,
@@ -60,17 +67,23 @@ open class TransactionIntakeController(
         type: AggregateType,
     ): ResponseEntity<AggregationTransactionsReceipt> {
         val outcome =
-            IntakeTransactions(cadences, windows, transactions.scoped(request.businessUnitRef, type))
-                .execute(
-                    TransactionsCommand(
-                        entityRef = request.entityRef,
-                        businessUnitRef = request.businessUnitRef,
-                        aggregateType = type,
-                        sourceKey = request.sourceKey,
-                        sourceRevision = request.sourceRevision.toLong(),
-                        transactions = request.transactions.map { dated(request, it) },
-                    ),
-                )
+            IntakeTransactions(
+                cadences,
+                windows,
+                transactions.scoped(request.businessUnitRef, type),
+                periods,
+                publisher,
+                runner,
+            ).execute(
+                TransactionsCommand(
+                    entityRef = request.entityRef,
+                    businessUnitRef = request.businessUnitRef,
+                    aggregateType = type,
+                    sourceKey = request.sourceKey,
+                    sourceRevision = request.sourceRevision.toLong(),
+                    transactions = request.transactions.map { dated(request, it) },
+                ),
+            )
         return if (outcome is TransactionsOutcome.SourceRevisionLower) {
             problem(IngestionErrorCode.SOURCE_REVISION_LOWER)
         } else {

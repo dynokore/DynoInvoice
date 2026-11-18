@@ -72,6 +72,9 @@ class PeriodSpansBoundaryTest {
                         windows,
                         context.getBean(JooqTransactionStore::class.java),
                         context.getBean(ExcludeReplacedReceipt::class.java),
+                        context.getBean(com.dynokore.gst.aggregation.application.PeriodBoundarySource::class.java),
+                        context.getBean(com.dynokore.gst.aggregation.application.WindowChangePublisher::class.java),
+                        context.getBean(com.dynokore.platform.tenancykernel.TransactionRunner::class.java),
                     ),
                 ).setControllerAdvice(NotAggregatableAdvice())
                 .addFilters<StandaloneMockMvcBuilder>(IntakeBodyCachingFilter())

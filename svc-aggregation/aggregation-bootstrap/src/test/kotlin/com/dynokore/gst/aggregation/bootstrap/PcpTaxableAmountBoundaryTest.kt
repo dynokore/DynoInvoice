@@ -53,6 +53,9 @@ class PcpTaxableAmountBoundaryTest {
                         kit.context.getBean(WindowRepository::class.java),
                         kit.context.getBean(JooqTransactionStore::class.java),
                         kit.context.getBean(ExcludeReplacedReceipt::class.java),
+                        kit.context.getBean(com.dynokore.gst.aggregation.application.PeriodBoundarySource::class.java),
+                        kit.context.getBean(com.dynokore.gst.aggregation.application.WindowChangePublisher::class.java),
+                        kit.context.getBean(com.dynokore.platform.tenancykernel.TransactionRunner::class.java),
                     ),
                 ).setControllerAdvice(NotAggregatableAdvice())
                 .addFilters<StandaloneMockMvcBuilder>(IntakeBodyCachingFilter())

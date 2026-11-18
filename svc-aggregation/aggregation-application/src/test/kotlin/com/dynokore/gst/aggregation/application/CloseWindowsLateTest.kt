@@ -74,7 +74,10 @@ class CloseWindowsLateTest {
             aggregateId: UUID,
         ) = Unit
 
-        override fun recordLate(window: OpenWindow) = Unit
+        override fun recordLate(
+            window: OpenWindow,
+            part: com.dynokore.gst.aggregation.domain.WindowPart,
+        ) = false
 
         override fun closedPartsWithLateTransactions() =
             if (!transmitted) {

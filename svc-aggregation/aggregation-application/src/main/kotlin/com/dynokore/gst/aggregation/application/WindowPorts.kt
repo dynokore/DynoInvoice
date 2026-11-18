@@ -80,8 +80,15 @@ interface WindowRepository {
         aggregateId: UUID,
     )
 
-    /** Records that [window] was reached after it had closed. */
-    fun recordLate(window: OpenWindow)
+    /**
+     * Records [part] of [window] as LATE: a transaction dated inside it reached aggregation after it had closed.
+     * Returns true only when this call inserted the row; a second call returns false and writes nothing. A part that
+     * is not closed is refused with an [IllegalStateException].
+     */
+    fun recordLate(
+        window: OpenWindow,
+        part: WindowPart,
+    ): Boolean
 
     /**
      * Whether [part] of [window] holds refunds or returns (transactions of a credit note) that no aggregate holds yet;
