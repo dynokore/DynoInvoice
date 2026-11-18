@@ -99,7 +99,14 @@ open class ReconciliationController(
             }
 
             AnnotationRefusal.RUN_ATTESTED -> {
-                error("RUN_ATTESTED has no ruled catalogue code for its 409 envelope")
+                envelope(
+                    ErrorCode.PER_019.code,
+                    HttpStatus.CONFLICT.value(),
+                    "Variance annotation refused",
+                    "The run is attested, so its work-paper is immutable; nothing is recorded.",
+                    "MANUAL",
+                    "Tax operations",
+                )
             }
         }
 

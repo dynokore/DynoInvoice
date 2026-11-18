@@ -1,5 +1,6 @@
 package com.dynokore.gst.reconciliation.adapters
 
+import com.dynokore.gst.catalogue.ErrorCode
 import com.dynokore.gst.reconciliation.adapters.http.PendingRetryAfter
 import com.dynokore.gst.reconciliation.adapters.http.ReconciliationController
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqReturnRecorded
@@ -10,6 +11,7 @@ import com.dynokore.gst.reconciliation.contract.model.AnnotateVarianceRequest
 import com.dynokore.gst.reconciliation.contract.model.VarianceAnnotation
 import com.dynokore.gst.reconciliation.domain.boxes.UnmappedLine
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.springframework.http.ResponseEntity
@@ -133,6 +135,34 @@ class AnnotateVarianceEndpointTest : RunStoreDbFixture() {
         val other = asTenant(UUID.randomUUID()) { controller.getWorkPaper(UUID.fromString(run)) }
         other.statusCode.value() shouldBe 404
         envelope(other).status shouldBe 404
+    }
+
+    @Test
+    fun `INV-AC-24379 an attested run answers 409 PER-019, adds no row, getWorkPaper returns attestation`() {
+        val t1 = UUID.randomUUID()
+        val run = seed(t1)
+        put(t1, run, "1", "TIMING_DIFFERENCE", listOf("DOC-1")).statusCode.value() shouldBe 200
+        ReconciliationDb.superuser().use { c ->
+            c
+                .prepareStatement(
+                    "insert into reconciliation.work_paper_attestation (tenant_id, run_id, attested_by, attested_at) " +
+                        "values (?, ?, ?, '2026-11-19T09:30:00Z')",
+                ).use {
+                    it.setObject(1, t1)
+                    it.setString(2, run)
+                    it.setString(3, USER)
+                    it.executeUpdate()
+                }
+        }
+        val refused = put(t1, run, "1", "TIMING_DIFFERENCE", listOf("DOC-3"))
+        refused.statusCode.value() shouldBe 409
+        envelope(refused).code shouldBe ErrorCode.PER_019.code
+        envelope(refused).code shouldNotBe "SRT-008"
+        envelope(refused).code shouldNotBe ErrorCode.PER_018.code
+        envelope(refused).status shouldBe 409
+        rows(run) shouldBe 1L
+        val paper = asTenant(t1) { controller.getWorkPaper(UUID.fromString(run)) }.body!!
+        paper.attestation!!.attestedBy shouldBe USER
     }
 
     @Test
