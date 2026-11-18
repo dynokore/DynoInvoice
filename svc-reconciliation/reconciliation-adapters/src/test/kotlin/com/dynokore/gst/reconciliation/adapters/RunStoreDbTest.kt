@@ -1,6 +1,5 @@
 package com.dynokore.gst.reconciliation.adapters
 
-import com.dynokore.gst.reconciliation.adapters.http.ReconciliationController
 import com.dynokore.gst.reconciliation.adapters.http.RunsController
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqCompletedRuns
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqRunReader
@@ -552,9 +551,8 @@ class RunReadDbTest : RunStoreDbFixture() {
     }
 
     @Test
-    fun `INV-AC-24375 getReconciliation and every other operation of both controllers still answer 501`() {
+    fun `INV-AC-24375 every other operation of both controllers still answers 501`() {
         val id = UUID.randomUUID()
-        ReconciliationController().getReconciliation(ENTITY, PERIOD).statusCode.value() shouldBe 501
         controller.getWorkPaper(id).statusCode.value() shouldBe 501
         controller.exportWorkPaper(id, "PDF").statusCode.value() shouldBe 501
         RunsController::class.java.declaredMethods

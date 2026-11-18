@@ -36,6 +36,7 @@ gst:
   service: reconciliation-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 inv:
+  reconciliation.reads.pending-retry-after-seconds: 5 # Retry-After of the 503 PER-016 answer of getReconciliation (INV-REQ-657)
   tenancy:
     # tenant-free object of the schema that the start-up classification (TableClasses.verify, INV-ADR-3968 item 4a)
     # cannot see as library-declared: the sys-owned claim function of the queue (QueueSchema.CLAIM_DUE, a table-valued

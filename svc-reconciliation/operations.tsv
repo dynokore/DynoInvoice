@@ -1,6 +1,6 @@
 kind	id	task
 operation	uploadGstReturn	INV-T-24367
-operation	getReconciliation	UNASSIGNED
+operation	getReconciliation	INV-T-24421
 operation	listRuns	INV-T-24376
 operation	getRun	INV-T-24376
 operation	getWorkPaper	UNASSIGNED
