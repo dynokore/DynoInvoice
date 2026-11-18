@@ -100,8 +100,7 @@ open class ReturnsController(
 
     /**
      * A refusal is a client error, never a 5xx: PER-014 is the 422 of the contract (BLOCK, MANUAL, Tax operations); a
-     * version lower than a recorded one is a stale write (optimistic concurrency), RFC 9110 409 with the catalogue code
-     * SRT-008, through the contract `default` response.
+     * version lower than a recorded one is a state conflict, RFC 9110 409, through the contract `default` response.
      * The body of an error response is the envelope; the generated signature names the success type only.
      */
     @Suppress("UNCHECKED_CAST")
