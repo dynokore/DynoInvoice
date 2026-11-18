@@ -15,6 +15,7 @@ import com.dynokore.gst.aggregation.application.IntakeAggregate
 import com.dynokore.gst.aggregation.application.PeriodBoundarySource
 import com.dynokore.gst.aggregation.application.PeriodSpans
 import com.dynokore.gst.aggregation.application.ShortCodes
+import com.dynokore.gst.aggregation.application.WindowChangePublisher
 import com.dynokore.gst.aggregation.application.WindowRepository
 import com.dynokore.gst.aggregation.domain.Cadence
 import com.dynokore.gst.aggregation.domain.PeriodSpan
@@ -33,6 +34,7 @@ import com.dynokore.platform.serviceruntime.replica.StructureNode
 import com.dynokore.platform.serviceruntime.replica.StructureNodeKind
 import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantId
+import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
@@ -71,7 +73,8 @@ class LateTransactionBoundaryTest {
         private val handOn = context.getBean(HandOnAggregates::class.java)
         private val intake =
             IntakeAggregate(context.getBean(ShortCodes::class.java), context.getBean(AggregateRepository::class.java))
-        private val mvc: MockMvc =
+
+        private fun mvcWith(publisher: WindowChangePublisher): MockMvc =
             MockMvcBuilders
                 .standaloneSetup(
                     TransactionIntakeController(
@@ -80,18 +83,21 @@ class LateTransactionBoundaryTest {
                         windows,
                         context.getBean(JooqTransactionStore::class.java),
                         context.getBean(ExcludeReplacedReceipt::class.java),
-                        context.getBean(com.dynokore.gst.aggregation.application.PeriodBoundarySource::class.java),
-                        context.getBean(com.dynokore.gst.aggregation.application.WindowChangePublisher::class.java),
-                        context.getBean(com.dynokore.platform.tenancykernel.TransactionRunner::class.java),
+                        periods,
+                        publisher,
+                        context.getBean(TransactionRunner::class.java),
                     ),
                 ).setControllerAdvice(NotAggregatableAdvice())
                 .addFilters<StandaloneMockMvcBuilder>(IntakeBodyCachingFilter())
                 .build()
 
+        private val mvc: MockMvc = mvcWith(context.getBean(WindowChangePublisher::class.java))
+
         init {
             val structure = context.getBean(StructureReplica::class.java)
             listOf(
                 Triple("E-001", StructureNodeKind.ENTITY, "E"),
+                Triple("E-002", StructureNodeKind.ENTITY, "F"),
                 Triple("BU-01", StructureNodeKind.BUSINESS_UNIT, "B"),
             ).forEach {
                 structure.accept(
@@ -108,18 +114,21 @@ class LateTransactionBoundaryTest {
         fun send(
             ref: String,
             key: String,
+            entity: String = "E-001",
+            date: LocalDate = day,
+            via: MockMvc = mvc,
         ): MockHttpServletResponse =
             scope.bind(TenantId(tenant), actor) {
                 CorrelationContext.withCorrelation(CorrelationId("3fa85f64-5717-4562-b3fc-2c963f66afa6")) {
-                    mvc
+                    via
                         .perform(
                             post("/internal/v1/aggregation/transactions")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .header("Idempotency-Key", UUID.randomUUID().toString())
                                 .content(
-                                    """{"entityRef":"E-001","businessUnitRef":"BU-01","aggregateType":"PCP",
+                                    """{"entityRef":"$entity","businessUnitRef":"BU-01","aggregateType":"PCP",
                                     |"underlyingRef":"BATCH-1","sourceKey":"$key","sourceRevision":1,
-                                    |"transactions":[{"transactionRef":"$ref","transactionDate":"$day",
+                                    |"transactions":[{"transactionRef":"$ref","transactionDate":"$date",
                                     |"internalTaxCode":"SR-STD","amount":"10.00","claimableInputTax":"10.00"}]}
                                     """.trimMargin(),
                                 ),
@@ -128,8 +137,25 @@ class LateTransactionBoundaryTest {
                 }
             }
 
-        fun close(on: LocalDate) {
-            scope.bind(TenantId(tenant), actor) { CloseWindows(windows, periods, intake) {}.execute(on) }
+        /** The controller of the real beans whose publisher fails after it appended the event (a rollback probe). */
+        fun failingAfterPublish(): MockMvc {
+            val real = context.getBean(WindowChangePublisher::class.java)
+            return mvcWith(
+                WindowChangePublisher {
+                    real.changed(it)
+                    error("the intake fails after the event was appended")
+                },
+            )
+        }
+
+        fun close(
+            on: LocalDate,
+            publisher: WindowChangePublisher = WindowChangePublisher {},
+        ) {
+            scope.bind(TenantId(tenant), actor) {
+                // the real publisher keeps its counter in the transaction of the caller, as the closing job does
+                scope.transactions.inTransaction { CloseWindows(windows, periods, intake, publisher).execute(on) }
+            }
         }
 
         fun handOn(): Int =
@@ -279,5 +305,91 @@ class LateTransactionBoundaryTest {
             aggregates(boundary.tenant) shouldBe listOf(a)
             assigned(boundary.tenant, "T-LATE") shouldBe "null"
             rowOf(a) shouldBe rowA
+        }
+
+    private fun lateRows(tenant: UUID) =
+        rows(
+            "select w.entity_ref || ':' || l.part_start || '..' || l.part_end from " +
+                "aggregation.aggregate_window_part_late l join aggregation.aggregate_window w " +
+                "on w.window_id = l.window_id where l.tenant_id = '$tenant' order by 1",
+        )
+
+    private fun events(tenant: UUID) =
+        rows(
+            "select (data->>'entityRef') || ':' || (data->>'state') || ':' || (data->>'stateVersion') || ':' || " +
+                "coalesce(data->>'aggregateId', 'none') from aggregation.outbox " +
+                "where tenant_id = '$tenant' and type like '%AggregateWindowChanged%' order by seq",
+        )
+
+    private fun transactionRows(tenant: UUID) =
+        rows(
+            "select to_jsonb(t)::text from aggregation.aggregate_transaction t where tenant_id = '$tenant' " +
+                "and aggregate_id is not null order by transaction_ref",
+        )
+
+    @Test
+    fun `INV-AC-24763 a transaction dated inside a closed part records it LATE once and publishes LATE once`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant
+            boundary.send("T-FIRST", "K-1").status shouldBe 202
+            boundary.send("T-E2", "K-E2", entity = "E-002").status shouldBe 202
+            boundary.close(tick, boundary.context.getBean(WindowChangePublisher::class.java))
+            val agg1 = aggregates(tenant).first()
+            val rowsBefore = aggregates(tenant).map { rowOf(it) to linesOf(it) }
+            val transactionsBefore = transactionRows(tenant)
+            events(tenant).size shouldBe 2
+
+            boundary.send("T-LATE", "K-2").status shouldBe 202
+            assigned(tenant, "T-LATE") shouldBe "null"
+            lateRows(tenant) shouldBe listOf("E-001:2027-03-10..2027-03-10")
+            events(tenant).filter { it.startsWith("E-001:") } shouldBe
+                listOf("E-001:CLOSED:1:$agg1", "E-001:LATE:2:none")
+
+            boundary.send("T-LATE2", "K-3").status shouldBe 202
+            assigned(tenant, "T-LATE2") shouldBe "null"
+            lateRows(tenant) shouldBe listOf("E-001:2027-03-10..2027-03-10")
+            events(tenant).count { it.startsWith("E-001:LATE") } shouldBe 1
+
+            boundary.send("T-OPEN", "K-4", date = LocalDate.of(2027, 3, 20)).status shouldBe 202
+            assigned(tenant, "T-OPEN") shouldBe "null"
+            lateRows(tenant) shouldBe listOf("E-001:2027-03-10..2027-03-10")
+            events(tenant).size shouldBe 3
+
+            boundary.send("T-E2-LATE", "K-E2L", entity = "E-002").status shouldBe 202
+            lateRows(tenant) shouldBe
+                listOf("E-001:2027-03-10..2027-03-10", "E-002:2027-03-10..2027-03-10")
+            events(tenant).filter { it.startsWith("E-002:") }.map { it.substringBeforeLast(":") } shouldBe
+                listOf("E-002:CLOSED:1", "E-002:LATE:2")
+
+            aggregates(tenant).map { rowOf(it) to linesOf(it) } shouldBe rowsBefore
+            transactionRows(tenant) shouldBe transactionsBefore
+        }
+
+    @Test
+    fun `INV-AC-24763 the LATE row and its event roll back together when the intake fails after the event`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            val tenant = boundary.tenant
+            boundary.send("T-FIRST", "K-1").status shouldBe 202
+            boundary.close(tick, boundary.context.getBean(WindowChangePublisher::class.java))
+            val eventsBefore = events(tenant)
+            val versionsBefore =
+                rows("select state_version::text from aggregation.window_state_version where tenant_id = '$tenant'")
+
+            runCatching { boundary.send("T-LATE", "K-2", via = boundary.failingAfterPublish()) }.isFailure shouldBe true
+
+            lateRows(tenant) shouldBe emptyList()
+            events(tenant) shouldBe eventsBefore
+            rows(
+                "select state_version::text from aggregation.window_state_version where tenant_id = '$tenant'",
+            ) shouldBe
+                versionsBefore
+            rows(
+                "select count(*)::text from aggregation.aggregate_transaction where tenant_id = '$tenant' " +
+                    "and transaction_ref = 'T-LATE'",
+            ) shouldBe listOf("0")
         }
 }

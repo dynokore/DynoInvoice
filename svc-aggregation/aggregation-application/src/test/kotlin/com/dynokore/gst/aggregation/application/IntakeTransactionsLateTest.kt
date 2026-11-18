@@ -37,6 +37,7 @@ class IntakeTransactionsLateTest {
     private val recorded = mutableListOf<Late>()
     private val published = mutableListOf<Pair<WindowChange, Boolean>>()
     private val closedWrites = mutableListOf<UUID>()
+    private val order = mutableListOf<String>()
     private val lateKeys = mutableSetOf<Pair<String, LocalDate>>()
 
     /** The closed parts: (entity, part start). */
@@ -67,10 +68,26 @@ class IntakeTransactionsLateTest {
                 closedWrites += aggregateId
             }
 
+            override fun closeCreditNotes(
+                window: OpenWindow,
+                part: WindowPart,
+                aggregateId: UUID,
+            ) {
+                closedWrites += aggregateId
+            }
+
+            override fun assignLate(
+                late: LatePart,
+                aggregateId: UUID,
+            ) {
+                closedWrites += aggregateId
+            }
+
             override fun recordLate(
                 window: OpenWindow,
                 part: WindowPart,
             ): Boolean {
+                order += "recordLate"
                 recorded += Late(window, part, depth > 0)
                 return lateKeys.add(window.entityRef to part.start)
             }
@@ -97,6 +114,7 @@ class IntakeTransactionsLateTest {
                 sourceRevision: Long,
                 placed: List<PlacedTransaction>,
             ) {
+                order += "store"
                 stored += placed
             }
         }
@@ -115,7 +133,10 @@ class IntakeTransactionsLateTest {
         )
 
     private val publisher =
-        WindowChangePublisher { published += it to (depth > 0) }
+        WindowChangePublisher {
+            order += "publish"
+            published += it to (depth > 0)
+        }
 
     private val intake =
         IntakeTransactions({ _, _, _ -> Cadence.WEEKLY }, windows, store, { _, _, _ -> spans }, publisher, runner)
@@ -153,6 +174,8 @@ class IntakeTransactionsLateTest {
         store.stored.size shouldBe 1
         outcome.placed.size shouldBe 1
         closedWrites shouldBe emptyList()
+        order shouldBe listOf("recordLate", "publish", "store")
+        store.stored.map { it.transaction.transactionRef } shouldBe listOf("T0-2027-03-30")
     }
 
     @Test
@@ -162,6 +185,8 @@ class IntakeTransactionsLateTest {
         recorded.size shouldBe 2
         published.size shouldBe 1
         store.stored.size shouldBe 2
+        closedWrites shouldBe emptyList()
+        order shouldBe listOf("recordLate", "publish", "store", "recordLate", "store")
     }
 
     @Test
@@ -170,6 +195,8 @@ class IntakeTransactionsLateTest {
         recorded shouldBe emptyList()
         published shouldBe emptyList()
         store.stored.size shouldBe 1
+        closedWrites shouldBe emptyList()
+        order shouldBe listOf("store")
     }
 
     @Test
