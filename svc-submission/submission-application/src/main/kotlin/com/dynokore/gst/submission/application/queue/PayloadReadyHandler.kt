@@ -4,6 +4,8 @@ import com.dynokore.gst.submission.application.arrival.ArrivalPlanning
 import com.dynokore.gst.submission.application.arrival.CodeRaising
 import com.dynokore.gst.submission.application.arrival.ScopeCheck
 import com.dynokore.gst.submission.application.arrival.ScopeOutcome
+import com.dynokore.gst.submission.application.ordering.CreditNoteHold
+import com.dynokore.gst.submission.application.ordering.HoldOutcome
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -38,6 +40,7 @@ class PayloadReadyHandler(
     private val planning: ArrivalPlanning,
     private val raising: CodeRaising,
     private val scopeCheck: ScopeCheck,
+    private val hold: CreditNoteHold,
 ) : EventHandler {
     @Suppress("ReturnCount") // duplicate, blocked by the scope check, applied: the three outcomes of the arrival step
     override fun handle(event: Envelope): HandleOutcome {
@@ -80,7 +83,10 @@ class PayloadReadyHandler(
         return HandleOutcome.APPLIED
     }
 
-    /** Plans the arrival, enqueues in the lane of the plan and raises the codes, in the open transaction. */
+    /**
+     * Plans the arrival, raises the codes of the plan, then applies the credit note hold (INV-AC-24521): a held version
+     * is not enqueued; otherwise it is enqueued in the lane of the hold or, when it names none, of the plan.
+     */
     private fun plan(
         tenant: TenantId,
         docUuid: String,
@@ -88,12 +94,15 @@ class PayloadReadyHandler(
     ) {
         val earlier = inFlight.lockVersions(tenant, docUuid).filter { it.version < version }.map { it.state }
         val plan = planning.plan(tenant, docUuid, earlier)
-        queue.enqueue(docUuid, version, plan.lane)
         if (plan.codes.isNotEmpty()) {
             // A non-empty code list implies the register keys are set (ArrivalPlanning.planFirst).
             val entityRef = checkNotNull(plan.entityRef)
             val periodRef = checkNotNull(plan.periodRef)
             raising.raise(tenant, docUuid, version, entityRef, periodRef, plan.codes)
+        }
+        when (val outcome = hold.onArrival(tenant, docUuid, version, earlier.isEmpty())) {
+            HoldOutcome.Held -> Unit
+            is HoldOutcome.Proceed -> queue.enqueue(docUuid, version, outcome.lane ?: plan.lane)
         }
     }
 }

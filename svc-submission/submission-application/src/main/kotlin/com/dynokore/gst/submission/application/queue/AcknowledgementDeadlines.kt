@@ -1,8 +1,6 @@
 package com.dynokore.gst.submission.application.queue
 
 import com.dynokore.gst.submission.application.drain.SafetyMarginAnswer
-import com.dynokore.gst.submission.application.pack.MarginUnit
-import com.dynokore.gst.submission.application.pack.PackMargin
 import com.dynokore.gst.submission.domain.transitions.AcknowledgementDeadline
 import com.dynokore.platform.tenancykernel.TenantId
 import java.time.Duration
@@ -43,17 +41,12 @@ class AcknowledgementDeadlines(
         val basis = read(tenant, docUuid)
         val dueDate = basis?.dueDate
         val answer = basis?.margin
-        return if (dueDate == null || answer !is SafetyMarginAnswer.Known) null else capOf(dueDate, answer.margin)
-    }
-
-    private fun capOf(
-        dueDate: LocalDate,
-        margin: PackMargin,
-    ): Instant {
-        val due = dueDate.plusDays(1).atStartOfDay(zone)
-        return when (margin.unit) {
-            MarginUnit.DAYS -> due.minusDays(margin.value.toLong()).toInstant()
-            MarginUnit.HOURS -> due.toInstant().minus(Duration.ofHours(margin.value.toLong()))
+        return if (dueDate == null ||
+            answer !is SafetyMarginAnswer.Known
+        ) {
+            null
+        } else {
+            DueMarginCap.of(dueDate, answer.margin, zone)
         }
     }
 
