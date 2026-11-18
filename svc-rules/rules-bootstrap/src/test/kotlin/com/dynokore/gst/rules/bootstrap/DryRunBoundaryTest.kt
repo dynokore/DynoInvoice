@@ -20,6 +20,7 @@ import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.withClue
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -824,6 +825,38 @@ class DryRunBoundaryTest(
             Thread.sleep(POLL_MILLIS)
         }
         error("the slow dry run did not end")
+    }
+
+    // ---- DryRunsController in its own interface, the parallel-constraint rule on (INV-AC-25015) ----
+
+    @Test
+    fun `INV-AC-25015 POST dryRun for a staged pack answers 200 or 202 and never 500`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3")))
+        val packId = candidate()
+        val answer = dryRun(packId)
+        withClue(answer.body()) { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
+        answer.body() shouldNotContain "HV000152"
+    }
+
+    @Test
+    fun `INV-AC-25015 GET getDryRun for the returned id answers 200 with the status resource and never 500`() {
+        samples.serve("2026-Q3", listOf(item(D1, "2026-Q3")))
+        val packId = candidate()
+        val answer = dryRun(packId)
+        withClue(answer.body()) { (answer.statusCode() == 200 || answer.statusCode() == 202) shouldBe true }
+        val id = if (answer.statusCode() == 202) json(answer).get("dryRunId").asString() else lastRunId(packId)
+        val read = getRun(packId, id)
+        withClue(read.body()) { read.statusCode() shouldBe 200 }
+        val status = json(read)
+        status.get("dryRunId").asString() shouldBe id
+        status.has("state") shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-25015 a packRef of 41 characters is refused 400 by the contract maxLength`() {
+        val before = snapshot()
+        refused(dryRun("P".repeat(41)), 400, SRT_001, before)
+        refused(getRun("P".repeat(41), UUID.randomUUID().toString()), 400, SRT_001, before)
     }
 
     @Test

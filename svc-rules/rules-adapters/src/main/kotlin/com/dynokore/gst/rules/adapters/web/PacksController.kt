@@ -39,8 +39,6 @@ import com.dynokore.gst.rules.contract.model.ActivatePackRequest
 import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPack
 import com.dynokore.gst.rules.contract.model.ActiveRegulatoryPackPage
 import com.dynokore.gst.rules.contract.model.DraftMappingPackRequest
-import com.dynokore.gst.rules.contract.model.DryRunRequest
-import com.dynokore.gst.rules.contract.model.DryRunResult
 import com.dynokore.gst.rules.contract.model.ImportMappingSpreadsheetRequest
 import com.dynokore.gst.rules.contract.model.ImportRegulatoryPackRequest
 import com.dynokore.gst.rules.contract.model.MapTaxCodeRequest
@@ -51,7 +49,6 @@ import com.dynokore.gst.rules.contract.model.MappingImportRecordPage
 import com.dynokore.gst.rules.contract.model.MappingImportRecordRejectedRowsInner
 import com.dynokore.gst.rules.contract.model.MappingPack
 import com.dynokore.gst.rules.contract.model.RegulatoryPack
-import com.dynokore.gst.rules.contract.model.RulesDryRunStatus
 import com.dynokore.gst.rules.domain.pack.PackStatus
 import com.dynokore.gst.rules.domain.pack.SourceClass
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
@@ -77,12 +74,7 @@ import java.util.UUID
 /**
  * The mapping pack and regulatory pack APIs of the rules contract (TPL-08); 501 until the task that implements an
  * operation (operations.tsv) overrides it.
- *
- * The contract tags `dryRun` and `getDryRun` with both tags, so the generator puts them in both interfaces with the
- * same
- * mapping. One controller must therefore implement both interfaces (two controllers would map the same path twice and
- * Spring MVC refuses to start), and Kotlin requires it to restate those two operations. They are stated here as the
- * explicit 501 and nowhere else; the operations gate (operations.tsv) reads such a body as a stub.
+ * The dry-run operations are in `DryRunsApi` (tag `dry-runs`), implemented by `DryRunsController`.
  */
 @Suppress("TooManyFunctions", "LongParameterList", "LargeClass") // one handler per operation; the wired use cases
 @RestController
@@ -97,7 +89,6 @@ open class PacksController(
     private val importRecords: JooqMappingImportRecordStore,
     private val catalogues: CodeCataloguePort,
     private val clock: Clock,
-    private val dryRuns: DryRunCalls,
     private val approvals: ApproveRegulatoryPack,
     private val importer: ImportRegulatoryPack,
     private val currency: PackCurrencyMonitor,
@@ -148,17 +139,6 @@ open class PacksController(
             .status(refusal.status)
             .header("Content-Type", "application/problem+json")
             .body(problemBody(refusal, correlationId()))
-
-    /** The dry-run capacity is in use: 503 SRT-013 with `Retry-After`; nothing is written. */
-    @ExceptionHandler(DryRunCapacityInUse::class)
-    fun capacityInUse(e: DryRunCapacityInUse): ResponseEntity<String> {
-        val refusal = unavailable(e.message.orEmpty())
-        return ResponseEntity
-            .status(refusal.status)
-            .header("Content-Type", "application/problem+json")
-            .header("Retry-After", e.retryAfterSeconds.toString())
-            .body(problemBody(refusal, correlationId()))
-    }
 
     /** A body that does not match the contract (unknown enum value, malformed JSON) is SRT-001; nothing is stored. */
     @ExceptionHandler(HttpMessageNotReadableException::class)
@@ -627,51 +607,6 @@ open class PacksController(
                 .toString()
                 .take(PACK_ID_HEX)
                 .uppercase()
-
-    // ---- the dry run (INV-T-4974; INV-REQ-772, INV-REQ-1303, INV-REQ-1352; INV-API-3473) ----
-
-    override fun dryRun(
-        packRef: String,
-        idempotencyKey: UUID,
-        dryRunRequest: DryRunRequest?,
-    ): ResponseEntity<DryRunResult> {
-        val window = DryRunWindows.of(dryRunRequest)
-        return when (val started = dryRuns.start(packRef, window)) {
-            is DryRunStarted.Finished -> {
-                val record = checkNotNull(readRun(packRef, started.dryRunId)) { "the run vanished" }
-                val result = DryRunMapping.resultOf(packRef, record)
-                if (result != null) ResponseEntity.ok(result) else accepted(packRef, record)
-            }
-
-            is DryRunStarted.Running -> {
-                accepted(packRef, checkNotNull(readRun(packRef, started.dryRunId)) { "the run vanished" })
-            }
-        }
-    }
-
-    @Suppress("UNCHECKED_CAST") // the 202 body is the status resource; the generated signature types the 200 body only
-    private fun accepted(
-        packRef: String,
-        record: DryRunRecord,
-    ): ResponseEntity<DryRunResult> =
-        ResponseEntity
-            .status(HttpStatus.ACCEPTED)
-            .header("Location", "/internal/v1/rules/packs/$packRef/dry-runs/${record.stored.dryRunId}")
-            .header("Retry-After", dryRuns.retryAfterSeconds.toString())
-            .body(DryRunMapping.statusOf(packRef, record, correlationId())) as ResponseEntity<DryRunResult>
-
-    private fun readRun(
-        packRef: String,
-        dryRunId: String,
-    ): DryRunRecord? = transactions.inTransaction { dryRuns.find(packRef, dryRunId) }
-
-    override fun getDryRun(
-        packRef: String,
-        dryRunId: String,
-    ): ResponseEntity<RulesDryRunStatus> {
-        val record = readRun(packRef, dryRunId) ?: throw checkNotNull(refusalOf(MappingPackResult.NotFound))
-        return ResponseEntity.ok(DryRunMapping.statusOf(packRef, record, correlationId()))
-    }
 }
 
 private const val PACK_ID_HEX = 8

@@ -1,5 +1,6 @@
 package com.dynokore.gst.rules.served
 
+import com.dynokore.gst.rules.adapters.web.DryRunsController
 import com.dynokore.gst.rules.adapters.web.EvaluationController
 import com.dynokore.gst.rules.adapters.web.PacksController
 import com.dynokore.gst.rules.bootstrap.RulesConfiguration
@@ -203,6 +204,7 @@ class ServedDoubles {
     RulesConfiguration::class,
     EvaluationController::class,
     PacksController::class,
+    DryRunsController::class,
     com.dynokore.gst.rules.adapters.web.ApiRefusalAdvice::class,
 )
 class ServedApplication {

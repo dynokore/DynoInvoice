@@ -1,21 +1,25 @@
 package com.dynokore.gst.rules.served
 
+import com.dynokore.gst.rules.adapters.web.DryRunsController
+import com.dynokore.gst.rules.adapters.web.EvaluationController
 import com.dynokore.gst.rules.adapters.web.PacksController
-import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import java.lang.reflect.InvocationTargetException
 import java.nio.file.Files
 import java.nio.file.Path
 
 private const val PROPERTY = "hibernate.validator.allow_parallel_method_parameter_constraint"
+private val CONTROLLERS =
+    listOf(PacksController::class.java, EvaluationController::class.java, DryRunsController::class.java)
 
 /**
- * PacksController overrides one operation of two generated interfaces: Hibernate Validator needs validation.xml.
- * The validator API is on the runtime classpath only (no new test dependency), so it is driven by reflection.
+ * The parallel-constraint rule of Hibernate Validator is on: no `validation.xml` relaxes it, and the metadata of every
+ * `@RestController` of rules-adapters builds without the property (INV-AC-25015). The validator API is on the runtime
+ * classpath only (no new test dependency), so it is driven by reflection.
  */
 class ValidationConfigTest {
-    private fun metadata(parallelAllowed: Boolean) {
+    private fun metadata(type: Class<*>) {
         try {
             val bootstrap =
                 Class
@@ -27,45 +31,42 @@ class ValidationConfigTest {
                     .forName("jakarta.validation.bootstrap.GenericBootstrap")
                     .getMethod("configure")
                     .invoke(bootstrap)
-            val type = Class.forName("jakarta.validation.Configuration")
-            type.getMethod("ignoreXmlConfiguration").invoke(configuration)
-            if (parallelAllowed) {
-                type
-                    .getMethod(
-                        "addProperty",
-                        String::class.java,
-                        String::class.java,
-                    ).invoke(configuration, PROPERTY, "true")
-            }
-            val factory = type.getMethod("buildValidatorFactory").invoke(configuration)
+            val configurationType = Class.forName("jakarta.validation.Configuration")
+            configurationType.getMethod("ignoreXmlConfiguration").invoke(configuration)
+            val factory = configurationType.getMethod("buildValidatorFactory").invoke(configuration)
             val validator =
                 Class
-                    .forName(
-                        "jakarta.validation.ValidatorFactory",
-                    ).getMethod("getValidator")
+                    .forName("jakarta.validation.ValidatorFactory")
+                    .getMethod("getValidator")
                     .invoke(factory)
             Class
                 .forName("jakarta.validation.Validator")
                 .getMethod("getConstraintsForClass", Class::class.java)
-                .invoke(validator, PacksController::class.java)
+                .invoke(validator, type)
         } catch (e: InvocationTargetException) {
             throw e.targetException
         }
     }
 
     @Test
-    fun `probe - without the setting validation xml carries the controller is refused with HV000152`() {
-        shouldThrow<Exception> { metadata(parallelAllowed = false) }.message shouldContain "HV000152"
+    fun `INV-AC-25015 the metadata of every RestController of rules-adapters builds with the rule on`() {
+        CONTROLLERS.forEach { metadata(it) }
     }
 
     @Test
-    fun `with the setting the controller metadata builds`() {
-        metadata(parallelAllowed = true)
+    fun `INV-AC-25015 validation xml does not exist`() {
+        Files.exists(Path.of("src/main/resources/META-INF/validation.xml")) shouldBe false
     }
 
     @Test
-    fun `the validation config file carries exactly that setting`() {
-        val xml = Files.readString(Path.of("src/main/resources/META-INF/validation.xml"))
-        xml shouldContain "<property name=\"$PROPERTY\">true</property>"
+    fun `INV-AC-25015 no source or resource of rules-adapters and rules-bootstrap sets the property`() {
+        val self = Path.of("src/test/kotlin/com/dynokore/gst/rules/served/ValidationConfigTest.kt").toAbsolutePath()
+        val hits =
+            listOf(Path.of("src"), Path.of("../rules-adapters/src"))
+                .filter { Files.isDirectory(it) }
+                .flatMap { root -> Files.walk(root).use { stream -> stream.filter(Files::isRegularFile).toList() } }
+                .filter { it.toAbsolutePath() != self }
+                .filter { runCatching { Files.readString(it) }.getOrDefault("").contains(PROPERTY) }
+        hits shouldBe emptyList()
     }
 }
