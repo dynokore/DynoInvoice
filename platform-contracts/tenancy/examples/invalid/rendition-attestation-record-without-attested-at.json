@@ -1,0 +1,6 @@
+{
+  "documentClass": "TAX_INVOICE",
+  "renderer": "AGENT",
+  "attestedBy": "identity:USR-009",
+  "sequence": 1
+}

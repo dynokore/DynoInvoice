@@ -1,0 +1,7 @@
+{
+  "documentClass": "TAX_INVOICE",
+  "renderer": "AGENT",
+  "attestedBy": "identity:USR-009",
+  "attestedAt": "2026-10-18T09:30:00Z",
+  "sequence": 1
+}

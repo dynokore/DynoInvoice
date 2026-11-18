@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 2.0.0
+  version: 2.1.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -3440,6 +3440,80 @@ paths:
           $ref: '#/components/responses/Error'
         default:
           $ref: '#/components/responses/Error'
+  /internal/v1/tenancy/entities/{entityRef}/rendition-attestations:
+    get:
+      operationId: listRenditionAttestations
+      summary: List the rendition attestation history of an entity (INV-REQ-1036)
+      description: >-
+        The attestation history read (INV-REQ-1036): every rendition attestation ever recorded for the entity, from the
+        append-only history of recordRenditionResponsibility, not only the current one. Each record has the document class,
+        the renderer, the acting user ID that attested (never a role), the attestation time and the history sequence number,
+        which is unique within the entity. console-bff composes this read with the sample check results held by the
+        evidence services. The operation is read-only and publishes no event.
+
+
+        The list pages by cursor (API-18): limit defaults to 100 and is at most 500 (a larger value is refused with 400);
+        cursor is opaque and integrity-protected, bound to the principal, filters and sort that produced it, and valid for
+        at least 24 hours (another filter, another principal or an expired cursor is refused with 400); the order is total
+        and unique: attestedAt ascending, then sequence ascending (sequence breaks ties because it is unique within the
+        entity, whereas one document class is attested more than once); nextCursor is omitted on the last page; there is
+        no offset and no total count.
+      tags:
+      - periods
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->tenancy-svc
+      x-timeout: 2000
+      x-requirements:
+      - INV-REQ-1036
+      x-error-codes: []
+      parameters:
+      - name: entityRef
+        in: path
+        required: true
+        description: The registered entity's opaque reference.
+        schema:
+          type: string
+          maxLength: 64
+        example: ENT-3F2A9C
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          maximum: 500
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          description: The attestation records of the entity, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RenditionAttestationRecordList'
+              examples:
+                default:
+                  value:
+                    items:
+                    - documentClass: TAX_INVOICE
+                      renderer: AGENT
+                      attestedBy: identity:USR-009
+                      attestedAt: "2026-10-18T09:30:00Z"
+                      sequence: 1
+        "400":
+          $ref: '#/components/responses/Error'
+        "401":
+          $ref: '#/components/responses/Error'
+        "403":
+          $ref: '#/components/responses/Error'
+        "404":
+          $ref: '#/components/responses/Error'
+        default:
+          $ref: '#/components/responses/Error'
 components:
   parameters:
     FlowContext:
@@ -4872,6 +4946,48 @@ components:
         attestedBy:
           type: string
           maxLength: 128
+    RenditionAttestationRecord:
+      type: object
+      required:
+      - documentClass
+      - renderer
+      - attestedBy
+      - attestedAt
+      - sequence
+      properties:
+        documentClass:
+          type: string
+          maxLength: 64
+        renderer:
+          type: string
+          enum:
+          - SELF
+          - AGENT
+          - AGGREGATOR
+          x-extensible-enum: true
+        attestedBy:
+          type: string
+          maxLength: 128
+          description: The acting user ID that attested, never a role.
+        attestedAt:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The history row number, unique within the entity.
+    RenditionAttestationRecordList:
+      type: object
+      required:
+      - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenditionAttestationRecord'
+        nextCursor:
+          type: string
     RenditionResponsibilityResponse:
       type: object
       required:

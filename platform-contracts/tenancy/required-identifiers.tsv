@@ -242,3 +242,4 @@ requestedAt	property	schemas/offboarding-export-requested-payload.schema.json	IN
 entityId	property	schemas/entity-profile-changed-payload.schema.json	INV-REQ-479
 # INV-T-21519: optional periodId member of each PeriodRecordsChanged period item (INV-REQ-479)
 periodId	property	schemas/period-records-changed-payload.schema.json	INV-REQ-479
+listRenditionAttestations	operation	openapi.yaml	INV-REQ-1036
