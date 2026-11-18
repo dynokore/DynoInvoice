@@ -7,6 +7,7 @@ import com.dynokore.gst.canonical.application.aggregate.AggregateDocumentJson
 import com.dynokore.gst.canonical.application.aggregate.MergedLine
 import com.dynokore.gst.canonical.application.aggregate.SupplierIdentity
 import tools.jackson.databind.json.JsonMapper
+import tools.jackson.databind.node.ArrayNode
 import tools.jackson.databind.node.ObjectNode
 import java.math.BigDecimal
 
@@ -38,18 +39,7 @@ class JacksonAggregateDocumentJson : AggregateDocumentJson {
             put("supplierId", supplier.supplierId)
             put("supplierGstn", supplier.supplierGstn)
         }
-        val taxByCode = amounts.subtotals.associate { it.categoryCode to it.taxAmount }
-        val lineArray = wrap(root, "lines", NONE).putArray(VALUE)
-        lines.forEachIndexed { index, line ->
-            lineArray.addObject().apply {
-                put("lineNumber", index + 1)
-                put("description", AGGREGATE_ITEM_NAME)
-                put("unitCode", AGGREGATE_UNIT)
-                put("taxCode", line.categoryCode)
-                put("lineAmount", text(line.amount))
-                put("taxAmount", text(checkNotNull(taxByCode[line.categoryCode])))
-            }
-        }
+        lines(wrap(root, "lines", NONE).putArray(VALUE), lines, amounts)
         val subtotals = wrap(root, "taxSubtotals", NONE).putArray(VALUE)
         amounts.subtotals.forEach {
             subtotals.addObject().apply {
@@ -64,6 +54,28 @@ class JacksonAggregateDocumentJson : AggregateDocumentJson {
             put("totalIncludingTax", text(amounts.totalIncludingTax))
         }
         return mapper.writeValueAsString(root)
+    }
+
+    private fun lines(
+        target: ArrayNode,
+        lines: List<MergedLine>,
+        amounts: AggregateAmounts,
+    ) {
+        val subtotalByCode = amounts.subtotals.associateBy { it.categoryCode }
+        lines.forEachIndexed { index, line ->
+            val subtotal =
+                checkNotNull(subtotalByCode[line.categoryCode]) { "no tax subtotal for ${line.categoryCode}" }
+            target.addObject().apply {
+                put("lineNumber", index + 1)
+                put("description", AGGREGATE_ITEM_NAME)
+                put("quantity", 1)
+                put("unitCode", AGGREGATE_UNIT)
+                put("unitPrice", text(subtotal.taxableAmount))
+                put("taxCode", line.categoryCode)
+                put("lineAmount", text(subtotal.taxableAmount))
+                put("taxAmount", text(subtotal.taxAmount))
+            }
+        }
     }
 
     private fun wrap(

@@ -46,12 +46,7 @@ class AggregateReadyHandler(
     private fun read(event: Envelope): AggregateInput {
         if (event.tenant.isPlatform) throw ContractViolation("the envelope carries no tenantid")
         val data = parse(event.dataJson)
-        val aggregateType = required(data, AGGREGATE_TYPE)
-        try {
-            AggregateDirection.of(aggregateType)
-        } catch (e: IllegalArgumentException) {
-            throw ContractViolation("$AGGREGATE_TYPE is not POS, STI or PCP", e)
-        }
+        val aggregateType = aggregateType(data)
         val window = data.get(WINDOW)?.takeUnless { it.isNull }
         if (window != null && !window.isObject) throw ContractViolation("$WINDOW is not an object")
         flag(data, IS_SUPPLEMENTARY)
@@ -68,21 +63,29 @@ class AggregateReadyHandler(
         )
     }
 
+    private fun aggregateType(data: JsonNode): String {
+        val type = required(data, AGGREGATE_TYPE)
+        try {
+            AggregateDirection.of(type)
+        } catch (e: IllegalArgumentException) {
+            throw ContractViolation("$AGGREGATE_TYPE is not POS, STI or PCP", e)
+        }
+        return type
+    }
+
     private fun lines(data: JsonNode): List<AggregateLine> {
         val node = data.get(LINES)
         if (node == null || !node.isArray) throw ContractViolation("$LINES is missing or not an array")
-        return buildList {
-            for (line in node) {
-                if (!line.isObject) throw ContractViolation("$LINES holds an element that is not an object")
-                add(
-                    AggregateLine(
-                        internalTaxCode = required(line, INTERNAL_TAX_CODE),
-                        amount = decimal(line, AMOUNT) ?: throw ContractViolation("$AMOUNT is missing"),
-                        taxableAmount = decimal(line, TAXABLE_AMOUNT),
-                    ),
-                )
-            }
-        }
+        return node.toList().map { line -> lineOf(line) }
+    }
+
+    private fun lineOf(line: JsonNode): AggregateLine {
+        if (!line.isObject) throw ContractViolation("$LINES holds an element that is not an object")
+        return AggregateLine(
+            internalTaxCode = required(line, INTERNAL_TAX_CODE),
+            amount = decimal(line, AMOUNT) ?: throw ContractViolation("$AMOUNT is missing"),
+            taxableAmount = decimal(line, TAXABLE_AMOUNT),
+        )
     }
 
     private fun decimal(

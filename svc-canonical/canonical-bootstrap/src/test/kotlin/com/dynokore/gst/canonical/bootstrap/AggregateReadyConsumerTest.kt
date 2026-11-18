@@ -171,7 +171,7 @@ class AggregateReadyConsumerTest {
     private fun count(sql: String): Int = rows(sql).single().single()!!.toInt()
 
     private fun subtotalsOf(doc: JsonNode) =
-        doc["taxSubtotals"]["value"].map {
+        doc["taxSubtotals"]["value"].toList().map {
             listOf(it["taxCode"].asString(), it["taxableAmount"].asString(), it["taxAmount"].asString())
         }
 
@@ -370,7 +370,7 @@ class AggregateReadyConsumerTest {
         supplier = SupplierAnswer.Retry("constitution unknown")
         send("ev-1", data())
         val failure = runCatching { consumer.pollOnce() }.exceptionOrNull()
-        (failure?.message ?: "").contains("constitution unknown") shouldBe true
+        failure?.message.orEmpty().contains("constitution unknown") shouldBe true
         versionRows() shouldBe 0
     }
 
@@ -382,7 +382,7 @@ class AggregateReadyConsumerTest {
         supplier = SupplierAnswer.Retry("masterdata refused: status 422 code MDM-005")
         send("ev-1", data())
         val failure = runCatching { consumer.pollOnce() }.exceptionOrNull()
-        (failure?.message ?: "").contains("MDM-005") shouldBe true
+        failure?.message.orEmpty().contains("MDM-005") shouldBe true
         versionRows() shouldBe 0
         outboxRows() shouldBe 0
         deadLetters() shouldBe 0
@@ -462,7 +462,7 @@ class AggregateReadyConsumerTest {
     }
 
     @Test
-    @Suppress("ktlint:standard:max-line-length")
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     fun `INV-AC-22852 PCP event with taxable amounts writes one PURCHASE document with tax subtotals and totals from the amounts`(
         @TempDir dir: Path,
     ) = run(dir) {
@@ -492,6 +492,78 @@ class AggregateReadyConsumerTest {
         consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 1)
         versionRows() shouldBe 0
         outboxRows() shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-22852 event with an unknown aggregate type is dead lettered`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        identityRow()
+        send("ev-1", data(type = "POSX"))
+        send("ev-2", data(type = "pos", id = "\"AGG-2\""))
+        consumer.pollOnce() shouldBe PollResult(applied = 0, ignored = 0, duplicates = 0, stale = 0, deadLettered = 2)
+        versionRows() shouldBe 0
+        outboxRows() shouldBe 0
+    }
+
+    @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
+    fun `INV-AC-22852 aggregate lines state quantity 1, the unit price and the line amount from the tax subtotal and the line tax`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        identityRow()
+        send("ev-1", data())
+        consumer.pollOnce()
+        assertLines(
+            canonical(),
+            listOf(listOf("SR", "150.25", "13.52"), listOf("ZR", "10.00", "0.00")),
+            "160.25",
+            "13.52",
+        )
+    }
+
+    @Test
+    fun `INV-AC-22852 PCP aggregate lines state the taxable amount as line amount and the claimable tax as line tax`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        identityRow()
+        rulesRate = { null }
+        send("ev-1", data(lines = purchaseLines, type = "PCP"))
+        consumer.pollOnce()
+        assertLines(
+            canonical(),
+            listOf(listOf("SR", "150.00", "13.00"), listOf("ZR", "20.00", "0.00")),
+            "170.00",
+            "13.00",
+        )
+    }
+
+    private fun assertLines(
+        doc: JsonNode,
+        expected: List<List<String>>,
+        totalExcl: String,
+        totalTax: String,
+    ) {
+        doc["lines"]["classification"].asString() shouldBe "NONE"
+        val lines = doc["lines"]["value"].toList()
+        lines.map {
+            listOf(it["taxCode"].asString(), it["lineAmount"].asString(), it["taxAmount"].asString())
+        } shouldBe expected
+        lines.forEach {
+            it["quantity"].isNumber shouldBe true
+            it["quantity"].decimalValue().compareTo(java.math.BigDecimal.ONE) shouldBe 0
+            it["unitCode"].asString() shouldBe "LOT"
+            it["unitPrice"].asString() shouldBe it["lineAmount"].asString()
+            (it["quantity"].decimalValue() * java.math.BigDecimal(it["unitPrice"].asString()))
+                .compareTo(java.math.BigDecimal(it["lineAmount"].asString())) shouldBe 0
+        }
+        lines
+            .fold(java.math.BigDecimal.ZERO) { a, l -> a + java.math.BigDecimal(l["lineAmount"].asString()) }
+            .compareTo(java.math.BigDecimal(totalExcl)) shouldBe 0
+        lines
+            .fold(java.math.BigDecimal.ZERO) { a, l -> a + java.math.BigDecimal(l["taxAmount"].asString()) }
+            .compareTo(java.math.BigDecimal(totalTax)) shouldBe 0
+        schemaErrors(doc.toString()).shouldBeEmpty()
     }
 
     @Test

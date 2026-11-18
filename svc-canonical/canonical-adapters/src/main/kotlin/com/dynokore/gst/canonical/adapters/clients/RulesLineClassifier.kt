@@ -9,6 +9,7 @@ import com.dynokore.gst.canonical.application.aggregate.LineClassifier
 import com.dynokore.gst.canonical.application.aggregate.Refused
 import com.dynokore.gst.canonical.application.aggregate.Unavailable
 import com.dynokore.gst.canonical.domain.document.Direction
+import com.dynokore.platform.serviceruntime.identity.FlowContext
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.ResilienceRegistry
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
@@ -40,6 +41,8 @@ class RulesLineClassifier(
         direction: Direction,
     ): LineAnswer {
         val deadline = CurrentDeadline.current() ?: Deadline.after(RulesEdge.DEADLINE, clock)
+        // the edge runs the block on its own thread: carry the held flow context over, never make one
+        val held = FlowContext.current()
         return registry.forEdge(RulesEdge.EDGE).execute(
             deadline,
             onCallNotPermitted = { Unavailable },
@@ -47,11 +50,14 @@ class RulesLineClassifier(
             onTimeout = { Unavailable },
         ) {
             try {
-                val body =
+                val call = {
                     api
                         .evaluateDocumentWithHttpInfo(
+                            UNUSED_FLOW_CONTEXT,
                             request(entityRef, transactionDate, internalTaxCode, direction),
                         ).body
+                }
+                val body = if (held == null) call() else FlowContext.runWith(held, call)
                 if (body == null) Unavailable else answerOf(body)
             } catch (failure: RestClientResponseException) {
                 if (failure.statusCode.is4xxClientError) Refused else Unavailable
@@ -104,3 +110,5 @@ class RulesLineClassifier(
         val PACK_TYPES = listOf("SCOPE", "MAPPING", "MDE")
     }
 }
+
+private const val UNUSED_FLOW_CONTEXT = ""
