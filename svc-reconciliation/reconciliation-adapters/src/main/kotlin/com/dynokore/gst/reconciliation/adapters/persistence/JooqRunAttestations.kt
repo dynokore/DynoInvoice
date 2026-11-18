@@ -25,8 +25,7 @@ class JooqRunAttestations(
                 WORK_PAPER_ATTESTATION.ATTESTED_AT,
                 WORK_PAPER_ATTESTATION.SOLE_ATTESTER_ACKNOWLEDGED_BY,
                 WORK_PAPER_ATTESTATION.SOLE_ATTESTER_ACKNOWLEDGED_ON,
-            )
-            .from(WORK_PAPER_ATTESTATION)
+            ).from(WORK_PAPER_ATTESTATION)
             .where(WORK_PAPER_ATTESTATION.TENANT_ID.eq(UUID.fromString(tenant)))
             .and(WORK_PAPER_ATTESTATION.RUN_ID.eq(runId))
             .fetchOne()

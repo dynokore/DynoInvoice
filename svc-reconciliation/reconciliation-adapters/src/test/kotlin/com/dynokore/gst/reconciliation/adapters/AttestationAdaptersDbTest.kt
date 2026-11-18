@@ -83,7 +83,11 @@ class AttestationAdaptersDbTest : RunStoreDbFixture() {
         run: UUID,
     ): String? =
         asTenant(tenant) {
-            session.runner.inTransaction { JooqRunPreparers(session.dsl()).preparerOf(tenant.toString(), run.toString()) }
+            session.runner.inTransaction {
+                JooqRunPreparers(
+                    session.dsl(),
+                ).preparerOf(tenant.toString(), run.toString())
+            }
         }
 
     private fun rowText(run: UUID) =
@@ -130,7 +134,8 @@ class AttestationAdaptersDbTest : RunStoreDbFixture() {
     @Test
     fun `INV-AC-24434 a sole-attester insert stores both columns`() {
         val w = world()
-        insert(w.t1, w.r2, StoredAttestation("U1", u1At, SoleAttester("U9", LocalDate.parse("2026-03-01")))) shouldBe true
+        insert(w.t1, w.r2, StoredAttestation("U1", u1At, SoleAttester("U9", LocalDate.parse("2026-03-01")))) shouldBe
+            true
         scalar(
             "select sole_attester_acknowledged_by from reconciliation.work_paper_attestation where run_id = '${w.r2}'",
         ) shouldBe "U9"
@@ -170,7 +175,8 @@ class AttestationAdaptersDbTest : RunStoreDbFixture() {
     fun `INV-AC-24434 preparerOf returns the uploaded_by of the return version, not the free-text preparer`() {
         val w = world()
         preparer(w.t1, w.r1) shouldBe "U1"
-        preparer(w.t1, w.r1) shouldBe scalar("select uploaded_by from reconciliation.gst_return where tenant_id = '${w.t1}'")
+        preparer(w.t1, w.r1) shouldBe
+            scalar("select uploaded_by from reconciliation.gst_return where tenant_id = '${w.t1}'")
         preparer(w.t1, w.r2) shouldBe "U1"
     }
 
@@ -221,7 +227,8 @@ class AttestationAdaptersDbTest : RunStoreDbFixture() {
             "insert into reconciliation.work_paper_attestation (tenant_id, run_id, attested_by, attested_at, " +
                 "sole_attester_acknowledged_on) values (?, ?, 'U2', now(), '2026-03-01'::date)"
         sqlState { superuserExecute(by, w.t1, w.r1) } shouldBe "23514"
-        sqlState { superuserExecute(on.replace("'2026-03-01'::date", "'2026-03-01'::date"), w.t1, w.r1) } shouldBe "23514"
+        sqlState { superuserExecute(on.replace("'2026-03-01'::date", "'2026-03-01'::date"), w.t1, w.r1) } shouldBe
+            "23514"
         scalar("select count(*) from reconciliation.work_paper_attestation where run_id = '${w.r1}'") shouldBe 0L
     }
 }
