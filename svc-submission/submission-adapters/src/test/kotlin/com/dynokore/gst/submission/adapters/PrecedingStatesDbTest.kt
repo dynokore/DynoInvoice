@@ -48,7 +48,8 @@ class PrecedingStatesDbTest {
         c
             .prepareStatement(
                 "insert into submission.obligation_register_entry " +
-                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) values (?, ?, 'E-001', 'P', ?, true, 'INVOICE')",
+                    "(tenant_id, doc_uuid, entity_ref, period_ref, due_date, in_scope, kind) " +
+                    "values (?, ?, 'E-001', 'P', ?, true, 'INVOICE')",
             ).use {
                 it.setObject(1, tenant)
                 it.setString(2, doc)

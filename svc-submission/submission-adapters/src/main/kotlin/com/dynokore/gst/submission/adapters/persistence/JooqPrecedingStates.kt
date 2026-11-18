@@ -8,9 +8,9 @@ import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
 
 /**
- * [PrecedingStates] over the register and the version rows (INV-REQ-709): one select of the register entry by tenant and
- * Doc UUID and, when it exists, one select of the version states ordered by version ascending. Every query names the
- * tenant id besides the row level security. A state text that is not a [LifecycleState] name throws
+ * [PrecedingStates] over the register and the version rows (INV-REQ-709): one select of the register entry by
+ * tenant and Doc UUID and, when it exists, one select of the version states ordered by version ascending. Every
+ * query names the tenant id besides the row level security. A state text that is not a [LifecycleState] name throws
  * [IllegalStateException]; no default state is used.
  */
 class JooqPrecedingStates(
