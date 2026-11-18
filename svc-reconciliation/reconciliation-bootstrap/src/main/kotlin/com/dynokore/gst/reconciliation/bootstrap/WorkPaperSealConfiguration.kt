@@ -4,18 +4,14 @@ import com.dynokore.gst.reconciliation.adapters.events.EvidenceArtefactOutbox
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqSealedWorkPapers
 import com.dynokore.gst.reconciliation.application.workpaper.ArtefactRecordedPublisher
 import com.dynokore.gst.reconciliation.application.workpaper.SealedWorkPapers
-import com.dynokore.platform.evidencestore.ObjectKey
-import com.dynokore.platform.evidencestore.ObjectRef
 import com.dynokore.platform.evidencestore.ObjectStore
 import com.dynokore.platform.serviceruntime.events.EvidenceArtefactRecorder
 import org.jooq.DSLContext
 import org.springframework.beans.factory.ObjectProvider
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import java.time.Clock
-import java.time.Instant
 
 /**
  * The adapters of the seal ports (INV-T-24187, INV-AC-24183, INV-Q-24164 A). The retention of a sealed object is
@@ -43,28 +39,7 @@ class WorkPaperSealConfiguration {
     fun artefactRecordedPublisher(recorder: EvidenceArtefactRecorder): ArtefactRecordedPublisher =
         EvidenceArtefactOutbox(recorder)
 
-    /**
-     * Fails closed until the deployment binds a real store (bucket and credentials are a deployment concern): every
-     * put and get throws, so nothing is sealed and no seal row is written without its object.
-     */
-    @Bean
-    @ConditionalOnMissingBean(ObjectStore::class)
-    fun unconfiguredObjectStore(): ObjectStore = UnconfiguredObjectStore
-
     companion object {
         const val RETENTION_PROPERTY = "reconciliation.work-paper.retention-days"
     }
-}
-
-/** The object store of a service that has none bound: it refuses every call. */
-internal object UnconfiguredObjectStore : ObjectStore {
-    override fun put(
-        key: ObjectKey,
-        bytes: ByteArray,
-        retainUntil: Instant,
-    ): ObjectRef = error(MESSAGE)
-
-    override fun get(key: ObjectKey): ByteArray = error(MESSAGE)
-
-    private const val MESSAGE = "no object store is configured for the sealed work-papers"
 }
