@@ -134,9 +134,11 @@ class PolicyReplicaRelaxedControlsTest {
     private fun withCatalogue(
         dir: Path,
         body: (VariationPointCatalogue) -> Unit,
-    ) = ReconciliationContext.offline(dir).run { context ->
-        context.startupFailure shouldBe null
-        body(context.getBean(VariationPointCatalogue::class.java))
+    ) {
+        ReconciliationContext.offline(dir).run { context ->
+            context.startupFailure shouldBe null
+            body(context.getBean(VariationPointCatalogue::class.java))
+        }
     }
 
     private fun listed(
