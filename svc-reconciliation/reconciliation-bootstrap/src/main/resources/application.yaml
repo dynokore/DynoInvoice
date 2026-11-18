@@ -41,3 +41,7 @@ inv:
     # cannot see as library-declared: the sys-owned claim function of the queue (QueueSchema.CLAIM_DUE, a table-valued
     # function in the generated code). The signed-binding key table is not generated (INV-T-7430), so it is not declared.
     platform-scoped-tables: reconciliation.claim_due
+reconciliation:
+  # The longest replica lag at which the relaxed controls of the work-paper export are listed; a replica further
+  # behind fails the export closed. INV-REQ-1201 holds a replica to "at most one second" (ReplicaLag.isWithin).
+  policy-replica.max-lag: PT1S
