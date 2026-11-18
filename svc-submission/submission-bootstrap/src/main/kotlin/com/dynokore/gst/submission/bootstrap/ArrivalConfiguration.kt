@@ -5,6 +5,8 @@ import com.dynokore.gst.submission.adapters.persistence.FilingFactFiledPeriods
 import com.dynokore.gst.submission.adapters.persistence.JooqFilingFactStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRaisedCodes
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisteredDocuments
+import com.dynokore.gst.submission.adapters.persistence.JooqScopeBlocks
+import com.dynokore.gst.submission.adapters.persistence.JooqScopeFacts
 import com.dynokore.gst.submission.application.arrival.ArrivalMetrics
 import com.dynokore.gst.submission.application.arrival.ArrivalPlanning
 import com.dynokore.gst.submission.application.arrival.CodeRaising
@@ -12,6 +14,9 @@ import com.dynokore.gst.submission.application.arrival.CodeSignals
 import com.dynokore.gst.submission.application.arrival.FiledPeriods
 import com.dynokore.gst.submission.application.arrival.RaisedCodes
 import com.dynokore.gst.submission.application.arrival.RegisteredDocuments
+import com.dynokore.gst.submission.application.arrival.ScopeBlocks
+import com.dynokore.gst.submission.application.arrival.ScopeCheck
+import com.dynokore.gst.submission.application.arrival.ScopeFacts
 import com.dynokore.gst.submission.application.filing.FilingFactStore
 import com.dynokore.gst.submission.application.queue.ErrorCatalogue
 import com.dynokore.platform.outboxandqueue.OutboxWriter
@@ -67,4 +72,17 @@ class ArrivalConfiguration {
         filed: FiledPeriods,
         metrics: ArrivalMetrics,
     ): ArrivalPlanning = ArrivalPlanning(documents, filed, metrics)
+
+    @Bean
+    fun scopeFacts(dsl: DSLContext): ScopeFacts = JooqScopeFacts(dsl)
+
+    @Bean
+    fun scopeBlocks(dsl: DSLContext): ScopeBlocks = JooqScopeBlocks(dsl)
+
+    @Bean
+    fun scopeCheck(
+        facts: ScopeFacts,
+        blocks: ScopeBlocks,
+        raising: CodeRaising,
+    ): ScopeCheck = ScopeCheck(facts, blocks, raising)
 }

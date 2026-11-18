@@ -2,6 +2,8 @@ package com.dynokore.gst.submission.application.queue
 
 import com.dynokore.gst.submission.application.arrival.ArrivalPlanning
 import com.dynokore.gst.submission.application.arrival.CodeRaising
+import com.dynokore.gst.submission.application.arrival.ScopeCheck
+import com.dynokore.gst.submission.application.arrival.ScopeOutcome
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -21,6 +23,10 @@ import java.util.HexFormat
  * A payload whose SHA-256 over the decoded bytes differs from `payloadSha256` is a [ContractViolation] (dead letter at
  * once). A second delivery of a stored version with another `payloadSha256` is a [ContractViolation] too: a stored
  * version is never replaced and the conflict is not discarded silently.
+ *
+ * The scope check (INV-REQ-722, INV-AC-24505) is the arrival step between the insert and the plan: a credit note whose
+ * scope verdict disagrees with its preceding document's is moved to BLOCKED with SUB-013 by [ScopeCheck], and the
+ * handler then neither plans nor enqueues it. It runs in the same transaction as the insert.
  */
 @Suppress("LongParameterList") // the constructor shape is ruled (INV-T-21096 design (2))
 class PayloadReadyHandler(
@@ -31,7 +37,9 @@ class PayloadReadyHandler(
     private val inFlight: InFlightStore,
     private val planning: ArrivalPlanning,
     private val raising: CodeRaising,
+    private val scopeCheck: ScopeCheck,
 ) : EventHandler {
+    @Suppress("ReturnCount") // duplicate, blocked by the scope check, applied: the three outcomes of the arrival step
     override fun handle(event: Envelope): HandleOutcome {
         val data = reader.read(event.dataJson)
         val docUuid = data.docUuid
@@ -67,6 +75,7 @@ class PayloadReadyHandler(
             }
             return HandleOutcome.IGNORED
         }
+        if (scopeCheck.check(tenant, docUuid, version) == ScopeOutcome.Blocked) return HandleOutcome.APPLIED
         plan(tenant, docUuid, version)
         return HandleOutcome.APPLIED
     }

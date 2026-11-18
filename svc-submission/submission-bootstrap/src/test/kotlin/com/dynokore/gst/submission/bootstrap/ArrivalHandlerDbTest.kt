@@ -6,6 +6,9 @@ import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.WorkQueue
 import com.dynokore.gst.submission.application.filing.FilingFactStore
 import com.dynokore.gst.submission.application.filing.NewFilingFact
+import com.dynokore.gst.submission.application.queue.InFlightStore
+import com.dynokore.gst.submission.application.queue.PayloadReadyHandler
+import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.gst.submission.application.register.RegisterEntry
 import com.dynokore.gst.submission.application.register.RegisterEntryStore
 import com.dynokore.gst.submission.domain.listing.Direction
@@ -18,6 +21,7 @@ import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
+import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -54,16 +58,22 @@ class ArrivalHandlerDbTest {
         val handler: EventHandler = context.getBean("payloadReadyHandler", EventHandler::class.java)
         val entries: RegisterEntryStore = context.getBean(RegisterEntryStore::class.java)
         val filing: FilingFactStore = context.getBean(FilingFactStore::class.java)
+        val store: SubmissionStore = context.getBean(SubmissionStore::class.java)
+        val inFlight: InFlightStore = context.getBean(InFlightStore::class.java)
         val tenant: UUID = UUID.randomUUID()
 
         fun <T> asTenant(block: () -> T): T = tenants.bind(TenantId(tenant), actor) { runner.inTransaction(block) }
 
         fun doc(): String = UUID.randomUUID().toString()
 
+        @Suppress("LongParameterList") // the task rules the optional verdict, reason and preceding parameters
         fun register(
             doc: String,
             kind: RowKind,
             period: String = "2026-Q1",
+            verdict: String? = null,
+            reason: String? = null,
+            preceding: String? = null,
         ) {
             val facts =
                 ListFacts(
@@ -76,7 +86,20 @@ class ArrivalHandlerDbTest {
                     BigDecimal("0.09"),
                     emptySet(),
                 )
-            val entry = RegisterEntry(doc, "E-001", period, LocalDate.of(2026, 4, 18), true, kind, facts, 1)
+            val entry =
+                RegisterEntry(
+                    doc,
+                    "E-001",
+                    period,
+                    LocalDate.of(2026, 4, 18),
+                    true,
+                    kind,
+                    facts,
+                    1,
+                    scopeVerdict = verdict,
+                    notSubmittableReason = reason,
+                    precedingDocUuid = preceding,
+                )
             asTenant { entries.upsert(TenantId(tenant), entry) }
         }
 
@@ -98,6 +121,20 @@ class ArrivalHandlerDbTest {
                 if (rollback) error("rolled back")
             }
         }
+
+        fun stateOf(
+            doc: String,
+            version: Int,
+        ): String? =
+            asTenant {
+                dsl
+                    .select(Submission.SUBMISSION_.STATE)
+                    .from(Submission.SUBMISSION_)
+                    .where(Submission.SUBMISSION_.DOC_UUID.eq(doc))
+                    .and(Submission.SUBMISSION_.VERSION.eq(version))
+                    .fetchOne()
+                    ?.value1()
+            }
 
         fun lanes(doc: String): List<String> =
             asTenant {
@@ -273,5 +310,94 @@ class ArrivalHandlerDbTest {
         val meters = registry.meters.filter { it.id.name.startsWith("submission_arrival_") }
         meters.map { it.id.name }.toSet() shouldBe setOf(unresolved, unknownEntry)
         meters.flatMap { m -> m.id.tags.map { it.key } }.toSet() shouldBe setOf("input")
+    }
+
+    private data class ScopeDocs(
+        val c1: String,
+        val c2: String,
+        val i1: String,
+        val c3: String,
+    )
+
+    private fun Kit.scopePairs(): ScopeDocs {
+        val p1 = doc().also { register(it, RowKind.INVOICE, verdict = "NOT_SUBMITTABLE") }
+        val p2 = doc().also { register(it, RowKind.INVOICE, verdict = "SUBMITTABLE") }
+        val c1 = doc().also { register(it, RowKind.CREDIT_NOTE, verdict = "SUBMITTABLE", preceding = p1) }
+        val c2 = doc().also { register(it, RowKind.CREDIT_NOTE, verdict = "SUBMITTABLE", preceding = p2) }
+        val i1 = doc().also { register(it, RowKind.INVOICE, verdict = "SUBMITTABLE", preceding = p1) }
+        return ScopeDocs(c1, c2, i1, doc())
+    }
+
+    @Test
+    fun `INV-AC-24505 C1 a disagreeing credit note ends BLOCKED with one SUB-013 and no queue item`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val c1 = scopePairs().c1
+        val outcome = asTenant { handler.handle(envelope(c1, 1)) }
+        outcome shouldBe HandleOutcome.APPLIED
+        stateOf(c1, 1) shouldBe "BLOCKED"
+        codes(c1) shouldBe listOf("SUB-013")
+        outboxRows(c1) shouldBe 1
+        lanes(c1) shouldBe emptyList()
+        asTenant { inFlight.waitingDocUuids(TenantId(tenant), 100) }.contains(c1) shouldBe false
+        asTenant { store.moveReadyToQueued(TenantId(tenant), c1, 1) } shouldBe 0
+        stateOf(c1, 1) shouldBe "BLOCKED"
+    }
+
+    @Test
+    fun `INV-AC-24505 C1 a later version of the disagreeing credit note is blocked too`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val c1 = scopePairs().c1
+        arrive(c1, 1)
+        arrive(c1, 2)
+        stateOf(c1, 2) shouldBe "BLOCKED"
+        lanes(c1) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-24505 C2 an agreeing credit note is queued as before with no SUB-013`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val c2 = scopePairs().c2
+        arrive(c2, 1)
+        stateOf(c2, 1) shouldBe "QUEUED"
+        lanes(c2).size shouldBe 1
+        codes(c2).contains("SUB-013") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-24505 I1 and C3 end as before this change`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val docs = scopePairs()
+        val i1 = docs.i1
+        val c3 = docs.c3
+        arrive(i1, 1)
+        arrive(c3, 1)
+        for (d in listOf(i1, c3)) {
+            stateOf(d, 1) shouldBe "QUEUED"
+            lanes(d).size shouldBe 1
+            codes(d).contains("SUB-013") shouldBe false
+        }
+    }
+
+    @Test
+    fun `INV-AC-24505 a handler call rolled back after the check leaves no BLOCKED row, code or outbox row`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val c1 = scopePairs().c1
+        runCatching { arrive(c1, 1, rollback = true) }.isFailure shouldBe true
+        submissionRows(c1) shouldBe 0
+        codes(c1) shouldBe emptyList()
+        outboxRows(c1) shouldBe 0
+        lanes(c1) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-24505 the handler constructor holds no parameter type named Transport`() {
+        PayloadReadyHandler::class.java.constructors
+            .flatMap { c -> c.parameterTypes.map { it.name } }
+            .none { it.contains("Transport") } shouldBe true
     }
 }
