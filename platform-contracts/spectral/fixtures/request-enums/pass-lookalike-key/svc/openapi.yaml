@@ -1,0 +1,30 @@
+openapi: 3.0.3
+info: {title: fixture pass-lookalike-key, version: 1.0.0}
+paths:
+  /things:
+    post:
+      operationId: createThing
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateThingRequest'}
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThingResponse'}
+components:
+  schemas:
+    CreateThingRequest:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [A, B]
+          x-extensible-enums: true
+          x-extensible-enum-note: open in responses only
+    ThingResponse:
+      type: object
+      properties:
+        id: {type: string}

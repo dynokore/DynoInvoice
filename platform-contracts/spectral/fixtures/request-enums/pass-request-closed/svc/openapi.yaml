@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info: {title: fixture pass-request-closed, version: 1.0.0}
+paths:
+  /things:
+    post:
+      operationId: createThing
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateThingRequest'}
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThingResponse'}
+components:
+  schemas:
+    CreateThingRequest:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [A, B]
+    ThingResponse:
+      type: object
+      properties:
+        id: {type: string}

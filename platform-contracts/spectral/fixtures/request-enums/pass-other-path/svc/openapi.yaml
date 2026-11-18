@@ -1,0 +1,36 @@
+openapi: 3.0.3
+info: {title: fixture pass-other-path, version: 1.0.0}
+paths:
+  /things:
+    get:
+      operationId: getThing
+      responses:
+        '200':
+          description: ok
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ThingResponse'}
+  /others:
+    post:
+      operationId: createOther
+      requestBody:
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateOtherRequest'}
+      responses:
+        '204': {description: ok}
+components:
+  schemas:
+    ThingResponse:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [A, B]
+          x-extensible-enum: true
+    CreateOtherRequest:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [A, B]
