@@ -403,6 +403,9 @@ acceptances	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-R
 specVersion	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
 accepted_from	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
 accepted_to	property	schemas/endpoint-acceptance-pack-contents.schema.json	INV-REQ-589
+assessmentWithinHours	property	schemas/breach-terms-pack-contents.schema.json	INV-REQ-1385
+notificationWithinHours	property	schemas/breach-terms-pack-contents.schema.json	INV-REQ-1385
+sourceReference	property	schemas/breach-terms-pack-contents.schema.json	INV-REQ-1385
 approveRegulatoryPack	operation	openapi.yaml	INV-REQ-489
 RegulatoryPack.status.APPROVED	schema_enum_value	openapi.yaml	INV-REQ-489
 # INV-T-22907 (INV-REQ-771): the optional packIdentifier of an applied pack version; the requirement cell is the first INV-REQ of x-requirements of evaluateDocument, whose answer carries the schema.

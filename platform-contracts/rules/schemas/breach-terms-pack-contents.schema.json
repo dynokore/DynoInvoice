@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/rules/schemas/breach-terms-pack-contents.schema.json",
+  "title": "BreachTermsPackContents",
+  "description": "The artefact.contents of a RulePackStaged payload whose packType is exactly breach-terms (INV-REQ-1385): the assessment and notification terms of a suspected personal data breach, whole hours each. The terms are an operator-maintained regulatory-pack datum, so tenants cannot alter them. The schema carries no default and no maximum: a figure here would be an invented legal value. A consumer ignores any property this schema does not name (API-41); no object of this schema sets additionalProperties to false. Within a major version this schema is additive-only.",
+  "type": "object",
+  "properties": {
+    "assessmentWithinHours": {
+      "type": "integer",
+      "description": "The time, in whole hours, within which a suspected personal data breach is assessed.",
+      "minimum": 1
+    },
+    "notificationWithinHours": {
+      "type": "integer",
+      "description": "The time, in whole hours, within which a notifiable breach is notified, counted from the instant it is assessed notifiable.",
+      "minimum": 1
+    },
+    "sourceReference": {
+      "type": "string",
+      "description": "The counsel confirmation the values rest on.",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "assessmentWithinHours",
+    "notificationWithinHours",
+    "sourceReference"
+  ],
+  "additionalProperties": true
+}
