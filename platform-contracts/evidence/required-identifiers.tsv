@@ -115,3 +115,5 @@ deleteAtRetentionEnd.EVD-008	operation_error_code	openapi.yaml	INV-REQ-957
 deleteAtRetentionEnd.EVD-009	operation_error_code	openapi.yaml	INV-REQ-957
 getPartitionDeletion.SRT-005	operation_error_code	openapi.yaml	INV-REQ-1010
 getPartitionDeletion.SRT-010	operation_error_code	openapi.yaml	INV-REQ-1010
+DECISION_TRACES	enum_value	openapi.yaml	INV-REQ-988
+AUDIT_LOG	enum_value	openapi.yaml	INV-REQ-988

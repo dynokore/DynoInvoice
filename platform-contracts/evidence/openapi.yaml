@@ -2224,10 +2224,10 @@ components:
           type: string
         contents:
           type: array
-          description: What the pack holds; present when `status` is READY. The service always sends it.
+          description: The content classes the pack holds, and VERIFICATION_REPORT for the report file at the bag root; present when `status` is READY. The service always sends it.
           items:
             type: string
-            enum: [SUBMITTED_XML, ACKNOWLEDGEMENTS, RECONCILIATION_WORK_PAPER, SOURCE_REFERENCES, VERIFICATION_REPORT]
+            enum: [SUBMITTED_XML, ACKNOWLEDGEMENTS, DECISION_TRACES, RECONCILIATION_WORK_PAPER, SOURCE_REFERENCES, AUDIT_LOG, VERIFICATION_REPORT]
             x-extensible-enum: true
         integrityStatus:
           $ref: '#/components/schemas/IntegrityResult'
