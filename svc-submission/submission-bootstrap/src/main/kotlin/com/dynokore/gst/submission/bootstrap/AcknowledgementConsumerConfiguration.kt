@@ -1,13 +1,24 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.adapters.events.JacksonAcknowledgementOutcomeReader
 import com.dynokore.gst.submission.adapters.events.JacksonAcknowledgementReceivedDataReader
+import com.dynokore.gst.submission.adapters.events.JacksonRejectedAcknowledgementReader
 import com.dynokore.gst.submission.adapters.events.SubmissionAcknowledgedOutbox
 import com.dynokore.gst.submission.adapters.persistence.JooqAcknowledgementRecorder
+import com.dynokore.gst.submission.adapters.persistence.JooqLatestAttempt
 import com.dynokore.gst.submission.application.queue.AcknowledgedPublisher
 import com.dynokore.gst.submission.application.queue.AcknowledgementDataReader
+import com.dynokore.gst.submission.application.queue.AcknowledgementOutcomeReader
+import com.dynokore.gst.submission.application.queue.AcknowledgementOutcomeRouter
 import com.dynokore.gst.submission.application.queue.AcknowledgementReceivedHandler
 import com.dynokore.gst.submission.application.queue.AcknowledgementRecorder
+import com.dynokore.gst.submission.application.queue.ErrorCatalogue
+import com.dynokore.gst.submission.application.queue.FailureCodes
+import com.dynokore.gst.submission.application.queue.FailureSignals
 import com.dynokore.gst.submission.application.queue.InFlightStore
+import com.dynokore.gst.submission.application.queue.LatestAttempt
+import com.dynokore.gst.submission.application.queue.RejectedAcknowledgementHandler
+import com.dynokore.gst.submission.application.queue.RejectedAcknowledgementReader
 import com.dynokore.gst.submission.application.queue.SubmissionStore
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.EventCatalogue
@@ -62,12 +73,44 @@ class AcknowledgementConsumerConfiguration {
         AcknowledgementReceivedHandler(tenants, reader, inFlight, store, recorder, publisher, clock)
 
     @Bean
+    fun acknowledgementOutcomeReader(): AcknowledgementOutcomeReader = JacksonAcknowledgementOutcomeReader()
+
+    @Bean
+    fun rejectedAcknowledgementReader(): RejectedAcknowledgementReader = JacksonRejectedAcknowledgementReader()
+
+    @Bean
+    fun latestAttempt(dsl: DSLContext): LatestAttempt = JooqLatestAttempt(dsl)
+
+    @Bean
+    @Suppress("LongParameterList") // composition root: the handler takes eight collaborators
+    fun rejectedAcknowledgementHandler(
+        tenants: TenantContext,
+        reader: RejectedAcknowledgementReader,
+        inFlight: InFlightStore,
+        store: SubmissionStore,
+        attempts: LatestAttempt,
+        codes: FailureCodes,
+        catalogue: ErrorCatalogue,
+        signals: FailureSignals,
+    ): RejectedAcknowledgementHandler =
+        RejectedAcknowledgementHandler(tenants, reader, inFlight, store, attempts, codes, catalogue, signals)
+
+    /** The consumer's handler: routes by outcome; ACCEPTED and absent reach the acknowledgement handler. */
+    @Bean
+    fun acknowledgementOutcomeRouter(
+        reader: AcknowledgementOutcomeReader,
+        // the runtime wraps every EventHandler bean in a tracing decorator, so both are taken as EventHandler by name
+        @Qualifier("acknowledgementReceivedHandler") accepted: EventHandler,
+        @Qualifier("rejectedAcknowledgementHandler") rejected: EventHandler,
+    ): AcknowledgementOutcomeRouter = AcknowledgementOutcomeRouter(reader, accepted, rejected)
+
+    @Bean
     @Suppress("LongParameterList")
     fun acknowledgementReceivedConsumer(
         catalogue: EventCatalogue,
         reader: EventLogReader,
         scope: TenantScope,
-        @Qualifier("acknowledgementReceivedHandler") handler: EventHandler,
+        @Qualifier("acknowledgementOutcomeRouter") handler: EventHandler,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
     ): JdbcInboxConsumer {
