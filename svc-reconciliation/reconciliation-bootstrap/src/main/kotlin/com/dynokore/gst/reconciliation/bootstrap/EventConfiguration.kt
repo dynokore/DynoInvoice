@@ -49,9 +49,9 @@ object ReconciliationEvents {
 
     /**
      * The three events the service consumes for its run read model (INV-REQ-1206), each with its producer as
-     * platform-contracts `event-log/topics.yaml` states it: canonical-svc and submission-svc, never this service, so the
-     * emission guard refuses reconciliation-svc to emit them. They are ordinary topics (no record topic), so the inbox
-     * consumer keeps the `docsequence` check; only `CanonicalVersionCreated` is a content topic.
+     * platform-contracts `event-log/topics.yaml` states it: canonical-svc and submission-svc, never this service, so
+     * the emission guard refuses reconciliation-svc to emit them. They are ordinary topics (no record topic), so the
+     * inbox consumer keeps the `docsequence` check; only `CanonicalVersionCreated` is a content topic.
      */
     val consumedEntries: List<CatalogueEntry> =
         listOf(

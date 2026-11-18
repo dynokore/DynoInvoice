@@ -7,8 +7,8 @@ import com.dynokore.platform.outboxandqueue.HandleOutcome
 
 /**
  * The consumer of `gst.canonical.period-reassigned.v1` for the run read model (INV-REQ-1206): moves the period of the
- * document to `newPrescribedPeriodRef` when the `docsequence` is newer (the writer decides, INV-REQ-1221). It runs in the
- * inbox consumer's transaction and opens none. A payload that lacks a required field is a ContractViolation.
+ * document to `newPrescribedPeriodRef` when the `docsequence` is newer (the writer decides, INV-REQ-1221). It runs
+ * in the inbox consumer's transaction and opens none. A payload without a required field is a ContractViolation.
  */
 class PeriodReassignedHandler(
     private val writer: RunReadModelWriter,

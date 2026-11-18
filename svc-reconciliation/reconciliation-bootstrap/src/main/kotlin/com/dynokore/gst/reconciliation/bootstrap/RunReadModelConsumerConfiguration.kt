@@ -102,7 +102,9 @@ class RunReadModelConsumerConfiguration {
         dsl: DSLContext,
         handler: EventHandler,
     ): InboxConsumer {
-        check(catalogue.topic(subscription.topic) != null) { "the event catalogue has no entry on ${subscription.topic}" }
+        checkNotNull(
+            catalogue.topic(subscription.topic),
+        ) { "the event catalogue has no entry on ${subscription.topic}" }
         return JdbcInboxConsumer(subscription, catalogue, reader, scope, dsl, handler, rebuildRequired, clock)
     }
 

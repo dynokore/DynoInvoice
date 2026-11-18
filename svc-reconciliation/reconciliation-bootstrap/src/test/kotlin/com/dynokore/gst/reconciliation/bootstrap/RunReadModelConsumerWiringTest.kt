@@ -7,9 +7,9 @@ import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventId
-import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.InboxConsumer
 import com.dynokore.platform.outboxandqueue.TenantScope
@@ -31,7 +31,8 @@ import java.util.UUID
  * the run read model, and one CanonicalVersionCreated envelope is stored with its lines in a real PostgreSQL schema.
  */
 class RunReadModelConsumerWiringTest {
-    private val consumerNames = listOf("canonicalVersionCreatedConsumer", "periodReassignedConsumer", "submissionAcknowledgedConsumer")
+    private val consumerNames =
+        listOf("canonicalVersionCreatedConsumer", "periodReassignedConsumer", "submissionAcknowledgedConsumer")
 
     @Test
     fun `INV-AC-24342 the registry holds three subscriptions with their topics and the consumer name by equality`(
@@ -47,8 +48,12 @@ class RunReadModelConsumerWiringTest {
                     "gst.canonical.period-reassigned.v1",
                     "gst.submission.submission-acknowledged.v1",
                 )
-            RunReadModelConsumerConfiguration.SUBSCRIPTIONS.map { it.topic }.toSet().size shouldBe 3
-            RunReadModelConsumerConfiguration.SUBSCRIPTIONS.map { it.consumer }.toSet() shouldBe setOf("reconciliation-svc")
+            RunReadModelConsumerConfiguration.SUBSCRIPTIONS
+                .map { it.topic }
+                .toSet()
+                .size shouldBe 3
+            RunReadModelConsumerConfiguration.SUBSCRIPTIONS.map { it.consumer }.toSet() shouldBe
+                setOf("reconciliation-svc")
             RunReadModelConsumerConfiguration.SUBSCRIPTIONS.map { it.schema }.toSet() shouldBe setOf("reconciliation")
         }
     }
@@ -85,29 +90,7 @@ class RunReadModelConsumerWiringTest {
     ) {
         val tenant = UUID.randomUUID()
         val doc = UUID.randomUUID().toString()
-        val data =
-            """{"docUuid":"$doc","version":1,"docsequence":3,"transactionDate":"2026-02-10",""" +
-                """"prescribedPeriodRef":"2026-Q1","scopeVerdict":"SUBMITTABLE",""" +
-                """"canonicalDocument":{"currency":{"value":"SGD","classification":"NONE"},""" +
-                """"lines":{"value":[{"lineNumber":1,"lineAmount":"100.00","taxCode":"SR","taxAmount":"9.00"},""" +
-                """{"lineNumber":2,"lineAmount":"50.50","taxAmount":"4.55"}],"classification":"NONE"}}}"""
-        val envelope =
-            Envelope(
-                id = EventId(UUID.randomUUID().toString()),
-                source = "/gst/canonical-svc",
-                type = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
-                subject = doc,
-                time = Instant.parse("2026-11-18T01:00:00Z"),
-                tenant = TenantId(tenant),
-                entity = EntityRef("E1"),
-                docUuid = DocUuid(UUID.fromString(doc)),
-                transactionDate = LocalDate.of(2026, 2, 10),
-                docSequence = 3,
-                instanceId = "canonical-svc-0",
-                correlation = CorrelationId("corr-1"),
-                causation = CausationId("cause-1"),
-                dataJson = data,
-            )
+        val envelope = envelope(tenant, doc)
         ReconciliationContext.online(dir).run { context ->
             context.startupFailure shouldBe null
             val dsl = context.getBean(DSLContext::class.java)
@@ -133,6 +116,34 @@ class RunReadModelConsumerWiringTest {
                     listOf(2, "", BigDecimal("50.50"), BigDecimal("4.55")),
                 )
         }
+    }
+
+    private fun envelope(
+        tenant: UUID,
+        doc: String,
+    ): Envelope {
+        val data =
+            """{"docUuid":"$doc","version":1,"docsequence":3,"transactionDate":"2026-02-10",""" +
+                """"prescribedPeriodRef":"2026-Q1","scopeVerdict":"SUBMITTABLE",""" +
+                """"canonicalDocument":{"currency":{"value":"SGD","classification":"NONE"},""" +
+                """"lines":{"value":[{"lineNumber":1,"lineAmount":"100.00","taxCode":"SR","taxAmount":"9.00"},""" +
+                """{"lineNumber":2,"lineAmount":"50.50","taxAmount":"4.55"}],"classification":"NONE"}}}"""
+        return Envelope(
+            id = EventId(UUID.randomUUID().toString()),
+            source = "/gst/canonical-svc",
+            type = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
+            subject = doc,
+            time = Instant.parse("2026-11-18T01:00:00Z"),
+            tenant = TenantId(tenant),
+            entity = EntityRef("E1"),
+            docUuid = DocUuid(UUID.fromString(doc)),
+            transactionDate = LocalDate.of(2026, 2, 10),
+            docSequence = 3,
+            instanceId = "canonical-svc-0",
+            correlation = CorrelationId("corr-1"),
+            causation = CausationId("cause-1"),
+            dataJson = data,
+        )
     }
 
     private fun storedLines(

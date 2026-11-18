@@ -65,16 +65,10 @@ class CanonicalVersionCreatedHandler(
 
     /** Absent `routingFacts` reads as SALE; a present object must carry SALE or PURCHASE (INV-Q-7239 A). */
     private fun direction(data: JsonNode): Direction {
-        val facts = data.get("routingFacts")
-        if (facts == null || facts.isNull) return Direction.SALE
-        if (!facts.isObject) throw ContractViolation("routingFacts is not an object")
-        val node = facts.get("direction")
-        if (node == null || !node.isString) throw ContractViolation("routingFacts.direction is missing")
-        return when (node.asString()) {
-            "SALE" -> Direction.SALE
-            "PURCHASE" -> Direction.PURCHASE
-            else -> throw ContractViolation("routingFacts.direction is neither SALE nor PURCHASE")
-        }
+        val facts = data.get("routingFacts")?.takeUnless { it.isNull } ?: return Direction.SALE
+        val value = facts.get("direction")?.takeIf { it.isString }?.asString()
+        return Direction.entries.firstOrNull { it.name == value }
+            ?: throw ContractViolation("routingFacts.direction is missing or neither SALE nor PURCHASE")
     }
 
     /** The `value` of a classification-wrapped field of the canonical document. */
@@ -100,12 +94,11 @@ class CanonicalVersionCreatedHandler(
     private fun sgdTotal(
         document: JsonNode,
         name: String,
-    ): BigDecimal? {
-        val totals = optionalWrapped(document, "totals") ?: return null
-        val node = totals.get(name)
-        if (node == null || node.isNull) return null
-        return PayloadReading.decimal(node, name)
-    }
+    ): BigDecimal? =
+        optionalWrapped(document, "totals")
+            ?.get(name)
+            ?.takeUnless { it.isNull }
+            ?.let { PayloadReading.decimal(it, name) }
 
     private fun lines(document: JsonNode): List<DocumentLineFacts> {
         val array = wrapped(document, "lines")

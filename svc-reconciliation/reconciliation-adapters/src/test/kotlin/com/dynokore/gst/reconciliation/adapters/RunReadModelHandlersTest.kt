@@ -100,7 +100,7 @@ class RunReadModelHandlersTest {
         tax: String,
         code: String? = "SR",
     ): String {
-        val taxCode = code?.let { ""","taxCode":"$it"""" } ?: ""
+        val taxCode = code?.let { ""","taxCode":"$it"""" }.orEmpty()
         return """{"lineNumber":$number,"lineAmount":"$amount"$taxCode,"taxAmount":"$tax"}"""
     }
 
@@ -108,7 +108,6 @@ class RunReadModelHandlersTest {
         routing: String? = null,
         sequence: String? = "10",
         lines: List<String> = listOf(line(1, "100.00", "9.00"), line(2, "50.50", "4.55")),
-        notSubmittable: String? = null,
         version: String = "1",
         period: String = "2026-Q1",
     ): String {
@@ -116,7 +115,6 @@ class RunReadModelHandlersTest {
             listOfNotNull(
                 routing?.let { """"routingFacts":$it""" },
                 sequence?.let { """"docsequence":$it""" },
-                notSubmittable?.let { """"notSubmittableReason":"$it"""" },
             ).joinToString("") { ",$it" }
         return """{"docUuid":"$doc","version":$version,"transactionDate":"2026-02-10",""" +
             """"prescribedPeriodRef":"$period","scopeVerdict":"SUBMITTABLE"$extra,""" +
@@ -227,7 +225,9 @@ class RunReadModelHandlersTest {
     fun `INV-AC-24342 a line without taxCode reaches the writer with the empty tax code and is not dropped`() {
         val writer = FakeWriter()
         handle(writer, created(lines = listOf(line(1, "100.00", "9.00"), line(2, "50.50", "4.55", code = null))))
-        writer.versions.single().third.lines shouldBe
+        writer.versions
+            .single()
+            .third.lines shouldBe
             listOf(
                 DocumentLineFacts(1, "SR", BigDecimal("100.00"), BigDecimal("9.00")),
                 DocumentLineFacts(2, "", BigDecimal("50.50"), BigDecimal("4.55")),
@@ -238,7 +238,8 @@ class RunReadModelHandlersTest {
     fun `INV-AC-24342 the optional exchange rate and SGD totals read as null when absent`() {
         val bare =
             """{"docUuid":"$doc","version":1,"docsequence":10,"transactionDate":"2026-02-10",""" +
-                """"prescribedPeriodRef":"2026-Q1","scopeVerdict":"SUBMITTABLE","notSubmittableReason":"BUYER_REJECTED",""" +
+                """"prescribedPeriodRef":"2026-Q1","scopeVerdict":"SUBMITTABLE",""" +
+                """"notSubmittableReason":"BUYER_REJECTED",""" +
                 """"canonicalDocument":{"currency":{"value":"SGD","classification":"NONE"},""" +
                 """"lines":{"value":[],"classification":"NONE"}}}"""
         val writer = FakeWriter()
@@ -282,8 +283,12 @@ class RunReadModelHandlersTest {
             listOf(tenant.toString(), doc, 1, "ACK-1", Instant.parse("2026-02-11T03:04:05Z"))
         handler.handle(envelope("SubmissionAcknowledged", ack())) shouldBe HandleOutcome.IGNORED
         val before = writer.calls
-        listOf(ack(""), ack(" "), ack().replace("2026-02-11T03:04:05Z", "yesterday"), ack().replace("\"version\":1", "\"version\":0"))
-            .forEach { shouldThrow<ContractViolation> { handler.handle(envelope("SubmissionAcknowledged", it)) } }
+        listOf(
+            ack(""),
+            ack(" "),
+            ack().replace("2026-02-11T03:04:05Z", "yesterday"),
+            ack().replace("\"version\":1", "\"version\":0"),
+        ).forEach { shouldThrow<ContractViolation> { handler.handle(envelope("SubmissionAcknowledged", it)) } }
         writer.calls shouldBe before
     }
 
