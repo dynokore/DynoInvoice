@@ -240,7 +240,7 @@ class HeldCreditNoteSweepDbTest {
 
         t1.stateOf(c1, 1) shouldBe "QUEUED"
         t1.lanes(c1) shouldBe listOf("LIVE")
-        t1.codes(c1) shouldBe emptyList()
+        t1.codes(c1) shouldBe listOf("SUB-011")
         t2.stateOf(c5, 1) shouldBe "AWAITING_PRECEDING"
         t2.lanes(c5) shouldBe emptyList()
         // the lock of the first run is held for lockAtLeastFor (30 s, real clock): wait it out so the body runs again

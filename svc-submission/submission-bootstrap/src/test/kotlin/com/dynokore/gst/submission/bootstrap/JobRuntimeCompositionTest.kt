@@ -3,6 +3,7 @@ package com.dynokore.gst.submission.bootstrap
 import com.dynokore.gst.submission.adapters.SubmissionDb
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.WorkQueue
+import com.dynokore.gst.submission.application.ordering.HeldCreditNoteSweeper
 import com.dynokore.gst.submission.application.queue.WaitingSweeper
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.jobs.FireResult
@@ -182,16 +183,18 @@ class JobRuntimeCompositionTest {
                     context.environment.getProperty("inv.backlog-evaluation.cron"),
                     context.environment.getProperty("inv.unsubmitted-count.cron"),
                 )
-            context.cronTasks().size shouldBe 4
+            context.cronTasks().size shouldBe 5
         }
     }
 
     @Test
     fun `the scheduling bean is present when the switch is missing`() {
         val sweeper = ObjenesisStd().newInstance(WaitingSweeper::class.java)
+        val held = ObjenesisStd().newInstance(HeldCreditNoteSweeper::class.java)
         ApplicationContextRunner()
             .withBean(Clock::class.java, { Clock.systemUTC() })
             .withBean(WaitingSweeper::class.java, { sweeper })
+            .withBean(HeldCreditNoteSweeper::class.java, { held })
             .withUserConfiguration(JobRuntimeConfiguration::class.java)
             .run { context ->
                 context.startupFailure shouldBe null

@@ -198,8 +198,21 @@ class OutcomeConfiguration(
         queue: SubmissionQueue,
     ): WaitingSweeper = WaitingSweeper(source, scope, versions, queue)
 
+    /**
+     * The tenants that hold a version. Like [waitingTenantSource] it reads under the platform binding of a job, in its
+     * own transaction: the jOOQ tenancy guard refuses a statement on a thread with no tenant bound.
+     */
     @Bean
-    fun heldTenantSource(dsl: DSLContext): HeldTenantSource = JooqHeldTenantSource(dsl)
+    fun heldTenantSource(
+        dsl: DSLContext,
+        platform: PlatformTenantBinding,
+        transactions: TransactionRunner,
+    ): HeldTenantSource {
+        val source = JooqHeldTenantSource(dsl)
+        return HeldTenantSource {
+            platform.bindPlatform(principal.value) { transactions.inTransaction { source.tenants() } }
+        }
+    }
 
     /** The deadline and safety sweep of the held credit notes (INV-AC-24523). */
     @Bean
