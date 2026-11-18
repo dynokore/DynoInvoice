@@ -75,6 +75,9 @@ class AutoConfigurationOnlyLaneBehaviourIT {
             .withBean(InstallationBindingKey::class.java, { FixedBindingKeySource.installationBindingKey() })
             .withBean("internalRestClientBuilder", RestClient.Builder::class.java, { RestClient.builder() })
             .withPropertyValues(
+                // INV-T-24768: this test counts the sessions of the event-log database; the shared policy reader
+                // would read the event log from start-up on, so it is off here (INV-Q-16901 adaptation)
+                "product-runtime.policy-reader.enabled=false",
                 "gst.service=submission-svc",
                 "gst.instance-id=submission-svc-0",
                 "service-runtime.workload-identity.audience=submission-svc",

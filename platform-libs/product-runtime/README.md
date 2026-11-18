@@ -36,3 +36,11 @@ config-resolver takes its catalogue in either order from service-runtime 3.2.1, 
 
 The generated contract types come from the platform-contracts bundle pinned as `platformContractsBundle` in
 `gradle/libs.versions.toml`; the build stages it as a local Maven layout under `build/contracts-repo`.
+
+## Policy reader (INV-T-24768)
+
+`PolicyTopicReader` is the one shared reader of the platform topic `gst.platform.policy-changed.v1`: it reads through
+`EventLogReader`, hands each record to `PolicyFeed`, reports head and snapshot to the `PolicyReplica` and resumes from
+the position the replica holds. `PolicyReaderWiring` creates it when the context has an `EventLogReader` and a
+`PolicyReplica`. Properties: `product-runtime.policy-reader.enabled` (`false` switches it off; default on) and
+`product-runtime.policy-reader.poll-interval` (ISO-8601 duration, default `PT1S`).

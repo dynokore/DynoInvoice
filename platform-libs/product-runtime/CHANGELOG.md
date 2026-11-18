@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.22.0] - 2026-11-19
+### Added
+- `PolicyTopicReader` (INV-T-24768, INV-AC-24766, INV-REQ-1241): the shared reader of `gst.platform.policy-changed.v1` through `EventLogReader`; it feeds each record to `PolicyFeed`, reports head and snapshot to the `PolicyReplica`, resumes from the position the replica holds, skips a record that breaks the contract with an incident and stops the topic on `RebuildRequired`. Auto-configured by `PolicyReaderWiring`; properties `product-runtime.policy-reader.enabled` (default on) and `product-runtime.policy-reader.poll-interval` (default `PT1S`).
+
 ## [2.21.6] - 2026-11-18
 ### Changed
 - Version step only (G-DVS, INV-T-24593, INV-AC-24592): the published bytes change because the dependencies `outbox-and-queue` (6.30.0) and `service-runtime` (13.22.1) step; no code change in this module.

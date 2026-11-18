@@ -1,3 +1,4 @@
 com.dynokore.platform.productruntime.ProductRuntimeConfiguration
 com.dynokore.platform.productruntime.AuthorityReplicaWiring
 com.dynokore.platform.productruntime.StructureReplicaWiring
+com.dynokore.platform.productruntime.PolicyReaderWiring
