@@ -14,3 +14,4 @@
 ../openapi.yaml#/components/schemas/PriorEvidenceImportResult prior-evidence-import-result-*.json
 ../schemas/archive-volume-measured-payload.schema.json archive-volume-measured-payload-*.json
 ../schemas/offboarding-export-finished-payload.schema.json offboarding-export-finished-payload-*.json
+../openapi.yaml#/components/schemas/SampleCheckArtefact sample-check-artefact-*.json

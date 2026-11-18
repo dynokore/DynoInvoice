@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.17.0
+  version: 1.18.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -737,6 +737,65 @@ paths:
                     lastRunAt: "2026-04-01T01:00:00Z"
                     chainLength: 1204
                     periodDigest: "sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+        default:
+          $ref: '#/components/responses/Error'
+  /internal/v1/evidence/entities/{entityRef}/rendition-sample-checks:
+    get:
+      operationId: listRenditionSampleChecks
+      summary: List the stored SAMPLE_CHECK artefacts of an entity
+      description: >-
+        The sample check results of an entity that payload-svc emitted as
+        `EvidenceArtefactRecorded` and evidence-svc stored append-only
+        (INV-REQ-1036). Only artefacts of type SAMPLE_CHECK are returned.
+        Changes no state.
+
+
+        The result is paged by cursor (API-18). `limit` defaults to 100 and
+        is at most 500; a larger value is refused with 400. `cursor` is
+        opaque and integrity-protected, bound to the principal, filters and
+        sort that produced it, and valid for at least 24 hours; a cursor of
+        another principal or an expired cursor is refused with 400. The
+        order is total: recordedAt ascending, then reference ascending, then
+        hash ascending. The three keys are unique within the returned set
+        (one tenant, type SAMPLE_CHECK), because the same reference can carry
+        two hashes. `nextCursor` is omitted on the last page. There is no
+        offset and no total count.
+      tags: [verification]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->evidence-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1036]
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: A page of the stored sample check artefacts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SampleCheckArtefactPage'
+              examples:
+                default:
+                  value:
+                    items:
+                      - artefactType: "SAMPLE_CHECK"
+                        reference: "SC-2026-0001"
+                        hash: "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+                        recordedAt: "2026-04-01T01:00:00Z"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/evidence/retrievals/{retrievalId}:
@@ -1966,6 +2025,35 @@ components:
           $ref: '#/components/schemas/IntegrityResult'
           description: Integrity status of the chain's entity and period (DEP-007). The service always sends it.
       required: [ackId, docUuid, version, imported, items]
+    SampleCheckArtefact:
+      type: object
+      description: A stored SAMPLE_CHECK evidence artefact (INV-REQ-1036).
+      properties:
+        artefactType:
+          type: string
+          enum: [SAMPLE_CHECK]
+          x-extensible-enum: true
+        reference:
+          type: string
+          maxLength: 200
+        hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        recordedAt:
+          type: string
+          format: date-time
+      required: [artefactType, reference, hash, recordedAt]
+    SampleCheckArtefactPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SampleCheckArtefact'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; omitted on the last page.
+      required: [items]
     ReverseLookupItem:
       type: object
       properties:
