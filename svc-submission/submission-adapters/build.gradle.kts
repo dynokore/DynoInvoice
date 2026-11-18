@@ -85,6 +85,7 @@ dependencies {
     implementation(libs.gstCatalogue)
     implementation(libs.jooq)
     implementation(libs.poi.ooxml)
+    implementation(libs.pdfbox)
     implementation(libs.postgresql)
     implementation(libs.flyway.core)
     implementation(libs.flyway.databasePostgresql)

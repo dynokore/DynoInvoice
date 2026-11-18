@@ -28,6 +28,8 @@ jsonSchemaValidator = "3.0.8"
 swaggerAnnotations = "2.2.55"
 # Apache POI (streaming SXSSF) for the XLSX export of INV-REQ-978; newest stable on Maven Central 2026-11-02 (ruling INV-Q-16351 A, licence check STK-66).
 poi = "6.0.0"
+# Apache PDFBox for the PDF export of INV-REQ-978; newest stable on Maven Central 2026-11-18, maven-metadata release 3.0.8 (ruling INV-Q-16351 A, licence check STK-66).
+pdfbox = "3.0.8"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -63,6 +65,8 @@ spring-context = { module = "org.springframework:spring-context" }
 jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
 # INV-Q-16351 A (Apache-2.0, STK-66 licence check); used by submission-adapters only (ARC-03).
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+# INV-Q-16351 A (Apache-2.0, STK-66 licence check); used by submission-adapters only (ARC-03).
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
