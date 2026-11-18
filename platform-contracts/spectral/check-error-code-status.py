@@ -20,6 +20,14 @@ Baseline. A row (directory, operationId, code) is exempt only while that pair st
 row's reason: `status_not_declared` (CODE has a status and the operation lacks the response) or
 `no_status` (CODE has no status in either source). The file only shrinks; rows are never added.
 
+Example fidelity (INV-T-24693). For every operation, every inline response (a `$ref` response is not
+read) with `content` `application/problem+json`, and every `example` and every `examples.<name>.value`
+there that is a mapping with a `code` key: the `code` must be a string, must equal a member of the
+operation's `x-error-codes` (an absent `x-error-codes` is the empty list), and, when the code has a
+status by the derivation above, that status must equal the response key read as a string (`default`,
+`4XX` and `409 ` never equal). A code with no status or no catalogue entry gets no status comparison
+here; the membership test still applies.
+
 Exit 1 on: an operation whose member has no response with its status; a member whose code has no
 status in either source (and no baseline row); a condition with two or more different matches; a
 status-table row for a code that is not a catalogue code, with a status that is not three digits
@@ -142,6 +150,46 @@ def operations(doc):
                 yield op
 
 
+def example_codes(media):
+    """Yield every mapping with a `code` key found in `example` and `examples.<name>.value`."""
+    if not isinstance(media, dict):
+        return
+    candidates = [media.get("example")]
+    examples = media.get("examples")
+    if isinstance(examples, dict):
+        candidates += [v.get("value") for v in examples.values() if isinstance(v, dict)]
+    for cand in candidates:
+        if isinstance(cand, dict) and "code" in cand:
+            yield cand["code"]
+
+
+def check_examples(name, oid, op, cat, table, findings):
+    responses = op.get("responses")
+    if not isinstance(responses, dict):
+        return
+    declared = op.get("x-error-codes")
+    members = {m for m in declared if isinstance(m, str)} if isinstance(declared, list) else set()
+    for key, resp in responses.items():
+        if not isinstance(resp, dict) or "$ref" in resp:
+            continue
+        content = resp.get("content")
+        media = content.get("application/problem+json") if isinstance(content, dict) else None
+        skey = str(key) if isinstance(key, (str, int)) and not isinstance(key, bool) else None
+        for code in example_codes(media):
+            where = f"{name}: operation {oid}: response {key!r} example"
+            if not isinstance(code, str):
+                findings.append(f"{where} code {code!r} is not a string")
+                continue
+            if code not in members:
+                findings.append(f"{where} code {code} is not a member of x-error-codes")
+            found = cat.get(code) if cat is not None else None
+            if found is None or len(found) > 1:
+                continue
+            status = next(iter(found)) if found else table.get(code)
+            if status is not None and status != skey:
+                findings.append(f"{where} code {code} has status {status} but the response key is {key}")
+
+
 def evaluate(root: Path, cat, table, contracts, findings):
     """Return (members, operations, failing) with failing {(dir, op, code): reason}."""
     members = ops = 0
@@ -160,6 +208,7 @@ def evaluate(root: Path, cat, table, contracts, findings):
             ops += 1
             oid = op["operationId"]
             opids.add((directory, oid))
+            check_examples(name, oid, op, cat, table, findings)
             if "x-error-codes" not in op:
                 continue
             value = op["x-error-codes"]

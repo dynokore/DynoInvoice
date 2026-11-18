@@ -89,5 +89,24 @@ mkcat no-contract;                                                       expect_
 mk bad-contract '[A-409]' "$R200"; printf 'a: [unclosed\n' > "$T/bad-contract/svc/openapi.yaml"; expect_fail bad-contract "the contract cannot be parsed"
 mk string-value 'A-409' "$R200";                                         expect_fail string-value "x-error-codes is not a list"
 mk int-member '[409]' "$R200";                                           expect_fail int-member "is not a string"
+# Example fidelity (INV-T-24693): the example code of an inline problem+json response.
+EX() { # status-key, code -> response block with a problem+json example
+  printf '        %s:\n          description: x\n          content:\n            application/problem+json:\n              example: {code: %s}\n' "$1" "$2"
+}
+mk ex-pass '[A-409]' "$R200$(EX '"409"' A-409)";                         expect_pass ex-pass
+mk ex-pass-nostatus '[F-NONE]' "$R200$(EX '"418"' F-NONE)";              table ex-pass-nostatus 'F-NONE\t418\tINV-Q-5\n'; expect_pass ex-pass-nostatus
+mk ex-pass-nostatus-any '[F-NONE]' "$R200$(EX default F-NONE)";    base ex-pass-nostatus-any 'svc\tdoThing\tF-NONE\tno_status\n'; expect_pass ex-pass-nostatus-any
+mk ex-pass-ref '[A-409]' "$R200"'        "409":\n          $ref: "#/components/responses/E"\n'; expect_pass ex-pass-ref
+mk ex-notmember '[A-409]' "$R200$(EX '"409"' A-409)"; sed -i 's/{code: A-409}/{code: B-409}/' "$T/ex-notmember/svc/openapi.yaml"
+printf -- '- code: B-409\n  condition: Other (HTTP 409)\n' >> "$T/ex-notmember/catalogue/errors/error-codes.yaml"
+expect_fail ex-notmember "response '409' example code B-409 is not a member of x-error-codes"
+mk ex-otherstatus '[A-409, B-503]' "$R200$(EX '"422"' A-409)";            expect_fail ex-otherstatus "code A-409 has status 409 but the response key is 422"
+mk ex-default '[A-409]' "$R200$(EX default A-409)";                      expect_fail ex-default "code A-409 has status 409 but the response key is default"
+mk ex-quotedkey '[A-409]' "$R200$(EX "'409 '" A-409)";                   expect_fail ex-quotedkey "code A-409 has status 409 but the response key is 409 "
+mk ex-named '[A-409]' "$R200"'        "409":\n          description: x\n          content:\n            application/problem+json:\n              examples:\n                one:\n                  value: {code: B-503}\n'
+expect_fail ex-named "example code B-503 is not a member of x-error-codes"
+mk ex-nonstring '[A-409]' "$R200$(EX '"409"' 409)";                      expect_fail ex-nonstring "code 409 is not a string"
+mk ex-nolist '[]' "$R200$(EX '"409"' A-409)"; sed -i '/x-error-codes/d' "$T/ex-nolist/svc/openapi.yaml"; expect_fail ex-nolist "example code A-409 is not a member of x-error-codes"
+mk ex-dir2 '[A-409]' "$R200"; mkopenapi ex-dir2 svc2 '[A-409]' "$R200$(EX '"409"' B-503)"; expect_fail ex-dir2 "svc2/openapi.yaml: operation doThing: response '409' example code B-503 is not a member"
 [ "$failed" -eq 0 ] && echo "gst-ci: check-error-code-status.py self-test passed."
 exit $failed

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 2.0.0
+  version: 2.1.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -286,7 +286,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->payload-svc
-      x-error-codes: [PAY-017]
+      x-error-codes: [PAY-017, SRT-001]
       x-requirements: [INV-REQ-500, INV-REQ-330]
       x-operation:
         role: tax.approver
@@ -524,7 +524,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 2000
       x-sync-edge: console-bff->payload-svc
-      x-error-codes: [SRT-005]
+      x-error-codes: [SRT-005, SRT-001]
       x-requirements: [INV-REQ-1033, INV-REQ-813, INV-REQ-1032]
       x-operation:
         role: tax.operator
