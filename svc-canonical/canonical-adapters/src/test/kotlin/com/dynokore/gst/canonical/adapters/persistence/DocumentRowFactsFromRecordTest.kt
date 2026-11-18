@@ -56,7 +56,7 @@ class DocumentRowFactsFromRecordTest {
     private fun command(
         direction: Direction = Direction.SALE,
         supplier: PartyIdentifier = PartyIdentifier("SG_UEN", "123"),
-        content: DocumentContent = complete(),
+        content: DocumentContent? = complete(),
     ) = RecordDocumentCommand(
         tenantId = tenant,
         entityRef = "E-1",
@@ -264,6 +264,37 @@ class DocumentRowFactsFromRecordTest {
         val cmd = command(content = incomplete())
         assertThrows<RowFactUnknown> { source(captured(cmd)).factsOf(cmd, docUuid, 1, result()) }.fact shouldBe
             "canonical"
+    }
+
+    @Test
+    fun `INV-AC-21604 a null command content throws RowFactUnknown canonical and calls no writer`() {
+        val cmd = command(content = null)
+        val e = assertThrows<RowFactUnknown> { source(captured(cmd)).factsOf(cmd, docUuid, 1, result()) }
+        e.fact shouldBe "canonical"
+        e.cause shouldBe null // not the IncompleteCanonicalDocument of a writer call
+    }
+
+    @Test
+    fun `INV-AC-21604 a period ref with no span throws RowFactUnknown fiscalYear`() {
+        val cmd = command()
+        val s =
+            DocumentRowFactsFromRecord(
+                { _, _ -> entityId },
+                { _, _ -> listOf(PeriodSpan("2025-Q4", LocalDate.parse("2025-10-01"), LocalDate.parse("2025-12-31"))) },
+                { _, _, _ -> periodId },
+                { "P-9" },
+                captured(cmd),
+                writer,
+                { "U-7" },
+            )
+        assertThrows<RowFactUnknown> { s.factsOf(cmd, docUuid, 1, result()) }.fact shouldBe "fiscalYear"
+    }
+
+    @Test
+    fun `INV-AC-21604 a null direction throws RowFactUnknown direction`() {
+        val cmd = command().copy(direction = null)
+        assertThrows<RowFactUnknown> { source(captured(cmd)).factsOf(cmd, docUuid, 1, result()) }.fact shouldBe
+            "direction"
     }
 
     @Test

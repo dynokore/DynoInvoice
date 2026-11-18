@@ -53,7 +53,11 @@ class DocumentRowFactsConfiguration {
             partyRefOf = partyRefs::partyRefOf,
             capture = capture,
             writer = writer,
-            actingUser = { tenants.currentActor() ?: throw RowFactUnknown("createdBy") },
+            actingUser = actingUser(tenants),
         )
     }
+
+    /** The acting user ID bound for the request; none bound is an unknown fact, never a constant or a system user. */
+    fun actingUser(tenants: TenantContext): () -> String =
+        { tenants.currentActor() ?: throw RowFactUnknown("createdBy") }
 }

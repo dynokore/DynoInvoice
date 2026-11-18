@@ -2,6 +2,7 @@ package com.dynokore.gst.canonical.bootstrap
 
 import com.dynokore.gst.canonical.adapters.persistence.DocumentRowFactsFromRecord
 import com.dynokore.gst.canonical.adapters.persistence.JooqEntityIdentities
+import com.dynokore.gst.canonical.adapters.persistence.RowFactUnknown
 import com.dynokore.gst.canonical.application.document.ScopeAnswer
 import com.dynokore.gst.canonical.application.document.ScopeAnswerCapture
 import com.dynokore.gst.canonical.application.document.ScopeEvaluation
@@ -44,5 +45,20 @@ class DocumentRowFactsConfigurationTest {
                 ctx.getBeansOfType(ScopeAnswerCapture::class.java).size shouldBe 1
                 ctx.getBeansOfType(DocumentRowFactsFromRecord::class.java).size shouldBe 1
             }
+    }
+
+    private fun tenantsWithActor(actor: String?): TenantContext =
+        java.lang.reflect.Proxy.newProxyInstance(
+            TenantContext::class.java.classLoader,
+            arrayOf(TenantContext::class.java),
+        ) { _, method, _ -> if (method.name == "currentActor") actor else error("not used") } as TenantContext
+
+    @Test
+    fun `INV-AC-21604 a null acting user throws RowFactUnknown createdBy`() {
+        val actingUser = DocumentRowFactsConfiguration().actingUser(tenantsWithActor(null))
+        org.junit.jupiter.api
+            .assertThrows<RowFactUnknown> { actingUser() }
+            .fact shouldBe "createdBy"
+        DocumentRowFactsConfiguration().actingUser(tenantsWithActor("U-7"))() shouldBe "U-7"
     }
 }
