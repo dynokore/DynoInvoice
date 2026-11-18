@@ -91,7 +91,7 @@ class AuditPurgeHttpIT {
         TransactionRunnerImpl(TenantAwareDataSource(PostgresDb.runtimeDataSource), tenants, null, BINDING_KEY)
     private val dsl: DSLContext = TenancyJooq.dslContext(emptyMap(), tenants, runner)
 
-    /** The Idempotency-Key table as the service declares it to the tenant layer: platform keys carry the platform tenant. */
+    /** The Idempotency-Key table as the service declares it to the tenant layer (platform keys: platform tenant). */
     private val idempotencyDsl: DSLContext =
         TenancyJooq.dslContext(mapOf(DSL.name("controlplane", "idempotency_key") to TableClass.TENANT), tenants, runner)
     private val stager: AuditStager =
@@ -184,7 +184,7 @@ class AuditPurgeHttpIT {
     private fun controller(
         floors: AuditPurgeFloorSource,
         timeout: Duration = Duration.ofSeconds(2),
-        actor: String = ACTOR,
+        principal: String = ACTOR,
     ): ReleasesController {
         val permissions = livePermissions(timeout)
         val authority =
@@ -202,7 +202,7 @@ class AuditPurgeHttpIT {
         val useCase = PurgeAuditEntries(authority, floors, purger, clock)
         val noPermission = OperatorPermissions { _, _ -> false }
         return ReleasesController(
-            EndUserPrincipalResolver { EndUserPrincipal(actor, null, emptySet()) },
+            EndUserPrincipalResolver { EndUserPrincipal(principal, null, emptySet()) },
             tenants,
             unused<OperationRunner>(),
             PublishTrain(
@@ -432,7 +432,7 @@ class AuditPurgeHttpIT {
         val cutOff = yearsAgo(SIX + 1)
         val key = UUID.randomUUID()
         val first = call(controller(floors), cutOff, key).body!!
-        val other = call(controller(floors, actor = "operator-10"), cutOff, key).body!!
+        val other = call(controller(floors, principal = "operator-10"), cutOff, key).body!!
         other.auditEntryId shouldNotBe first.auditEntryId
         other.purgeId shouldNotBe first.purgeId
         keyRows() shouldBe 2
