@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.21.4] - 2026-11-18
+### Changed
+- Version step only (G-DVS, INV-T-24432): the published bytes change because the dependency `service-runtime` steps to 13.21.0 (`RelaxationReader`); no code change in this module.
+
 ## [2.21.3] - 2026-11-16
 ### Changed
 - Version step only (G-DVS, INV-T-23694): the published bytes change because the dependency `outbox-and-queue` steps to 6.28.0 (OffboardingExportRequested joins the tenant-wide domain events); no code change in this module.

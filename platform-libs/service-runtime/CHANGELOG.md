@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.21.0] - 2026-11-18
+### Added
+- `ConfigResolverWiring` wires the `RelaxationReader` bean (`JdbcRelaxationReader`) like `PolicyHistory`, on a `TransactionRunner` and replaceable by a service's own (INV-T-24432, INV-AC-24431); config-resolver steps to 6.1.0.
+
 ## [13.20.4] - 2026-11-16
 ### Changed
 - Version step only (G-DVS, INV-T-23694): the published bytes change because the dependency `outbox-and-queue` steps to 6.28.0 (OffboardingExportRequested joins the tenant-wide domain events); no code change in this module.

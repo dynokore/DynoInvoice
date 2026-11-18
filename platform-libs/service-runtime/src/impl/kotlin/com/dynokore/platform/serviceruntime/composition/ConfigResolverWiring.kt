@@ -11,11 +11,13 @@ import com.dynokore.platform.configresolver.JdbcOptionValueMaximum
 import com.dynokore.platform.configresolver.JdbcPolicyHistory
 import com.dynokore.platform.configresolver.JdbcPolicyReader
 import com.dynokore.platform.configresolver.JdbcPolicyWriter
+import com.dynokore.platform.configresolver.JdbcRelaxationReader
 import com.dynokore.platform.configresolver.JdbcResolutionRecorder
 import com.dynokore.platform.configresolver.OptionValueMaximum
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
+import com.dynokore.platform.configresolver.RelaxationReader
 import com.dynokore.platform.configresolver.ResolutionRecorder
 import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.configresolver.ValueConstraints
@@ -80,6 +82,23 @@ class ConfigResolverWiring {
         modules: ModuleProperties,
     ): JdbcPolicyHistory =
         JdbcPolicyHistory(
+            moduleDsl(transactionRunner, tenants, modules),
+            catalogue,
+            gst.configForm(),
+            modules.requireSchema(),
+        )
+
+    @Bean
+    @ConditionalOnBean(TransactionRunner::class)
+    @ConditionalOnMissingBean(RelaxationReader::class)
+    fun relaxationReader(
+        transactionRunner: TransactionRunner,
+        tenants: TenantContext,
+        catalogue: VariationPointCatalogue,
+        gst: GstProperties,
+        modules: ModuleProperties,
+    ): JdbcRelaxationReader =
+        JdbcRelaxationReader(
             moduleDsl(transactionRunner, tenants, modules),
             catalogue,
             gst.configForm(),

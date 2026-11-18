@@ -83,6 +83,9 @@ Released on its own version with its own changelog. Services consume it only as 
 - `PolicyHistory`: every version of a scope's value, the as-of view (in force on the date, and what changed
   since: recorded or effective after it; keys from `VariationPointCatalogue.keys()`) and compare
   (INV-AC-1146).
+- `RelaxationReader`: the acknowledgements behind the value in force of a row (what `PolicyReader.resolve` gives for
+  the same arguments), in the order recorded; empty for a catalogue default or a value without a relaxation;
+  tenant scope only, an installation scope is refused with `IllegalArgumentException` (INV-T-24432, INV-AC-24431).
 - `ConfigSchema.upgradeTo110` (removed in 2.0.0) for a 1.0.0 schema (expand-only); `ddl` now creates the 1.1.0
   tables.
 

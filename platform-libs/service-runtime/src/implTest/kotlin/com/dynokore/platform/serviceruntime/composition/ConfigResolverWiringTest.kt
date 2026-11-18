@@ -7,11 +7,13 @@ import com.dynokore.platform.configresolver.JdbcOptionValueMaximum
 import com.dynokore.platform.configresolver.JdbcPolicyHistory
 import com.dynokore.platform.configresolver.JdbcPolicyReader
 import com.dynokore.platform.configresolver.JdbcPolicyWriter
+import com.dynokore.platform.configresolver.JdbcRelaxationReader
 import com.dynokore.platform.configresolver.JdbcResolutionRecorder
 import com.dynokore.platform.configresolver.OptionValueMaximum
 import com.dynokore.platform.configresolver.PolicyHistory
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.PolicyWriter
+import com.dynokore.platform.configresolver.RelaxationReader
 import com.dynokore.platform.configresolver.ResolutionRecorder
 import com.dynokore.platform.configresolver.VariationPointCatalogue
 import com.dynokore.platform.serviceruntime.binding.GstProperties
@@ -140,6 +142,33 @@ class ConfigResolverWiringTest {
             context.getBeanNamesForType(PolicyReader::class.java).size shouldBe 0
             context.getBeanNamesForType(PolicyHistory::class.java).size shouldBe 0
             context.getBeanNamesForType(PolicyWriter::class.java).size shouldBe 0
+        }
+    }
+
+    @Test
+    fun `INV-AC-24431 with a TransactionRunner exactly one RelaxationReader bean is a JdbcRelaxationReader`() {
+        withRunner.run { context ->
+            context.startupFailure shouldBe null
+            context.getBeansOfType(RelaxationReader::class.java).size shouldBe 1
+            context.getBean(RelaxationReader::class.java).shouldBeInstanceOf<JdbcRelaxationReader>()
+        }
+    }
+
+    @Test
+    fun `INV-AC-24431 without a TransactionRunner there is no RelaxationReader bean`() {
+        base.run { context ->
+            context.startupFailure shouldBe null
+            context.getBeanNamesForType(RelaxationReader::class.java).size shouldBe 0
+        }
+    }
+
+    @Test
+    fun `INV-AC-24431 a user-declared RelaxationReader is the only one`() {
+        val own = mockk<RelaxationReader>()
+        withRunner.withBean(RelaxationReader::class.java, { own }).run { context ->
+            context.startupFailure shouldBe null
+            context.getBeansOfType(RelaxationReader::class.java).size shouldBe 1
+            context.getBean(RelaxationReader::class.java) shouldBeSameInstanceAs own
         }
     }
 }

@@ -204,6 +204,19 @@ internal class JdbcSettingWrites(
             .execute()
     }
 
+    /** The relaxation reference of the setting row [settingId] of [tenant], or null when it has none or no row. */
+    internal fun relaxationOf(
+        tenant: TenantId,
+        settingId: UUID,
+    ): RelaxationId? =
+        dsl
+            .select(relaxationRef)
+            .from(settings)
+            .where(id.eq(settingId))
+            .and(tenantId.eq(tenant.value))
+            .fetchOne { it.get(relaxationRef) }
+            ?.let(::RelaxationId)
+
     /** The acknowledgements of [relaxation], in the order given. */
     fun acknowledgements(
         tenant: TenantId,

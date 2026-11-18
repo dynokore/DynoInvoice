@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-11-18
+### Added
+- `RelaxationReader` and `JdbcRelaxationReader`: the acknowledgements behind the value in force of a row, tenant-isolated and by date (INV-T-24432, INV-AC-24431).
+
 ## [6.0.12] - 2026-11-16
 ### Changed
 - Version step only (G-DVS, INV-T-23694): the published bytes change because the dependency `outbox-and-queue` steps to 6.28.0 (OffboardingExportRequested joins the tenant-wide domain events); no code change in this module.
