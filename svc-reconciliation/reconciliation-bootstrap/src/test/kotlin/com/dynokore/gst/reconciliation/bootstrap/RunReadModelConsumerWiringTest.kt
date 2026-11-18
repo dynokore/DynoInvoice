@@ -12,6 +12,7 @@ import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.InboxConsumer
+import com.dynokore.platform.outboxandqueue.ReplayDelivery
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -82,6 +83,24 @@ class RunReadModelConsumerWiringTest {
             ReconciliationEvents.consumedEntries.map { it.topic } shouldContainExactly
                 RunReadModelConsumerConfiguration.SUBSCRIPTIONS.map { it.topic }
         }
+    }
+
+    @Test
+    fun `INV-AC-24342 the three consumer beans are InboxConsumer typed so replayDelivery backs off explicitly`(
+        @TempDir dir: Path,
+    ) {
+        // Replay is unavailable for this service until INV-T-24578 (platform-libs) makes replayDelivery serve several
+        // InboxConsumer beans; svc-reconciliation takes it by a later pin bump (ruling of INV-T-24345, option A).
+        ReconciliationContext.offline(dir).run { context ->
+            context.startupFailure shouldBe null
+            val beans = context.getBeansOfType(InboxConsumer::class.java)
+            beans.keys.count { it in consumerNames } shouldBe 3
+            context.getBeansOfType(ReplayDelivery::class.java).size shouldBe 0
+        }
+        val methods =
+            RunReadModelConsumerConfiguration::class.java.declaredMethods.filter { it.name in consumerNames }
+        methods.size shouldBe 3
+        methods.forEach { it.returnType shouldBe InboxConsumer::class.java }
     }
 
     @Test
