@@ -22,9 +22,7 @@ class PolicyChangedHandler(
     private val topic: String = PolicyReplicaConfiguration.POLICY_CHANGED_TOPIC,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome =
-        throw IllegalStateException(
-            "PolicyChanged needs the log record of its position; the one-argument handle is refused",
-        )
+        error("PolicyChanged needs the log record of its position; the one-argument handle is refused")
 
     override fun handle(
         event: Envelope,
