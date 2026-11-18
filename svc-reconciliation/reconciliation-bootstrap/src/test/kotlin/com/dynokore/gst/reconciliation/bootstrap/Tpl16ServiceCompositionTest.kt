@@ -34,7 +34,8 @@ class Tpl16ServiceCompositionTest {
             ).forEach { context.getBean(it.java) }
             context.getBeanNamesForType(DataSource::class.java).toList() shouldBe listOf("dataSource")
             context.getBean(TenantScope::class.java).workloadPrincipal shouldBe "svc:reconciliation-svc"
-            catalogueTypes(context) shouldBe ReconciliationEvents.entries.map { it.eventType }.toSet()
+            catalogueTypes(context) shouldBe
+                (ReconciliationEvents.entries + ReconciliationEvents.consumedEntries).map { it.eventType }.toSet()
         }
     }
 

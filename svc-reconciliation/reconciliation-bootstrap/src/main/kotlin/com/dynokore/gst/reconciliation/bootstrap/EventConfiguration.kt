@@ -15,7 +15,8 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
     @Bean
-    fun eventCatalogue(): EventCatalogue = EventCatalogue(ReconciliationEvents.entries)
+    fun eventCatalogue(): EventCatalogue =
+        EventCatalogue(ReconciliationEvents.entries + ReconciliationEvents.consumedEntries)
 }
 
 object ReconciliationEvents {
@@ -45,4 +46,38 @@ object ReconciliationEvents {
         topicByType.map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
         } + platformEntries
+
+    /**
+     * The three events the service consumes for its run read model (INV-REQ-1206), each with its producer as
+     * platform-contracts `event-log/topics.yaml` states it: canonical-svc and submission-svc, never this service, so the
+     * emission guard refuses reconciliation-svc to emit them. They are ordinary topics (no record topic), so the inbox
+     * consumer keeps the `docsequence` check; only `CanonicalVersionCreated` is a content topic.
+     */
+    val consumedEntries: List<CatalogueEntry> =
+        listOf(
+            CatalogueEntry(
+                "com.dynokore.gst.canonical.CanonicalVersionCreated.v1",
+                RunReadModelConsumerConfiguration.CANONICAL_VERSION_CREATED_TOPIC,
+                setOf("canonical-svc"),
+                contentTopic = true,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                "com.dynokore.gst.canonical.PeriodReassigned.v1",
+                RunReadModelConsumerConfiguration.PERIOD_REASSIGNED_TOPIC,
+                setOf("canonical-svc"),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                "com.dynokore.gst.submission.SubmissionAcknowledged.v1",
+                RunReadModelConsumerConfiguration.SUBMISSION_ACKNOWLEDGED_TOPIC,
+                setOf("submission-svc"),
+                contentTopic = false,
+                recordTopic = false,
+                retainedWhileResolvable = false,
+            ),
+        )
 }
