@@ -26,4 +26,13 @@ class JooqDocumentPartyRefs(
             .set(DOCUMENT_PARTY_REF.PARTY_REF, DSL.excluded(DOCUMENT_PARTY_REF.PARTY_REF))
             .execute()
     }
+
+    /** The party reference stored for [docUuid], or null when none; the tenant is bound by the transaction. */
+    fun partyRefOf(docUuid: UUID): String? =
+        dsl
+            .select(DOCUMENT_PARTY_REF.PARTY_REF)
+            .from(DOCUMENT_PARTY_REF)
+            .where(DOCUMENT_PARTY_REF.TENANT_ID.eq(tenants.current().value))
+            .and(DOCUMENT_PARTY_REF.DOC_UUID.eq(docUuid))
+            .fetchOne(DOCUMENT_PARTY_REF.PARTY_REF)
 }
