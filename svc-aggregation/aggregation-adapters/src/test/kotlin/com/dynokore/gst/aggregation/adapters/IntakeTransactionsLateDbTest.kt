@@ -45,7 +45,8 @@ class IntakeTransactionsLateDbTest {
     private val day = LocalDate.of(2027, 3, 10)
     private val open = LocalDate.of(2027, 3, 20)
     private val tick = LocalDate.of(2027, 3, 15)
-    private val spans = PeriodSpans.Known(listOf(PeriodSpan(LocalDate.of(2027, 3, 1), LocalDate.of(2027, 3, 31), "2027-03")))
+    private val spans =
+        PeriodSpans.Known(listOf(PeriodSpan(LocalDate.of(2027, 3, 1), LocalDate.of(2027, 3, 31), "2027-03")))
 
     private class Codes : ShortCodes {
         override fun entityCode(entityRef: String) = "E1"
@@ -143,7 +144,8 @@ class IntakeTransactionsLateDbTest {
         fun closeWindowsOf(vararg entities: String) {
             entities.forEach { send(it, "FIRST-$it", day) }
             runner.inTransaction {
-                CloseWindows(windows, { _, _, _ -> spans }, IntakeAggregate(Codes(), aggregates), publisher).execute(tick)
+                val intake = IntakeAggregate(Codes(), aggregates)
+                CloseWindows(windows, { _, _, _ -> spans }, intake, publisher).execute(tick)
             }
         }
     }
@@ -188,8 +190,9 @@ class IntakeTransactionsLateDbTest {
         rows(
             "select row_to_json(a)::text || coalesce((select json_agg(l order by position)::text from " +
                 "aggregation.aggregate_line l where l.aggregate_id = a.aggregate_id), '') || " +
-                "coalesce((select json_agg(t order by transaction_ref)::text from aggregation.aggregate_transaction t " +
-                "where t.tenant_id = a.tenant_id and t.aggregate_id = a.aggregate_id), '') " +
+                "coalesce((select json_agg(t order by transaction_ref)::text " +
+                "from aggregation.aggregate_transaction t where t.tenant_id = a.tenant_id " +
+                "and t.aggregate_id = a.aggregate_id), '') " +
                 "from aggregation.aggregate a where a.tenant_id = '$tenant' order by a.entity_ref",
         )
 
@@ -206,8 +209,13 @@ class IntakeTransactionsLateDbTest {
         val tenant = UUID.randomUUID()
         world(tenant) { w ->
             w.closeWindowsOf("E-1", "E-2")
-            val closedAggregate = rows("select aggregate_id::text from aggregation.aggregate where tenant_id = '$tenant' and entity_ref = 'E-1'").single()
-            events(tenant) shouldBe listOf("E-1:CLOSED:1:$closedAggregate", "E-2:CLOSED:1:" + events(tenant)[1].substringAfterLast(":"))
+            val closedAggregate =
+                rows(
+                    "select aggregate_id::text from aggregation.aggregate " +
+                        "where tenant_id = '$tenant' and entity_ref = 'E-1'",
+                ).single()
+            events(tenant).map { it.substringBeforeLast(":") } shouldBe listOf("E-1:CLOSED:1", "E-2:CLOSED:1")
+            events(tenant).first() shouldBe "E-1:CLOSED:1:$closedAggregate"
             val aggregatesBefore = aggregateRows(tenant)
             val versionsBefore = versions(tenant)
             versionsBefore shouldBe listOf("E-1:1", "E-2:1")
@@ -269,8 +277,8 @@ class IntakeTransactionsLateDbTest {
             w.closeWindowsOf("E-1", "E-2")
             w.send("E-2", "T-E2", day)
             lateRows(tenant) shouldBe listOf("E-2:2027-03-10..2027-03-10")
-            events(tenant).filter { it.startsWith("E-1:") }.size shouldBe 1
-            events(tenant).filter { it.startsWith("E-2:LATE:2") }.size shouldBe 1
+            events(tenant).count { it.startsWith("E-1:") } shouldBe 1
+            events(tenant).count { it.startsWith("E-2:LATE:2") } shouldBe 1
         }
     }
 
