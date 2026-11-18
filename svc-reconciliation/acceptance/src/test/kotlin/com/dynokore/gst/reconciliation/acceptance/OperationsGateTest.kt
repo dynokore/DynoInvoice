@@ -40,7 +40,8 @@ class OperationsGateTest {
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        stubs shouldBe OperationsGate.contractOperations(openapi)
+        // uploadGstReturn is implemented by INV-T-24367: its method no longer answers 501
+        stubs shouldBe OperationsGate.contractOperations(openapi) - "uploadGstReturn"
     }
 
     @Test
@@ -64,17 +65,17 @@ class OperationsGateTest {
 
     @Test
     fun `a listed operation marked done with a 501 stub fails`() {
-        val table = tsv.replaceFirst("uploadGstReturn\tUNASSIGNED", "uploadGstReturn\tINV-T-9999")
+        val table = tsv.replaceFirst("getReconciliation\tUNASSIGNED", "getReconciliation\tINV-T-9999")
         run(table = table).shouldBeEmpty()
         run(table = table, done = "INV-T-9999\n") shouldContain
-            "operation uploadGstReturn: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "uploadGstReturn").shouldBeEmpty()
+            "operation getReconciliation: task INV-T-9999 is done but the operation still answers 501"
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getReconciliation").shouldBeEmpty()
     }
 
     @Test
     fun `a channel missing from the table, a duplicate row and an unknown row fail`() {
         run(table = tsv.lines().filterNot { it.contains("example-happened") }.joinToString("\n")).shouldNotBeEmpty()
-        run(table = tsv.trimEnd() + "\noperation\tuploadGstReturn\tUNASSIGNED\n").shouldNotBeEmpty()
+        run(table = tsv.trimEnd() + "\noperation\tgetReconciliation\tUNASSIGNED\n").shouldNotBeEmpty()
         run(table = tsv.trimEnd() + "\noperation\tnoSuchOperation\tUNASSIGNED\n").shouldNotBeEmpty()
         run(table = tsv.trimEnd() + "\nqueue\tx\tUNASSIGNED\n").shouldNotBeEmpty()
     }
@@ -84,7 +85,7 @@ class OperationsGateTest {
         run(done = null) shouldContain "done-tasks.txt: the file is missing"
         run(done = "TBD\n") shouldContain "done-tasks.txt: 'TBD' is not exactly an INV-T key"
         run(done = "inv-t-5964\n") shouldContain "done-tasks.txt: 'inv-t-5964' is not exactly an INV-T key"
-        val table = tsv.replaceFirst("uploadGstReturn\tUNASSIGNED", "uploadGstReturn\tINV-T-5970")
+        val table = tsv.replaceFirst("getReconciliation\tUNASSIGNED", "getReconciliation\tINV-T-5970")
         run(table = table, done = "INV-T-59700\n") shouldContain
             "done-tasks.txt: INV-T-59700 names no row of operations.tsv"
         run(table = table, done = "INV-T-5970 \n").shouldNotBeEmpty()
@@ -92,7 +93,7 @@ class OperationsGateTest {
 
     @Test
     fun `a listed key whose operation is implemented passes`() {
-        val table = tsv.replaceFirst("uploadGstReturn\tUNASSIGNED", "uploadGstReturn\tINV-T-5970")
-        run(table = table, done = "INV-T-5970\n", stubSet = stubs - "uploadGstReturn").shouldBeEmpty()
+        val table = tsv.replaceFirst("getReconciliation\tUNASSIGNED", "getReconciliation\tINV-T-5970")
+        run(table = table, done = "INV-T-5970\n", stubSet = stubs - "getReconciliation").shouldBeEmpty()
     }
 }
