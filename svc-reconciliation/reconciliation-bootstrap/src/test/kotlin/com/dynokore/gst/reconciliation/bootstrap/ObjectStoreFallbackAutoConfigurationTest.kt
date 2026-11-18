@@ -43,7 +43,7 @@ class ObjectStoreFallbackAutoConfigurationTest {
     private val s3ObjectStore = "com.dynokore.platform.evidencestore.S3ObjectStore"
     private val key = ObjectKey("tenant/work-paper/1")
 
-    /** The production wiring: the platform auto-configurations, then the fallback, and the service user configuration. */
+    /** The production wiring: the platform auto-configurations, the fallback, and the service user configuration. */
     private fun runner(mountRoot: Path): ApplicationContextRunner {
         Files.createDirectories(mountRoot.resolve("object-store"))
         Files.writeString(mountRoot.resolve("object-store/access-key-id"), "AKIDEXAMPLE")
@@ -78,7 +78,10 @@ class ObjectStoreFallbackAutoConfigurationTest {
         startupFailure shouldBe null
         getBeansOfType(ObjectStore::class.java).keys shouldHaveSize 1
         // WorkPaperSealConfiguration declares no bean of type ObjectStore
-        WorkPaperSealConfiguration::class.java.declaredMethods.none { ObjectStore::class.java.isAssignableFrom(it.returnType) } shouldBe true
+        WorkPaperSealConfiguration::class.java.declaredMethods.none {
+            ObjectStore::class.java.isAssignableFrom(it.returnType)
+        } shouldBe
+            true
         return getBean(ObjectStore::class.java)
     }
 
@@ -100,7 +103,8 @@ class ObjectStoreFallbackAutoConfigurationTest {
             store::class.java.name shouldBe UnconfiguredObjectStore::class.java.name
             ctx.getBeanNamesForType(ObjectStore::class.java).toList() shouldBe listOf("unconfiguredObjectStore")
             val message = "no object store is configured for the sealed work-papers"
-            shouldThrow<IllegalStateException> { store.put(key, byteArrayOf(1), Instant.EPOCH) }.message shouldBe message
+            shouldThrow<IllegalStateException> { store.put(key, byteArrayOf(1), Instant.EPOCH) }.message shouldBe
+                message
             shouldThrow<IllegalStateException> { store.get(key) }.message shouldBe message
         }
     }
@@ -117,10 +121,17 @@ class ObjectStoreFallbackAutoConfigurationTest {
     @Test
     fun `the production application context loads the imports file of the fallback`() {
         val resource = "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"
-        val lines = javaClass.classLoader.getResourceAsStream(resource)!!.bufferedReader().readLines()
+        val lines =
+            javaClass.classLoader
+                .getResourceAsStream(resource)!!
+                .bufferedReader()
+                .readLines()
         lines.filter { it == fallbackClass } shouldHaveSize 1
-        ImportCandidates.load(org.springframework.boot.autoconfigure.AutoConfiguration::class.java, javaClass.classLoader)
-            .toList() shouldContain fallbackClass
+        ImportCandidates
+            .load(
+                org.springframework.boot.autoconfigure.AutoConfiguration::class.java,
+                javaClass.classLoader,
+            ).toList() shouldContain fallbackClass
         // the production application enables auto-configuration, which is what reads that file
         AutoConfigurationImportSelector::class.java.name.isNotEmpty() shouldBe true
         ReconciliationApplication::class.java.isAnnotationPresent(
