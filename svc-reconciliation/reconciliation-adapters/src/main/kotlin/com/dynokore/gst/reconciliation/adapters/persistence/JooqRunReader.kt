@@ -101,48 +101,56 @@ class JooqRunReader(
         row: Record,
     ): RunSnapshot {
         val runId = checkNotNull(row.get(RECONCILIATION_RUN.RUN_ID))
-        val boxes =
-            dsl
-                .selectFrom(RECONCILIATION_RUN_BOX)
-                .where(RECONCILIATION_RUN_BOX.TENANT_ID.eq(tenantId))
-                .and(RECONCILIATION_RUN_BOX.RUN_ID.eq(runId))
-                .orderBy(RECONCILIATION_RUN_BOX.BOX.asc())
-                .fetch()
-                .map {
-                    RunBox(
-                        box = checkNotNull(it.box),
-                        submittedAmount = checkNotNull(it.submittedAmount),
-                        filedAmount = checkNotNull(it.filedAmount),
-                        variance = checkNotNull(it.variance),
-                        varianceClass = it.varianceClass,
-                        unexplainedResidual = checkNotNull(it.unexplainedResidual),
-                    )
-                }
-        val unmapped =
-            dsl
-                .selectFrom(RECONCILIATION_RUN_UNMAPPED_LINE)
-                .where(RECONCILIATION_RUN_UNMAPPED_LINE.TENANT_ID.eq(tenantId))
-                .and(RECONCILIATION_RUN_UNMAPPED_LINE.RUN_ID.eq(runId))
-                .orderBy(
-                    RECONCILIATION_RUN_UNMAPPED_LINE.DOC_UUID.asc(),
-                    RECONCILIATION_RUN_UNMAPPED_LINE.VERSION.asc(),
-                    RECONCILIATION_RUN_UNMAPPED_LINE.LINE_NUMBER.asc(),
-                ).fetch()
-                .map {
-                    RunUnmappedLine(
-                        docUuid = checkNotNull(it.docUuid),
-                        version = checkNotNull(it.version),
-                        lineNumber = checkNotNull(it.lineNumber),
-                        taxCode = checkNotNull(it.taxCode),
-                    )
-                }
         return RunSnapshot(
             run = recorded(row),
             returnForm = checkNotNull(row.get(RECONCILIATION_RUN.RETURN_FORM)),
-            boxes = boxes,
+            boxes = boxes(tenantId, runId),
             unexplainedResidual = checkNotNull(row.get(RECONCILIATION_RUN.UNEXPLAINED_RESIDUAL)),
-            unmappedLines = unmapped,
+            unmappedLines = unmappedLines(tenantId, runId),
             raisesPer003 = checkNotNull(row.get(RECONCILIATION_RUN.RAISES_PER003)),
         )
     }
+
+    private fun boxes(
+        tenantId: UUID,
+        runId: UUID,
+    ): List<RunBox> =
+        dsl
+            .selectFrom(RECONCILIATION_RUN_BOX)
+            .where(RECONCILIATION_RUN_BOX.TENANT_ID.eq(tenantId))
+            .and(RECONCILIATION_RUN_BOX.RUN_ID.eq(runId))
+            .orderBy(RECONCILIATION_RUN_BOX.BOX.asc())
+            .fetch()
+            .map {
+                RunBox(
+                    box = checkNotNull(it.box),
+                    submittedAmount = checkNotNull(it.submittedAmount),
+                    filedAmount = checkNotNull(it.filedAmount),
+                    variance = checkNotNull(it.variance),
+                    varianceClass = it.varianceClass,
+                    unexplainedResidual = checkNotNull(it.unexplainedResidual),
+                )
+            }
+
+    private fun unmappedLines(
+        tenantId: UUID,
+        runId: UUID,
+    ): List<RunUnmappedLine> =
+        dsl
+            .selectFrom(RECONCILIATION_RUN_UNMAPPED_LINE)
+            .where(RECONCILIATION_RUN_UNMAPPED_LINE.TENANT_ID.eq(tenantId))
+            .and(RECONCILIATION_RUN_UNMAPPED_LINE.RUN_ID.eq(runId))
+            .orderBy(
+                RECONCILIATION_RUN_UNMAPPED_LINE.DOC_UUID.asc(),
+                RECONCILIATION_RUN_UNMAPPED_LINE.VERSION.asc(),
+                RECONCILIATION_RUN_UNMAPPED_LINE.LINE_NUMBER.asc(),
+            ).fetch()
+            .map {
+                RunUnmappedLine(
+                    docUuid = checkNotNull(it.docUuid),
+                    version = checkNotNull(it.version),
+                    lineNumber = checkNotNull(it.lineNumber),
+                    taxCode = checkNotNull(it.taxCode),
+                )
+            }
 }
