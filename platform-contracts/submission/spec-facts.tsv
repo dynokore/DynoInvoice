@@ -2,3 +2,5 @@
 file	pointer	relation	value	requirement
 openapi.yaml	/components/schemas/TransactionStatus/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
 openapi.yaml	/components/schemas/TransactionStatus/properties/documentFunction/x-extensible-enum	equals	true	INV-REQ-371
+openapi.yaml	/components/schemas/ResolveAmendmentHoldRequest/properties/decision/x-extensible-enum	absent	-	INV-REQ-957
+openapi.yaml	/components/schemas/ResolveAmendmentHoldRequest/properties/decision/enum	equals	["RESUBMIT_NEW_VERSION","CREDIT_NOTE_REQUIRED"]	INV-REQ-957
