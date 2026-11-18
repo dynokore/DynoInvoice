@@ -54,26 +54,26 @@ class DocumentRowFactsFromRecord(
         val verdict = capture.take(command)
         if (verdict == null) {
             if (held) return null
-            throw RowFactUnknown("scopeAnswer")
+            unknown("scopeAnswer")
         }
-        val entityId = entityIdOf(command.tenantId, command.entityRef) ?: throw RowFactUnknown("entityId")
+        val entityId = entityIdOf(command.tenantId, command.entityRef) ?: unknown("entityId")
         val scopeVerdict =
             if (held) {
                 null
             } else {
                 ScopeVerdict.entries.firstOrNull { it.name == verdict.scopeVerdict }
-                    ?: throw RowFactUnknown("scopeVerdict")
+                    ?: unknown("scopeVerdict")
             }
         val typeText = verdict.documentTypeCode
-        val typeCode = typeText?.toShortOrNull() ?: throw RowFactUnknown("documentTypeCode")
+        val typeCode = typeText?.toShortOrNull() ?: unknown("documentTypeCode")
         val transactionDate =
             tree.path("transactionDate").asString(null)?.let { LocalDate.parse(it) }
-                ?: throw RowFactUnknown("transactionDate")
+                ?: unknown("transactionDate")
         val periodRef = tree.path("prescribedPeriodRef").asString("")
         val periodId = if (periodRef.isEmpty()) null else periodIdOf(command.tenantId, command.entityRef, periodRef)
         val fiscalYear = fiscalYearOf(command, periodRef, transactionDate)
         val issuerPartyKey = issuerOf(command, docUuid)
-        val content = command.content ?: throw RowFactUnknown("canonical")
+        val content = command.content ?: unknown("canonical")
         val canonical =
             try {
                 writer.write(content, typeText, verdict.lineTax)
@@ -114,7 +114,7 @@ class DocumentRowFactsFromRecord(
         if (periodRef.isEmpty()) return transactionDate.year.toShort()
         val span =
             spansOf.spansOf(command.tenantId, command.entityRef).firstOrNull { it.periodRef == periodRef }
-                ?: throw RowFactUnknown("fiscalYear")
+                ?: unknown("fiscalYear")
         return span.end.year.toShort()
     }
 
@@ -125,10 +125,12 @@ class DocumentRowFactsFromRecord(
         val key =
             when (command.direction) {
                 Direction.SALE -> "${command.supplier.scheme}:${command.supplier.value}"
-                Direction.PURCHASE -> partyRefOf(docUuid) ?: throw RowFactUnknown("issuerPartyKey")
-                null -> throw RowFactUnknown("direction")
+                Direction.PURCHASE -> partyRefOf(docUuid) ?: unknown("issuerPartyKey")
+                null -> unknown("direction")
             }
-        if (key.length > ISSUER_KEY_MAX) throw RowFactUnknown("issuerPartyKey")
+        if (key.length > ISSUER_KEY_MAX) unknown("issuerPartyKey")
         return key
     }
+
+    private fun unknown(fact: String): Nothing = throw RowFactUnknown(fact)
 }

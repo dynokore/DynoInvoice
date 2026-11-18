@@ -2,7 +2,6 @@ package com.dynokore.gst.canonical.bootstrap
 
 import com.dynokore.gst.canonical.adapters.persistence.DocumentRowFactsFromRecord
 import com.dynokore.gst.canonical.adapters.persistence.JooqEntityIdentities
-import com.dynokore.gst.canonical.application.document.PeriodSpans
 import com.dynokore.gst.canonical.application.document.ScopeAnswer
 import com.dynokore.gst.canonical.application.document.ScopeAnswerCapture
 import com.dynokore.gst.canonical.application.document.ScopeEvaluation
@@ -33,9 +32,6 @@ class DocumentRowFactsConfigurationTest {
 
         @Bean
         fun entityIdentities(dsl: DSLContext): JooqEntityIdentities = JooqEntityIdentities(dsl)
-
-        @Bean
-        fun spans(): PeriodSpans = PeriodSpans { _, _ -> emptyList() }
     }
 
     @Test

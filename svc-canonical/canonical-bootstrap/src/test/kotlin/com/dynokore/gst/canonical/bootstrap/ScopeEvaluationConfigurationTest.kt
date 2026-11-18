@@ -8,6 +8,7 @@ import com.dynokore.gst.canonical.application.document.CounterpartySchemeSource
 import com.dynokore.gst.canonical.application.document.EntityConstitutions
 import com.dynokore.gst.canonical.application.document.LineEvaluator
 import com.dynokore.gst.canonical.application.document.SchemeElections
+import com.dynokore.gst.canonical.application.document.ScopeAnswerCapture
 import com.dynokore.gst.canonical.application.document.ScopeEvaluation
 import com.dynokore.gst.canonical.application.document.ScopeEvaluationService
 import com.dynokore.platform.serviceruntime.resilience.Deadline
@@ -103,7 +104,10 @@ class ScopeEvaluationConfigurationTest {
             context.startupFailure shouldBe null
             context.getBeansOfType(RulesClient::class.java).size shouldBe 1
             context.getBeansOfType(MasterDataClient::class.java).size shouldBe 1
-            context.getBeansOfType(ScopeEvaluation::class.java).size shouldBe 1
+            // INV-T-21605: the capture decorator is the second, primary ScopeEvaluation; the service bean stays one
+            context.getBeansOfType(ScopeEvaluation::class.java).size shouldBe 2
+            context.getBean("scopeEvaluation").javaClass shouldBe ScopeEvaluationService::class.java
+            context.getBean(ScopeEvaluation::class.java).javaClass shouldBe ScopeAnswerCapture::class.java
         }
     }
 
