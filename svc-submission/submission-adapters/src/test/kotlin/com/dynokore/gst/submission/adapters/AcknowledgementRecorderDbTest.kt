@@ -95,6 +95,7 @@ class AcknowledgementRecorderDbTest {
             recorder,
             SubmissionAcknowledgedOutbox(outbox, tenants, store),
             clock,
+            { _, _ -> },
         )
 
     private val handler = handler(JooqAcknowledgementRecorder(dsl))

@@ -5,12 +5,15 @@ import com.dynokore.gst.submission.adapters.persistence.JooqPrecedingStates
 import com.dynokore.gst.submission.adapters.policy.PolicyCreditNoteOptions
 import com.dynokore.gst.submission.application.arrival.CodeRaising
 import com.dynokore.gst.submission.application.arrival.ScopeFacts
+import com.dynokore.gst.submission.application.ordering.AcknowledgedHook
 import com.dynokore.gst.submission.application.ordering.CreditNoteHold
 import com.dynokore.gst.submission.application.ordering.CreditNoteOptions
+import com.dynokore.gst.submission.application.ordering.HeldRelease
 import com.dynokore.gst.submission.application.ordering.HoldStore
 import com.dynokore.gst.submission.application.ordering.PrecedingStates
 import com.dynokore.gst.submission.application.ordering.ReleaseAloneAt
 import com.dynokore.gst.submission.application.queue.AcknowledgementInputs
+import com.dynokore.gst.submission.application.queue.SubmissionQueue
 import com.dynokore.platform.configresolver.PolicyReader
 import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean
@@ -49,4 +52,12 @@ class HoldConfiguration {
         filing: FilingProperties,
     ): CreditNoteHold =
         CreditNoteHold(facts, options, states, releaseAt, store, raising, clock, ZoneId.of(filing.businessZone))
+
+    /** The release of the held credit notes at the acknowledgement of their preceding document (INV-AC-24522). */
+    @Bean
+    fun heldRelease(
+        store: HoldStore,
+        states: PrecedingStates,
+        queue: SubmissionQueue,
+    ): AcknowledgedHook = HeldRelease(store, states, queue)
 }

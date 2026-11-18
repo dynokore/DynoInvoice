@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.queue
 
+import com.dynokore.gst.submission.application.ordering.AcknowledgedHook
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.ACKNOWLEDGED
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.SENT
@@ -100,6 +101,16 @@ class AcknowledgementReceivedHandlerTest {
             facts += it
         }
 
+    private val hooked = mutableListOf<Pair<TenantId, String>>()
+    private var hookFails = false
+
+    private val hook =
+        AcknowledgedHook { t, d ->
+            calls += "hook"
+            hooked += t to d
+            check(!hookFails) { "hook failed" }
+        }
+
     private val handler =
         AcknowledgementReceivedHandler(
             tenants,
@@ -109,6 +120,7 @@ class AcknowledgementReceivedHandlerTest {
             recorder,
             publisher,
             Clock.fixed(now, ZoneOffset.UTC),
+            hook,
         )
 
     private fun deliver(
@@ -244,11 +256,42 @@ class AcknowledgementReceivedHandlerTest {
                 recorder,
                 publisher,
                 Clock.fixed(now, ZoneOffset.UTC),
+                hook,
             )
         states[1] = LifecycleState.REJECTED // the locked row differs from what lockVersions reported
         next = AcknowledgementReceivedData(doc, 1, "ACK-1")
         shouldThrow<IllegalStateException> { skewed.handle(envelope()) }
         writes().shouldBeEmpty()
         facts.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-24522 the hook is called once with the tenant and Doc UUID after the last write and the stage`() {
+        states[1] = SENT
+        deliver(1, "ACK-1") shouldBe HandleOutcome.APPLIED
+        hooked shouldBe listOf(tenant to doc)
+        calls.last() shouldBe "hook"
+        calls.indexOf("hook") shouldBe calls.size - 1
+        (calls.indexOf("hook") > calls.indexOf("write:stage:1")) shouldBe true
+        (calls.indexOf("hook") > calls.indexOfLast { it.startsWith("write:setState") }) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-24522 the hook is not called for a refused, an anomaly, a repeat or an unsupported outcome`() {
+        states[1] = SENT
+        deliver(1, "  ") shouldBe HandleOutcome.IGNORED // refused: blank id
+        deliver(5, "ACK-5") shouldBe HandleOutcome.IGNORED // anomaly: unknown version
+        shouldThrow<UnsupportedAcknowledgementOutcome> { deliver(1, "ACK-1", "REJECTED") }
+        hooked.shouldBeEmpty()
+        deliver(1, "ACK-1")
+        deliver(1, "ACK-1") shouldBe HandleOutcome.IGNORED
+        hooked.size shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-24522 a hook exception propagates`() {
+        states[1] = SENT
+        hookFails = true
+        shouldThrow<IllegalStateException> { deliver(1, "ACK-1") }
     }
 }

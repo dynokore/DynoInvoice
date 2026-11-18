@@ -128,6 +128,7 @@ class RejectedAcknowledgementDbTest {
             JooqAcknowledgementRecorder(dsl),
             SubmissionAcknowledgedOutbox(outbox, tenants, store),
             clock,
+            { _, _ -> },
         )
 
     private val router = router()

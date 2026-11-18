@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.application.queue
 
+import com.dynokore.gst.submission.application.ordering.AcknowledgedHook
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.transitions.Event
 import com.dynokore.gst.submission.domain.transitions.Signal
@@ -27,6 +28,7 @@ class AcknowledgementReceivedHandler(
     private val recorder: AcknowledgementRecorder,
     private val publisher: AcknowledgedPublisher,
     private val clock: Clock,
+    private val hook: AcknowledgedHook,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
         val data = reader.read(event.dataJson)
@@ -62,6 +64,7 @@ class AcknowledgementReceivedHandler(
         val now = clock.instant()
         recorder.record(tenant, data.docUuid, record.version, record.acknowledgementId, now)
         publisher.stage(AcknowledgedFact(data.docUuid, record.version, record.acknowledgementId, now))
+        hook.acknowledged(tenant, data.docUuid)
         return HandleOutcome.APPLIED
     }
 }

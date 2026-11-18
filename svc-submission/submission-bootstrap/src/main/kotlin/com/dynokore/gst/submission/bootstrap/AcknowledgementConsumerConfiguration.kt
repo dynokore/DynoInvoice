@@ -6,6 +6,7 @@ import com.dynokore.gst.submission.adapters.events.JacksonRejectedAcknowledgemen
 import com.dynokore.gst.submission.adapters.events.SubmissionAcknowledgedOutbox
 import com.dynokore.gst.submission.adapters.persistence.JooqAcknowledgementRecorder
 import com.dynokore.gst.submission.adapters.persistence.JooqLatestAttempt
+import com.dynokore.gst.submission.application.ordering.AcknowledgedHook
 import com.dynokore.gst.submission.application.queue.AcknowledgedPublisher
 import com.dynokore.gst.submission.application.queue.AcknowledgementDataReader
 import com.dynokore.gst.submission.application.queue.AcknowledgementOutcomeReader
@@ -60,7 +61,7 @@ class AcknowledgementConsumerConfiguration {
     ): AcknowledgedPublisher = SubmissionAcknowledgedOutbox(outbox, tenants, store)
 
     @Bean
-    @Suppress("LongParameterList") // composition root: the handler takes seven collaborators
+    @Suppress("LongParameterList") // composition root: the handler takes eight collaborators
     fun acknowledgementReceivedHandler(
         tenants: TenantContext,
         reader: AcknowledgementDataReader,
@@ -69,8 +70,9 @@ class AcknowledgementConsumerConfiguration {
         recorder: AcknowledgementRecorder,
         publisher: AcknowledgedPublisher,
         clock: Clock,
+        heldRelease: AcknowledgedHook,
     ): AcknowledgementReceivedHandler =
-        AcknowledgementReceivedHandler(tenants, reader, inFlight, store, recorder, publisher, clock)
+        AcknowledgementReceivedHandler(tenants, reader, inFlight, store, recorder, publisher, clock, heldRelease)
 
     @Bean
     fun acknowledgementOutcomeReader(): AcknowledgementOutcomeReader = JacksonAcknowledgementOutcomeReader()
