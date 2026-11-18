@@ -29,28 +29,17 @@ class RejectedAcknowledgementWiringTest {
         root: Any,
         depth: Int = 0,
     ): EventHandler? {
-        val reachable = root.javaClass.name.startsWith("com.dynokore.platform.outboxandqueue") && depth <= 4
-        return when {
-            root is EventHandler -> {
-                root
+        if (root is EventHandler) return root
+        if (depth > 4 || !root.javaClass.name.startsWith("com.dynokore.platform.outboxandqueue")) return null
+        return root.javaClass.declaredFields
+            .filter {
+                !it.type.isPrimitive &&
+                    !java.lang.reflect.Modifier
+                        .isStatic(it.modifiers)
+            }.firstNotNullOfOrNull { f ->
+                f.isAccessible = true
+                f.get(root)?.let { handlerOf(it, depth + 1) }
             }
-
-            !reachable -> {
-                null
-            }
-
-            else -> {
-                root.javaClass.declaredFields
-                    .filter {
-                        !it.type.isPrimitive &&
-                            !java.lang.reflect.Modifier
-                                .isStatic(it.modifiers)
-                    }.firstNotNullOfOrNull { f ->
-                        f.isAccessible = true
-                        f.get(root)?.let { handlerOf(it, depth + 1) }
-                    }
-            }
-        }
     }
 
     private fun unwrapped(handler: Any): Any = if (handler is TracedEventHandler) handler.delegate else handler

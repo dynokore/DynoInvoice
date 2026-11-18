@@ -17,19 +17,6 @@ class JacksonRejectedAcknowledgementReader : RejectedAcknowledgementReader {
     private val mapper = ObjectMapper()
 
     override fun read(dataJson: String): RejectedAcknowledgementData {
-        val data = objectOf(dataJson)
-        val reasons = data.get("reasons")
-        if (reasons == null || !reasons.isArray) {
-            throw ContractViolation("AcknowledgementReceived member reasons is missing or not an array")
-        }
-        return RejectedAcknowledgementData(
-            docUuid = text(data, "docUuid", "AcknowledgementReceived"),
-            version = versionOf(data),
-            reasons = (0 until reasons.size()).map { reasonOf(reasons.get(it)) },
-        )
-    }
-
-    private fun objectOf(dataJson: String): JsonNode {
         val data =
             try {
                 mapper.readTree(dataJson)
@@ -39,7 +26,15 @@ class JacksonRejectedAcknowledgementReader : RejectedAcknowledgementReader {
         if (data == null || !data.isObject) {
             throw ContractViolation("AcknowledgementReceived data is not a JSON object")
         }
-        return data
+        val reasons = data.get("reasons")
+        if (reasons == null || !reasons.isArray) {
+            throw ContractViolation("AcknowledgementReceived member reasons is missing or not an array")
+        }
+        return RejectedAcknowledgementData(
+            docUuid = text(data, "docUuid", "AcknowledgementReceived"),
+            version = versionOf(data),
+            reasons = (0 until reasons.size()).map { reasonOf(reasons.get(it)) },
+        )
     }
 
     private fun reasonOf(node: JsonNode): RejectionReason {
