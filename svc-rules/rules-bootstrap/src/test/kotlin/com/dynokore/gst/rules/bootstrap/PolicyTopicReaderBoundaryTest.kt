@@ -36,7 +36,8 @@ import java.util.concurrent.CopyOnWriteArrayList
 /**
  * A `PolicyChanged` record of the platform policy topic reaches `PolicyReplica.valueAt` through the shared policy
  * reader of product-runtime (INV-T-24769, INV-AC-24767, INV-REQ-1241). The context is built the way TPL-18 builds it
- * (P109); only the [EventLogReader] is a fake, so the reader bean, `PolicyFeed` and the replica are the production ones.
+ * (P109); only the [EventLogReader] is a fake, so the reader bean, `PolicyFeed` and the replica are the production
+ * ones.
  */
 class PolicyTopicReaderBoundaryTest {
     @Configuration(proxyBeanMethods = false)
