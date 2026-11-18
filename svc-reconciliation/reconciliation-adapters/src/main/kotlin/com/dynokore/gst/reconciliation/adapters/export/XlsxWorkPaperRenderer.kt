@@ -32,6 +32,7 @@ class XlsxWorkPaperRenderer : WorkPaperRenderer {
             workbook.write(out)
             return RenderedExport(ExportContentTypes.SPREADSHEET, out.toByteArray())
         } finally {
+            @Suppress("DEPRECATION") // dispose() deletes the temp files; close() below is the non-deprecated twin
             workbook.dispose()
             workbook.close()
         }
@@ -42,6 +43,7 @@ class XlsxWorkPaperRenderer : WorkPaperRenderer {
         export: WorkPaperExport,
     ) {
         var n = 0
+
         fun line(vararg cells: String) = row(sheet, n++, *cells)
         line("run", export.runId)
         line("entity", export.entityRef)

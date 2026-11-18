@@ -9,7 +9,6 @@ import com.dynokore.gst.reconciliation.application.workpaper.export.ExportRelaxe
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportRows
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportUnmappedLine
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperExport
-import org.apache.poi.ss.usermodel.Cell
 import org.apache.poi.ss.usermodel.CellType
 import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.util.DefaultTempFileCreationStrategy
@@ -103,19 +102,14 @@ class XlsxWorkPaperRendererTest {
     @Test
     fun `INV-AC-24329 every cell is a text cell and an equals sign stays text`() {
         read(renderer.render(fixture(), ExportFormat.SPREADSHEET).bytes).use { wb ->
-            var formulaLike: Cell? = null
-            wb.forEach { sheet ->
-                sheet.forEach { row ->
-                    row.forEach { cell ->
-                        assertEquals(CellType.STRING, cell.cellType, "${sheet.sheetName}!${cell.address}")
-                        if (cell.stringCellValue.contains("=")) formulaLike = cell
-                    }
-                }
-            }
-            assertEquals("ev-2\n=SUM(A1:A2)", wb.getSheet("Items").getRow(2).getCell(5).stringCellValue)
-            assertEquals(CellType.STRING, wb.getSheet("Items").getRow(2).getCell(5).cellType)
-            assertEquals("ev-2\n=SUM(A1:A2)", formulaLike?.stringCellValue)
-            assertEquals(listOf("Summary", "Boxes", "Items", "RelaxedControls", "UnmappedLines"), wb.map { it.sheetName })
+            val cells = wb.flatMap { sheet -> sheet.flatMap { row -> row.toList() } }
+            assertEquals(true, cells.isNotEmpty())
+            cells.forEach { assertEquals(CellType.STRING, it.cellType, "${it.sheet.sheetName}!${it.address}") }
+            val evidence = wb.getSheet("Items").getRow(2).getCell(5)
+            assertEquals(CellType.STRING, evidence.cellType)
+            assertEquals("ev-2\n=SUM(A1:A2)", evidence.stringCellValue)
+            val names = wb.map { it.sheetName }
+            assertEquals(listOf("Summary", "Boxes", "Items", "RelaxedControls", "UnmappedLines"), names)
         }
     }
 
