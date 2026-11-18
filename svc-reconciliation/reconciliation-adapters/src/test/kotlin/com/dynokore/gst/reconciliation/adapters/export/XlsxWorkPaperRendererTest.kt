@@ -1,5 +1,6 @@
 package com.dynokore.gst.reconciliation.adapters.export
 
+import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperVarianceShare
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportAttestation
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportBox
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportContentTypes
@@ -41,7 +42,7 @@ class XlsxWorkPaperRendererTest {
                         "100.00",
                         "90.00",
                         "10.00",
-                        "MATERIAL",
+                        listOf(WorkPaperVarianceShare("MATERIAL", "10.00")),
                         listOf("doc-b", "doc-a"),
                         listOf(
                             ExportReconcilingItem("doc-b", 1, 2, "4.50", listOf("ev-2", "=SUM(A1:A2)")),
@@ -53,7 +54,7 @@ class XlsxWorkPaperRendererTest {
                         "20.00",
                         "20.00",
                         "0.00",
-                        null,
+                        emptyList(),
                         listOf("doc-c"),
                         listOf(ExportReconcilingItem("doc-c", 3, 1, "-1.25", listOf("ev-3"))),
                     ),
@@ -130,7 +131,7 @@ class XlsxWorkPaperRendererTest {
             assertEquals(
                 listOf(
                     listOf("box", "submitted", "filed", "variance", "variance class", "supporting documents"),
-                    listOf("5", "100.00", "90.00", "10.00", "MATERIAL", "doc-b\ndoc-a"),
+                    listOf("5", "100.00", "90.00", "10.00", "MATERIAL 10.00", "doc-b\ndoc-a"),
                     listOf("6", "20.00", "20.00", "0.00", "", "doc-c"),
                 ),
                 rows(wb.getSheet("Boxes")),
@@ -143,6 +144,29 @@ class XlsxWorkPaperRendererTest {
                 listOf(listOf("document", "version", "line", "tax code"), listOf("doc-z", "1", "4", "XX")),
                 rows(wb.getSheet("UnmappedLines")),
             )
+        }
+    }
+
+    @Test
+    fun `INV-AC-24661 the variance classes cell joins every class with its amount and is empty for an empty list`() {
+        val two =
+            ExportBox(
+                "2",
+                "9.00",
+                "0.00",
+                "9.00",
+                listOf(
+                    WorkPaperVarianceShare("NO_INVOICE_REQUIRED", "3.00"),
+                    WorkPaperVarianceShare("TIMING_DIFFERENCE", "6.00"),
+                ),
+                emptyList(),
+                emptyList(),
+            )
+        val empty = ExportBox("3", "0.00", "0.00", "0.00", emptyList(), emptyList(), emptyList())
+        read(renderer.render(fixture().copy(boxes = listOf(two, empty)), ExportFormat.SPREADSHEET).bytes).use { wb ->
+            val boxes = rows(wb.getSheet("Boxes"))
+            assertEquals("NO_INVOICE_REQUIRED 3.00; TIMING_DIFFERENCE 6.00", boxes[1][4])
+            assertEquals("", boxes[2][4])
         }
     }
 

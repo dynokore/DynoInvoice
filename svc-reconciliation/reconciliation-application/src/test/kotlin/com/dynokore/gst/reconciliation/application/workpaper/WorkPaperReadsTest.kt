@@ -5,6 +5,7 @@ import com.dynokore.gst.reconciliation.application.run.RunBox
 import com.dynokore.gst.reconciliation.application.run.RunCursor
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
+import com.dynokore.gst.reconciliation.application.run.RunVarianceShare
 import com.dynokore.gst.reconciliation.domain.annotation.Annotation
 import com.dynokore.gst.reconciliation.domain.annotation.AnnotationRefusal
 import com.dynokore.gst.reconciliation.domain.variance.VarianceClass
@@ -26,12 +27,70 @@ class WorkPaperReadsTest {
         filed: String,
         variance: String,
         residual: String,
-    ) = RunBox(id, BigDecimal(submitted), BigDecimal(filed), BigDecimal(variance), null, BigDecimal(residual))
+    ) = RunBox(id, BigDecimal(submitted), BigDecimal(filed), BigDecimal(variance), emptyList(), BigDecimal(residual))
 
-    private val run = RecordedRun("R1", "E1", "P1", 2, completed)
-    private val box1 = box("1", "100.00", "90.00", "10.00", "10.00")
+    private fun share(
+        cls: String,
+        amount: String,
+    ) = RunVarianceShare(cls, BigDecimal(amount))
+
+    private val run = RecordedRun("R1", "E1", "P1", 2, completed, "F5")
+    private val box1 =
+        box("1", "100.00", "90.00", "10.00", "10.00")
+            .copy(varianceClasses = listOf(share("UNEXPLAINED", "10.00")))
     private val box2 = box("2", "5.00", "5.00", "0.00", "0.00")
-    private val snapshot = RunSnapshot(run, "F5", listOf(box1, box2), BigDecimal("10.00"), emptyList(), true)
+    private val snapshot = RunSnapshot(run, listOf(box1, box2), BigDecimal("10.00"), emptyList(), true)
+
+    private val varianceRun = RecordedRun("R-vc", "E1", "P1", 2, completed, "F5")
+    private val varianceSnapshot =
+        RunSnapshot(
+            varianceRun,
+            listOf(
+                box("1", "100.00", "90.00", "10.00", "4.00").copy(
+                    varianceClasses = listOf(share("TIMING_DIFFERENCE", "6.00"), share("UNEXPLAINED", "4.00")),
+                ),
+                box("2", "9.00", "0.00", "9.00", "0.00").copy(
+                    varianceClasses = listOf(share("NO_INVOICE_REQUIRED", "3.00"), share("TIMING_DIFFERENCE", "6.00")),
+                ),
+            ),
+            BigDecimal("4.00"),
+            emptyList(),
+            true,
+        )
+
+    private fun classesOf(
+        box: Int,
+        cls: String? = null,
+    ): List<WorkPaperVarianceShare> {
+        if (cls != null) annotate.execute("T1", "R-vc", "1", cls, listOf("DOC-1"), "U1")
+        return get.execute("T1", "R-vc")!!.boxes[box].varianceClasses
+    }
+
+    private fun vs(
+        cls: String,
+        amount: String,
+    ) = WorkPaperVarianceShare(cls, amount)
+
+    @Test
+    fun `INV-AC-24661 boxes without annotation carry every class in order and the header carries the run form`() {
+        classesOf(0) shouldBe listOf(vs("TIMING_DIFFERENCE", "6.00"), vs("UNEXPLAINED", "4.00"))
+        classesOf(1) shouldBe listOf(vs("NO_INVOICE_REQUIRED", "3.00"), vs("TIMING_DIFFERENCE", "6.00"))
+        get.execute("T1", "R-vc")!!.header.returnForm shouldBe varianceRun.returnForm
+        get.execute("T1", "R-vc")!!.boxes[0].unexplainedResidual shouldBe "4.00"
+    }
+
+    @Test
+    fun `INV-AC-24661 an annotation to another class replaces UNEXPLAINED and zeroes the residual`() {
+        classesOf(0, "OUTSIDE_BY_RULE") shouldBe listOf(vs("OUTSIDE_BY_RULE", "4.00"), vs("TIMING_DIFFERENCE", "6.00"))
+        get.execute("T1", "R-vc")!!.boxes[0].unexplainedResidual shouldBe "0.00"
+        classesOf(1) shouldBe listOf(vs("NO_INVOICE_REQUIRED", "3.00"), vs("TIMING_DIFFERENCE", "6.00"))
+    }
+
+    @Test
+    fun `INV-AC-24661 an annotation to an existing class sums into one member`() {
+        classesOf(0, "TIMING_DIFFERENCE") shouldBe listOf(vs("TIMING_DIFFERENCE", "10.00"))
+        get.execute("T1", "R-vc")!!.boxes[0].unexplainedResidual shouldBe "0.00"
+    }
 
     private val reader =
         object : RunReader {
@@ -52,7 +111,13 @@ class WorkPaperReadsTest {
             override fun find(
                 tenant: String,
                 runId: String,
-            ): RunSnapshot? = if (tenant == "T1" && runId == "R1") snapshot else null
+            ): RunSnapshot? =
+                when {
+                    tenant != "T1" -> null
+                    runId == "R1" -> snapshot
+                    runId == "R-vc" -> varianceSnapshot
+                    else -> null
+                }
         }
 
     private class Annotations : RunAnnotations {
@@ -161,9 +226,9 @@ class WorkPaperReadsTest {
         go()
         val view = get.execute("T1", "R1")!!
         view.header shouldBe WorkPaperHeader("E1", "P1", completed, 2, "F5")
-        view.boxes[0].varianceClass shouldBe "TIMING_DIFFERENCE"
+        view.boxes[0].varianceClasses shouldBe listOf(WorkPaperVarianceShare("TIMING_DIFFERENCE", "10.00"))
         view.boxes[0].unexplainedResidual shouldBe "0.00"
-        view.boxes[1].varianceClass shouldBe null
+        view.boxes[1].varianceClasses shouldBe emptyList()
         view.boxes[1].unexplainedResidual shouldBe "0.00"
         view.unexplainedResidual shouldBe "0.00"
         view.supportingDocuments shouldBe listOf("DOC-1")
@@ -178,7 +243,7 @@ class WorkPaperReadsTest {
     fun `INV-AC-24377 a class-less annotation adds only references and keeps the class and residual`() {
         go(cls = null, refs = listOf("B-2", "A-1", "B-2"))
         val view = get.execute("T1", "R1")!!
-        view.boxes[0].varianceClass shouldBe null
+        view.boxes[0].varianceClasses shouldBe listOf(WorkPaperVarianceShare("UNEXPLAINED", "10.00"))
         view.boxes[0].unexplainedResidual shouldBe "10.00"
         view.unexplainedResidual shouldBe "10.00"
         view.supportingDocuments shouldBe listOf("A-1", "B-2")

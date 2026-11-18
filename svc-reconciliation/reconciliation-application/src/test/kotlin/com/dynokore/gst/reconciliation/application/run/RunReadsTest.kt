@@ -8,12 +8,13 @@ import java.math.BigDecimal
 import java.time.Instant
 
 class RunReadsTest {
-    private val old = RecordedRun("R-old", "E1", "P1", 1, Instant.parse("2026-04-01T00:00:00Z"))
-    private val new = RecordedRun("R-new", "E1", "P1", 2, Instant.parse("2026-04-02T00:00:00Z"))
-    private val other = RecordedRun("R-x", "E1", "P1", 1, Instant.parse("2026-04-03T00:00:00Z"))
-    private val box = RunBox("1", BigDecimal("100.00"), BigDecimal("90.00"), BigDecimal("10.00"), null, BigDecimal.ZERO)
+    private val old = RecordedRun("R-old", "E1", "P1", 1, Instant.parse("2026-04-01T00:00:00Z"), "F7")
+    private val new = RecordedRun("R-new", "E1", "P1", 2, Instant.parse("2026-04-02T00:00:00Z"), "F5")
+    private val other = RecordedRun("R-x", "E1", "P1", 1, Instant.parse("2026-04-03T00:00:00Z"), "F5")
+    private val box =
+        RunBox("1", BigDecimal("100.00"), BigDecimal("90.00"), BigDecimal("10.00"), emptyList(), BigDecimal.ZERO)
 
-    private fun snap(run: RecordedRun) = RunSnapshot(run, "F5", listOf(box), BigDecimal.ZERO, emptyList(), false)
+    private fun snap(run: RecordedRun) = RunSnapshot(run, listOf(box), BigDecimal.ZERO, emptyList(), false)
 
     private val store =
         mapOf("T1" to listOf(old, new), "T2" to listOf(other))
@@ -21,6 +22,7 @@ class RunReadsTest {
     private val reader =
         object : RunReader {
             var lastLimit = -1
+            var finds = 0
 
             override fun latest(
                 tenant: String,
@@ -47,7 +49,10 @@ class RunReadsTest {
             override fun find(
                 tenant: String,
                 runId: String,
-            ): RunSnapshot? = store[tenant]?.firstOrNull { it.runId == runId }?.let(::snap)
+            ): RunSnapshot? {
+                finds++
+                return store[tenant]?.firstOrNull { it.runId == runId }?.let(::snap)
+            }
         }
 
     private fun isBefore(
@@ -67,6 +72,13 @@ class RunReadsTest {
         second.items shouldBe listOf(old)
         second.nextCursor shouldBe null
         reader.lastLimit shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-24661 list items carry the form of their own run and find is never called`() {
+        val items = list.execute("T1", "E1", "P1", null, null).items
+        items.map { it.runId to it.returnForm } shouldBe listOf("R-new" to "F5", "R-old" to "F7")
+        reader.finds shouldBe 0
     }
 
     @Test

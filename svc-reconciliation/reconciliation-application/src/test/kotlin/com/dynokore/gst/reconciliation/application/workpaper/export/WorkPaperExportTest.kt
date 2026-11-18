@@ -17,7 +17,7 @@ class WorkPaperExportTest {
         name: String = "1",
         docs: List<String> = listOf("D1", "D2"),
         items: List<ExportReconcilingItem> = listOf(item()),
-    ) = ExportBox(name, "100.00", "100.00", "0.00", null, docs, items)
+    ) = ExportBox(name, "100.00", "100.00", "0.00", emptyList(), docs, items)
 
     private fun export(
         entity: String = "E-1",

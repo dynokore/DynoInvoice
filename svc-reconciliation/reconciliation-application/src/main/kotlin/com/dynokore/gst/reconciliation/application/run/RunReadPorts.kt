@@ -3,12 +3,22 @@ package com.dynokore.gst.reconciliation.application.run
 import java.math.BigDecimal
 import java.time.Instant
 
+/** One classified category of a Box with its amount. */
+data class RunVarianceShare(
+    val varianceClass: String,
+    val amount: BigDecimal,
+)
+
 data class RunBox(
     val box: String,
     val submittedAmount: BigDecimal,
     val filedAmount: BigDecimal,
     val variance: BigDecimal,
-    val varianceClass: String?,
+    /**
+     * One member per classified category in class-code ascending order, then UNEXPLAINED with the
+     * unexplained residual of the Box when that residual is not zero, as the run reader supplies it.
+     */
+    val varianceClasses: List<RunVarianceShare>,
     val unexplainedResidual: BigDecimal,
 )
 
@@ -21,7 +31,6 @@ data class RunUnmappedLine(
 
 data class RunSnapshot(
     val run: RecordedRun,
-    val returnForm: String,
     val boxes: List<RunBox>,
     val unexplainedResidual: BigDecimal,
     val unmappedLines: List<RunUnmappedLine>,

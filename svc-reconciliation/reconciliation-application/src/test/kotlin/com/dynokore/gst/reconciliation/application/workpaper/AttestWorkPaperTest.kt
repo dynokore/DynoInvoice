@@ -23,9 +23,17 @@ class AttestWorkPaperTest {
         runId: String,
         residual: String,
     ) = RunSnapshot(
-        RecordedRun(runId, "E1", "P1", 2, completed),
-        "F5",
-        listOf(RunBox("1", BigDecimal("100.00"), BigDecimal("90.00"), BigDecimal("10.00"), null, BigDecimal(residual))),
+        RecordedRun(runId, "E1", "P1", 2, completed, "F5"),
+        listOf(
+            RunBox(
+                "1",
+                BigDecimal("100.00"),
+                BigDecimal("90.00"),
+                BigDecimal("10.00"),
+                emptyList(),
+                BigDecimal(residual),
+            ),
+        ),
         BigDecimal(residual),
         emptyList(),
         false,

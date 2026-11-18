@@ -38,6 +38,7 @@ data class RecordedRun(
     val periodRef: String,
     val returnVersion: Int,
     val completedAt: Instant,
+    val returnForm: String,
 )
 
 /** Records one completed run; a failed or NoReturn outcome is never offered to it. */

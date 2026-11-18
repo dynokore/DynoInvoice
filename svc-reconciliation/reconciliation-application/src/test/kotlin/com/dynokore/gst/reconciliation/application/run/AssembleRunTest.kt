@@ -88,7 +88,7 @@ class AssembleRunTest {
             CompletedRuns { t, e, p, outcome, at ->
                 tick("record")
                 recorded += listOf(t, e, p, outcome, at)
-                RecordedRun("run-$seq", e, p, outcome.returnVersion, at)
+                RecordedRun("run-$seq", e, p, outcome.returnVersion, at, "F5")
             }
     }
 

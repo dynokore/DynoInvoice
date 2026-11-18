@@ -7,11 +7,13 @@ import com.dynokore.gst.reconciliation.application.run.RunItems
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.application.run.RunUnmappedLine
+import com.dynokore.gst.reconciliation.application.run.RunVarianceShare
 import com.dynokore.gst.reconciliation.application.workpaper.GetWorkPaper
 import com.dynokore.gst.reconciliation.application.workpaper.RunAnnotations
 import com.dynokore.gst.reconciliation.application.workpaper.RunAttestations
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAnnotation
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAttestation
+import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperVarianceShare
 import com.dynokore.gst.reconciliation.domain.annotation.Annotation
 import com.dynokore.gst.reconciliation.domain.run.ReconcilingItem
 import io.kotest.assertions.throwables.shouldThrow
@@ -38,14 +40,16 @@ class ExportWorkPaperTest {
         filed: String,
         variance: String,
         residual: String,
-    ) = RunBox(box, BigDecimal(submitted), BigDecimal(filed), BigDecimal(variance), null, BigDecimal(residual))
+    ) = RunBox(box, BigDecimal(submitted), BigDecimal(filed), BigDecimal(variance), emptyList(), BigDecimal(residual))
 
     private val attestedAt = Instant.parse("2026-11-01T09:30:00Z")
-    private val run = RecordedRun("R1", "E1", "P1", 3, Instant.parse("2026-10-30T00:00:00Z"))
-    private val b1 = runBox("B1", "90.00", "100.00", "10.00", "10.00")
+    private val run = RecordedRun("R1", "E1", "P1", 3, Instant.parse("2026-10-30T00:00:00Z"), "F5")
+    private val b1 =
+        runBox("B1", "90.00", "100.00", "10.00", "10.00")
+            .copy(varianceClasses = listOf(RunVarianceShare("UNEXPLAINED", BigDecimal("10.00"))))
     private val b2 = runBox("B2", "0.00", "0.00", "0.00", "0.00")
     private val unmapped = RunUnmappedLine("D5", 1, 3, "XX")
-    private val snapshot = RunSnapshot(run, "F5", listOf(b1, b2), BigDecimal("10.00"), listOf(unmapped), true)
+    private val snapshot = RunSnapshot(run, listOf(b1, b2), BigDecimal("10.00"), listOf(unmapped), true)
 
     private val reader =
         object : RunReader {
@@ -156,7 +160,7 @@ class ExportWorkPaperTest {
                         "90.00",
                         "100.00",
                         "10.00",
-                        null,
+                        listOf(WorkPaperVarianceShare("UNEXPLAINED", "10.00")),
                         listOf("D1", "D2", "D9"),
                         listOf(
                             ExportReconcilingItem("D1", 2, 1, "60.00", listOf("REF-D1")),
@@ -164,7 +168,7 @@ class ExportWorkPaperTest {
                             ExportReconcilingItem("D2", 1, 1, "-10.00", listOf("D2")),
                         ),
                     ),
-                    ExportBox("B2", "0.00", "0.00", "0.00", null, emptyList(), emptyList()),
+                    ExportBox("B2", "0.00", "0.00", "0.00", emptyList(), emptyList(), emptyList()),
                 ),
             unexplainedResidual = "10.00",
             relaxedControls = listOf(ExportRelaxedControl("C1", "text")),
@@ -184,6 +188,17 @@ class ExportWorkPaperTest {
         a.rendered.bytes.toList() shouldBe listOf<Byte>(7, 1)
         (b as ExportOutcome.Exported).rendered.contentType shouldBe ExportContentTypes.PDF
         b.rendered.bytes.toList() shouldBe listOf<Byte>(7, 0)
+    }
+
+    @Test
+    fun `INV-AC-24661 every export box holds the variance classes of its work-paper box`() {
+        seed()
+        useCase().execute("T1", "R1", ExportFormat.SPREADSHEET)
+        val exported = rendered.single().first.boxes
+        val viewBoxes = view.execute("T1", "R1")!!.boxes
+        exported.map { it.varianceClasses } shouldBe viewBoxes.map { it.varianceClasses }
+        exported.map { it.varianceClasses } shouldBe
+            listOf(listOf(WorkPaperVarianceShare("UNEXPLAINED", "10.00")), emptyList())
     }
 
     @Test

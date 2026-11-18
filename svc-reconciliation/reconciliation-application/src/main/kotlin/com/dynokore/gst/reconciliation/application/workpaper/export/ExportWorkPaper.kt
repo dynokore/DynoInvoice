@@ -105,7 +105,7 @@ class ExportWorkPaper(
         submittedAmount = b.submittedAmount,
         filedAmount = b.filedAmount,
         variance = b.variance,
-        varianceClass = b.varianceClass,
+        varianceClasses = b.varianceClasses,
         supportingDocuments =
             (own.map { it.docUuid } + annotation?.annotation?.references.orEmpty())
                 .distinct()

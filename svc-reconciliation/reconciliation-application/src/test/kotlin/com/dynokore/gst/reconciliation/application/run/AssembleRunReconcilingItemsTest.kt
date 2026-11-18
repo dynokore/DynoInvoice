@@ -70,7 +70,7 @@ class AssembleRunReconcilingItemsTest {
         val runs =
             CompletedRuns { _, e, p, outcome, at ->
                 recorded += outcome
-                RecordedRun("run-${recorded.size}", e, p, outcome.returnVersion, at)
+                RecordedRun("run-${recorded.size}", e, p, outcome.returnVersion, at, "F5")
             }
 
         fun useCase(clock: Clock) =

@@ -8,8 +8,8 @@ import java.math.BigDecimal
 import java.time.Instant
 
 class GetReconciliationTest {
-    private val run = RecordedRun("R1", "E1", "P1", 2, Instant.parse("2026-04-02T00:00:00Z"))
-    private val snapshot = RunSnapshot(run, "F5", emptyList(), BigDecimal.ZERO, emptyList(), false)
+    private val run = RecordedRun("R1", "E1", "P1", 2, Instant.parse("2026-04-02T00:00:00Z"), "F5")
+    private val snapshot = RunSnapshot(run, emptyList(), BigDecimal.ZERO, emptyList(), false)
 
     private class Reader(
         private val held: Map<Triple<String, String, String>, RunSnapshot>,

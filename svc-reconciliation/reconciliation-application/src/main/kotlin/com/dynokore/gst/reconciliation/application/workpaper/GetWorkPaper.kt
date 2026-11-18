@@ -1,5 +1,6 @@
 package com.dynokore.gst.reconciliation.application.workpaper
 
+import com.dynokore.gst.reconciliation.application.run.RunBox
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunUnmappedLine
 import java.math.BigDecimal
@@ -14,12 +15,17 @@ data class WorkPaperHeader(
     val returnForm: String,
 )
 
+data class WorkPaperVarianceShare(
+    val varianceClass: String,
+    val amount: String,
+)
+
 data class WorkPaperBox(
     val box: String,
     val submittedAmount: String,
     val filedAmount: String,
     val variance: String,
-    val varianceClass: String?,
+    val varianceClasses: List<WorkPaperVarianceShare>,
     val unexplainedResidual: String,
     val references: List<String>,
 )
@@ -59,7 +65,7 @@ class GetWorkPaper(
                     submittedAmount = money(b.submittedAmount),
                     filedAmount = money(b.filedAmount),
                     variance = money(b.variance),
-                    varianceClass = cls?.value ?: b.varianceClass,
+                    varianceClasses = classes(b, cls?.value),
                     unexplainedResidual = money(residual),
                     references = annotation?.references.orEmpty(),
                 )
@@ -77,7 +83,7 @@ class GetWorkPaper(
                     run.periodRef,
                     run.completedAt,
                     run.returnVersion,
-                    snapshot.returnForm,
+                    run.returnForm,
                 ),
             boxes = boxes,
             unexplainedResidual = money(total),
@@ -87,5 +93,21 @@ class GetWorkPaper(
         )
     }
 
+    private fun classes(
+        b: RunBox,
+        assigned: String?,
+    ): List<WorkPaperVarianceShare> {
+        val shown = b.varianceClasses.map { WorkPaperVarianceShare(it.varianceClass, money(it.amount)) }
+        if (assigned == null) return shown
+        val sums = sortedMapOf<String, BigDecimal>()
+        for (c in b.varianceClasses) {
+            if (c.varianceClass != UNEXPLAINED) sums.merge(c.varianceClass, c.amount, BigDecimal::add)
+        }
+        sums.merge(assigned, b.unexplainedResidual, BigDecimal::add)
+        return sums.map { (k, v) -> WorkPaperVarianceShare(k, money(v)) }
+    }
+
     private fun money(value: BigDecimal): String = value.setScale(2, RoundingMode.HALF_UP).toPlainString()
 }
+
+private const val UNEXPLAINED = "UNEXPLAINED"

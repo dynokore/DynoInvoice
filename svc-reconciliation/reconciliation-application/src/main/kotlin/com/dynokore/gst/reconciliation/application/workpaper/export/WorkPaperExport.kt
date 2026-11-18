@@ -1,5 +1,7 @@
 package com.dynokore.gst.reconciliation.application.workpaper.export
 
+import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperVarianceShare
+
 /** Output formats of the work-paper export (contract operation exportWorkPaper). */
 enum class ExportFormat { PDF, SPREADSHEET }
 
@@ -41,7 +43,7 @@ data class ExportBox(
     val submittedAmount: String,
     val filedAmount: String,
     val variance: String,
-    val varianceClass: String?,
+    val varianceClasses: List<WorkPaperVarianceShare>,
     val supportingDocuments: List<String>,
     val items: List<ExportReconcilingItem>,
 ) {

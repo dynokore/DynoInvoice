@@ -74,7 +74,7 @@ class XlsxWorkPaperRenderer : WorkPaperRenderer {
                 b.submittedAmount,
                 b.filedAmount,
                 b.variance,
-                b.varianceClass.orEmpty(),
+                b.varianceClasses.joinToString("; ") { "${it.varianceClass} ${it.amount}" },
                 b.supportingDocuments.joinToString("\n"),
             )
         }
