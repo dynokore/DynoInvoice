@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: tenancy API
-  version: 2.1.0
+  version: 2.2.0
   description: 'Contract-first source of truth for tenancy (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1): organisation structure and
     each entity''s regulatory profile, called by console-bff (commands), control-plane-svc (tenant provisioning
@@ -3559,7 +3559,6 @@ components:
           - SOLE_PROPRIETOR
           - PARTNERSHIP
           - PUBLIC_LIMITED
-          x-extensible-enum: true
         uen:
           type: string
           maxLength: 32
@@ -3592,7 +3591,6 @@ components:
           enum:
           - GST_GROUP
           - DIVISIONAL
-          x-extensible-enum: true
         gstn:
           type: string
           maxLength: 32
@@ -4139,7 +4137,6 @@ components:
           enum:
           - MONTHLY
           - QUARTERLY
-          x-extensible-enum: true
         effectiveFrom:
           type: string
           format: date
@@ -4294,7 +4291,6 @@ components:
           enum:
           - PRODUCTION
           - SANDBOX
-          x-extensible-enum: true
     LoadCredentialResponse:
       type: object
       required:
@@ -4483,7 +4479,6 @@ components:
           enum:
           - CUSTOMER_KUBERNETES
           - SUPPLIED_APPLIANCE
-          x-extensible-enum: true
     PlatformElectionResponse:
       type: object
       required:
@@ -4942,7 +4937,6 @@ components:
           - SELF
           - AGENT
           - AGGREGATOR
-          x-extensible-enum: true
         attestedBy:
           type: string
           maxLength: 128

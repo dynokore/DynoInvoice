@@ -29,3 +29,15 @@ openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1rate-source-
 openapi.yaml	/paths/~1internal~1v1~1tenancy~1entities~1{entityRef}~1election-change~1{changeRef}~1withdraw	absent	-	INV-REQ-505
 schemas/certification-status-changed-payload.schema.json	/properties/status/x-extensible-enum	equals	true	INV-REQ-1135
 schemas/certification-status-changed-payload.schema.json	/properties/trigger/x-extensible-enum	equals	true	INV-REQ-1135
+openapi.yaml	/components/schemas/CreateEntityRequest/properties/constitution/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/CreateEntityRequest/properties/constitution/enum	equals	["PRIVATE_LIMITED","SOLE_PROPRIETOR","PARTNERSHIP","PUBLIC_LIMITED"]	FR-AC.1
+openapi.yaml	/components/schemas/FilingFrequencyChangeRequest/properties/newFrequency/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/FilingFrequencyChangeRequest/properties/newFrequency/enum	equals	["MONTHLY","QUARTERLY"]	FR-AC.1
+openapi.yaml	/components/schemas/LoadCredentialRequest/properties/environmentTag/x-extensible-enum	absent	-	FR-AG.26
+openapi.yaml	/components/schemas/LoadCredentialRequest/properties/environmentTag/enum	equals	["PRODUCTION","SANDBOX"]	FR-AG.26
+openapi.yaml	/components/schemas/ElectPlatformRequest/properties/platform/x-extensible-enum	absent	-	INV-REQ-1313
+openapi.yaml	/components/schemas/ElectPlatformRequest/properties/platform/enum	equals	["CUSTOMER_KUBERNETES","SUPPLIED_APPLIANCE"]	INV-REQ-1313
+openapi.yaml	/components/schemas/RenditionResponsibilityRequest/properties/renderer/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/RenditionResponsibilityRequest/properties/renderer/enum	equals	["SELF","AGENT","AGGREGATOR"]	FR-AC.1
+openapi.yaml	/components/schemas/CreateGroupRequest/properties/groupKind/x-extensible-enum	absent	-	FR-G.1
+openapi.yaml	/components/schemas/CreateGroupRequest/properties/groupKind/enum	equals	["GST_GROUP","DIVISIONAL"]	FR-G.1
