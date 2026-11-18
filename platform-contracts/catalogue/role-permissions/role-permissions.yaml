@@ -1434,3 +1434,15 @@ permissions:
       - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
       - {role: auditor, form: SAAS, allowance: PERMITTED}
       - {role: auditor, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.rollback
+    kind: WRITE
+    row: "Roll back an armed regulatory pack"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+  - key: regulatory-pack.reprocess
+    kind: WRITE
+    row: "Re-evaluate the affected population under a superseding pack"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}

@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A), INV-T-16273 appends two (INV-Q-16272 A), INV-T-22584 appends one (counterparty-request.send), INV-T-17459 appends one (INV-Q-17446 A, client-signatory.record), INV-T-24484 appends one (reconciliation.export).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A), INV-T-16273 appends two (INV-Q-16272 A), INV-T-22584 appends one (counterparty-request.send), INV-T-17459 appends one (INV-Q-17446 A, client-signatory.record), INV-T-24484 appends one (reconciliation.export), INV-T-24736 appends two (regulatory-pack.rollback and regulatory-pack.reprocess).
      */
     val addedRows: List<String> =
         listOf(
@@ -141,6 +141,8 @@ object RolePermissionsChecker {
             "Send counterparty self-service requests for the group",
             "Record the client and send the signatory a consent link",
             "Export a reconciliation run's work-paper",
+            "Roll back an armed regulatory pack",
+            "Re-evaluate the affected population under a superseding pack",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -263,6 +265,13 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the reconciliation work-paper export key (INV-T-24484, INV-REQ-982 option A), compared by equality. */
     val reconciliationExportPairs: Map<String, String> =
         mapOf("reconciliation.export" to "Export a reconciliation run's work-paper")
+
+    /** The (key, row) pairs of the regulatory pack rollback and reprocess keys (INV-T-24736, owner ruling of 2026-11-18 option A), compared by equality. */
+    val packRemedyPairs: Map<String, String> =
+        mapOf(
+            "regulatory-pack.rollback" to "Roll back an armed regulatory pack",
+            "regulatory-pack.reprocess" to "Re-evaluate the affected population under a superseding pack",
+        )
 
     /** The (key, row) pair of the break-glass reseal key (INV-T-16106, INV-Q-10127 A), compared by equality. */
     val resealPairs: Map<String, String> =
@@ -500,6 +509,8 @@ object RolePermissionsChecker {
             "counterparty-request.send" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "client-signatory.record" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
             "reconciliation.export" to Required(PermissionKind.READ, cells(permitted, both, "tax.approver") + cells(permitted, both, "auditor")),
+            "regulatory-pack.rollback" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
+            "regulatory-pack.reprocess" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
             "exchange-rate.enter" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "connection.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
             "connection.view" to
@@ -798,6 +809,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in reconciliationExportPairs && (it.row in reconciliationExportPairs.values || it.key.lowercase().replace('-', '.').startsWith("reconciliation.export")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${reconciliationExportPairs.keys.joinToString()}, which alone carry the reconciliation export row (INV-T-24484)."
+        }
+        packRemedyPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${packRemedyPairs.keys.joinToString()}, INV-T-24736)."
+        }
+        table.permissions.filter { it.key !in packRemedyPairs && (it.row in packRemedyPairs.values || it.key.lowercase().replace('-', '.').let { k -> k.startsWith("regulatory.pack.rollback") || k.startsWith("regulatory.pack.reprocess") }) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${packRemedyPairs.keys.joinToString()}, which alone carry the regulatory pack rollback and reprocess rows (INV-T-24736)."
         }
         table.permissions.filter { it.key in setOf("election-change.approve", "election-change.withdraw", "election-change.list", "migration-cutover.record", "migration-cutover.view") }.forEach { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123, INV-T-13530)."
