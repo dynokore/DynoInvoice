@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.22.0] - 2026-11-18
+### Changed
+- `replayDelivery` serves replay for every `InboxConsumer` bean, selected by consumer name: one `ConsumerRoutedReplayDelivery` holds a queue per consumer name, and the bean of a consumer with several beans is the one whose topic holds the record type of the item (INV-T-24578, INV-AC-24577); outbox-and-queue steps to 6.29.0.
+
 ## [13.21.0] - 2026-11-18
 ### Added
 - `ConfigResolverWiring` wires the `RelaxationReader` bean (`JdbcRelaxationReader`) like `PolicyHistory`, on a `TransactionRunner` and replaceable by a service's own (INV-T-24432, INV-AC-24431); config-resolver steps to 6.1.0.

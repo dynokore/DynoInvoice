@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.21.5] - 2026-11-18
+### Changed
+- Version step only (G-DVS, INV-T-24578, INV-AC-24577): the published bytes change because the dependency `service-runtime` steps to 13.22.0; no code change in this module.
+
 ## [2.21.4] - 2026-11-18
 ### Changed
 - Version step only (G-DVS, INV-T-24432): the published bytes change because the dependency `service-runtime` steps to 13.21.0 (`RelaxationReader`); no code change in this module.

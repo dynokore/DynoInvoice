@@ -42,7 +42,7 @@ class JdbcInboxConsumer
     @JvmOverloads
     @Suppress("LongParameterList") // constructor injection under CS-05; INV-Q-4629 (CS-50)
     constructor(
-        private val subscription: ConsumerSubscription,
+        val subscription: ConsumerSubscription,
         catalogue: EventCatalogue,
         private val reader: EventLogReader,
         private val scope: TenantScope,
@@ -123,6 +123,16 @@ class JdbcInboxConsumer
                     applyChecked(check.envelope)
                 }
             }
+
+        /**
+         * Dead-letters the replayed item [raw] with [reason] on the claim connection, outside any transaction, without
+         * applying it and without touching the offset. For a caller that finds the item cannot be served by this
+         * consumer (the caller completes the queue item itself).
+         */
+        fun rejectReplayed(
+            raw: String,
+            reason: String,
+        ) = deadLetterReplayed(raw, reason)
 
         /**
          * The checks of [applyReplayed] that come before its transaction: [raw] parses as an envelope and belongs to

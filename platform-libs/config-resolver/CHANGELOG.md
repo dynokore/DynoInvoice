@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.1.1] - 2026-11-18
+### Changed
+- Version step only (G-DVS, INV-T-24578, INV-AC-24577): the published bytes change because the dependency `outbox-and-queue` steps to 6.29.0; no code change in this module.
+
 ## [6.1.0] - 2026-11-18
 ### Added
 - `RelaxationReader` and `JdbcRelaxationReader`: the acknowledgements behind the value in force of a row, tenant-isolated and by date (INV-T-24432, INV-AC-24431).

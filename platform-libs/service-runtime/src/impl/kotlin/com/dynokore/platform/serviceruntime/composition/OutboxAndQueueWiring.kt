@@ -16,7 +16,6 @@ import com.dynokore.platform.outboxandqueue.JdbcEventLogPurge
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.JdbcOutboxRelay
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
-import com.dynokore.platform.outboxandqueue.JdbcReplayDelivery
 import com.dynokore.platform.outboxandqueue.JdbcReplayIntake
 import com.dynokore.platform.outboxandqueue.JdbcRetentionPurge
 import com.dynokore.platform.outboxandqueue.JdbcStalenessMonitor
@@ -441,14 +440,36 @@ class OutboxAndQueueWiring(
             clock,
         )
 
+    /**
+     * Replay for every consumer of the service (INV-AC-24577): the [JdbcInboxConsumer] beans among the [InboxConsumer]
+     * beans, selected by consumer name ([ConsumerRoutedReplayDelivery]); one consumer with one bean behaves as before.
+     */
     @Bean
-    @ConditionalOnBean(WorkQueue::class, TenantScope::class, JdbcInboxConsumer::class)
+    @ConditionalOnBean(
+        value = [
+            WorkQueue::class, TenantScope::class, InboxConsumer::class, LaneRateLimiter::class, EventCatalogue::class,
+        ],
+    )
     @ConditionalOnMissingBean(ReplayDelivery::class)
+    @Suppress("LongParameterList")
     fun replayDelivery(
-        queue: WorkQueue,
         scope: TenantScope,
-        inbox: JdbcInboxConsumer,
-    ): JdbcReplayDelivery = JdbcReplayDelivery(queue, scope, inbox)
+        inboxes: List<InboxConsumer>,
+        catalogue: EventCatalogue,
+        limiter: LaneRateLimiter,
+        modules: ModuleProperties,
+        clock: Clock,
+    ): ConsumerRoutedReplayDelivery =
+        ConsumerRoutedReplayDelivery(inboxes.filterIsInstance<JdbcInboxConsumer>(), catalogue, scope, { consumer ->
+            JdbcWorkQueue(
+                scope,
+                moduleDsl(modules.requireSchema(), scope.tenants, scope.transactions),
+                modules.requireSchema(),
+                limiter,
+                clock,
+                consumer,
+            )
+        }, otherBeans = inboxes.count { it !is JdbcInboxConsumer })
 
     /**
      * The scope the event log is read and purged through: its own runner on the separate event-log pool behind that

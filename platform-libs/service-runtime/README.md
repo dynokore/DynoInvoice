@@ -298,6 +298,15 @@ call in hand finish (it interrupts only a call still running after 30 seconds).
 
 - A loop calls `runOnce` / `pollOnce` again at once while the last call did work (relay: rows published; consumer:
   records consumed; replay delivery: an item delivered), otherwise it waits its interval.
+- Replay is served for every consumer name (INV-AC-24577): the `JdbcInboxConsumer` beans are grouped by the consumer name
+  of their subscription, each name has its own queue, and an item queued for one consumer is applied through that
+  consumer only. A name with one bean behaves as before: that bean serves every item of its queue. When one name has several beans (one per topic), the bean that applies an item is the one whose topic
+  holds the record type of the item's envelope, read through the `EventCatalogue`; an item whose type belongs to no
+  bean of its consumer is dead-lettered, with a reason naming its record type and the consumer, and completed (`REJECTED`).
+  An item of a multi-bean consumer that is no valid envelope has no trustworthy topic: it is sorted to no bean and is
+  dead-lettered once as `not an envelope` (`REJECTED`). Replay serves `JdbcInboxConsumer` beans only: other
+  `InboxConsumer` beans stay legal and add no start-up failure, and an item of a topic only another bean type serves is
+  dead-lettered with a reason saying that replay serves JDBC consumer beans only.
 - A call that throws is logged at WARN with the exception class and SQLSTATE only (CS-34), retried after a bounded,
   jittered backoff (the interval doubled per consecutive failure, at most 30 seconds or the interval if longer, reduced
   by up to half), and the loop goes on. An `Error` ends the loop: it is logged at ERROR, the application's readiness

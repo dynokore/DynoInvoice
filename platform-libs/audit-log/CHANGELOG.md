@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [4.0.40] - 2026-11-18
+### Changed
+- Version step only (G-DVS, INV-T-24578, INV-AC-24577): the published bytes change because the dependency `outbox-and-queue` steps to 6.29.0; no code change in this module.
+
 ## [4.0.39] - 2026-11-16
 ### Changed
 - Version step only (G-DVS, INV-T-23694): the published bytes change because the dependency `outbox-and-queue` steps to 6.28.0 (OffboardingExportRequested joins the tenant-wide domain events); no code change in this module.
