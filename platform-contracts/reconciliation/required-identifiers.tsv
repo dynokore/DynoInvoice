@@ -43,3 +43,6 @@ attestWorkPaper.PER-017	operation_error_code	openapi.yaml	INV-REQ-947
 attestWorkPaper.PER-018	operation_error_code	openapi.yaml	INV-REQ-947
 attestWorkPaper.403	operation_response	openapi.yaml	INV-REQ-947
 attestWorkPaper.409	operation_response	openapi.yaml	INV-REQ-947
+BoxComparison.varianceClasses	schema_property	openapi.yaml	INV-REQ-632
+VarianceShare.varianceClass	schema_property	openapi.yaml	INV-REQ-632
+VarianceShare.amount	schema_property	openapi.yaml	INV-REQ-632
