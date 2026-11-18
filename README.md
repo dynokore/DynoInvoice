@@ -24,11 +24,11 @@ for DynoKore Keel: it is developed by AI coding agents under human direction.
 This repository is **source-available**: published for reading and study, not
 as an open-source project. Development is ongoing: agents commit continuously,
 and incomplete features are expected. More:
-https://dynokore.com/blog/launch-dynoinvoice/
+https://dynokore.com/blog/launch-dynogst/
 
 ## Architecture
 
-![DynoGST architecture](https://dynokore.com/blog/launch-dynoinvoice/architecture.png)
+![DynoGST architecture](https://dynokore.com/blog/launch-dynogst/architecture.png)
 
 Solid boxes have code on main and are still in progress; dashed boxes are
 designed but not built yet.
@@ -48,7 +48,7 @@ designed but not built yet.
   acceptance criteria, the review and any human decision, all recorded in
   Keel. [One real task, traced through Keel record by record](https://dynokore.ai/one-task/)
   shows this record for one DynoGST task.
-  [How DynoGST is built, commit by commit](https://dynokore.com/work/dynoinvoice/traces/)
+  [How DynoGST is built, commit by commit](https://dynokore.com/work/dynogst/traces/)
   shows how to read a commit and traces eight examples from requirement to
   merged code.
 
