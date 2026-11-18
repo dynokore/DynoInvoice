@@ -5,11 +5,19 @@ import com.dynokore.gst.submission.adapters.events.OutboxSubmissionFailedPublish
 import com.dynokore.gst.submission.adapters.persistence.JooqAcknowledgementInputs
 import com.dynokore.gst.submission.adapters.persistence.JooqDueTenantSource
 import com.dynokore.gst.submission.adapters.persistence.JooqFailureCodes
+import com.dynokore.gst.submission.adapters.persistence.JooqHeldTenantSource
 import com.dynokore.gst.submission.adapters.persistence.JooqWaitingTenantSource
 import com.dynokore.gst.submission.adapters.queue.ConfiguredRetryBoundary
 import com.dynokore.gst.submission.adapters.queue.RandomJitter
+import com.dynokore.gst.submission.application.arrival.CodeRaising
 import com.dynokore.gst.submission.application.drain.SafetyMargins
 import com.dynokore.gst.submission.application.filing.FilingDueDates
+import com.dynokore.gst.submission.application.ordering.CreditNoteOptions
+import com.dynokore.gst.submission.application.ordering.HeldCreditNoteSweeper
+import com.dynokore.gst.submission.application.ordering.HeldTenantSource
+import com.dynokore.gst.submission.application.ordering.HoldStore
+import com.dynokore.gst.submission.application.ordering.PrecedingStates
+import com.dynokore.gst.submission.application.ordering.ReleaseAloneAt
 import com.dynokore.gst.submission.application.queue.AcknowledgementDeadlines
 import com.dynokore.gst.submission.application.queue.AcknowledgementInputs
 import com.dynokore.gst.submission.application.queue.AttemptOutcomeApplier
@@ -189,4 +197,35 @@ class OutcomeConfiguration(
         versions: InFlightStore,
         queue: SubmissionQueue,
     ): WaitingSweeper = WaitingSweeper(source, scope, versions, queue)
+
+    @Bean
+    fun heldTenantSource(dsl: DSLContext): HeldTenantSource = JooqHeldTenantSource(dsl)
+
+    /** The deadline and safety sweep of the held credit notes (INV-AC-24523). */
+    @Bean
+    @Suppress("LongParameterList") // composition root: the sweeper takes ten collaborators
+    fun heldCreditNoteSweeper(
+        source: HeldTenantSource,
+        scope: TenantTransactions,
+        store: HoldStore,
+        states: PrecedingStates,
+        options: CreditNoteOptions,
+        releaseAt: ReleaseAloneAt,
+        queue: SubmissionQueue,
+        raising: CodeRaising,
+        clock: Clock,
+        filing: FilingProperties,
+    ): HeldCreditNoteSweeper =
+        HeldCreditNoteSweeper(
+            source,
+            scope,
+            store,
+            states,
+            options,
+            releaseAt,
+            queue,
+            raising,
+            clock,
+            ZoneId.of(filing.businessZone),
+        )
 }

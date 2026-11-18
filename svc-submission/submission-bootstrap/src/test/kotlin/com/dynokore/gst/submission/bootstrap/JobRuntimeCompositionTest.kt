@@ -133,8 +133,14 @@ class JobRuntimeCompositionTest {
         context.getBeansOfType(JobRuntime::class.java).size shouldBe 1
         val definitions = context.getBean(JobRuntime::class.java).registered()
         definitions.map { it.name }.toSet() shouldBe
-            setOf("backlog-evaluation", "compliance-evaluation", "unsubmitted-count-measurement", "waiting-sweep")
-        definitions.size shouldBe 4
+            setOf(
+                "backlog-evaluation",
+                "compliance-evaluation",
+                "unsubmitted-count-measurement",
+                "waiting-sweep",
+                "held-credit-note-sweep",
+            )
+        definitions.size shouldBe 5
         val definition = definitions.single { it.name == "waiting-sweep" }
         definition.ownerService shouldBe "submission-svc"
         definition.entityScope shouldBe JobEntityScope.PLATFORM

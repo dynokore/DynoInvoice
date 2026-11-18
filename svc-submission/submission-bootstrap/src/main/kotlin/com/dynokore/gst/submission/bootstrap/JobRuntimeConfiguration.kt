@@ -1,5 +1,6 @@
 package com.dynokore.gst.submission.bootstrap
 
+import com.dynokore.gst.submission.application.ordering.HeldCreditNoteSweeper
 import com.dynokore.gst.submission.application.queue.WaitingSweeper
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.jobs.FixedDeadlineSource
@@ -91,7 +92,39 @@ class JobRuntimeConfiguration {
         runtime.ifAvailable { registerWaitingSweep(it, sweeper) }
     }
 
+    /** Registers [HELD_CREDIT_NOTE_SWEEP] in the service's [JobRuntime]; without a runtime nothing is registered. */
+    @Bean
+    fun heldCreditNoteSweepJobRegistration(
+        runtime: ObjectProvider<JobRuntime>,
+        sweeper: HeldCreditNoteSweeper,
+    ) = SmartInitializingSingleton {
+        runtime.ifAvailable { registerHeldCreditNoteSweep(it, sweeper) }
+    }
+
     companion object {
+        /**
+         * The deadline and safety sweep of the held credit notes (INV-REQ-709), one firing a minute,
+         * [HeldCreditNoteSweeper.INTERVAL]; criticality and tolerance as for [WAITING_SWEEP].
+         */
+        val HELD_CREDIT_NOTE_SWEEP =
+            JobDefinition(
+                name = "held-credit-note-sweep",
+                ownerService = "submission-svc",
+                entityScope = JobEntityScope.PLATFORM,
+                schedule = JobSchedule("0 * * * * *", ZoneOffset.UTC),
+                criticality = JobCriticality.STANDARD,
+                tolerance = Duration.ofMinutes(5),
+            )
+
+        /** Registers [HELD_CREDIT_NOTE_SWEEP]; its body calls [HeldCreditNoteSweeper.sweep] once. */
+        fun registerHeldCreditNoteSweep(
+            runtime: JobRuntime,
+            sweeper: HeldCreditNoteSweeper,
+        ) = runtime.register(HELD_CREDIT_NOTE_SWEEP, null) {
+            val released = sweeper.sweep()
+            LOG.log(System.Logger.Level.INFO, "held credit note sweep released {0} version(s)", released)
+        }
+
         /**
          * The safety net of the wait (INV-REQ-571 behaviour 2): one firing a minute, [WaitingSweeper.INTERVAL]. The
          * criticality and the tolerance are inferred, not ruled: the sweep is not a deadline-bound despatch and the
