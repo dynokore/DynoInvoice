@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit 6853b9ea033250fe4142ab80ae28f4be6cd05741 (2026-11-17), the merge of invoice-docs INV-T-24453 adding PER-017 and PER-018, the attestation refusal codes (INV-T-24455, INV-REQ-947, coordinator ruling (delegated) HIGH of breakdown tooling/req-breakdown-149.md Round 12);
+# pinned at commit e6e0d41a29d6e73e0e875e6c9cda552e9a609054 (2026-11-18), the merge of invoice-docs INV-T-24689 adding PER-019, annotateVariance refused on an attested run (INV-T-24691, INV-REQ-633, coordinator ruling (delegated) HIGH option A of breakdown tooling/gap24380b-gap.md);
+# previously pinned at commit 6853b9ea033250fe4142ab80ae28f4be6cd05741 (2026-11-17), the merge of invoice-docs INV-T-24453 adding PER-017 and PER-018, the attestation refusal codes (INV-T-24455, INV-REQ-947, coordinator ruling (delegated) HIGH of breakdown tooling/req-breakdown-149.md Round 12);
 # previously pinned at 36e16dcccd878c8110f5ea58d509ef14ddb436e6 (2026-11-18), the merge of invoice-docs INV-T-24412 adding PER-016, reconciliation not readable yet, HTTP 503 with Retry-After (INV-T-24414, INV-REQ-657, coordinator ruling (delegated) HIGH of breakdown tooling/req-breakdown-149.md Round 8);
 # previously pinned at ee16235ac20eaa2a9dbfc7444e7263395cb5df1b (2026-11-16), the merge of invoice-docs INV-T-23952 adding EVD-003 to EVD-009, the retention deletion refusal codes of deleteAtRetentionEnd (INV-T-23954, coordinator ruling (delegated) HIGH option A of the answered design question of INV-T-22971, breakdown tooling/gap22971b-gap.md);
 # previously pinned at 02e15b6b6fce623a1f250ed515955f3550b210fb (2026-11-15), the merge of invoice-docs INV-T-22951 adding EVD-002, export not finished, HTTP 409 (INV-T-22952, coordinator ruling of breakdown tooling/req49-gap.md Round 5);
@@ -648,6 +649,11 @@ error_codes:
   owner: Tax operations
 - code: PER-018
   condition: 'Attestation refused: an unexplained residual remains in the run, so a variance is neither classified nor annotated; nothing is attested (HTTP 409; INV-REQ-947)'
+  severity: BLOCK
+  disposition: MANUAL
+  owner: Tax operations
+- code: PER-019
+  condition: 'Variance annotation refused: the run is attested, so its work-paper is immutable and annotations are closed; nothing is recorded (HTTP 409; INV-REQ-633, INV-REQ-957)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
