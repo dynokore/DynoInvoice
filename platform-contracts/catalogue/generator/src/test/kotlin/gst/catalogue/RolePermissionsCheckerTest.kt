@@ -447,6 +447,20 @@ class RolePermissionsCheckerTest {
     }
 
     @Test
+    fun `INV-AC-25079 probe a tax operator cell on vp-83 set is reported`() {
+        listOf(saasF, privF).forEach { f ->
+            assertReported(cellAdd("vp-83.set", "tax.operator", f), "role tax.operator key vp-83.set form $f")
+        }
+    }
+
+    @Test
+    fun `INV-AC-25079 probe a missing tenant admin cell on vp-83 set is reported`() {
+        listOf(saasF, privF).forEach { f ->
+            assertFails(cellRemove("vp-83.set", "tenant.admin", f), "vp-83.set")
+        }
+    }
+
+    @Test
     fun `probe 36 the 81 keys removed while the label stays in addedRows fails with the second message`() {
         val table = real.copy(permissions = real.permissions - vpKeys().toSet())
         assertReported(table, "row '$vpLabel': no key transcribes it.")

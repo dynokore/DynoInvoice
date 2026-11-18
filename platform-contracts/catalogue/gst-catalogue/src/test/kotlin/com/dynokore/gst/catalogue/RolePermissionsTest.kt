@@ -177,14 +177,14 @@ class RolePermissionsTest {
             ),
             *vpGroup(
                 setOf("tenant.admin"),
-                listOf(1, 2, 3, 6, 7, 9, 17, 28, 32, 33, 43, 46, 58, 64, 68, 69, 73, 81, 82),
+                listOf(1, 2, 3, 6, 7, 9, 17, 28, 32, 33, 43, 46, 58, 64, 68, 69, 73, 81, 82, 83),
             ),
             *vpGroup(setOf("integration.engineer"), listOf(26, 34, 35, 38, 47, 48, 49, 55, 56, 67, 71)),
             *vpGroup(setOf("entity.admin"), listOf(21, 22, 23, 24, 25, 27, 51, 53, 60, 61)),
             *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 80)),
             *vpGroup(setOf("client.signatory"), listOf(4, 10, 11, 12, 13)),
             *vpGroup(setOf("security.officer"), listOf(5, 8, 44, 63)),
-            *vpGroup(setOf("tax.operator"), listOf(30, 83)),
+            *vpGroup(setOf("tax.operator"), listOf(30)),
             *vpGroup(setOf("commercial.admin"), listOf(45)),
             *vpGroup(setOf("deployment.operator"), listOf(52)),
         ) + (79 to setOf("platform.engineer"))
