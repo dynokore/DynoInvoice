@@ -9,7 +9,9 @@ import com.dynokore.gst.access.contract.model.AuthoriseResponse.Decision
 import com.dynokore.gst.access.contract.model.GrantRequest
 import com.dynokore.gst.access.contract.model.LandingChoiceRequest
 import com.dynokore.gst.access.contract.model.SoleOperatorAckRequest
+import com.dynokore.gst.access.domain.grant.EntityRef
 import com.dynokore.gst.access.domain.grant.IdentityRef
+import com.dynokore.gst.access.domain.grant.Scope
 import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
@@ -324,4 +326,60 @@ class CatalogueAcceptanceTest {
                 assertThat(stored.map { it.role.wire }).describedAs("stored row of $role").containsExactly(role)
             }
         }
+
+    private fun assertPackRemedyKeys(
+        env: Env,
+        otherRoles: List<String>,
+    ) {
+        val keys = listOf("regulatory-pack.rollback", "regulatory-pack.reprocess")
+        val approver = env.holding("IDN-APPR", "tax.approver")
+        keys.forEach { key -> assertThat(env.decide(approver, key)).describedAs(key).isEqualTo(Decision.ALLOW) }
+        otherRoles.forEachIndexed { index, role ->
+            val identity = "IDN-OTH-$index"
+            // An operator role cannot be granted in a customer tenant (SRT-004): seed it as the installation does.
+            val holder =
+                if (role == Role.PLATFORM_ENGINEER.wire) {
+                    val scope = Scope.Entity(EntityRef("ENT-1"))
+                    Seeds.grant(env.context, env.tenant, SeedSpec(identity, Role.PLATFORM_ENGINEER, scope))
+                    identity
+                } else {
+                    env.holding(identity, role)
+                }
+            keys.forEach { key ->
+                assertThat(env.decide(holder, key)).describedAs("$role $key").isEqualTo(Decision.DENY)
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-24735 SAAS only tax approver rollbacks and reprocesses a pack`() =
+        run("SAAS") { env ->
+            assertPackRemedyKeys(
+                env,
+                listOf("tax.operator", "platform.engineer", "auditor", "tenant.admin"),
+            )
+        }
+
+    @Test
+    fun `INV-AC-24735 PRIVATE only tax approver rollbacks and reprocesses a pack`() =
+        run("PRIVATE") { env ->
+            assertPackRemedyKeys(
+                env,
+                listOf("tax.operator", "deployment.operator", "auditor", "tenant.admin"),
+            )
+        }
+
+    @Test
+    fun `INV-AC-24735 look-alike permissions are denied to the tax approver`() {
+        listOf("SAAS", "PRIVATE").forEach { form ->
+            run(form) { env ->
+                val approver = env.holding("IDN-APPR", "tax.approver")
+                val lookAlikes =
+                    listOf("regulatory-pack.rollbacks", "Regulatory-pack.rollback", "regulatory-pack.reprocess ")
+                lookAlikes.forEach { key ->
+                    assertThat(env.decide(approver, key)).describedAs("$form '$key'").isEqualTo(Decision.DENY)
+                }
+            }
+        }
+    }
 }
