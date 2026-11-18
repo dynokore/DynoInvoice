@@ -166,9 +166,3 @@ openapi.yaml	DecisionTraceInput.value	IDENTIFYING
 openapi.yaml	DecisionTraceInput.businessTermId	NONE
 openapi.yaml	SubjectAccessExport.itemCount	NONE
 openapi.yaml	SubjectAccessExport.recordClasses	NONE
-openapi.yaml	SampleCheckArtefact.artefactType	NONE
-openapi.yaml	SampleCheckArtefact.reference	NONE
-openapi.yaml	SampleCheckArtefact.hash	NONE
-openapi.yaml	SampleCheckArtefact.recordedAt	NONE
-openapi.yaml	SampleCheckArtefactPage.items	NONE
-openapi.yaml	SampleCheckArtefactPage.nextCursor	NONE
