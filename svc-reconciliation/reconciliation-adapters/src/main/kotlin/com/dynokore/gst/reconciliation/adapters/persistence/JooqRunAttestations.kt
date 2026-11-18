@@ -2,6 +2,7 @@ package com.dynokore.gst.reconciliation.adapters.persistence
 
 import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.references.WORK_PAPER_ATTESTATION
 import com.dynokore.gst.reconciliation.application.workpaper.RunAttestations
+import com.dynokore.gst.reconciliation.application.workpaper.SoleAttester
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAttestation
 import org.jooq.DSLContext
 import java.util.UUID
@@ -19,10 +20,21 @@ class JooqRunAttestations(
         runId: String,
     ): StoredAttestation? =
         dsl
-            .select(WORK_PAPER_ATTESTATION.ATTESTED_BY, WORK_PAPER_ATTESTATION.ATTESTED_AT)
+            .select(
+                WORK_PAPER_ATTESTATION.ATTESTED_BY,
+                WORK_PAPER_ATTESTATION.ATTESTED_AT,
+                WORK_PAPER_ATTESTATION.SOLE_ATTESTER_ACKNOWLEDGED_BY,
+                WORK_PAPER_ATTESTATION.SOLE_ATTESTER_ACKNOWLEDGED_ON,
+            )
             .from(WORK_PAPER_ATTESTATION)
             .where(WORK_PAPER_ATTESTATION.TENANT_ID.eq(UUID.fromString(tenant)))
             .and(WORK_PAPER_ATTESTATION.RUN_ID.eq(runId))
             .fetchOne()
-            ?.let { StoredAttestation(checkNotNull(it.value1()), checkNotNull(it.value2()).toInstant()) }
+            ?.let {
+                StoredAttestation(
+                    checkNotNull(it.value1()),
+                    checkNotNull(it.value2()).toInstant(),
+                    it.value3()?.let { by -> SoleAttester(by, checkNotNull(it.value4())) },
+                )
+            }
 }
