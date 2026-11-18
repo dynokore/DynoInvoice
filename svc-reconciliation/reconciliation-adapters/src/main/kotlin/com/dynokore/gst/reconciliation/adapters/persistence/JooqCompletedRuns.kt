@@ -54,6 +54,7 @@ class JooqCompletedRuns(
             .set(RECONCILIATION_RUN.UNEXPLAINED_RESIDUAL, money(residual))
             .set(RECONCILIATION_RUN.RAISES_PER003, outcome.raisesPer003)
             .execute()
+        JooqRunItems(dsl).write(tenantId, runId, outcome.reconcilingItems)
         outcome.result.lines.forEach { insertBox(tenantId, runId, it) }
         outcome.unmappedLines.forEach { insertUnmapped(tenantId, runId, it) }
         outcome.notReconcilable.forEach { insertNotReconcilable(tenantId, runId, it) }
