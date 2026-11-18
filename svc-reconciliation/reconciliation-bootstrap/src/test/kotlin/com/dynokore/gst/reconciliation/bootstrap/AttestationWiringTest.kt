@@ -14,9 +14,10 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 /**
- * INV-AC-24436 through the composed service (TPL-18, P109): the production configuration starts with exactly one bean
- * of each attestation type, and the BOM pin carries the platform `RelaxationReader` (config-resolver 6.1.0, platform-libs
- * INV-T-24432, first published in BOM 0.220.0). No database connection is opened at start.
+ * INV-AC-24436 through the composed service (TPL-18, P109): the production configuration starts with
+ * exactly one bean of each attestation type, and the BOM pin carries the platform `RelaxationReader`
+ * (config-resolver 6.1.0, platform-libs INV-T-24432, first in BOM 0.220.0). No database connection is
+ * opened at start.
  */
 class AttestationWiringTest {
     private fun root(): Path {

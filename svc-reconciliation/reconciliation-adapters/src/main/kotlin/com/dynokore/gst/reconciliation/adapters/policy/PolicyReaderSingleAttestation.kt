@@ -33,12 +33,18 @@ class PolicyReaderSingleAttestation(
         val scope = PolicyScope.entity(TenantId(UUID.fromString(tenant)), entityRef)
         val key = VariationPointKey(SINGLE_ATTESTATION_VP)
         val selected = policy.resolve(key, scope, on).selected.map { it.key }
-        if (selected != listOf(SOLE_OPERATOR_OPTION)) return null
         // minByOrNull keeps the first of equal instants: the recorded order breaks a tie
-        val first = relaxations.acknowledgementsInForce(key, scope, on).minByOrNull { it.acknowledgedAt } ?: return null
-        return SoleAttester(
-            acknowledgedBy = first.principal,
-            acknowledgedOn = first.acknowledgedAt.atZone(BusinessDate.ZONE).toLocalDate(),
-        )
+        val first =
+            if (selected == listOf(SOLE_OPERATOR_OPTION)) {
+                relaxations.acknowledgementsInForce(key, scope, on).minByOrNull { it.acknowledgedAt }
+            } else {
+                null
+            }
+        return first?.let {
+            SoleAttester(
+                acknowledgedBy = it.principal,
+                acknowledgedOn = it.acknowledgedAt.atZone(BusinessDate.ZONE).toLocalDate(),
+            )
+        }
     }
 }

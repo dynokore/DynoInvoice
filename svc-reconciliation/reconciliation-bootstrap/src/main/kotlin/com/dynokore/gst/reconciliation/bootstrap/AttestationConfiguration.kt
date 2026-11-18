@@ -48,5 +48,13 @@ class AttestationConfiguration {
         writer: RunAttestationWriter,
         clock: ObjectProvider<Clock>,
     ): AttestWorkPaper =
-        AttestWorkPaper(runs, workPaper, preparers, policy, attestations, writer, clock.getIfAvailable { Clock.systemUTC() })
+        AttestWorkPaper(
+            runs,
+            workPaper,
+            preparers,
+            policy,
+            attestations,
+            writer,
+            clock.getIfAvailable { Clock.systemUTC() },
+        )
 }
