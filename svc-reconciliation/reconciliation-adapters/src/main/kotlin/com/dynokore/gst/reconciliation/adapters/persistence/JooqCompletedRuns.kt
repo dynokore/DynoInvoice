@@ -8,10 +8,7 @@ import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.referenc
 import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.references.RECONCILIATION_RUN_VARIANCE
 import com.dynokore.gst.reconciliation.application.run.CompletedRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
-import com.dynokore.gst.reconciliation.domain.boxes.UnmappedLine
-import com.dynokore.gst.reconciliation.domain.run.NotReconcilableDocument
 import com.dynokore.gst.reconciliation.domain.run.RunOutcome
-import com.dynokore.platform.reconciliationengine.LineResult
 import org.jooq.DSLContext
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -38,7 +35,18 @@ class JooqCompletedRuns(
         completedAt: Instant,
     ): RecordedRun {
         val tenantId = UUID.fromString(tenant)
-        val form = returnForm(tenantId, entityRef, periodRef, outcome.returnVersion)
+        val form =
+            dsl
+                .select(GST_RETURN.FORM)
+                .from(GST_RETURN)
+                .where(GST_RETURN.TENANT_ID.eq(tenantId))
+                .and(GST_RETURN.ENTITY_REF.eq(entityRef))
+                .and(GST_RETURN.PERIOD_REF.eq(periodRef))
+                .and(GST_RETURN.VERSION.eq(outcome.returnVersion))
+                .fetchOne(GST_RETURN.FORM)
+                ?: throw IllegalStateException(
+                    "no stored return for entity $entityRef, period $periodRef, version ${outcome.returnVersion}",
+                )
         val runId = newRunId()
         val stored = completedAt.truncatedTo(ChronoUnit.MICROS)
         val residual = outcome.result.lines.fold(BigDecimal.ZERO) { acc, line -> acc.add(line.unexplainedResidual) }
@@ -54,93 +62,53 @@ class JooqCompletedRuns(
             .set(RECONCILIATION_RUN.UNEXPLAINED_RESIDUAL, money(residual))
             .set(RECONCILIATION_RUN.RAISES_PER003, outcome.raisesPer003)
             .execute()
-        outcome.result.lines.forEach { insertBox(tenantId, runId, it) }
-        outcome.unmappedLines.forEach { insertUnmapped(tenantId, runId, it) }
-        outcome.notReconcilable.forEach { insertNotReconcilable(tenantId, runId, it) }
-        return RecordedRun(runId.toString(), entityRef, periodRef, outcome.returnVersion, stored)
-    }
-
-    /** The form of the stored return the run reconciles to; a missing row is an error, never a default form. */
-    private fun returnForm(
-        tenantId: UUID,
-        entityRef: String,
-        periodRef: String,
-        version: Int,
-    ): String =
-        dsl
-            .select(GST_RETURN.FORM)
-            .from(GST_RETURN)
-            .where(GST_RETURN.TENANT_ID.eq(tenantId))
-            .and(GST_RETURN.ENTITY_REF.eq(entityRef))
-            .and(GST_RETURN.PERIOD_REF.eq(periodRef))
-            .and(GST_RETURN.VERSION.eq(version))
-            .fetchOne(GST_RETURN.FORM)
-            ?: error("no stored return for entity $entityRef, period $periodRef, version $version")
-
-    private fun insertBox(
-        tenantId: UUID,
-        runId: UUID,
-        line: LineResult,
-    ) {
-        val box = line.comparison.key
-        dsl
-            .insertInto(RECONCILIATION_RUN_BOX)
-            .set(RECONCILIATION_RUN_BOX.TENANT_ID, tenantId)
-            .set(RECONCILIATION_RUN_BOX.RUN_ID, runId)
-            .set(RECONCILIATION_RUN_BOX.BOX, box)
-            .set(RECONCILIATION_RUN_BOX.SUBMITTED_AMOUNT, money(line.comparison.submittedAmount))
-            .set(RECONCILIATION_RUN_BOX.FILED_AMOUNT, money(line.comparison.returnAmount))
-            .set(RECONCILIATION_RUN_BOX.VARIANCE, money(line.comparison.variance))
-            .set(
-                RECONCILIATION_RUN_BOX.VARIANCE_CLASS,
-                line.classified
-                    .singleOrNull()
-                    ?.category
-                    ?.code,
-            ).set(RECONCILIATION_RUN_BOX.UNEXPLAINED_RESIDUAL, money(line.unexplainedResidual))
-            .execute()
-        line.classified.forEach { classified ->
+        outcome.result.lines.forEach { line ->
+            val box = line.comparison.key
             dsl
-                .insertInto(RECONCILIATION_RUN_VARIANCE)
-                .set(RECONCILIATION_RUN_VARIANCE.TENANT_ID, tenantId)
-                .set(RECONCILIATION_RUN_VARIANCE.RUN_ID, runId)
-                .set(RECONCILIATION_RUN_VARIANCE.BOX, box)
-                .set(RECONCILIATION_RUN_VARIANCE.CATEGORY_CODE, classified.category.code)
-                .set(RECONCILIATION_RUN_VARIANCE.AMOUNT, money(classified.amount))
-                .set(RECONCILIATION_RUN_VARIANCE.LINKED_RECORDS, classified.linkedRecords.toTypedArray())
+                .insertInto(RECONCILIATION_RUN_BOX)
+                .set(RECONCILIATION_RUN_BOX.TENANT_ID, tenantId)
+                .set(RECONCILIATION_RUN_BOX.RUN_ID, runId)
+                .set(RECONCILIATION_RUN_BOX.BOX, box)
+                .set(RECONCILIATION_RUN_BOX.SUBMITTED_AMOUNT, money(line.comparison.submittedAmount))
+                .set(RECONCILIATION_RUN_BOX.FILED_AMOUNT, money(line.comparison.returnAmount))
+                .set(RECONCILIATION_RUN_BOX.VARIANCE, money(line.comparison.variance))
+                .set(RECONCILIATION_RUN_BOX.VARIANCE_CLASS, line.classified.singleOrNull()?.category?.code)
+                .set(RECONCILIATION_RUN_BOX.UNEXPLAINED_RESIDUAL, money(line.unexplainedResidual))
+                .execute()
+            line.classified.forEach { classified ->
+                dsl
+                    .insertInto(RECONCILIATION_RUN_VARIANCE)
+                    .set(RECONCILIATION_RUN_VARIANCE.TENANT_ID, tenantId)
+                    .set(RECONCILIATION_RUN_VARIANCE.RUN_ID, runId)
+                    .set(RECONCILIATION_RUN_VARIANCE.BOX, box)
+                    .set(RECONCILIATION_RUN_VARIANCE.CATEGORY_CODE, classified.category.code)
+                    .set(RECONCILIATION_RUN_VARIANCE.AMOUNT, money(classified.amount))
+                    .set(RECONCILIATION_RUN_VARIANCE.LINKED_RECORDS, classified.linkedRecords.toTypedArray())
+                    .execute()
+            }
+        }
+        outcome.unmappedLines.forEach { line ->
+            dsl
+                .insertInto(RECONCILIATION_RUN_UNMAPPED_LINE)
+                .set(RECONCILIATION_RUN_UNMAPPED_LINE.TENANT_ID, tenantId)
+                .set(RECONCILIATION_RUN_UNMAPPED_LINE.RUN_ID, runId)
+                .set(RECONCILIATION_RUN_UNMAPPED_LINE.DOC_UUID, line.docUuid)
+                .set(RECONCILIATION_RUN_UNMAPPED_LINE.VERSION, line.version)
+                .set(RECONCILIATION_RUN_UNMAPPED_LINE.LINE_NUMBER, line.lineNumber)
+                .set(RECONCILIATION_RUN_UNMAPPED_LINE.TAX_CODE, line.taxCode)
                 .execute()
         }
-    }
-
-    private fun insertUnmapped(
-        tenantId: UUID,
-        runId: UUID,
-        line: UnmappedLine,
-    ) {
-        dsl
-            .insertInto(RECONCILIATION_RUN_UNMAPPED_LINE)
-            .set(RECONCILIATION_RUN_UNMAPPED_LINE.TENANT_ID, tenantId)
-            .set(RECONCILIATION_RUN_UNMAPPED_LINE.RUN_ID, runId)
-            .set(RECONCILIATION_RUN_UNMAPPED_LINE.DOC_UUID, line.docUuid)
-            .set(RECONCILIATION_RUN_UNMAPPED_LINE.VERSION, line.version)
-            .set(RECONCILIATION_RUN_UNMAPPED_LINE.LINE_NUMBER, line.lineNumber)
-            .set(RECONCILIATION_RUN_UNMAPPED_LINE.TAX_CODE, line.taxCode)
-            .execute()
-    }
-
-    private fun insertNotReconcilable(
-        tenantId: UUID,
-        runId: UUID,
-        document: NotReconcilableDocument,
-    ) {
-        dsl
-            .insertInto(RECONCILIATION_RUN_NOT_RECONCILABLE)
-            .set(RECONCILIATION_RUN_NOT_RECONCILABLE.TENANT_ID, tenantId)
-            .set(RECONCILIATION_RUN_NOT_RECONCILABLE.RUN_ID, runId)
-            .set(RECONCILIATION_RUN_NOT_RECONCILABLE.DOC_UUID, document.docUuid)
-            .set(RECONCILIATION_RUN_NOT_RECONCILABLE.VERSION, document.version)
-            .set(RECONCILIATION_RUN_NOT_RECONCILABLE.REASON, document.reason.name)
-            .execute()
+        outcome.notReconcilable.forEach { document ->
+            dsl
+                .insertInto(RECONCILIATION_RUN_NOT_RECONCILABLE)
+                .set(RECONCILIATION_RUN_NOT_RECONCILABLE.TENANT_ID, tenantId)
+                .set(RECONCILIATION_RUN_NOT_RECONCILABLE.RUN_ID, runId)
+                .set(RECONCILIATION_RUN_NOT_RECONCILABLE.DOC_UUID, document.docUuid)
+                .set(RECONCILIATION_RUN_NOT_RECONCILABLE.VERSION, document.version)
+                .set(RECONCILIATION_RUN_NOT_RECONCILABLE.REASON, document.reason.name)
+                .execute()
+        }
+        return RecordedRun(runId.toString(), entityRef, periodRef, outcome.returnVersion, stored)
     }
 
     private fun money(value: BigDecimal): BigDecimal = value.setScale(MONEY_SCALE, RoundingMode.UNNECESSARY)
