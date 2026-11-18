@@ -94,3 +94,4 @@ LatestDocumentVersion.version	schema_property	openapi.yaml	INV-REQ-500
 aggregateId	property	schemas/payload-ready-payload.schema.json	INV-REQ-439
 overrideValidation.SRT-001	operation_error_code	openapi.yaml	INV-REQ-500
 recordRenditionSample.SRT-001	operation_error_code	openapi.yaml	INV-REQ-1033
+checkPreIssuance.SRT-001	operation_error_code	openapi.yaml	INV-REQ-325

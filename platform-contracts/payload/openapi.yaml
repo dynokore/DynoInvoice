@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: payload API
-  version: 2.1.0
+  version: 2.2.0
   description: >-
     Contract-first source of truth for payload (API-01, STK-44). The
     `payload-contract` module generates its server interfaces and DTOs
@@ -56,13 +56,19 @@ paths:
         (INV-REQ-475). It blocks for TYPE_1A and only warns for TYPE_2,
         TYPE_1B and TYPE_3 (INV-REQ-476). The controls are the same whichever
         system issues the invoice (INV-REQ-503).
+
+
+        A draft lacking the Supplier GSTN, invoice date, GST amount or
+        submission type is refused as a malformed request with 400 and
+        SRT-001 (INV-REQ-325): no verdict is given for it, so a draft that was
+        not checked never reads as PASS, and nothing is recorded.
       tags: [pre-issuance]
       x-principal: ingest
       x-caller-auth: end-user
       x-timeout: 150
       x-sync-edge: ingestion-svc->payload-svc
       x-flow-context: required
-      x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013]
+      x-error-codes: [PAY-001, PAY-005, PAY-011, PAY-013, SRT-001]
       x-requirements: [INV-REQ-957, INV-REQ-325, INV-REQ-326, INV-REQ-475, INV-REQ-476, INV-REQ-503]
       x-operation:
         role: ingest
@@ -88,6 +94,10 @@ paths:
                   entityRef: "E-001"
                   currency: "SGD"
                   totalIncludingTax: "1090.00"
+                  submissionType: "TYPE_2"
+                  supplierGstn: "M90054321K"
+                  invoiceDate: "2026-03-20"
+                  gstAmount: "90.00"
               type1aBlock:
                 summary: TYPE_1A draft whose Supplier GSTN is not registered on the invoice date
                 value:
@@ -137,6 +147,20 @@ paths:
                 registerUnavailable:
                   summary: Register unavailable — WARN with the flag, never BLOCK on that ground
                   value: { verdict: "WARN", reasons: [], flags: ["REGISTER_UNAVAILABLE"] }
+        '400':
+          description: The draft lacks the Supplier GSTN, invoice date, GST amount or submission type (SRT-001); no verdict is given and nothing is recorded.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "A required field is missing"
+                    status: 400
+                    code: "SRT-001"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/payload/documents/{docUuid}/versions/{version}/validate:
@@ -942,7 +966,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DraftLine'
-      required: [entityRef, currency, totalIncludingTax]
+      required: [entityRef, currency, totalIncludingTax, submissionType, supplierGstn, invoiceDate, gstAmount]
     DraftLine:
       type: object
       properties:
