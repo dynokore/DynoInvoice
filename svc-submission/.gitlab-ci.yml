@@ -32,8 +32,16 @@ variables:
   GST_SKIP_REPEATS: "true"
   GST_SKIP_WHEN_VERIFIED_JOBS: "lint"
   IMAGE_NAME: "svc-submission"
+  # INV-T-24709 (INV-AC-24707): turns on gradle-lock-drift-check (platform-build INV-T-24708, opt-in): every committed
+  # gradle.lockfile must equal a fresh `resolveAndLockAll --write-locks` resolution.
+  GST_LOCK_REGEN_TASK: "resolveAndLockAll"
 
 # INV-T-18903 (INV-AC-18902): gradle-verification-check reports a check group. The extends array replaces the included
 # job's (platform-build ci/build.gitlab-ci.yml); every other key of the job stays as included.
 gradle-verification-check:
+  extends: [.gradle-job, .check-group]
+
+# INV-T-24709 (INV-AC-24707): gradle-lock-drift-check reports a check group. The extends array replaces the included
+# job's (platform-build ci/build.gitlab-ci.yml); every other key of the job stays as included.
+gradle-lock-drift-check:
   extends: [.gradle-job, .check-group]
