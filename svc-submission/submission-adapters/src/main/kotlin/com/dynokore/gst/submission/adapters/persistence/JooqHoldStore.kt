@@ -74,7 +74,6 @@ class JooqHoldStore(
                 .on(e.TENANT_ID.eq(s.TENANT_ID))
                 .and(e.DOC_UUID.eq(s.DOC_UUID))
                 .where(s.TENANT_ID.eq(tenant.value))
-                .and(e.TENANT_ID.eq(tenant.value))
                 .and(s.STATE.eq("AWAITING_PRECEDING"))
                 .and(extra)
                 .orderBy(s.DOC_UUID, s.VERSION)
