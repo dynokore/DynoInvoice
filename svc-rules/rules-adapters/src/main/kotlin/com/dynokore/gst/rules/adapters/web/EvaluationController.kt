@@ -383,6 +383,7 @@ open class EvaluationController(
             trace,
             null,
             null,
+            DocumentClassifier.RULE_ID,
         )
     }
 
@@ -495,19 +496,22 @@ open class EvaluationController(
         trace: Map<String, Any>?,
         classified: Classified?,
         straddleNote: String?,
+        refusalRuleId: String? = null,
     ): EvaluationResult {
         val fields = fieldsOf(classified)
         val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
         val warning = if (outcome.disregardedSupplyWarning) true else null
         return when (coding) {
             is LineCoding.Refused -> {
+                // a refused line, and only it, carries the decisions member (INV-AC-20803)
+                val decisions = DecisionEntries.of(coding.code.code, outcome.trace, refusalRuleId, versions)
                 EvaluationResult(
                     scopeVerdict = scope,
                     packVersionsApplied = versions,
                     severity = EvaluationResult.Severity.valueOf(coding.severity.name),
                     code = coding.code.code,
                     disregardedSupplyWarning = warning,
-                    decisionTrace = trace,
+                    decisionTrace = DecisionEntries.traceWith(trace, decisions),
                     straddleNote = straddleNote,
                     documentFunction = fields?.function,
                     documentTypeCode = fields?.typeCode,
