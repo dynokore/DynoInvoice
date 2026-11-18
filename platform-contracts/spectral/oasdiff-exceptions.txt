@@ -119,3 +119,38 @@ POST /internal/v1/payload/entities/{entityRef}/rendition-samples request propert
 POST /internal/v1/payload/pre-issuance-checks request property `submissionType` was restricted to a list of enum values
 # INV-T-25186, answered design question on the request-enumeration findings (closing each finding in its contract), breakdown tooling/gap25007-gap.md; Coordinator ruling, delegated, owner 2026-10-14, on INV-Q-3569's reasoning (no train is cut and no consumer is deployed): AlertPolicyRequest channels/items loses x-extensible-enum; the enum members are unchanged and the request type is closed (1.18.0).
 PUT /internal/v1/notification/entities/{entityRef}/alert-policies/{alertClass} request property `channels/items/` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/accreditation request property `coveredSubmissionTypes/items/` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/accreditation request property `sandboxAcknowledgements/items/submissionType` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/release-trains request property `kind` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request property `baselineResult` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request property `candidateResult` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request property `environment` was restricted to a list of enum values
+# INV-T-25182 (owner ruling 2026-11-18 "Accept all 42 recommendations", option A; the answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# the seven request enumerations of control-plane that carried x-extensible-enum are closed; the enum members and wire values are unchanged (the marker only generated an UNKNOWN member).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+# After the first published train a request enumeration restricted to a list of enum values is breaking (API-03).
+POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request property `gate` was restricted to a list of enum values

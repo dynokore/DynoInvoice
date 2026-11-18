@@ -1,3 +1,17 @@
 file	pointer	relation	value	requirement
 openapi.yaml	/paths/~1internal~1v1~1control-plane~1licences~1{licenceRef}/get/x-operation	equals	{"role":"commercial.admin","permission":"licence.view","scope":"installation"}	INV-REQ-906
 openapi.yaml	/paths/~1internal~1v1~1control-plane~1tenant-provisioning-requests~1{contractReference}/get/x-operation	equals	{"role":"commercial.admin","permission":"tenant-provisioning-request.view","scope":"installation"}	INV-REQ-906
+openapi.yaml	/components/schemas/PublishTrainRequest/properties/kind/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/PublishTrainRequest/properties/kind/enum	equals	["TRAIN","PATCH"]	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/gate/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/gate/enum	equals	["SCENARIOS","REGENERATION","SECURITY","CERTIFICATION"]	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/environment/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/environment/enum	equals	["SAAS","PRIVATE_MINIMAL"]	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/candidateResult/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/candidateResult/enum	equals	["PASSED","FAILED"]	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/baselineResult/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/GateRunRequest/properties/baselineResult/enum	equals	["PASSED","FAILED"]	FR-AC.1
+openapi.yaml	/components/schemas/RecordAccreditationRequest/properties/coveredSubmissionTypes/items/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/RecordAccreditationRequest/properties/coveredSubmissionTypes/items/enum	equals	["TYPE_1A","TYPE_1B","TYPE_2","TYPE_3"]	FR-AC.1
+openapi.yaml	/components/schemas/RecordAccreditationRequest/properties/sandboxAcknowledgements/items/properties/submissionType/x-extensible-enum	absent	-	FR-AC.1
+openapi.yaml	/components/schemas/RecordAccreditationRequest/properties/sandboxAcknowledgements/items/properties/submissionType/enum	equals	["TYPE_1A","TYPE_1B","TYPE_2","TYPE_3"]	FR-AC.1

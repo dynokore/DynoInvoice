@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: control-plane API
-  version: 1.13.0
+  version: 1.14.0
   description: 'Contract-first source of truth for control-plane (API-01, STK-44), replacing the INV-T-2849
     scaffold (INV-T-2857, T13). Internal API only (SDS/04-api-standards §1), SaaS-operator-only: the operator
     console for regulatory, release and commercial roles (regulatory pack authoring/signing/publication,
@@ -2070,7 +2070,6 @@ components:
           enum:
           - TRAIN
           - PATCH
-          x-extensible-enum: true
         exposureReducing:
           description: The train only reduces exposure, which exempts it from the release gates (INV-REQ-909 behavior 4). Absent is read as false.
           type: boolean
@@ -2130,25 +2129,21 @@ components:
           - REGENERATION
           - SECURITY
           - CERTIFICATION
-          x-extensible-enum: true
         environment:
           type: string
           enum:
           - SAAS
           - PRIVATE_MINIMAL
-          x-extensible-enum: true
         candidateResult:
           type: string
           enum:
           - PASSED
           - FAILED
-          x-extensible-enum: true
         baselineResult:
           type: string
           enum:
           - PASSED
           - FAILED
-          x-extensible-enum: true
         candidateFindings:
           description: The finding identifiers the gate produced for the candidate (INV-AC-2658).
           type: array
@@ -2513,7 +2508,6 @@ components:
           items:
             type: string
             enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
-            x-extensible-enum: true
           description: The submission types the accreditation covers (INV-REQ-1364).
         sandboxAcknowledgements:
           type: array
@@ -2527,7 +2521,6 @@ components:
               submissionType:
                 type: string
                 enum: [TYPE_1A, TYPE_1B, TYPE_2, TYPE_3]
-                x-extensible-enum: true
               acknowledgementId:
                 type: string
                 maxLength: 128
