@@ -79,6 +79,14 @@ class JooqHoldStore(
                 .orderBy(s.DOC_UUID, s.VERSION)
         return (if (limit == null) query else query.limit(limit))
             .fetch()
-            .map { HeldVersion(it.value1()!!, it.value2()!!, it.value3()!!, it.value4()!!, it.value5()!!) }
+            .map {
+                HeldVersion(
+                    checkNotNull(it.get(s.DOC_UUID)),
+                    checkNotNull(it.get(s.VERSION)),
+                    checkNotNull(it.get(e.PRECEDING_DOC_UUID)),
+                    checkNotNull(it.get(e.ENTITY_REF)),
+                    checkNotNull(it.get(e.PERIOD_REF)),
+                )
+            }
     }
 }

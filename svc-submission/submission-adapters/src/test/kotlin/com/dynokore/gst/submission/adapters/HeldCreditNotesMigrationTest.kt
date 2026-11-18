@@ -22,7 +22,7 @@ class HeldCreditNotesMigrationTest {
         )
 
     @Test
-    fun `INV-AC-24517 held_tenants is a security definer function owned by submission_sys that only the runtime executes`() {
+    fun `INV-AC-24517 held_tenants is a security definer function of submission_sys`() {
         strings(
             "select p.prosecdef || '|' || pg_get_userbyid(p.proowner) || '|' || array_to_string(p.proconfig, ',') " +
                 "|| '|' || has_function_privilege('submission_runtime', p.oid, 'execute') " +
@@ -37,7 +37,7 @@ class HeldCreditNotesMigrationTest {
     }
 
     @Test
-    fun `INV-AC-24517 the held index is partial on AWAITING_PRECEDING and the preceding index on a non-null column`() {
+    fun `INV-AC-24517 both indexes carry their partial predicates`() {
         index("submission").filter { "submission_held_idx" in it || "AWAITING_PRECEDING" in it } shouldBe
             listOf("btree (tenant_id, doc_uuid) WHERE (state = 'AWAITING_PRECEDING'::text)")
         index("obligation_register_entry").filter { "preceding_doc_uuid" in it } shouldBe

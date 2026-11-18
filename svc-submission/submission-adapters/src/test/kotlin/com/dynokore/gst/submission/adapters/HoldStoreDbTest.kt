@@ -98,16 +98,24 @@ class HoldStoreDbTest {
         version: Int,
     ): String? =
         SubmissionDb.superuser().use { c ->
-            c.prepareStatement("select state from submission.submission where tenant_id = ? and doc_uuid = ? and version = ?").use {
-                it.setObject(1, tenant)
-                it.setString(2, doc)
-                it.setInt(3, version)
-                it.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
-            }
+            c
+                .prepareStatement(
+                    "select state from submission.submission where tenant_id = ? and doc_uuid = ? and version = ?",
+                ).use {
+                    it.setObject(1, tenant)
+                    it.setString(2, doc)
+                    it.setInt(3, version)
+                    it.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
+                }
         }
 
     /** The tenants of this test among those the function lists: the database is shared with other test classes. */
-    private fun mine(): Set<UUID> = source.tenants().map { it.value }.toSet().intersect(setOf(t1, t2))
+    private fun mine(): Set<UUID> =
+        source
+            .tenants()
+            .map { it.value }
+            .toSet()
+            .intersect(setOf(t1, t2))
 
     private fun hv(
         doc: String,
@@ -115,7 +123,7 @@ class HoldStoreDbTest {
     ) = HeldVersion(doc, 1, preceding, "E-001", "2026-Q1")
 
     @Test
-    fun `INV-AC-24517 hold and release move one version by state, the lists join the register and the function lists tenants`() {
+    fun `INV-AC-24517 hold and release then the held lists and the held tenants in order`() {
         seed()
         val a = TenantId(t1)
         val b = TenantId(t2)
