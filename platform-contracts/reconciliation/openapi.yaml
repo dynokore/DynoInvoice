@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: reconciliation API
-  version: 1.8.0
+  version: 1.9.0
   description: >-
     Contract-first source of truth for reconciliation (API-01, STK-44). The
     `reconciliation-contract` module generates its server interfaces and DTOs
@@ -641,7 +641,6 @@ components:
         formType:
           type: string
           enum: [F5, F7, F8]
-          x-extensible-enum: true
           description: The return form; replaces the 1.0.0 request property `form` (owner ruling INV-Q-6117, option B).
         filedAt:
           type: string
