@@ -29,16 +29,23 @@ class ScopeCheck(
         docUuid: String,
         version: Int,
     ): ScopeOutcome {
-        val own = facts.of(tenant, docUuid) ?: return ScopeOutcome.Proceed
-        if (own.kind != RowKind.CREDIT_NOTE) return ScopeOutcome.Proceed
-        val verdict = own.verdict ?: return ScopeOutcome.Proceed
-        val precedingDoc = own.precedingDocUuid ?: return ScopeOutcome.Proceed
-        val preceding = facts.of(tenant, precedingDoc) ?: return ScopeOutcome.Proceed
-        val precedingVerdict = preceding.verdict ?: return ScopeOutcome.Proceed
-        if (ScopeAgreement.decide(verdict, precedingVerdict) !is ScopeDecision.Disagree) return ScopeOutcome.Proceed
+        val own = disagreeingEntry(tenant, docUuid) ?: return ScopeOutcome.Proceed
         val changed = blocks.blockReady(tenant, docUuid, version)
         check(changed == 1) { "SUB-013 block of $docUuid version $version changed $changed rows" }
         raising.raise(tenant, docUuid, version, own.entityRef, own.periodRef, listOf(ScopeCode.SUB_013.code))
         return ScopeOutcome.Blocked
+    }
+
+    /** The entry of [docUuid] when it is a credit note whose verdict disagrees with its preceding document's. */
+    private fun disagreeingEntry(
+        tenant: TenantId,
+        docUuid: String,
+    ): ScopeEntry? {
+        val own = facts.of(tenant, docUuid)?.takeIf { it.kind == RowKind.CREDIT_NOTE }
+        val verdict = own?.verdict
+        val preceding = own?.precedingDocUuid?.let { facts.of(tenant, it) }?.verdict
+        val disagree =
+            verdict != null && preceding != null && ScopeAgreement.decide(verdict, preceding) is ScopeDecision.Disagree
+        return if (disagree) own else null
     }
 }

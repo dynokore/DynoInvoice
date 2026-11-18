@@ -168,15 +168,6 @@ class ScopeStoresDbTest {
 
     private fun run(name: String): ScopeOutcome = asTenant(t1) { check.check(TenantId(t1), doc(name), 1) }
 
-    private fun assertBlocked(name: String) {
-        run(name) shouldBe ScopeOutcome.Blocked
-        blockCalls shouldBe 1
-        raised.size shouldBe 1
-        raised.single().code shouldBe "SUB-013"
-        raised.single().entityRef shouldBe "E-001"
-        raised.single().periodRef shouldBe "2026-Q1"
-    }
-
     private fun assertUntouched(name: String) {
         run(name) shouldBe ScopeOutcome.Proceed
         blockCalls shouldBe 0
