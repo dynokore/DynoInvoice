@@ -189,7 +189,8 @@ class RejectedAcknowledgementDbTest {
         asTenant(tenant) {
             dsl
                 .fetch(
-                    "select failure_class from submission.submission_attempt where doc_uuid = ? order by attempt_number",
+                    "select failure_class from submission.submission_attempt where doc_uuid = ? " +
+                        "order by attempt_number",
                     doc,
                 ).map { it.get(0, String::class.java) }
         }

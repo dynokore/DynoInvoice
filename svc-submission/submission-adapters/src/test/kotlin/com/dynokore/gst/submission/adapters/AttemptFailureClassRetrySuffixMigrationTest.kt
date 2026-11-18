@@ -44,25 +44,40 @@ class AttemptFailureClassRetrySuffixMigrationTest {
         }
 
     @Test
-    fun `INV-AC-24283 the retry suffix shape and the earlier shapes are accepted`() {
-        listOf("SUB-004", "SUB-004-R1", "SUB-004-R12", "X-998", "X-999").forEach { sqlStateOf(it) shouldBe null }
+    fun `INV-AC-24283 the check accepts the suffix shape, SUB-001 and the two fallback codes`() {
+        listOf("SUB-004-R1", "SUB-004-R12", "SUB-001", "X-998", "X-999").forEach { sqlStateOf(it) shouldBe null }
     }
 
     @Test
-    fun `INV-AC-24283 look-alikes of the suffix and the earlier look-alikes are refused`() {
+    fun `INV-AC-24283 the check refuses the look-alikes with 23514`() {
         listOf(
             "SUB-004-R",
+            "SUB-004-R1x",
+            "sub-004-R1",
             "SUB-004-r1",
-            "SUB-004-R1-R2",
-            "SUB-004-R1 ",
+            " SUB-004-R1",
             "SUB-004-R1\n",
-            "SUB-004R1",
-            "SUB-004-S1",
-            "-R1",
+            "SUB-004-R1-R2",
             "X-998-R1",
-            "SUB-0040",
-            "sub-001",
+            "SUB-0041-R1",
             "",
         ).forEach { sqlStateOf(it) shouldBe "23514" }
+    }
+
+    @Test
+    fun `INV-AC-24283 exactly one check constraint on failure_class holds the name`() {
+        SubmissionDb.superuser().use { c ->
+            c.createStatement().use { st ->
+                st
+                    .executeQuery(
+                        "select conname from pg_constraint where contype = 'c' " +
+                            "and conrelid = 'submission.submission_attempt'::regclass " +
+                            "and pg_get_constraintdef(oid) like '%failure_class%'",
+                    ).use { rs ->
+                        val names = generateSequence { if (rs.next()) rs.getString(1) else null }.toList()
+                        names shouldBe listOf("submission_attempt_failure_class_check")
+                    }
+            }
+        }
     }
 }

@@ -4,6 +4,7 @@ import com.dynokore.gst.submission.application.queue.AcknowledgementOutcomeReade
 import com.dynokore.gst.submission.application.queue.AcknowledgementReceivedData
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import tools.jackson.core.JacksonException
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
 /**
@@ -14,6 +15,17 @@ class JacksonAcknowledgementOutcomeReader : AcknowledgementOutcomeReader {
     private val mapper = ObjectMapper()
 
     override fun outcomeOf(dataJson: String): String {
+        val data = objectOf(dataJson)
+        val node = data.get("outcome") ?: return AcknowledgementReceivedData.OUTCOME_ACCEPTED
+        val text = if (node.isString) node.asString() else null
+        val known = listOf(AcknowledgementReceivedData.OUTCOME_ACCEPTED, AcknowledgementReceivedData.OUTCOME_REJECTED)
+        if (text == null || text !in known) {
+            throw ContractViolation("AcknowledgementReceived member outcome is not ACCEPTED or REJECTED")
+        }
+        return text
+    }
+
+    private fun objectOf(dataJson: String): JsonNode {
         val data =
             try {
                 mapper.readTree(dataJson)
@@ -23,12 +35,6 @@ class JacksonAcknowledgementOutcomeReader : AcknowledgementOutcomeReader {
         if (data == null || !data.isObject) {
             throw ContractViolation("AcknowledgementReceived data is not a JSON object")
         }
-        val node = data.get("outcome") ?: return AcknowledgementReceivedData.OUTCOME_ACCEPTED
-        val text = if (node.isString) node.asString() else null
-        val known = listOf(AcknowledgementReceivedData.OUTCOME_ACCEPTED, AcknowledgementReceivedData.OUTCOME_REJECTED)
-        if (text == null || text !in known) {
-            throw ContractViolation("AcknowledgementReceived member outcome is not ACCEPTED or REJECTED")
-        }
-        return text
+        return data
     }
 }
