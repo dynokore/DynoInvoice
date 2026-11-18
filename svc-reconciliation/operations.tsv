@@ -3,7 +3,7 @@ operation	uploadGstReturn	INV-T-24367
 operation	getReconciliation	INV-T-24421
 operation	listRuns	INV-T-24376
 operation	getRun	INV-T-24376
-operation	getWorkPaper	UNASSIGNED
+operation	getWorkPaper	INV-T-24380
 operation	exportWorkPaper	UNASSIGNED
 operation	annotateVariance	UNASSIGNED
 operation	attestWorkPaper	UNASSIGNED

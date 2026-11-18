@@ -10,6 +10,7 @@ import com.dynokore.gst.reconciliation.application.run.RunCursor
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.application.run.RunVarianceShare
+import com.dynokore.gst.reconciliation.application.workpaper.GetWorkPaper
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Run
 import com.dynokore.gst.reconciliation.contract.model.RunPage
@@ -136,7 +137,14 @@ open class RunStoreDbFixture {
                 ) = JooqRunReader(session.dsl()).find(tenant, runId)
             },
         )
-    protected val controller = RunsController(ListRuns(reader), GetRun(reader), session.runner, session.tenants)
+    protected val controller =
+        RunsController(
+            ListRuns(reader),
+            GetRun(reader),
+            GetWorkPaper(reader, LazyRunAnnotations { session.dsl() }, LazyRunAttestations { session.dsl() }),
+            session.runner,
+            session.tenants,
+        )
 
     protected fun <T> asTenant(
         tenant: UUID,
@@ -553,7 +561,6 @@ class RunReadDbTest : RunStoreDbFixture() {
     @Test
     fun `INV-AC-24375 every other operation of both controllers still answers 501`() {
         val id = UUID.randomUUID()
-        controller.getWorkPaper(id).statusCode.value() shouldBe 501
         controller.exportWorkPaper(id, "PDF").statusCode.value() shouldBe 501
         RunsController::class.java.declaredMethods
             .filter {
@@ -561,7 +568,7 @@ class RunReadDbTest : RunStoreDbFixture() {
                     java.lang.reflect.Modifier
                         .isPublic(it.modifiers)
             }.map { it.name }
-            .toSet() shouldBe setOf("listRuns", "getRun")
+            .toSet() shouldBe setOf("listRuns", "getRun", "getWorkPaper")
     }
 
     @Test

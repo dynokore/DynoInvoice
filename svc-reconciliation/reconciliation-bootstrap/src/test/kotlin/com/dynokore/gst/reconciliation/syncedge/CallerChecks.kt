@@ -145,11 +145,12 @@ class CallerChecks(
         private const val BODY_SHOWN = 120
         private const val SERVER_ERROR = 500
 
-        /** Operations a task has implemented (INV-T-24376): they no longer answer 501 to an admitted caller. */
+        /** Operations a task has implemented (INV-T-24376, INV-T-24380): they answer no 501. */
         private val IMPLEMENTED =
             setOf(
                 "GET /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs",
                 "GET /internal/v1/reconciliation/runs/{runId}",
+                "GET /internal/v1/reconciliation/runs/{runId}/work-paper",
             )
         private val COUNTS =
             "select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', " +

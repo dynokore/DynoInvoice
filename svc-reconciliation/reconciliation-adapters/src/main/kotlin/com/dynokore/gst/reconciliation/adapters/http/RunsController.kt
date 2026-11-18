@@ -3,10 +3,18 @@ package com.dynokore.gst.reconciliation.adapters.http
 import com.dynokore.gst.reconciliation.application.run.GetRun
 import com.dynokore.gst.reconciliation.application.run.ListRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
+import com.dynokore.gst.reconciliation.application.workpaper.GetWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperView
 import com.dynokore.gst.reconciliation.contract.api.RunsApi
+import com.dynokore.gst.reconciliation.contract.model.Attestation
+import com.dynokore.gst.reconciliation.contract.model.BoxComparison
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Run
 import com.dynokore.gst.reconciliation.contract.model.RunPage
+import com.dynokore.gst.reconciliation.contract.model.UnmappedLine
+import com.dynokore.gst.reconciliation.contract.model.VarianceClass
+import com.dynokore.gst.reconciliation.contract.model.WorkPaper
+import com.dynokore.gst.reconciliation.contract.model.WorkPaperHeader
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
@@ -15,13 +23,15 @@ import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
+import java.math.BigDecimal
 import java.net.URI
 import java.time.ZoneOffset
 import java.util.UUID
 
 /**
  * The run, work-paper and attestation operations of the reconciliation contract (TPL-08). `listRuns` and `getRun`
- * are implemented (INV-T-24376, INV-REQ-656); every other operation answers 501 until the task named for it in
+ * are implemented (INV-T-24376, INV-REQ-656), and `getWorkPaper` (INV-T-24380, INV-REQ-633); every other
+ * operation answers 501 until the task named for it in
  * `operations.tsv` overrides its method: the generated interface's default is NOT_IMPLEMENTED.
  *
  * Who may call is decided by the generated check of the operation, not here. Each read runs in one tenant
@@ -31,6 +41,7 @@ import java.util.UUID
 open class RunsController(
     private val listRuns: ListRuns,
     private val getRun: GetRun,
+    private val getWorkPaper: GetWorkPaper,
     private val transactions: TransactionRunner,
     private val tenants: TenantContext,
 ) : RunsApi {
@@ -60,6 +71,52 @@ open class RunsController(
                 ?: return refusal(ClosedErrorCode.NOT_FOUND, "No such run.")
         return ResponseEntity.ok(run(snapshot.run))
     }
+
+    override fun getWorkPaper(runId: UUID): ResponseEntity<WorkPaper> {
+        val tenant = tenants.current().toString()
+        val view =
+            transactions.inTransaction { getWorkPaper.execute(tenant, runId.toString()) }
+                ?: return refusal(ClosedErrorCode.NOT_FOUND, "No such run.")
+        return ResponseEntity.ok(workPaper(view))
+    }
+
+    private fun workPaper(view: WorkPaperView) =
+        WorkPaper(
+            runId = UUID.fromString(view.runId),
+            header =
+                WorkPaperHeader(
+                    entityRef = view.header.entityRef,
+                    periodRef = view.header.periodRef,
+                    preparedAt = view.header.preparedAt.atOffset(ZoneOffset.UTC),
+                    returnVersion = view.header.returnVersion,
+                    returnForm = WorkPaperHeader.ReturnForm.forValue(view.header.returnForm),
+                ),
+            boxes =
+                view.boxes.map { b ->
+                    BoxComparison(
+                        box = b.box,
+                        submittedAmount = BigDecimal(b.submittedAmount),
+                        filedAmount = BigDecimal(b.filedAmount),
+                        variance = BigDecimal(b.variance),
+                        varianceClass =
+                            b.varianceClasses.singleOrNull()?.let {
+                                VarianceClass.forValue(
+                                    it.varianceClass,
+                                )
+                            },
+                    )
+                },
+            unexplainedResidual = BigDecimal(view.unexplainedResidual),
+            supportingDocuments = view.supportingDocuments,
+            attestation =
+                view.attestation?.let {
+                    Attestation(attestedBy = it.attestedBy, attestedAt = it.attestedAt.atOffset(ZoneOffset.UTC))
+                },
+            unmappedLines =
+                view.unmappedLines.map {
+                    UnmappedLine(UUID.fromString(it.docUuid), it.version, it.lineNumber, it.taxCode)
+                },
+        )
 
     private fun run(recorded: RecordedRun) =
         Run(
