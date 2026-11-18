@@ -34,6 +34,8 @@ tags:
     description: The tenant's own tax-code mapping pack — draft, approval and activation (§31.2.3, §35.10).
   - name: regulatory-packs
     description: The regulatory pack fed or imported from control-plane-svc — import, arming, rollback and reprocessing (§31.2.3, §31.2.6, §31.4.1).
+  - name: dry-runs
+    description: The operations that produce and read a dry-run delta (FR-B.3, FR-AD.18).
 paths:
   /internal/v1/rules/documents/evaluations:
     post:
@@ -1333,7 +1335,7 @@ paths:
         (`/internal/v1/rules/packs/{packRef}/dry-runs/{dryRunId}`), whose
         `result` is the stored delta the approver signs (UC-4). A repeat with
         the same Idempotency-Key replays the stored `202` (API-15).
-      tags: [mapping-packs, regulatory-packs]
+      tags: [dry-runs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
@@ -1468,7 +1470,7 @@ paths:
         Totals by supply type (INV-Q-10703 B'): `supplyTypeTotals` is present
         next to `changeTypeTotals` on every `result` of `getDryRun` and on the
         `200` answer of `dryRun`; see `DryRunResult.supplyTypeTotals`.
-      tags: [mapping-packs, regulatory-packs]
+      tags: [dry-runs]
       x-principal: filing-workflow
       x-caller-auth: end-user
       x-sync-edge: console-bff->rules-svc
