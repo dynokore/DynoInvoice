@@ -189,7 +189,7 @@ class DecisionsMemberTest {
     private fun EvaluationResult.versions() =
         packVersionsApplied.orEmpty().map {
             mapOf(
-                "packIdentifier" to (it.packIdentifier ?: it.packType),
+                "packIdentifier" to it.packType,
                 "version" to it.version,
             )
         }
@@ -297,6 +297,21 @@ class DecisionsMemberTest {
         DecisionEntries.of("SRT-001", listOf(TraceEntry("x".repeat(81), emptyMap())), null, versions) shouldBe
             emptyList()
         DecisionEntries.of("SRT-001", rule, null, emptyList()) shouldBe emptyList()
+
+        fun v(
+            type: String,
+            version: String,
+        ) = listOf(
+            com.dynokore.gst.rules.contract.model
+                .PackVersionApplied(type, version, packIdentifier = "MAP-0042"),
+        )
+        DecisionEntries.of("SRT-001", rule, null, v("T".repeat(101), "v")) shouldBe emptyList()
+        DecisionEntries.of("SRT-001", rule, null, v("MAPPING", "v".repeat(41))) shouldBe emptyList()
+        DecisionEntries.of("SRT-001", rule, null, v("MAPPING", "")) shouldBe emptyList()
+        DecisionEntries.of("SRT-001", rule, null, v("T".repeat(100), "v".repeat(40))).size shouldBe 1
+        // the packIdentifier is the pack type value, never the item's own pack id (task design)
+        DecisionEntries.of("SRT-001", rule, null, v("MAPPING", "7")).single()["packVersions"] shouldBe
+            listOf(mapOf("packIdentifier" to "MAPPING", "version" to "7"))
         DecisionEntries.of("SRT-001", listOf(TraceEntry("R-1", mapOf("n" to "v".repeat(501)))), null, versions) shouldBe
             emptyList()
         DecisionEntries

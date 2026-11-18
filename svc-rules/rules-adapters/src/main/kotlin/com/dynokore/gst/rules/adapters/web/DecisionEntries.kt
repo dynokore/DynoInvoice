@@ -15,13 +15,15 @@ object DecisionEntries {
     private const val RULE_ID_MAX = 80
     private const val NAME_MAX = 100
     private const val VALUE_MAX = 500
+    private const val PACK_TYPE_MAX = 100
+    private const val PACK_VERSION_MAX = 40
 
     /**
      * The entries of a refused line: [refusalCode] is its refusal code; the rule id is the first of [scopeRules] (the
      * order of the outcome), else [fallbackRuleId] (the classifier's id for a classification refusal), else none.
      * An entry that would break a member of the shape (code pattern, rule id length, input name or value length,
-     * no pack version) is not created. A pack version's `packIdentifier` is the one of the answer's item, else the pack
-     * type value (the items of the classification and scope versions carry no pack id).
+     * no pack version) is not created. A pack version's `packIdentifier` is the pack type value, as the task design
+     * states (INV-T-20804); its `version` is the pack version.
      */
     fun of(
         refusalCode: String?,
@@ -36,6 +38,7 @@ object DecisionEntries {
             refusalCode != null && CODE.matches(refusalCode) &&
                 ruleId != null && ruleId.length in 1..RULE_ID_MAX &&
                 versions.isNotEmpty() &&
+                versions.all { it.packType.length in 1..PACK_TYPE_MAX && it.version.length in 1..PACK_VERSION_MAX } &&
                 inputs.all { (name, value) -> name.length in 1..NAME_MAX && value.length <= VALUE_MAX }
         return if (valid) {
             listOf(
@@ -45,7 +48,7 @@ object DecisionEntries {
                     "packVersions" to
                         versions.map {
                             mapOf(
-                                "packIdentifier" to (it.packIdentifier ?: it.packType),
+                                "packIdentifier" to it.packType,
                                 "version" to it.version,
                             )
                         },
