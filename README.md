@@ -1,11 +1,13 @@
-# DynoInvoice
+<p align="center"><img src="dynogst-logo-light.svg" alt="DynoGST" width="320"></p>
 
-> **Built around the clock by AI coding agents.** Agents work on DynoInvoice
+# DynoGST
+
+> **Built around the clock by AI coding agents.** Agents work on DynoGST
 > day and night, through the night and over weekends, merges included. This
 > mirror syncs every hour, so you can
-> [watch their commits land](https://github.com/dynokore/DynoInvoice/commits/main).
+> [watch their commits land](https://github.com/dynokore/DynoGST/commits/main).
 
-DynoInvoice is an e-invoicing and GST compliance platform for Singapore, built
+DynoGST is an e-invoicing and GST compliance platform for Singapore, built
 on InvoiceNow (Peppol). It sits beside a business's existing ERP, billing,
 point-of-sale and expense systems, and handles what the GST InvoiceNow
 requirement asks of a GST-registered business: deciding which transactions are
@@ -17,7 +19,7 @@ runs as a multi-tenant service or a single-tenant private deployment from the
 same code. It doesn't run its own Access Point, prepare GST returns, or replace
 accounts receivable and payable.
 
-We intend to bring DynoInvoice to market when it's ready. It is also our proof
+We intend to bring DynoGST to market when it's ready. It is also our proof
 for DynoKore Keel: it is developed by AI coding agents under human direction.
 This repository is **source-available**: published for reading and study, not
 as an open-source project. Development is ongoing: agents commit continuously,
@@ -26,7 +28,7 @@ https://dynokore.com/blog/launch-dynoinvoice/
 
 ## Architecture
 
-![DynoInvoice architecture](https://dynokore.com/blog/launch-dynoinvoice/architecture.png)
+![DynoGST architecture](https://dynokore.com/blog/launch-dynoinvoice/architecture.png)
 
 Solid boxes have code on main and are still in progress; dashed boxes are
 designed but not built yet.
@@ -45,8 +47,8 @@ designed but not built yet.
 - **Traceability.** Every change traces back to a task, its requirements and
   acceptance criteria, the review and any human decision, all recorded in
   Keel. [One real task, traced through Keel record by record](https://dynokore.ai/one-task/)
-  shows this record for one DynoInvoice task.
-  [How DynoInvoice is built, commit by commit](https://dynokore.com/work/dynoinvoice/traces/)
+  shows this record for one DynoGST task.
+  [How DynoGST is built, commit by commit](https://dynokore.com/work/dynoinvoice/traces/)
   shows how to read a commit and traces eight examples from requirement to
   merged code.
 
