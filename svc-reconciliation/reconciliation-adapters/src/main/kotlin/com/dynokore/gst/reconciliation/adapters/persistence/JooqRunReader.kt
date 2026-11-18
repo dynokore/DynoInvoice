@@ -3,23 +3,27 @@ package com.dynokore.gst.reconciliation.adapters.persistence
 import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.references.RECONCILIATION_RUN
 import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.references.RECONCILIATION_RUN_BOX
 import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.references.RECONCILIATION_RUN_UNMAPPED_LINE
+import com.dynokore.gst.reconciliation.adapters.persistence.jooq.tables.references.RECONCILIATION_RUN_VARIANCE
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
 import com.dynokore.gst.reconciliation.application.run.RunBox
 import com.dynokore.gst.reconciliation.application.run.RunCursor
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.application.run.RunUnmappedLine
+import com.dynokore.gst.reconciliation.application.run.RunVarianceShare
 import org.jooq.DSLContext
 import org.jooq.Record
 import org.jooq.impl.DSL
+import java.math.BigDecimal
 import java.time.ZoneOffset
 import java.util.UUID
 
 /**
  * Reads the append-only run store (INV-T-24376, INV-AC-24375). Pages are ordered by `completed_at` then `run_id`,
  * both descending, and continue strictly after the cursor row. Every statement names the tenant in its WHERE as well
- * as the bound tenant of the row-level security. A Box's `varianceClass` is the stored single classified category
- * code; it is absent when the Box has none (never `UNEXPLAINED`).
+ * as the bound tenant of the row-level security. A Box's `varianceClasses` holds one member per stored category
+ * (code and amount, class code ascending), then `UNEXPLAINED` with the residual when it is not zero; none is dropped
+ * or summed. Every `RecordedRun` carries the `returnForm` of its run row.
  */
 class JooqRunReader(
     private val dsl: DSLContext,
@@ -94,6 +98,7 @@ class JooqRunReader(
             periodRef = checkNotNull(row.get(RECONCILIATION_RUN.PERIOD_REF)),
             returnVersion = checkNotNull(row.get(RECONCILIATION_RUN.RETURN_VERSION)),
             completedAt = checkNotNull(row.get(RECONCILIATION_RUN.COMPLETED_AT)).toInstant(),
+            returnForm = checkNotNull(row.get(RECONCILIATION_RUN.RETURN_FORM)),
         )
 
     private fun snapshot(
@@ -101,48 +106,78 @@ class JooqRunReader(
         row: Record,
     ): RunSnapshot {
         val runId = checkNotNull(row.get(RECONCILIATION_RUN.RUN_ID))
-        val boxes =
-            dsl
-                .selectFrom(RECONCILIATION_RUN_BOX)
-                .where(RECONCILIATION_RUN_BOX.TENANT_ID.eq(tenantId))
-                .and(RECONCILIATION_RUN_BOX.RUN_ID.eq(runId))
-                .orderBy(RECONCILIATION_RUN_BOX.BOX.asc())
-                .fetch()
-                .map {
-                    RunBox(
-                        box = checkNotNull(it.box),
-                        submittedAmount = checkNotNull(it.submittedAmount),
-                        filedAmount = checkNotNull(it.filedAmount),
-                        variance = checkNotNull(it.variance),
-                        varianceClass = it.varianceClass,
-                        unexplainedResidual = checkNotNull(it.unexplainedResidual),
-                    )
-                }
-        val unmapped =
-            dsl
-                .selectFrom(RECONCILIATION_RUN_UNMAPPED_LINE)
-                .where(RECONCILIATION_RUN_UNMAPPED_LINE.TENANT_ID.eq(tenantId))
-                .and(RECONCILIATION_RUN_UNMAPPED_LINE.RUN_ID.eq(runId))
-                .orderBy(
-                    RECONCILIATION_RUN_UNMAPPED_LINE.DOC_UUID.asc(),
-                    RECONCILIATION_RUN_UNMAPPED_LINE.VERSION.asc(),
-                    RECONCILIATION_RUN_UNMAPPED_LINE.LINE_NUMBER.asc(),
-                ).fetch()
-                .map {
-                    RunUnmappedLine(
-                        docUuid = checkNotNull(it.docUuid),
-                        version = checkNotNull(it.version),
-                        lineNumber = checkNotNull(it.lineNumber),
-                        taxCode = checkNotNull(it.taxCode),
-                    )
-                }
         return RunSnapshot(
             run = recorded(row),
-            returnForm = checkNotNull(row.get(RECONCILIATION_RUN.RETURN_FORM)),
-            boxes = boxes,
+            boxes = boxes(tenantId, runId),
             unexplainedResidual = checkNotNull(row.get(RECONCILIATION_RUN.UNEXPLAINED_RESIDUAL)),
-            unmappedLines = unmapped,
+            unmappedLines = unmappedLines(tenantId, runId),
             raisesPer003 = checkNotNull(row.get(RECONCILIATION_RUN.RAISES_PER003)),
         )
+    }
+
+    private fun boxes(
+        tenantId: UUID,
+        runId: UUID,
+    ): List<RunBox> =
+        dsl
+            .selectFrom(RECONCILIATION_RUN_BOX)
+            .where(RECONCILIATION_RUN_BOX.TENANT_ID.eq(tenantId))
+            .and(RECONCILIATION_RUN_BOX.RUN_ID.eq(runId))
+            .orderBy(RECONCILIATION_RUN_BOX.BOX.asc())
+            .fetch()
+            .map {
+                val residual = checkNotNull(it.unexplainedResidual)
+                RunBox(
+                    box = checkNotNull(it.box),
+                    submittedAmount = checkNotNull(it.submittedAmount),
+                    filedAmount = checkNotNull(it.filedAmount),
+                    variance = checkNotNull(it.variance),
+                    varianceClasses = varianceClasses(tenantId, runId, checkNotNull(it.box), residual),
+                    unexplainedResidual = residual,
+                )
+            }
+
+    private fun varianceClasses(
+        tenantId: UUID,
+        runId: UUID,
+        box: String,
+        residual: BigDecimal,
+    ): List<RunVarianceShare> {
+        val classified =
+            dsl
+                .selectFrom(RECONCILIATION_RUN_VARIANCE)
+                .where(RECONCILIATION_RUN_VARIANCE.TENANT_ID.eq(tenantId))
+                .and(RECONCILIATION_RUN_VARIANCE.RUN_ID.eq(runId))
+                .and(RECONCILIATION_RUN_VARIANCE.BOX.eq(box))
+                .orderBy(RECONCILIATION_RUN_VARIANCE.CATEGORY_CODE.asc())
+                .fetch()
+                .map { RunVarianceShare(checkNotNull(it.categoryCode), checkNotNull(it.amount)) }
+        return if (residual.signum() == 0) classified else classified + RunVarianceShare(UNEXPLAINED, residual)
+    }
+
+    private fun unmappedLines(
+        tenantId: UUID,
+        runId: UUID,
+    ): List<RunUnmappedLine> =
+        dsl
+            .selectFrom(RECONCILIATION_RUN_UNMAPPED_LINE)
+            .where(RECONCILIATION_RUN_UNMAPPED_LINE.TENANT_ID.eq(tenantId))
+            .and(RECONCILIATION_RUN_UNMAPPED_LINE.RUN_ID.eq(runId))
+            .orderBy(
+                RECONCILIATION_RUN_UNMAPPED_LINE.DOC_UUID.asc(),
+                RECONCILIATION_RUN_UNMAPPED_LINE.VERSION.asc(),
+                RECONCILIATION_RUN_UNMAPPED_LINE.LINE_NUMBER.asc(),
+            ).fetch()
+            .map {
+                RunUnmappedLine(
+                    docUuid = checkNotNull(it.docUuid),
+                    version = checkNotNull(it.version),
+                    lineNumber = checkNotNull(it.lineNumber),
+                    taxCode = checkNotNull(it.taxCode),
+                )
+            }
+
+    private companion object {
+        const val UNEXPLAINED = "UNEXPLAINED"
     }
 }

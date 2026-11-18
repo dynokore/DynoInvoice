@@ -24,7 +24,6 @@ create table reconciliation.reconciliation_run_box (
     submitted_amount numeric(19,2) not null,
     filed_amount numeric(19,2) not null,
     variance numeric(19,2) not null,
-    variance_class text,
     unexplained_residual numeric(19,2) not null,
     primary key (tenant_id, run_id, box)
 );
@@ -71,7 +70,6 @@ comment on column reconciliation.reconciliation_run_box.box is 'class: operation
 comment on column reconciliation.reconciliation_run_box.submitted_amount is 'class: operational';
 comment on column reconciliation.reconciliation_run_box.filed_amount is 'class: operational';
 comment on column reconciliation.reconciliation_run_box.variance is 'class: operational';
-comment on column reconciliation.reconciliation_run_box.variance_class is 'class: operational';
 comment on column reconciliation.reconciliation_run_box.unexplained_residual is 'class: operational';
 comment on column reconciliation.reconciliation_run_variance.tenant_id is 'class: operational';
 comment on column reconciliation.reconciliation_run_variance.run_id is 'class: operational';

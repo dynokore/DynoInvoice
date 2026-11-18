@@ -41,17 +41,11 @@ open class RunsController(
         cursor: String?,
     ): ResponseEntity<RunPage> {
         val tenant = tenants.current().toString()
-        // RecordedRun carries no form, so each item reads its form from the stored run in the same transaction
         val page =
             try {
                 transactions.inTransaction {
                     val view = listRuns.execute(tenant, entityRef, periodRef, limit, cursor)
-                    val items =
-                        view.items.map { recorded ->
-                            val snapshot = checkNotNull(getRun.execute(tenant, recorded.runId)) { "run vanished" }
-                            run(recorded, snapshot.returnForm)
-                        }
-                    RunPage(items = items, nextCursor = view.nextCursor)
+                    RunPage(items = view.items.map(::run), nextCursor = view.nextCursor)
                 }
             } catch (e: IllegalArgumentException) {
                 return refusal(ClosedErrorCode.CONTRACT_VIOLATION, e.message ?: "invalid request")
@@ -64,20 +58,18 @@ open class RunsController(
         val snapshot =
             transactions.inTransaction { getRun.execute(tenant, runId.toString()) }
                 ?: return refusal(ClosedErrorCode.NOT_FOUND, "No such run.")
-        return ResponseEntity.ok(run(snapshot.run, snapshot.returnForm))
+        return ResponseEntity.ok(run(snapshot.run))
     }
 
-    private fun run(
-        recorded: RecordedRun,
-        form: String?,
-    ) = Run(
-        runId = UUID.fromString(recorded.runId),
-        entityRef = recorded.entityRef,
-        periodRef = recorded.periodRef,
-        completedAt = recorded.completedAt.atOffset(ZoneOffset.UTC),
-        returnVersion = recorded.returnVersion,
-        returnForm = form?.let { Run.ReturnForm.forValue(it) },
-    )
+    private fun run(recorded: RecordedRun) =
+        Run(
+            runId = UUID.fromString(recorded.runId),
+            entityRef = recorded.entityRef,
+            periodRef = recorded.periodRef,
+            completedAt = recorded.completedAt.atOffset(ZoneOffset.UTC),
+            returnVersion = recorded.returnVersion,
+            returnForm = Run.ReturnForm.forValue(recorded.returnForm),
+        )
 
     /** The body of an error response is the API-20 envelope; the generated signature names the success type only. */
     @Suppress("UNCHECKED_CAST")
