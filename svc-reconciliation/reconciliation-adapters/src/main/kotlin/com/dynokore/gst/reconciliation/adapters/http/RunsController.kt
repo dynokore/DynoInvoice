@@ -13,6 +13,7 @@ import com.dynokore.gst.reconciliation.contract.model.Run
 import com.dynokore.gst.reconciliation.contract.model.RunPage
 import com.dynokore.gst.reconciliation.contract.model.UnmappedLine
 import com.dynokore.gst.reconciliation.contract.model.VarianceClass
+import com.dynokore.gst.reconciliation.contract.model.VarianceShare
 import com.dynokore.gst.reconciliation.contract.model.WorkPaper
 import com.dynokore.gst.reconciliation.contract.model.WorkPaperHeader
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
@@ -98,11 +99,9 @@ open class RunsController(
                         submittedAmount = BigDecimal(b.submittedAmount),
                         filedAmount = BigDecimal(b.filedAmount),
                         variance = BigDecimal(b.variance),
-                        varianceClass =
-                            b.varianceClasses.singleOrNull()?.let {
-                                VarianceClass.forValue(
-                                    it.varianceClass,
-                                )
+                        varianceClasses =
+                            b.varianceClasses.map {
+                                VarianceShare(VarianceClass.forValue(it.varianceClass), BigDecimal(it.amount))
                             },
                     )
                 },

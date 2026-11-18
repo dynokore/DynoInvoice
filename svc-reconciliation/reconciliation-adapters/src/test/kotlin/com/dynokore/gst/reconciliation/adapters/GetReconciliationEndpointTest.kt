@@ -8,6 +8,7 @@ import com.dynokore.gst.reconciliation.adapters.persistence.JooqRunReader
 import com.dynokore.gst.reconciliation.application.run.GetReconciliation
 import com.dynokore.gst.reconciliation.application.run.ReturnRecorded
 import com.dynokore.gst.reconciliation.application.run.RunReader
+import com.dynokore.gst.reconciliation.application.workpaper.AnnotateVariance
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Reconciliation
 import com.dynokore.gst.reconciliation.domain.boxes.UnmappedLine
@@ -24,6 +25,7 @@ import io.kotest.matchers.string.shouldNotBeBlank
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.springframework.http.ResponseEntity
+import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -121,6 +123,12 @@ class GetReconciliationEndpointTest : RunStoreDbFixture() {
         session.runner,
         session.tenants,
         PendingRetryAfter(retryAfter),
+        AnnotateVariance(
+            runs,
+            LazyRunAnnotations { session.dsl() },
+            LazyRunAttestations { session.dsl() },
+            Clock.systemUTC(),
+        ),
     )
 
     private fun read(

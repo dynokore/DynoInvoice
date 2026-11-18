@@ -151,6 +151,7 @@ class CallerChecks(
                 "GET /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs",
                 "GET /internal/v1/reconciliation/runs/{runId}",
                 "GET /internal/v1/reconciliation/runs/{runId}/work-paper",
+                "PUT /internal/v1/reconciliation/runs/{runId}/boxes/{box}/annotation",
             )
         private val COUNTS =
             "select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', " +

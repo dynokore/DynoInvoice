@@ -155,8 +155,8 @@ class WorkPaperAnnotationDbTest : RunStoreDbFixture() {
         paper.unexplainedResidual.toPlainString() shouldBe "0.00"
         paper.boxes
             .single()
-            .varianceClass!!
-            .value shouldBe "TIMING_DIFFERENCE"
+            .varianceClasses
+            .map { it.varianceClass.value to it.amount.toPlainString() } shouldBe listOf("TIMING_DIFFERENCE" to "10.00")
         paper.supportingDocuments shouldBe listOf("DOC-2")
         paper.attestation shouldBe null
         workPaper(t2, run).statusCode shouldBe HttpStatus.NOT_FOUND
