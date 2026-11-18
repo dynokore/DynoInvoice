@@ -1,6 +1,7 @@
 package com.dynokore.gst.controlPlane.bootstrap
 
 import com.dynokore.gst.controlPlane.adapters.audit.UndeterminedRetentionFloorSource
+import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeAuthority
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeFloorSource
 import com.dynokore.gst.controlPlane.application.audit.AuditPurgeIdSource
@@ -9,7 +10,6 @@ import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntriesCommand
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditOutcome
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
-import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

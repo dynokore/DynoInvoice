@@ -126,7 +126,11 @@ class AccreditationReadHttpIT {
             ),
             TaskCursor { ByteArray(32) },
             transactions,
-            IdempotencyStore(TenantScope(tenants, transactions, transactions, "control-plane-svc"), dsl, "controlplane"),
+            IdempotencyStore(
+                TenantScope(tenants, transactions, transactions, "control-plane-svc"),
+                dsl,
+                "controlplane",
+            ),
         )
 
     private fun asOperator() {

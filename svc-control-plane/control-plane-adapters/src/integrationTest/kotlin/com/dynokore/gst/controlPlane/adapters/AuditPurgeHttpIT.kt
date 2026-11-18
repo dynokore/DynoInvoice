@@ -355,7 +355,6 @@ class AuditPurgeHttpIT {
             blankKey.toString()
     }
 
-
     private fun keyRows() = adminText("select count(*) from controlplane.idempotency_key")!!.toLong()
 
     private fun seedForReplay(): AuditPurgeFloorSource {

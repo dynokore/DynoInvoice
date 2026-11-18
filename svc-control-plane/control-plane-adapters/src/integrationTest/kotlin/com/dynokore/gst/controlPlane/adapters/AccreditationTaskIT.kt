@@ -457,7 +457,11 @@ class AccreditationTaskIT {
             defaultStep,
             cursorKey,
             transactions,
-            IdempotencyStore(TenantScope(tenants, transactions, transactions, "control-plane-svc"), dsl, "controlplane"),
+            IdempotencyStore(
+                TenantScope(tenants, transactions, transactions, "control-plane-svc"),
+                dsl,
+                "controlplane",
+            ),
         )
 
     private fun asOperator() {

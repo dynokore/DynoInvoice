@@ -411,7 +411,11 @@ class ReleasesController(
             platform.bindPlatform(caller.actor) {
                 transactions.inTransaction {
                     idempotency.once(null, caller.actor, idempotencyKey, fingerprint) {
-                        purgeStored(purgeAuditEntries.execute(command), purgeAuditEntriesRequest.cutOff, caller.correlationId)
+                        purgeStored(
+                            purgeAuditEntries.execute(command),
+                            purgeAuditEntriesRequest.cutOff,
+                            caller.correlationId,
+                        )
                     }
                 }
             }
