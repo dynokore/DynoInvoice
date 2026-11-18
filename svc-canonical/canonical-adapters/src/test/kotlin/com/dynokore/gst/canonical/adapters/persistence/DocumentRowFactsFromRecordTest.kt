@@ -222,6 +222,8 @@ class DocumentRowFactsFromRecordTest {
         val e =
             assertThrows<RowFactUnknown> { source(captured(cmd), partyRef = null).factsOf(cmd, docUuid, 1, result()) }
         e.fact shouldBe "issuerPartyKey"
+        // the party reference is the last lookup: neither a later lookup nor the writer ran after it
+        calls.last() shouldBe "partyRefOf"
     }
 
     @Test
