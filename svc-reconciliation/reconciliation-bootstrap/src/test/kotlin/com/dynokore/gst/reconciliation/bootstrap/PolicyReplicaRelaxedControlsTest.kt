@@ -165,6 +165,7 @@ class PolicyReplicaRelaxedControlsTest {
         deliver(w, 1, r1) shouldBe HandleOutcome.APPLIED
         deliver(w, 2, r2) shouldBe HandleOutcome.APPLIED
         w.view.current() shouldBe true
+        w.view.controls().map { it.code } shouldBe listOf("VP-40")
         listed(w, "E1") shouldBe listOf("VP-40" to checkNotNull(VariationPoint.fromId("VP-40")).title)
         listed(w, "E2") shouldBe emptyList()
         w.replica
