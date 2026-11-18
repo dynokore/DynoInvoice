@@ -7,6 +7,7 @@ import com.dynokore.gst.submission.application.ordering.HoldStore
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 
 /**
  * [HoldStore] over the generated jOOQ classes of `submission` (INV-REQ-709), in the open tenant transaction. The two
@@ -41,7 +42,7 @@ class JooqHoldStore(
         limit: Int,
     ): List<HeldVersion> {
         require(limit >= 1) { "limit must be at least 1: $limit" }
-        return list(tenant, e.PRECEDING_DOC_UUID.isNotNull, limit)
+        return list(tenant, DSL.noCondition(), limit)
     }
 
     private fun move(

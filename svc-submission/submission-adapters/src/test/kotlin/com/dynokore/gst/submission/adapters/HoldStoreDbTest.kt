@@ -153,6 +153,17 @@ class HoldStoreDbTest {
     }
 
     @Test
+    fun `INV-AC-24517 the lists name the tenant even where row level security does not filter`() {
+        seed()
+        SubmissionDb.superuser().use { su ->
+            val open = JooqHoldStore(DSL.using(su, SQLDialect.POSTGRES))
+            open.heldBy(TenantId(t1), p1) shouldBe listOf(hv(c2, p1))
+            open.held(TenantId(t1), 10) shouldBe listOf(hv(c2, p1), hv(c3, p2))
+            open.releaseHeld(TenantId(t1), c5, 1) shouldBe 0
+        }
+    }
+
+    @Test
     fun `INV-AC-24517 held rejects a limit below 1`() {
         shouldThrow<IllegalArgumentException> { store.held(TenantId(t1), 0) }
     }
