@@ -107,7 +107,7 @@ POST /internal/v1/tenancy/tenants/{tenantRef}/close added the new required `head
 # DraftDocument of checkPreIssuance (payload) requires submissionType, supplierGstn, invoiceDate and gstAmount (INV-REQ-325).
 # Permitted within v1 because no train is published (platform-release manifest/trains/ holds only its README) and no consumer is deployed.
 # After the first published train a new required request property is breaking (API-03).
-POST /internal/v1/payload/pre-issuance-checks added the new required request property `submissionType`
-POST /internal/v1/payload/pre-issuance-checks added the new required request property `supplierGstn`
-POST /internal/v1/payload/pre-issuance-checks added the new required request property `invoiceDate`
-POST /internal/v1/payload/pre-issuance-checks added the new required request property `gstAmount`
+POST /internal/v1/payload/pre-issuance-checks the request property `submissionType` became required
+POST /internal/v1/payload/pre-issuance-checks the request property `supplierGstn` became required
+POST /internal/v1/payload/pre-issuance-checks the request property `invoiceDate` became required
+POST /internal/v1/payload/pre-issuance-checks the request property `gstAmount` became required
