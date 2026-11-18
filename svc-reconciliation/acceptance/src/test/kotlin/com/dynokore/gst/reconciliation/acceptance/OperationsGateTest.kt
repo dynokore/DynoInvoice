@@ -40,8 +40,8 @@ class OperationsGateTest {
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
-        // uploadGstReturn is implemented by INV-T-24367: its method no longer answers 501
-        stubs shouldBe OperationsGate.contractOperations(openapi) - "uploadGstReturn"
+        // uploadGstReturn is implemented by INV-T-24367, listRuns and getRun by INV-T-24376: they no longer answer 501
+        stubs shouldBe OperationsGate.contractOperations(openapi) - setOf("uploadGstReturn", "listRuns", "getRun")
     }
 
     @Test

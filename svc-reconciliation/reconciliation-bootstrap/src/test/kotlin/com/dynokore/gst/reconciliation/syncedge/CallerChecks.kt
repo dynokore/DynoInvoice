@@ -60,8 +60,12 @@ class CallerChecks(
         return (callers + unmapped).mapNotNull { (what, headers) ->
             val answer = send(operation, headers)
             "${operation.label} ($what): ${answer.statusCode()} ${answer.body().take(BODY_SHOWN)}".takeIf {
-                answer.statusCode() !=
-                    501
+                if (operation.label in IMPLEMENTED) {
+                    // an implemented operation answers its own status; the caller check admitted it unless 401 or 403
+                    answer.statusCode() in setOf(401, 403) || answer.statusCode() >= SERVER_ERROR
+                } else {
+                    answer.statusCode() != 501
+                }
             }
         }
     }
@@ -139,6 +143,14 @@ class CallerChecks(
         const val END_USER = "Bearer end-user"
         const val UNMAPPED = "token-unmapped"
         private const val BODY_SHOWN = 120
+        private const val SERVER_ERROR = 500
+
+        /** Operations a task has implemented (INV-T-24376): they no longer answer 501 to an admitted caller. */
+        private val IMPLEMENTED =
+            setOf(
+                "GET /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs",
+                "GET /internal/v1/reconciliation/runs/{runId}",
+            )
         private val COUNTS =
             "select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', " +
                 "table_schema, table_name), false, true, '')))[1]::text::bigint " +
