@@ -11,11 +11,16 @@ import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntries
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
 import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.AuditWriter
+import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.http.IdempotencyProperties
+import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.bind.Binder
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 import java.time.Clock
 import java.util.UUID
 
@@ -61,6 +66,30 @@ class AuditPurgeConfiguration {
         return AuditEntryPurger { actor, cutOff, reason, context ->
             transactions.inTransaction { store.purge(actor, cutOff, reason, context) }
         }
+    }
+
+    /**
+     * The API-15 Idempotency-Key store of `purgeAuditEntries` (INV-T-24825): service-runtime registers its own store
+     * only for a service with job or policy commands, so this one is defined here when none exists. It reads the same
+     * `service-runtime.idempotency.*` properties and runs inside the command transaction (TPL-04).
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    fun idempotencyStore(
+        scope: TenantScope,
+        dsl: DSLContext,
+        environment: Environment,
+    ): IdempotencyStore {
+        val properties =
+            Binder
+                .get(environment)
+                .bind("service-runtime.idempotency", IdempotencyProperties::class.java)
+                .orElseGet { IdempotencyProperties() }
+        val schema =
+            checkNotNull(properties.schema?.takeIf { it.isNotBlank() }) {
+                "service-runtime.idempotency.schema must name the service's schema (API-15 store)"
+            }
+        return IdempotencyStore(scope, dsl, schema, properties.retention)
     }
 
     @Bean

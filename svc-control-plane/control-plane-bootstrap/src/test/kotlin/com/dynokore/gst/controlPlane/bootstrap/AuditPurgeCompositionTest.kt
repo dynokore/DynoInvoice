@@ -9,6 +9,8 @@ import com.dynokore.gst.controlPlane.application.audit.PurgeAuditEntriesCommand
 import com.dynokore.gst.controlPlane.application.audit.PurgeAuditOutcome
 import com.dynokore.gst.controlPlane.application.pack.RequestContext
 import com.dynokore.gst.controlPlane.application.release.OperatorPermissions
+import com.dynokore.gst.controlPlane.adapters.http.ReleasesController
+import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
@@ -97,5 +99,19 @@ class AuditPurgeCompositionTest {
                 authority.allows("op", "audit-entry.purge", "platform") shouldBe true
                 asked shouldBe listOf("op" to "audit-entry.purge")
             }
+    }
+
+    @Test
+    fun `INV-AC-24824 the context holds one IdempotencyStore and ReleasesController is taken from it`(
+        @TempDir mount: Path,
+    ) {
+        controlPlaneRunner(mount).run { context ->
+            context.startupFailure shouldBe null
+            val stores = context.getBeansOfType(IdempotencyStore::class.java)
+            stores.size shouldBe 1
+            val field = ReleasesController::class.java.getDeclaredField("idempotency")
+            field.isAccessible = true
+            (field.get(context.getBean(ReleasesController::class.java)) === stores.values.single()) shouldBe true
+        }
     }
 }

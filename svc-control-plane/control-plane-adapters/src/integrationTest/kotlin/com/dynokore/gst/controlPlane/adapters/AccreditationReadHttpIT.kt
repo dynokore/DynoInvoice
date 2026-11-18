@@ -32,6 +32,8 @@ import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
 import com.dynokore.gst.controlPlane.domain.accreditation.AccreditationRecord
 import com.dynokore.gst.controlPlane.domain.accreditation.SubmissionType
 import com.dynokore.gst.controlPlane.domain.pack.ActorId
+import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
@@ -124,6 +126,7 @@ class AccreditationReadHttpIT {
             ),
             TaskCursor { ByteArray(32) },
             transactions,
+            IdempotencyStore(TenantScope(tenants, transactions, transactions, "control-plane-svc"), dsl, "controlplane"),
         )
 
     private fun asOperator() {

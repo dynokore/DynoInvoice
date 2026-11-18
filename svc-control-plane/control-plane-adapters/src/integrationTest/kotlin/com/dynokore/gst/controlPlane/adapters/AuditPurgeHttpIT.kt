@@ -35,10 +35,13 @@ import com.dynokore.gst.controlPlane.application.release.TrainRepository
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
 import com.dynokore.platform.auditlog.AuditStager
 import com.dynokore.platform.auditlog.LocalAuditWriter
+import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.identity.WorkloadToken
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
+import com.dynokore.platform.tenancyjooq.TableClass
 import com.dynokore.platform.tenancyjooq.TenancyJooq
 import com.dynokore.platform.tenancykernel.BindingKeyMigration
 import com.dynokore.platform.tenancykernel.BindingKeySource
@@ -72,6 +75,9 @@ import java.time.Period
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 
 /**
  * The purge operation as the operator calls it (INV-AC-3823): the controller, the use case, the live `authorise`
@@ -84,6 +90,10 @@ class AuditPurgeHttpIT {
     private val runner =
         TransactionRunnerImpl(TenantAwareDataSource(PostgresDb.runtimeDataSource), tenants, null, BINDING_KEY)
     private val dsl: DSLContext = TenancyJooq.dslContext(emptyMap(), tenants, runner)
+
+    /** The Idempotency-Key table as the service declares it to the tenant layer: platform keys carry the platform tenant. */
+    private val idempotencyDsl: DSLContext =
+        TenancyJooq.dslContext(mapOf(DSL.name("controlplane", "idempotency_key") to TableClass.TENANT), tenants, runner)
     private val stager: AuditStager =
         LocalAuditWriter(dsl, "controlplane", "control-plane-svc", "control-plane-svc-1", clock)
     private val store = AuditPurgeStoreJooq(dsl, stager)
@@ -123,6 +133,7 @@ class AuditPurgeHttpIT {
             BindingKeyMigration.writeKeys(tx, "controlplane", BINDING_KEY)
         }
         admin("truncate controlplane.audit_entry")
+        admin("delete from controlplane.idempotency_key")
         allowed.clear()
         allowed += KEY
     }
@@ -173,6 +184,7 @@ class AuditPurgeHttpIT {
     private fun controller(
         floors: AuditPurgeFloorSource,
         timeout: Duration = Duration.ofSeconds(2),
+        actor: String = ACTOR,
     ): ReleasesController {
         val permissions = livePermissions(timeout)
         val authority =
@@ -190,7 +202,7 @@ class AuditPurgeHttpIT {
         val useCase = PurgeAuditEntries(authority, floors, purger, clock)
         val noPermission = OperatorPermissions { _, _ -> false }
         return ReleasesController(
-            EndUserPrincipalResolver { EndUserPrincipal(ACTOR, null, emptySet()) },
+            EndUserPrincipalResolver { EndUserPrincipal(actor, null, emptySet()) },
             tenants,
             unused<OperationRunner>(),
             PublishTrain(
@@ -220,13 +232,19 @@ class AuditPurgeHttpIT {
             ),
             TaskCursor { ByteArray(32) },
             runner,
+            IdempotencyStore(TenantScope(tenants, runner, runner, "control-plane-svc"), idempotencyDsl, "controlplane"),
         )
     }
 
     private fun asRequest(headers: Map<String, String>) {
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
-                if (method.name == "getHeader") headers[args!![0] as String] else error("not used: ${method.name}")
+                when (method.name) {
+                    "getHeader" -> headers[args!![0] as String]
+                    "getMethod" -> "POST"
+                    "getRequestURI" -> "/v1/audit-entries/purge"
+                    else -> error("not used: ${method.name}")
+                }
             } as HttpServletRequest
         RequestContextHolder.setRequestAttributes(ServletRequestAttributes(request))
     }
@@ -322,17 +340,127 @@ class AuditPurgeHttpIT {
         seed(yearsAgo(YEARS_11))
         val floors = AuditPurgeFloorSource { listOf(Period.ofYears(SIX_YEARS)) }
         val key = UUID.randomUUID()
+        val cutOff = yearsAgo(SIX + 1)
         val answer =
-            call(controller(floors), yearsAgo(SIX + 1), key, null, mapOf("X-Correlation-Id" to "corr-from-request"))
+            call(controller(floors), cutOff, key, null, mapOf("X-Correlation-Id" to "corr-from-request"))
                 .body!!
         val id = answer.auditEntryId
         adminText("select reason from controlplane.audit_entry where id = '$id'") shouldBe key.toString()
         adminText("select correlation_id from controlplane.audit_entry where id = '$id'") shouldBe "corr-from-request"
         adminText("select causation_id from controlplane.audit_entry where id = '$id'") shouldBe key.toString()
-        // a blank reason is no reason
-        val blank = call(controller(floors), yearsAgo(SIX + 1), key, "   ").body!!
+        // a blank reason is no reason (another key: the same key with another body is a different request, SRT-009)
+        val blankKey = UUID.randomUUID()
+        val blank = call(controller(floors), cutOff, blankKey, "   ").body!!
         adminText("select reason from controlplane.audit_entry where id = '${blank.auditEntryId}'") shouldBe
-            key.toString()
+            blankKey.toString()
+    }
+
+
+    private fun keyRows() = adminText("select count(*) from controlplane.idempotency_key")!!.toLong()
+
+    private fun seedForReplay(): AuditPurgeFloorSource {
+        seed(yearsAgo(YEARS_11))
+        seed(yearsAgo(YEARS_7))
+        return AuditPurgeFloorSource { listOf(Period.ofYears(SIX_YEARS)) }
+    }
+
+    @Test
+    fun `INV-AC-24824 the same key and body replays the first status and body with no second purge`() {
+        val floors = seedForReplay()
+        val cutOff = yearsAgo(SIX + 1)
+        val key = UUID.randomUUID()
+        val first = call(controller(floors), cutOff, key, "retention review")
+        val rowsAfterFirst = count()
+        val idsAfterFirst = adminText("select string_agg(id::text, ',' order by id) from controlplane.audit_entry")
+        val replay = call(controller(floors), cutOff, key, "retention review")
+        replay.statusCode shouldBe first.statusCode
+        replay.body shouldBe first.body
+        count() shouldBe rowsAfterFirst
+        adminText("select string_agg(id::text, ',' order by id) from controlplane.audit_entry") shouldBe idsAfterFirst
+        keyRows() shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-24824 the same key with another cut-off is 422 SRT-009 and changes nothing`() {
+        val floors = seedForReplay()
+        val key = UUID.randomUUID()
+        call(controller(floors), yearsAgo(SIX + 1), key)
+        val rows = count()
+        refusal(HTTP_UNPROCESSABLE, "SRT-009") { call(controller(floors), yearsAgo(SIX + 2), key) }
+        count() shouldBe rows
+        keyRows() shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-24824 a second call with the key while the first is held open is 409 SRT-007 and changes nothing`() {
+        seed(yearsAgo(YEARS_11))
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val held =
+            AuditPurgeFloorSource {
+                entered.countDown()
+                release.await(HOLD_SECONDS, TimeUnit.SECONDS)
+                listOf(Period.ofYears(SIX_YEARS))
+            }
+        val key = UUID.randomUUID()
+        val cutOff = yearsAgo(SIX + 1)
+        val firstDone = CountDownLatch(1)
+        val worker =
+            thread {
+                try {
+                    call(controller(held), cutOff, key)
+                } finally {
+                    RequestContextHolder.resetRequestAttributes()
+                    firstDone.countDown()
+                }
+            }
+        try {
+            entered.await(HOLD_SECONDS, TimeUnit.SECONDS) shouldBe true
+            refusal(HTTP_CONFLICT, "SRT-007") { call(controller(held), cutOff, key) }
+            count() shouldBe 1
+        } finally {
+            release.countDown()
+            worker.join(TimeUnit.SECONDS.toMillis(HOLD_SECONDS))
+        }
+        firstDone.await(HOLD_SECONDS, TimeUnit.SECONDS) shouldBe true
+        count() shouldBe 1 // the held call finished its own purge: the deleted row stays gone, its entry exists
+        keyRows() shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-24824 the same key under another principal runs the purge again`() {
+        val floors = seedForReplay()
+        val cutOff = yearsAgo(SIX + 1)
+        val key = UUID.randomUUID()
+        val first = call(controller(floors), cutOff, key).body!!
+        val other = call(controller(floors, actor = "operator-10"), cutOff, key).body!!
+        other.auditEntryId shouldNotBe first.auditEntryId
+        other.purgeId shouldNotBe first.purgeId
+        keyRows() shouldBe 2
+    }
+
+    @Test
+    fun `INV-AC-24824 a 5xx response is not stored so the retry runs again`() {
+        seed(yearsAgo(YEARS_11))
+        val key = UUID.randomUUID()
+        val cutOff = yearsAgo(SIX + 1)
+        refusal(HTTP_UNAVAILABLE, "CPL-002") { call(controller(UndeterminedRetentionFloorSource()), cutOff, key) }
+        keyRows() shouldBe 0
+        val retry = call(controller(AuditPurgeFloorSource { listOf(Period.ofYears(SIX_YEARS)) }), cutOff, key)
+        retry.body!!.deletedCount shouldBe 1
+        keyRows() shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-24824 a stored refusal below 500 is replayed with its status and code`() {
+        seed(yearsAgo(YEARS_11))
+        val floors = AuditPurgeFloorSource { listOf(Period.ofYears(SIX_YEARS)) }
+        val key = UUID.randomUUID()
+        val cutOff = yearsAgo(SIX - 1)
+        refusal(HTTP_UNPROCESSABLE, "CPL-001") { call(controller(floors), cutOff, key) }
+        keyRows() shouldBe 1
+        refusal(HTTP_UNPROCESSABLE, "CPL-001") { call(controller(floors), cutOff, key) }
+        count() shouldBe 1
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -356,6 +484,8 @@ class AuditPurgeHttpIT {
         const val HTTP_FORBIDDEN = 403
         const val HTTP_UNPROCESSABLE = 422
         const val HTTP_UNAVAILABLE = 503
+        const val HTTP_CONFLICT = 409
+        const val HOLD_SECONDS = 20L
         const val DELAY_MILLIS = 1500L
         const val TIMEOUT_MILLIS = 200L
         val BINDING_KEY =

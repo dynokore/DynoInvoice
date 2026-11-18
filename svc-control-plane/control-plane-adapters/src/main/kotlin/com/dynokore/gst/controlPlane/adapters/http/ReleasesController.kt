@@ -55,8 +55,11 @@ import com.dynokore.gst.controlPlane.domain.release.SupportWindow
 import com.dynokore.gst.controlPlane.domain.release.TrainKind
 import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
+import com.dynokore.platform.serviceruntime.http.IdempotencyOutcome
+import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.http.ProblemResponse
 import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.http.StoredResponse
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationOutcome
 import com.dynokore.platform.serviceruntime.operation.OperationRunner
@@ -68,6 +71,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import tools.jackson.databind.json.JsonMapper
+import tools.jackson.module.kotlin.jacksonMapperBuilder
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -79,7 +83,9 @@ import java.util.UUID
  * the task operations listAccreditationTasks, getAccreditationTask and concludeAccreditationTask (INV-T-7323). After
  * publishTrain commits, the task step runs in a transaction of its own and never delays or undoes the release.
  * purgeAuditEntries (INV-T-3099) also sits on the `releases` tag; it runs the audited purge of the operator's local
- * audit entries and maps the outcomes of the use case: SRT-004, CPL-001 and CPL-002, no other.
+ * audit entries and maps the outcomes of the use case: SRT-004, CPL-001 and CPL-002, no other; it replays by
+ * Idempotency-Key through IdempotencyStore.once inside the command transaction (API-15, TPL-04, INV-T-24825): a replay
+ * answers the stored status and body, an in-flight key SRT-007, another request under the key SRT-009.
  */
 @RestController
 // One method per operation of the generated ReleasesApi (TPL-08); one constructor-injected collaborator per parameter.
@@ -99,6 +105,7 @@ class ReleasesController(
     private val accreditationStep: OpenAccreditationTask,
     private val cursors: TaskCursor,
     private val transactions: TransactionRunner,
+    private val idempotency: IdempotencyStore,
 ) : ReleasesApi {
     override fun recordAccreditation(
         idempotencyKey: UUID,
@@ -394,44 +401,71 @@ class ReleasesController(
                 purgeAuditEntriesRequest.reason,
                 RequestContext(caller.correlationId, idempotencyKey.toString()),
             )
-        val outcome = platform.bindPlatform(caller.actor) { purgeAuditEntries.execute(command) }
-        return purgeResponse(outcome, purgeAuditEntriesRequest.cutOff, caller.correlationId)
+        val http = (RequestContextHolder.currentRequestAttributes() as ServletRequestAttributes).request
+        val fingerprint =
+            listOf(http.method, http.requestURI, purgeJson.writeValueAsString(purgeAuditEntriesRequest))
+                .joinToString("\n")
+        // API-15, TPL-04: the key lookup, the purge with its own audit entry and the key record are one transaction
+        // of the platform tenant under the actor; the purger joins it.
+        val outcome =
+            platform.bindPlatform(caller.actor) {
+                transactions.inTransaction {
+                    idempotency.once(null, caller.actor, idempotencyKey, fingerprint) {
+                        purgeStored(purgeAuditEntries.execute(command), purgeAuditEntriesRequest.cutOff, caller.correlationId)
+                    }
+                }
+            }
+        return when (outcome) {
+            is IdempotencyOutcome.Fresh -> purgeAnswer(outcome.response)
+            is IdempotencyOutcome.Replay -> purgeAnswer(outcome.response)
+            IdempotencyOutcome.InFlight -> problem(ClosedErrorCode.IN_FLIGHT, caller.correlationId)
+            IdempotencyOutcome.DifferentRequest -> problem(ClosedErrorCode.DIFFERENT_REQUEST, caller.correlationId)
+        }
     }
 
-    private fun purgeResponse(
+    /** The success answer of a stored response, or the stored refusal raised again; fresh and replay look alike. */
+    private fun purgeAnswer(stored: StoredResponse): ResponseEntity<PurgeAuditEntriesResponse> {
+        if (stored.status != HttpStatus.OK.value()) {
+            val headers = mapOf(Problems.CONTENT_TYPE_HEADER to Problems.CONTENT_TYPE)
+            throw ProblemException(ProblemResponse(stored.status, headers, stored.body))
+        }
+        return ResponseEntity.ok(purgeJson.readValue(stored.body, PurgeAuditEntriesResponse::class.java))
+    }
+
+    private fun purgeStored(
         outcome: PurgeAuditOutcome,
         cutOff: OffsetDateTime,
         correlationId: String,
-    ): ResponseEntity<PurgeAuditEntriesResponse> =
+    ): StoredResponse =
         when (outcome) {
             is PurgeAuditOutcome.Purged -> {
-                ResponseEntity.ok(
+                val answer =
                     PurgeAuditEntriesResponse(
                         purgeId = outcome.purgeId,
                         cutOff = cutOff,
                         floor = outcome.floor.toString(),
                         deletedCount = outcome.result.deletedCount,
                         auditEntryId = UUID.fromString(outcome.result.auditEntryId),
-                    ),
-                )
+                    )
+                StoredResponse(HttpStatus.OK.value(), purgeJson.writeValueAsString(answer))
             }
 
             PurgeAuditOutcome.NotPermitted -> {
-                problem(ClosedErrorCode.ACCESS_DENIED, correlationId)
+                stored(Problems.render(ClosedErrorCode.ACCESS_DENIED, correlationId))
             }
 
             PurgeAuditOutcome.CutOffYoungerThanFloor -> {
                 val title = "Audit purge cut-off younger than the floor"
-                val refusal = purgeRefusal(CUT_OFF_YOUNGER_THAN_FLOOR, HTTP_UNPROCESSABLE, title, correlationId)
-                throw ProblemException(refusal)
+                stored(purgeRefusal(CUT_OFF_YOUNGER_THAN_FLOOR, HTTP_UNPROCESSABLE, title, correlationId))
             }
 
             PurgeAuditOutcome.FloorUndeterminable -> {
                 val title = "Audit purge floor cannot be determined"
-                val refusal = purgeRefusal(FLOOR_UNDETERMINABLE, HTTP_UNAVAILABLE, title, correlationId)
-                throw ProblemException(refusal)
+                stored(purgeRefusal(FLOOR_UNDETERMINABLE, HTTP_UNAVAILABLE, title, correlationId))
             }
         }
+
+    private fun stored(problem: ProblemResponse) = StoredResponse(problem.status, problem.body)
 
     /** The API-20 envelope of a catalogued CPL refusal of the purge (BLOCK, TERMINAL, owner Platform). */
     private fun purgeRefusal(
@@ -502,7 +536,7 @@ class ReleasesController(
         const val FLOOR_UNDETERMINABLE = "CPL-002"
         const val HTTP_UNPROCESSABLE = 422
         const val HTTP_UNAVAILABLE = 503
-        val purgeJson: JsonMapper = JsonMapper.builder().build()
+        val purgeJson: JsonMapper = jacksonMapperBuilder().build()
     }
 
     private class Caller(

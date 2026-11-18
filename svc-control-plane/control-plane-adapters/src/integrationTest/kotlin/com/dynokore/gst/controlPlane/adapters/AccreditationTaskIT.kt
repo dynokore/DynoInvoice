@@ -61,6 +61,8 @@ import com.dynokore.gst.controlPlane.domain.release.TrainVersion
 import com.dynokore.platform.auditlog.LocalAuditWriter
 import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
+import com.dynokore.platform.outboxandqueue.TenantScope
+import com.dynokore.platform.serviceruntime.http.IdempotencyStore
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
 import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalResolver
 import com.dynokore.platform.serviceruntime.operation.OperationOutcome
@@ -455,6 +457,7 @@ class AccreditationTaskIT {
             defaultStep,
             cursorKey,
             transactions,
+            IdempotencyStore(TenantScope(tenants, transactions, transactions, "control-plane-svc"), dsl, "controlplane"),
         )
 
     private fun asOperator() {
