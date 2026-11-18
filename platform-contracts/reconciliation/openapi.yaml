@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: reconciliation API
-  version: 1.4.0
+  version: 1.5.0
   description: >-
     Contract-first source of truth for reconciliation (API-01, STK-44). The
     `reconciliation-contract` module generates its server interfaces and DTOs
@@ -198,11 +198,19 @@ paths:
         runs and their work-papers remain immutable (INV-REQ-656,
         INV-AC-668); `returnVersion` and `returnForm` name the return the
         reconciliation is against.
+
+
+        Three cases (INV-REQ-657): when the period has a completed run, the
+        answer is the latest completed run with its `returnVersion`; when a
+        return is recorded for the period and no run has completed, the
+        service answers `503` with the API-20 envelope, the code `PER-016`
+        and a `Retry-After` header, and compares nothing; when no return is
+        recorded, the answer is the PER-008 one above.
       tags: [reconciliation]
       x-principal: reporting
       x-caller-auth: end-user
       x-timeout: 3000
-      x-error-codes: [PER-008]
+      x-error-codes: [PER-008, PER-016]
       x-requirements: [INV-REQ-631, INV-REQ-632, INV-REQ-633, INV-REQ-981, INV-REQ-656, INV-REQ-657]
       x-operation:
         kind: PERMISSION
@@ -230,7 +238,30 @@ paths:
                         varianceClass: "TIMING_DIFFERENCE"
                     unexplainedResidual: "0.00"
         '503':
-          $ref: '#/components/responses/Error'
+          description: >-
+            The service answers 503 when a return is recorded for the period
+            and no run has completed (PER-016); nothing is compared and the
+            client retries the same read after the Retry-After interval
+            (RFC 9110). The API-20 envelope is used. The gateway's own 503
+            (open circuit breaker, timeout) is unchanged.
+          headers:
+            Retry-After:
+              description: Seconds to wait before retrying the read (RFC 9110).
+              schema:
+                type: integer
+                minimum: 0
+          content:
+            application/problem+json:
+              schema:
+                $ref: '../service-runtime/schemas/error-envelope.schema.json'
+              examples:
+                default:
+                  value:
+                    type: "about:blank"
+                    title: "Reconciliation not readable yet"
+                    status: 503
+                    code: "PER-016"
+                    correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs:

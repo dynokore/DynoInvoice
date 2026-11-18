@@ -30,6 +30,9 @@ varianceClass	property	openapi.yaml	INV-REQ-632
 unmappedLines	property	openapi.yaml	INV-REQ-631
 annotateVariance	operation	openapi.yaml	INV-REQ-633
 annotateVariance.PER-015	operation_error_code	openapi.yaml	INV-REQ-633
+getReconciliation	operation	openapi.yaml	INV-REQ-657
+getReconciliation.PER-016	operation_error_code	openapi.yaml	INV-REQ-657
+getReconciliation.503	operation_response	openapi.yaml	INV-REQ-657
 attestWorkPaper	operation	openapi.yaml	INV-REQ-2588
 uploadGstReturn	operation	openapi.yaml	INV-REQ-2588
 irasFilingReference	property	schemas/gst-return-recorded-payload.schema.json	INV-REQ-653
