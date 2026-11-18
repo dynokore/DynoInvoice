@@ -8,6 +8,7 @@ import com.dynokore.gst.aggregation.domain.WindowPart
 import com.dynokore.gst.aggregation.domain.WindowState
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import org.junit.jupiter.api.Test
 import java.time.LocalDate
 import java.util.UUID
@@ -213,28 +214,41 @@ class IntakeTransactionsLateTest {
         published.map { it.first.window.entityRef } shouldBe listOf("E2")
     }
 
-    @Test
-    fun `INV-AC-24763 a window whose period split is unknown records nothing`() {
-        val held =
-            IntakeTransactions(
-                { _, _, _ -> Cadence.WEEKLY },
-                windows,
-                store,
-                { _, _, _ -> PeriodSpans.Unknown },
-                publisher,
-                runner,
-            )
-        held.execute(
+    private fun heldBy(
+        source: PeriodBoundarySource,
+        date: LocalDate,
+    ): TransactionsOutcome =
+        IntakeTransactions({ _, _, _ -> Cadence.WEEKLY }, windows, store, source, publisher, runner).execute(
             TransactionsCommand(
                 "E1",
                 "BU-1",
                 AggregateType.POS,
                 "K",
                 1,
-                listOf(DatedTransaction("T", day(3, 30), "SR-STD", "1.00")),
+                listOf(DatedTransaction("T", date, "SR-STD", "1.00")),
             ),
         )
+
+    @Test
+    fun `INV-AC-24763 a window whose period split is Unknown records nothing, publishes nothing and is not refused`() {
+        val outcome = heldBy({ _, _, _ -> PeriodSpans.Unknown }, day(3, 30))
+        outcome.shouldBeInstanceOf<TransactionsOutcome.Created>()
         recorded shouldBe emptyList()
         published shouldBe emptyList()
+        store.stored.size shouldBe 1
+        closedWrites shouldBe emptyList()
+        order shouldBe listOf("store")
+    }
+
+    @Test
+    fun `INV-AC-24763 a date no span covers (Uncovered) records nothing, publishes nothing and is not refused`() {
+        val onlyApril = PeriodSpans.Known(listOf(PeriodSpan(day(4, 1), day(4, 30), "2027-04")))
+        val outcome = heldBy({ _, _, _ -> onlyApril }, day(3, 30))
+        outcome.shouldBeInstanceOf<TransactionsOutcome.Created>()
+        recorded shouldBe emptyList()
+        published shouldBe emptyList()
+        store.stored.size shouldBe 1
+        closedWrites shouldBe emptyList()
+        order shouldBe listOf("store")
     }
 }
