@@ -184,7 +184,7 @@ class RolePermissionsTest {
             *vpGroup(setOf("platform.engineer", "deployment.operator"), listOf(66, 70, 72, 74, 75, 77, 78, 80)),
             *vpGroup(setOf("client.signatory"), listOf(4, 10, 11, 12, 13)),
             *vpGroup(setOf("security.officer"), listOf(5, 8, 44, 63)),
-            *vpGroup(setOf("tax.operator"), listOf(30)),
+            *vpGroup(setOf("tax.operator"), listOf(30, 83)),
             *vpGroup(setOf("commercial.admin"), listOf(45)),
             *vpGroup(setOf("deployment.operator"), listOf(52)),
         ) + (79 to setOf("platform.engineer"))
@@ -195,8 +195,8 @@ class RolePermissionsTest {
     ): Array<Pair<Int, Set<String>>> = numbers.map { it to holders }.toTypedArray()
 
     @Test
-    fun `the 82 vp set keys are WRITE and held by the set_by roles of their variation point, per form`() {
-        assertEquals((1..82).toSet(), vpHolders.keys)
+    fun `the 83 vp set keys are WRITE and held by the set_by roles of their variation point, per form`() {
+        assertEquals((1..83).toSet(), vpHolders.keys)
         vpHolders.forEach { (n, holders) ->
             val key = "vp-%02d.set".format(n)
             assertEquals(PermissionKind.WRITE, RolePermissions.kind(key), key)
@@ -589,8 +589,8 @@ class RolePermissionsTest {
     }
 
     @Test
-    fun `vp keys outside 01 to 82 are absent`() {
-        assertNull(RolePermissions.kind("vp-83.set"))
+    fun `vp keys outside 01 to 83 are absent`() {
+        assertNull(RolePermissions.kind("vp-84.set"))
         assertNull(RolePermissions.kind("vp-0.set"))
         assertNull(RolePermissions.kind("vp-00.set"))
     }

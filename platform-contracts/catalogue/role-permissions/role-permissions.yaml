@@ -25,6 +25,7 @@
 # vp-01.set to vp-81.set (INV-T-10132, INV-Q-10127 A): one key per variation point, row "Set a variation point"
 # of INV-NOTE-10136; the holders of vp-NN.set are the set_by roles of VP-NN.
 # vp-82.set (INV-T-10283, INV-Q-10280 A): the key of VP-82 (INV-REQ-9271), held by tenant.admin in both forms.
+# vp-83.set (INV-T-24783, owner ruling of 2026-11-18): the key of VP-83 (INV-REQ-24775), held by tax.operator in both forms, as vp-30.set.
 # enquiry-lookup.by-acknowledgement, enquiry-lookup.reverse and rendition-sample.record (INV-T-10492, INV-Q-10378 A, INV-Q-10380 A): the last three rows of section 2 of INV-NOTE-10136.
 
 
@@ -1038,6 +1039,12 @@ permissions:
     cells:
       - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
       - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-83.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tax.operator, form: SAAS, allowance: PERMITTED}
+      - {role: tax.operator, form: PRIVATE, allowance: PERMITTED}
   - key: filing-frequency.change
     kind: WRITE
     row: "Change the filing frequency of an entity"

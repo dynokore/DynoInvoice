@@ -365,8 +365,8 @@ class RolePermissionsCheckerTest {
     private fun vpKeys() = real.permissions.filter { Regex("vp-\\d\\d\\.set").matches(it.key) }
 
     @Test
-    fun `probe 26 the file has the 82 vp keys, each WRITE with the added row`() {
-        assertEquals((1..82).map { "vp-%02d.set".format(it) }, vpKeys().map { it.key })
+    fun `probe 26 the file has the 83 vp keys, each WRITE with the added row`() {
+        assertEquals((1..83).map { "vp-%02d.set".format(it) }, vpKeys().map { it.key })
         assertTrue(vpKeys().all { it.kind == PermissionKind.WRITE && it.row == vpLabel })
     }
 
@@ -432,6 +432,18 @@ class RolePermissionsCheckerTest {
     @Test
     fun `probe 82 a removed vp-82 set is reported`() {
         assertReported(real.copy(permissions = real.permissions.filter { it.key != "vp-82.set" }), "key vp-82.set: missing")
+    }
+
+    @Test
+    fun `INV-AC-24780 probe a removed vp-83 set is reported`() {
+        assertReported(real.copy(permissions = real.permissions.filter { it.key != "vp-83.set" }), "key vp-83.set: missing")
+    }
+
+    @Test
+    fun `INV-AC-24780 probe a tax approver cell on vp-83 set is reported`() {
+        listOf(saasF, privF).forEach { f ->
+            assertReported(cellAdd("vp-83.set", "tax.approver", f), "role tax.approver key vp-83.set form $f")
+        }
     }
 
     @Test
