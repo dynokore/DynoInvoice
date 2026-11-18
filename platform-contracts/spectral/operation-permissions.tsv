@@ -17,3 +17,5 @@ rules	acknowledgePackDelta	regulatory-pack.acknowledge
 rules	armRegulatoryPack	regulatory-pack.arm
 rules	dryRun	pack.dry-run
 masterdata	sendCounterpartyRequest	counterparty-request.send
+rules	rollbackPack	regulatory-pack.rollback
+rules	reprocessPopulation	regulatory-pack.reprocess

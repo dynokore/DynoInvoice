@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 2.3.0
+  version: 2.4.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1209,7 +1209,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, FR-AC.6]
       x-operation:
-        role: tax.approver
+        kind: PERMISSION
+        permission: regulatory-pack.rollback
         scope: tenant
         precondition: "A pack of this type is armed (FR-AC.6)."
         reversibility: COMPENSABLE
@@ -1257,7 +1258,8 @@ paths:
       x-error-codes: []
       x-requirements: [INV-REQ-957, INV-REQ-1010, "§31.4.1"]
       x-operation:
-        role: tax.approver
+        kind: PERMISSION
+        permission: regulatory-pack.reprocess
         scope: tenant
         precondition: "A superseding pack of this type is armed."
         reversibility: COMPENSABLE
