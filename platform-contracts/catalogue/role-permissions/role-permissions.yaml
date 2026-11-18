@@ -1299,6 +1299,10 @@ permissions:
     row: "Reseal a break-glass session"
     cells:
       - {role: deployment.operator, form: PRIVATE, allowance: PERMITTED}
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
   - key: gap-report.view
     kind: READ
     row: "Gap report and progress"

@@ -574,17 +574,22 @@ class RolePermissionsTest {
     }
 
     @Test
-    fun `the break-glass reseal key is WRITE with exactly the deployment operator PRIVATE cell`() {
+    fun `the break-glass reseal key is WRITE with exactly the five break-glass unlock cells`() {
         assertEquals(PermissionKind.WRITE, RolePermissions.kind("break-glass.reseal"))
         assertEquals(
-            mapOf("deployment.operator" to RoleAllowance.PERMITTED),
+            setOf("deployment.operator", "tenant.admin", "tax.approver"),
             RolePermissions
                 .cells(privateForm)
-                .filter { (_, perms) ->
-                    perms["break-glass.reseal"] != null
-                }.mapValues { it.value["break-glass.reseal"] },
+                .filter { (_, perms) -> perms["break-glass.reseal"] == RoleAllowance.PERMITTED }
+                .keys,
         )
-        assertTrue(RolePermissions.cells(saas).none { (_, perms) -> perms["break-glass.reseal"] != null })
+        assertEquals(
+            setOf("tenant.admin", "tax.approver"),
+            RolePermissions
+                .cells(saas)
+                .filter { (_, perms) -> perms["break-glass.reseal"] == RoleAllowance.PERMITTED }
+                .keys,
+        )
         assertNull(RolePermissions.kind("break-glass.sign-in"))
     }
 

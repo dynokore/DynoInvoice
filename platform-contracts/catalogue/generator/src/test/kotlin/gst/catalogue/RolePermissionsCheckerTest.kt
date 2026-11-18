@@ -1338,23 +1338,38 @@ class RolePermissionsCheckerTest {
     private val bgUnlock = "break-glass.unlock"
 
     @Test
-    fun `INV-T-16106 the key is WRITE with its pinned row and exactly one cell`() {
+    fun `INV-T-16106 the key is WRITE with its pinned row and exactly five cells`() {
         assertEquals(mapOf(rs to rsRow), RolePermissionsChecker.resealPairs)
         assertEquals(rsRow, permission(real, rs).row)
         assertEquals(PermissionKind.WRITE, permission(real, rs).kind)
-        assertEquals(setOf(CellRow("deployment.operator", privF, RoleAllowance.PERMITTED)), permission(real, rs).cells.toSet())
-        assertEquals(1, permission(real, rs).cells.size)
+        assertEquals(
+            setOf(
+                CellRow("deployment.operator", privF, RoleAllowance.PERMITTED),
+                CellRow("tenant.admin", saasF, RoleAllowance.PERMITTED),
+                CellRow("tenant.admin", privF, RoleAllowance.PERMITTED),
+                CellRow("tax.approver", saasF, RoleAllowance.PERMITTED),
+                CellRow("tax.approver", privF, RoleAllowance.PERMITTED),
+            ),
+            permission(real, rs).cells.toSet(),
+        )
+        assertEquals(5, permission(real, rs).cells.size)
+        assertEquals(permission(real, bgUnlock).cells.toSet(), permission(real, rs).cells.toSet())
         assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
     }
 
     @Test
-    fun `INV-T-16106 probe a tenant admin cell is reported naming the key`() {
-        assertReported(cellAdd(rs, "tenant.admin", privF), "role tenant.admin key $rs form PRIVATE", "extra")
+    fun `INV-T-16106 probe the tenant admin PRIVATE cell removed is reported naming the key`() {
+        assertReported(cellRemove(rs, "tenant.admin", privF), "role tenant.admin key $rs form PRIVATE", "missing")
     }
 
     @Test
-    fun `INV-T-16106 probe a tax approver cell is reported naming the key`() {
-        assertReported(cellAdd(rs, "tax.approver", privF), "role tax.approver key $rs form PRIVATE", "extra")
+    fun `INV-T-16106 probe the tax approver SAAS cell removed is reported naming the key`() {
+        assertReported(cellRemove(rs, "tax.approver", saasF), "role tax.approver key $rs form SAAS", "missing")
+    }
+
+    @Test
+    fun `INV-T-24946 probe a security officer PRIVATE cell is reported naming the key`() {
+        assertReported(cellAdd(rs, "security.officer", privF), "role security.officer key $rs form PRIVATE", "extra")
     }
 
     @Test

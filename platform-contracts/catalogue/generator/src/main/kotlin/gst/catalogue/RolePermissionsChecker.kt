@@ -526,7 +526,11 @@ object RolePermissionsChecker {
                     PermissionKind.READ,
                     cells(permitted, both, "integration.engineer") + cells(permitted, saasForm, "platform.engineer") + cells(permitted, privateForm, "deployment.operator"),
                 ),
-            "break-glass.reseal" to Required(PermissionKind.WRITE, cells(permitted, privateForm, "deployment.operator")),
+            "break-glass.reseal" to
+                Required(
+                    PermissionKind.WRITE,
+                    cells(permitted, privateForm, "deployment.operator") + cells(permitted, both, "tenant.admin", "tax.approver"),
+                ),
             "operator-session.open" to
                 Required(
                     PermissionKind.WRITE,
