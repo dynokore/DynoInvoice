@@ -14,6 +14,7 @@ import com.dynokore.gst.access.application.consent.AgentTenancy
 import com.dynokore.gst.access.application.consent.ConsentRepository
 import com.dynokore.gst.access.application.consent.ScopeItemRequirements
 import com.dynokore.gst.access.application.link.SmsGatewayBinding
+import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.configresolver.ValueConstraints
@@ -64,6 +65,7 @@ class AgentTenancyUseCases {
     fun valueConstraints(
         catalogue: RoleCatalogue,
         mapper: ObjectMapper,
+        matrix: PermissionMatrix,
         dsl: DSLContext,
         // the default (not bound) is the fail-closed value; Spring injects the bean of SignedLinkUseCases
         smsGateway: SmsGatewayBinding = SmsGatewayBinding { false },
@@ -71,7 +73,7 @@ class AgentTenancyUseCases {
         ValueConstraintsChain(
             listOf(
                 RolePrecedenceConstraints(catalogue, mapper),
-                BreakGlassPairConstraints(catalogue, mapper),
+                BreakGlassPairConstraints(catalogue, mapper, matrix),
                 AgentTenancyConstraints(JooqLiveConsentProbe(dsl)),
                 ConflictingPairsConstraints(catalogue, mapper),
                 OverrideAmountConstraints(mapper),

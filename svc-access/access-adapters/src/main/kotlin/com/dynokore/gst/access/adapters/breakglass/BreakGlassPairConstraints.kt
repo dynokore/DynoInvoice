@@ -1,5 +1,8 @@
 package com.dynokore.gst.access.adapters.breakglass
 
+import com.dynokore.gst.access.application.breakglass.BREAK_GLASS_UNLOCK
+import com.dynokore.gst.access.domain.role.Allowance
+import com.dynokore.gst.access.domain.role.PermissionMatrix
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
 import com.dynokore.platform.configresolver.ConstraintVerdict
@@ -13,11 +16,16 @@ import java.time.LocalDate
 /**
  * What only access-svc can check in the value of VP-08 (ruling INV-Q-3167): the `pair` of the option OTHER_NAMED_PAIR
  * names exactly two roles of this installation's catalogue (the same role twice is allowed: two different people hold
- * it at unlock). Any other variation point is not this service's to check here and gets no verdict.
+ * it at unlock), and each of them holds `break-glass.unlock` in the permission matrix of the deployed form (owner
+ * ruling 2026-11-18, option B: validate when stored, so the stored pair always works at unlock). Holding means the
+ * allowance PERMITTED, as `ResolvedResealPermissionCheck` applies it; WITHIN_SCOPE and no cell do not count (fail
+ * closed). The matrix decides, never a role name. Any other variation point is not this service's to check here and
+ * gets no verdict.
  */
 class BreakGlassPairConstraints(
     private val catalogue: RoleCatalogue,
     private val mapper: ObjectMapper,
+    private val matrix: PermissionMatrix,
 ) : ValueConstraints {
     override fun check(
         target: SettingTarget,
@@ -56,7 +64,15 @@ class BreakGlassPairConstraints(
             }
 
             else -> {
-                ConstraintVerdict.Accept
+                roles
+                    .filterNotNull()
+                    .firstOrNull { matrix.allowance(it, BREAK_GLASS_UNLOCK) != Allowance.PERMITTED }
+                    ?.let {
+                        ConstraintVerdict.Refuse(
+                            "the pair names role ${it.wire}, which does not hold $UNLOCK_KEY",
+                        )
+                    }
+                    ?: ConstraintVerdict.Accept
             }
         }
     }
@@ -65,6 +81,7 @@ class BreakGlassPairConstraints(
         val VP_08 = VariationPointKey("VP-08")
         const val OTHER_NAMED_PAIR = "OTHER_NAMED_PAIR"
         const val PAIR = "pair"
+        const val UNLOCK_KEY = "break-glass.unlock"
     }
 }
 

@@ -5,6 +5,7 @@ import com.dynokore.gst.access.adapters.landing.RolePrecedenceConstraints
 import com.dynokore.gst.access.adapters.separation.ConflictingPairsConstraints
 import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.gst.access.domain.role.RoleCatalogue
+import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.platform.configresolver.ConstraintVerdict
 import com.dynokore.platform.configresolver.ScopeLevel
 import com.dynokore.platform.configresolver.ScopeRef
@@ -25,8 +26,9 @@ import java.util.UUID
 class ValueConstraintsWiringTest {
     private val catalogue = RoleCatalogue(Role.entries.toSet())
     private val mapper = JsonMapper()
+    private val matrix = PermissionMatrixLoader.load(DeploymentForm.SAAS)
     private val chain: ValueConstraints =
-        AgentTenancyUseCases().valueConstraints(catalogue, mapper, DSL.using(SQLDialect.POSTGRES))
+        AgentTenancyUseCases().valueConstraints(catalogue, mapper, matrix, DSL.using(SQLDialect.POSTGRES))
     private val tenant = TenantId(UUID.fromString("0a000000-0000-4000-8000-00000000000a"))
     private val target = SettingTarget(tenant, ScopeRef(ScopeLevel.TENANT, tenant.toString()), null)
     private val today = LocalDate.of(2027, 1, 1)
@@ -61,7 +63,7 @@ class ValueConstraintsWiringTest {
     @Test
     fun `INV-AC-13494 the chain gives for VP-73 and VP-08 the verdicts of their own constraints`() {
         val precedence = RolePrecedenceConstraints(catalogue, mapper)
-        val breakGlass = BreakGlassPairConstraints(catalogue, mapper)
+        val breakGlass = BreakGlassPairConstraints(catalogue, mapper, matrix)
         val vp73 =
             listOf(
                 listOf(SelectedOption("TENANT_PRECEDENCE", """["tax.approver","tenant.admin"]""")),
@@ -74,5 +76,11 @@ class ValueConstraintsWiringTest {
                 listOf(SelectedOption("OTHER_NAMED_PAIR", "not json")),
             )
         vp08.forEach { assertThat(check(chain, "VP-08", it)).isEqualTo(check(breakGlass, "VP-08", it)) }
+    }
+
+    @Test
+    fun `INV-AC-24929 the chain refuses a VP-08 pair that names a role without break-glass unlock`() {
+        val selected = listOf(SelectedOption("OTHER_NAMED_PAIR", """{"pair":["tenant.admin","tax.operator"]}"""))
+        assertThat(check(chain, "VP-08", selected)).isInstanceOf(ConstraintVerdict.Refuse::class.java)
     }
 }
