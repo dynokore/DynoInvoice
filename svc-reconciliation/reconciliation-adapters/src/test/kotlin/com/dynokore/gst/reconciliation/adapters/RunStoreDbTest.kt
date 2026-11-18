@@ -9,7 +9,6 @@ import com.dynokore.gst.reconciliation.application.run.ListRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
 import com.dynokore.gst.reconciliation.application.run.RunCursor
 import com.dynokore.gst.reconciliation.application.run.RunReader
-import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Run
 import com.dynokore.gst.reconciliation.contract.model.RunPage
@@ -148,18 +147,17 @@ class RunStoreDbTest {
         version: Int = 2,
         form: String = "F5",
     ) = ReconciliationDb.superuser().use { c ->
-        c
-            .prepareStatement(
-                "insert into reconciliation.gst_return (tenant_id, entity_ref, period_ref, version, form, filed_at, " +
-                    "filing_acknowledgement, uploaded_by, recorded_at) values (?, ?, ?, ?, ?, now(), 'ACK', 'u', now())",
-            ).use {
-                it.setObject(1, tenant)
-                it.setString(2, ENTITY)
-                it.setString(3, PERIOD)
-                it.setInt(4, version)
-                it.setString(5, form)
-                it.executeUpdate()
-            }
+        c.prepareStatement(
+            "insert into reconciliation.gst_return (tenant_id, entity_ref, period_ref, version, form, filed_at, " +
+                "filing_acknowledgement, uploaded_by, recorded_at) values (?, ?, ?, ?, ?, now(), 'ACK', 'u', now())",
+        ).use {
+            it.setObject(1, tenant)
+            it.setString(2, ENTITY)
+            it.setString(3, PERIOD)
+            it.setInt(4, version)
+            it.setString(5, form)
+            it.executeUpdate()
+        }
     }
 
     private fun outcome(
@@ -171,13 +169,7 @@ class RunStoreDbTest {
             ReconciliationResult(
                 listOf(
                     LineResult(
-                        Comparison(
-                            "1",
-                            BigDecimal("90.00"),
-                            BigDecimal(submitted),
-                            BigDecimal("10.00"),
-                            MissingSide.NONE,
-                        ),
+                        Comparison("1", BigDecimal("90.00"), BigDecimal(submitted), BigDecimal("10.00"), MissingSide.NONE),
                         listOf(
                             ClassifiedVariance(
                                 "1",
@@ -234,22 +226,6 @@ class RunStoreDbTest {
             }
         }
 
-    private fun latest(tenant: UUID): RunSnapshot? =
-        asTenant(tenant) {
-            session.runner.inTransaction { JooqRunReader(session.dsl()).latest(tenant.toString(), ENTITY, PERIOD) }
-        }
-
-    private fun col(
-        table: String,
-        column: String,
-        runId: String,
-    ): Any? = scalar("select $column from reconciliation.$table where run_id = '$runId'")
-
-    private fun count(
-        table: String,
-        tenant: UUID,
-    ): Any? = scalar("select count(*) from reconciliation.$table where tenant_id = '$tenant'")
-
     private fun runtimeSqlState(
         tenant: UUID,
         sql: String,
@@ -264,22 +240,23 @@ class RunStoreDbTest {
     private fun envelope(response: ResponseEntity<*>): ErrorEnvelope = response.body as ErrorEnvelope
 
     @Test
-    fun `INV-AC-24375 each record call returns a distinct runId and stores one row per run, earlier one unchanged`() {
+    fun `INV-AC-24375 each record call returns a distinct runId and stores one row per run, the earlier kept unchanged`() {
         val t1 = UUID.randomUUID()
         storeReturn(t1)
         val first = record(t1, "2026-04-28T09:10:00Z")
-        val rowBefore = col("reconciliation_run r", "row(r.*)::text", first.runId)
+        val rowBefore =
+            scalar("select row(r.*)::text from reconciliation.reconciliation_run r where run_id = '${first.runId}'")
         val second = record(t1, "2026-04-29T09:10:00Z")
         first.runId shouldNotBe second.runId
-        count("reconciliation_run", t1) shouldBe 2L
-        col("reconciliation_run r", "row(r.*)::text", first.runId) shouldBe rowBefore
-        col("reconciliation_run", "return_form", first.runId) shouldBe "F5"
-        col("reconciliation_run", "return_version", second.runId) shouldBe 2
-        col("reconciliation_run", "raises_per003", first.runId) shouldBe true
-        count("reconciliation_run_box", t1) shouldBe 2L
-        count("reconciliation_run_unmapped_line", t1) shouldBe 2L
-        count("reconciliation_run_not_reconcilable", t1) shouldBe 2L
-        col("reconciliation_run_not_reconcilable", "reason", first.runId) shouldBe "NO_LINES"
+        scalar("select count(*) from reconciliation.reconciliation_run where tenant_id = '$t1'") shouldBe 2L
+        scalar("select row(r.*)::text from reconciliation.reconciliation_run r where run_id = '${first.runId}'") shouldBe rowBefore
+        scalar("select return_form from reconciliation.reconciliation_run where run_id = '${first.runId}'") shouldBe "F5"
+        scalar("select return_version from reconciliation.reconciliation_run where run_id = '${second.runId}'") shouldBe 2
+        scalar("select raises_per003 from reconciliation.reconciliation_run where run_id = '${first.runId}'") shouldBe true
+        scalar("select count(*) from reconciliation.reconciliation_run_box where tenant_id = '$t1'") shouldBe 2L
+        scalar("select count(*) from reconciliation.reconciliation_run_unmapped_line where tenant_id = '$t1'") shouldBe 2L
+        scalar("select count(*) from reconciliation.reconciliation_run_not_reconcilable where tenant_id = '$t1'") shouldBe 2L
+        scalar("select reason from reconciliation.reconciliation_run_not_reconcilable where run_id = '${first.runId}'") shouldBe "NO_LINES"
     }
 
     @Test
@@ -302,9 +279,9 @@ class RunStoreDbTest {
                 }
             }
         box shouldBe listOf("100.00", "90.00", "10.00", "TIMING_DIFFERENCE", "4.00")
-        col("reconciliation_run_variance", "amount::text", run.runId) shouldBe "6.00"
-        col("reconciliation_run_variance", "linked_records[1]", run.runId) shouldBe "DOC-1"
-        col("reconciliation_run", "unexplained_residual::text", run.runId) shouldBe "4.00"
+        scalar("select amount::text from reconciliation.reconciliation_run_variance where run_id = '${run.runId}'") shouldBe "6.00"
+        scalar("select linked_records[1] from reconciliation.reconciliation_run_variance where run_id = '${run.runId}'") shouldBe "DOC-1"
+        scalar("select unexplained_residual::text from reconciliation.reconciliation_run where run_id = '${run.runId}'") shouldBe "4.00"
     }
 
     @Test
@@ -312,11 +289,11 @@ class RunStoreDbTest {
         val t1 = UUID.randomUUID()
         storeReturn(t1)
         val run = record(t1, "2026-04-28T09:10:00Z", outcome(submitted = "100.05"))
-        col("reconciliation_run_box", "submitted_amount::text", run.runId) shouldBe "100.05"
+        scalar("select submitted_amount::text from reconciliation.reconciliation_run_box where run_id = '${run.runId}'") shouldBe "100.05"
     }
 
     @Test
-    fun `INV-AC-24375 find names the tenant itself, so a connection that bypasses row security reads one tenant`() {
+    fun `INV-AC-24375 find names the tenant itself, so a connection that bypasses row-level security reads one tenant`() {
         val t1 = UUID.randomUUID()
         val t2 = UUID.randomUUID()
         storeReturn(t1)
@@ -334,7 +311,7 @@ class RunStoreDbTest {
     fun `INV-AC-24375 a missing return row is an IllegalStateException and nothing is stored`() {
         val t1 = UUID.randomUUID()
         shouldThrow<IllegalStateException> { record(t1, "2026-04-28T09:10:00Z") }
-        count("reconciliation_run", t1) shouldBe 0L
+        scalar("select count(*) from reconciliation.reconciliation_run where tenant_id = '$t1'") shouldBe 0L
     }
 
     @Test
@@ -383,8 +360,8 @@ class RunStoreDbTest {
         val missing = get(t2, run.runId)
         missing.statusCode.value() shouldBe 404
         envelope(missing).code shouldBe "SRT-005"
-        latest(t2) shouldBe null
-        latest(t1)!!.run.runId shouldBe run.runId
+        asTenant(t2) { session.runner.inTransaction { JooqRunReader(session.dsl()).latest(t2.toString(), ENTITY, PERIOD) } } shouldBe null
+        asTenant(t1) { session.runner.inTransaction { JooqRunReader(session.dsl()).latest(t1.toString(), ENTITY, PERIOD) } }!!.run.runId shouldBe run.runId
         get(t1, run.runId).statusCode.value() shouldBe 200
     }
 
@@ -396,16 +373,11 @@ class RunStoreDbTest {
         tables.forEach { table ->
             runtimeSqlState(t1, "delete from reconciliation.$table where tenant_id = '$t1'") shouldBe "42501"
         }
-        mapOf(
-            "reconciliation_run" to "entity_ref",
-            "reconciliation_run_box" to "box",
-            "reconciliation_run_variance" to "box",
-            "reconciliation_run_unmapped_line" to "tax_code",
-        ).forEach { (table, column) ->
-            val update = "update reconciliation.$table set $column = 'X' where tenant_id = '$t1'"
-            runtimeSqlState(t1, update) shouldBe "42501"
-        }
-        count("reconciliation_run", t1) shouldBe 1L
+        runtimeSqlState(t1, "update reconciliation.reconciliation_run set entity_ref = 'X' where tenant_id = '$t1'") shouldBe "42501"
+        runtimeSqlState(t1, "update reconciliation.reconciliation_run_box set box = 'X' where tenant_id = '$t1'") shouldBe "42501"
+        runtimeSqlState(t1, "update reconciliation.reconciliation_run_variance set box = 'X' where tenant_id = '$t1'") shouldBe "42501"
+        runtimeSqlState(t1, "update reconciliation.reconciliation_run_unmapped_line set tax_code = 'X' where tenant_id = '$t1'") shouldBe "42501"
+        scalar("select count(*) from reconciliation.reconciliation_run where tenant_id = '$t1'") shouldBe 1L
     }
 
     @Test
@@ -457,11 +429,8 @@ class RunStoreDbTest {
         controller.getWorkPaper(id).statusCode.value() shouldBe 501
         controller.exportWorkPaper(id, "PDF").statusCode.value() shouldBe 501
         RunsController::class.java.declaredMethods
-            .filter {
-                !it.isSynthetic && !it.isBridge &&
-                    java.lang.reflect.Modifier
-                        .isPublic(it.modifiers)
-            }.map { it.name }
+            .filter { !it.isSynthetic && !it.isBridge && java.lang.reflect.Modifier.isPublic(it.modifiers) }
+            .map { it.name }
             .toSet() shouldBe setOf("listRuns", "getRun")
     }
 
