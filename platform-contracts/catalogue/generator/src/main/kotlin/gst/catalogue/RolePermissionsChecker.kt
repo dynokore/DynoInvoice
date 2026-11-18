@@ -86,7 +86,7 @@ object RolePermissionsChecker {
 
     /**
      * Labels added to the matrix by INV-NOTE-10136 (INV-Q-10127 A), compared by equality; INV-T-10134 appends six, INV-T-10149 the last two,
-     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A), INV-T-16273 appends two (INV-Q-16272 A), INV-T-22584 appends one (counterparty-request.send), INV-T-17459 appends one (INV-Q-17446 A, client-signatory.record).
+     * INV-T-9864 appends two (INV-Q-9779 A), INV-T-11439 appends one (INV-Q-11433 A), INV-T-11910 appends two (INV-Q-11901 A), INV-T-12840 appends one (INV-Q-12767 A), INV-T-13356 appends one (INV-Q-13348), INV-T-13835 appends one (INV-Q-13818), INV-T-16106 appends one (INV-Q-10127 A), INV-T-16683 appends one (INV-Q-16671 A), INV-T-17222 appends three (INV-Q-17215 A), INV-T-17503 appends one (INV-Q-16389), INV-T-15460 appends three (INV-Q-15430 A), INV-T-16220 appends one (INV-Q-16217 A), INV-T-16273 appends two (INV-Q-16272 A), INV-T-22584 appends one (counterparty-request.send), INV-T-17459 appends one (INV-Q-17446 A, client-signatory.record), INV-T-24484 appends one (reconciliation.export).
      */
     val addedRows: List<String> =
         listOf(
@@ -140,6 +140,7 @@ object RolePermissionsChecker {
             "Rotate credentials with an overlap window",
             "Send counterparty self-service requests for the group",
             "Record the client and send the signatory a consent link",
+            "Export a reconciliation run's work-paper",
         )
 
     /** The (key, row) pairs of the two enquiry lookups and the rendition sample check (INV-T-10492), compared by equality. */
@@ -258,6 +259,10 @@ object RolePermissionsChecker {
     /** The (key, row) pair of the client signatory recording key (INV-T-17459, owner ruling INV-Q-17446 A; row of INV-FLOW-255 step 1), compared by equality. */
     val clientSignatoryPairs: Map<String, String> =
         mapOf("client-signatory.record" to "Record the client and send the signatory a consent link")
+
+    /** The (key, row) pair of the reconciliation work-paper export key (INV-T-24484, INV-REQ-982 option A), compared by equality. */
+    val reconciliationExportPairs: Map<String, String> =
+        mapOf("reconciliation.export" to "Export a reconciliation run's work-paper")
 
     /** The (key, row) pair of the break-glass reseal key (INV-T-16106, INV-Q-10127 A), compared by equality. */
     val resealPairs: Map<String, String> =
@@ -493,6 +498,7 @@ object RolePermissionsChecker {
             "exchange-rate.import" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator") + cells(permitted, privateForm, "deployment.operator")),
             "counterparty-request.send" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "client-signatory.record" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "reconciliation.export" to Required(PermissionKind.READ, cells(permitted, both, "tax.approver") + cells(permitted, both, "auditor")),
             "exchange-rate.enter" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.operator")),
             "connection.configure" to Required(PermissionKind.WRITE, cells(permitted, both, "integration.engineer")),
             "connection.view" to
@@ -784,6 +790,13 @@ object RolePermissionsChecker {
         }
         table.permissions.filter { it.key !in clientSignatoryPairs && (it.row in clientSignatoryPairs.values || it.key.startsWith("client-signatory.")) }.forEach { p ->
             v += "key ${p.key}: not one of the keys ${clientSignatoryPairs.keys.joinToString()}, which alone carry the client signatory recording row (INV-T-17459)."
+        }
+        reconciliationExportPairs.forEach { (key, row) ->
+            val p = table.permissions.firstOrNull { it.key == key }
+            if (p != null && p.row != row) v += "key $key: row '${p.row}' differs from '$row' (keys ${reconciliationExportPairs.keys.joinToString()}, INV-T-24484)."
+        }
+        table.permissions.filter { it.key !in reconciliationExportPairs && (it.row in reconciliationExportPairs.values || it.key.lowercase().replace('-', '.').startsWith("reconciliation.export")) }.forEach { p ->
+            v += "key ${p.key}: not one of the keys ${reconciliationExportPairs.keys.joinToString()}, which alone carry the reconciliation export row (INV-T-24484)."
         }
         table.permissions.filter { it.key in setOf("election-change.approve", "election-change.withdraw", "election-change.list", "migration-cutover.record", "migration-cutover.view") }.forEach { p ->
             if (p.row != electionChangeRow) v += "key ${p.key}: row '${p.row}' differs from '$electionChangeRow' (INV-T-10123, INV-T-13530)."

@@ -1419,3 +1419,11 @@ permissions:
     cells:
       - {role: agent.operator, form: SAAS, allowance: WITHIN_SCOPE}
       - {role: agent.operator, form: PRIVATE, allowance: WITHIN_SCOPE}
+  - key: reconciliation.export
+    kind: READ
+    row: "Export a reconciliation run's work-paper"
+    cells:
+      - {role: tax.approver, form: SAAS, allowance: PERMITTED}
+      - {role: tax.approver, form: PRIVATE, allowance: PERMITTED}
+      - {role: auditor, form: SAAS, allowance: PERMITTED}
+      - {role: auditor, form: PRIVATE, allowance: PERMITTED}

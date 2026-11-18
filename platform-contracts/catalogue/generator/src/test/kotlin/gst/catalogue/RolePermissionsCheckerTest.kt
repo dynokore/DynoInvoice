@@ -45,7 +45,7 @@ class RolePermissionsCheckerTest {
             real.permissions.map { it.row }.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
-        assertEquals(50, RolePermissionsChecker.addedRows.toSet().size)
+        assertEquals(51, RolePermissionsChecker.addedRows.toSet().size)
         assertTrue(RolePermissionsChecker.addedRows.none { it in RolePermissionsChecker.publishedRows })
     }
 
@@ -458,7 +458,7 @@ class RolePermissionsCheckerTest {
     fun `the six operation keys carry their labels and addedRows holds its labels`() {
         opLabels.forEach { (k, label) -> assertEquals(label, permission(real, k).row, k) }
         assertEquals(
-            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period" + "Approve a backfill reconciliation before transmission" + "Defer a document or group in the exception queue" + "Request elevation" + "Invite operator diagnostics, time-boxed" + "Reseal a break-glass session" + "Open a tenant-scoped operator session" + "Release a document held for manual review" + "Request an implementation consultant grant" + "View the exception queue" + "Record an IRAS-granted filing extension" + RolePermissionsChecker.gapReportPairs.values + RolePermissionsChecker.sandboxCertificationPairs.values + RolePermissionsChecker.accreditationReadPairs.values + RolePermissionsChecker.invitationReissuePairs.values + RolePermissionsChecker.commercialReadPairs.values + RolePermissionsChecker.questionnairePairs.values + RolePermissionsChecker.calendarPackDeltaPairs.values + RolePermissionsChecker.acknowledgePackDeltaPairs.values + RolePermissionsChecker.packDryRunPairs.values + RolePermissionsChecker.connectionPairs.values + "Send counterparty self-service requests for the group" + RolePermissionsChecker.clientSignatoryPairs.values,
+            setOf("Set a variation point", "Acknowledge a control relaxation", "Run the authority incarnation command", "Author a regulatory pack", "Approve a regulatory pack") + opLabels.values + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period" + "Approve a backfill reconciliation before transmission" + "Defer a document or group in the exception queue" + "Request elevation" + "Invite operator diagnostics, time-boxed" + "Reseal a break-glass session" + "Open a tenant-scoped operator session" + "Release a document held for manual review" + "Request an implementation consultant grant" + "View the exception queue" + "Record an IRAS-granted filing extension" + RolePermissionsChecker.gapReportPairs.values + RolePermissionsChecker.sandboxCertificationPairs.values + RolePermissionsChecker.accreditationReadPairs.values + RolePermissionsChecker.invitationReissuePairs.values + RolePermissionsChecker.commercialReadPairs.values + RolePermissionsChecker.questionnairePairs.values + RolePermissionsChecker.calendarPackDeltaPairs.values + RolePermissionsChecker.acknowledgePackDeltaPairs.values + RolePermissionsChecker.packDryRunPairs.values + RolePermissionsChecker.connectionPairs.values + "Send counterparty self-service requests for the group" + RolePermissionsChecker.clientSignatoryPairs.values + RolePermissionsChecker.reconciliationExportPairs.values,
             RolePermissionsChecker.addedRows.toSet(),
         )
     }
@@ -560,7 +560,7 @@ class RolePermissionsCheckerTest {
                 bumpLabel,
                 "Author a regulatory pack",
                 "Approve a regulatory pack",
-            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period" + "Approve a backfill reconciliation before transmission" + "Defer a document or group in the exception queue" + "Request elevation" + "Invite operator diagnostics, time-boxed" + "Reseal a break-glass session" + "Open a tenant-scoped operator session" + "Release a document held for manual review" + "Request an implementation consultant grant" + "View the exception queue" + "Record an IRAS-granted filing extension" + RolePermissionsChecker.gapReportPairs.values + RolePermissionsChecker.sandboxCertificationPairs.values + RolePermissionsChecker.accreditationReadPairs.values + RolePermissionsChecker.invitationReissuePairs.values + RolePermissionsChecker.commercialReadPairs.values + RolePermissionsChecker.questionnairePairs.values + RolePermissionsChecker.calendarPackDeltaPairs.values + RolePermissionsChecker.acknowledgePackDeltaPairs.values + RolePermissionsChecker.packDryRunPairs.values + RolePermissionsChecker.connectionPairs.values + "Send counterparty self-service requests for the group" + RolePermissionsChecker.clientSignatoryPairs.values,
+            ) + lookupLabels + "Purge audit entries" + sampleCopyLabels + "View coverage, deadline and correction metrics per entity and period" + "Approve a backfill reconciliation before transmission" + "Defer a document or group in the exception queue" + "Request elevation" + "Invite operator diagnostics, time-boxed" + "Reseal a break-glass session" + "Open a tenant-scoped operator session" + "Release a document held for manual review" + "Request an implementation consultant grant" + "View the exception queue" + "Record an IRAS-granted filing extension" + RolePermissionsChecker.gapReportPairs.values + RolePermissionsChecker.sandboxCertificationPairs.values + RolePermissionsChecker.accreditationReadPairs.values + RolePermissionsChecker.invitationReissuePairs.values + RolePermissionsChecker.commercialReadPairs.values + RolePermissionsChecker.questionnairePairs.values + RolePermissionsChecker.calendarPackDeltaPairs.values + RolePermissionsChecker.acknowledgePackDeltaPairs.values + RolePermissionsChecker.packDryRunPairs.values + RolePermissionsChecker.connectionPairs.values + "Send counterparty self-service requests for the group" + RolePermissionsChecker.clientSignatoryPairs.values + RolePermissionsChecker.reconciliationExportPairs.values,
             RolePermissionsChecker.addedRows.toSet(),
         )
         assertEquals(34, RolePermissionsChecker.publishedRows.toSet().size)
@@ -2603,5 +2603,65 @@ class RolePermissionsCheckerTest {
     fun `INV-AC-17458 the label removed from addedRows while its key stays fails naming the key`() {
         val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - csrRow)
         assertTrue(v.any { "key $csr" in it && "row '$csrRow'" in it }, "$v")
+    }
+
+    private val rex = "reconciliation.export"
+    private val rexRow = "Export a reconciliation run's work-paper"
+
+    @Test
+    fun `INV-AC-24483 the reconciliation export key is READ with its pinned row and exactly the four cells`() {
+        assertEquals(mapOf(rex to rexRow), RolePermissionsChecker.reconciliationExportPairs)
+        assertEquals(1, RolePermissionsChecker.addedRows.count { it == rexRow })
+        assertEquals(PermissionKind.READ, permission(real, rex).kind)
+        assertEquals(rexRow, permission(real, rex).row)
+        assertEquals(
+            setOf(
+                CellRow("tax.approver", saasF, RoleAllowance.PERMITTED),
+                CellRow("tax.approver", privF, RoleAllowance.PERMITTED),
+                CellRow("auditor", saasF, RoleAllowance.PERMITTED),
+                CellRow("auditor", privF, RoleAllowance.PERMITTED),
+            ),
+            permission(real, rex).cells.toSet(),
+        )
+        assertEquals(4, permission(real, rex).cells.size)
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-AC-24483 probe a cell finance viewer or tax operator on the key is reported`() {
+        listOf("finance.viewer", "tax.operator").forEach { r ->
+            listOf(saasF, privF).forEach { f -> assertReported(cellAdd(rex, r, f), "role $r key $rex form $f", "extra") }
+        }
+    }
+
+    @Test
+    fun `INV-AC-24483 probe a look-alike or re-cased key is reported`() {
+        listOf("reconciliation.exports", "reconciliation-export", "Reconciliation.export").forEach { k ->
+            assertReported(withPermission(rex) { it.copy(key = k) }, "key $rex: missing")
+            assertReported(withPermission(rex) { it.copy(key = k) }, "key $k")
+        }
+    }
+
+    @Test
+    fun `INV-AC-24483 probe the kind WRITE is reported`() {
+        assertReported(withKind(rex, PermissionKind.WRITE), "key $rex")
+    }
+
+    @Test
+    fun `INV-AC-24483 probe a removed holder cell is reported`() {
+        assertReported(cellRemove(rex, "auditor", privF), "role auditor key $rex form PRIVATE", "missing")
+        assertReported(cellRemove(rex, "tax.approver", saasF), "role tax.approver key $rex form SAAS", "missing")
+    }
+
+    @Test
+    fun `INV-AC-24483 probe the row changed by one character is reported`() {
+        assertReported(withPermission(rex) { it.copy(row = it.row + "s") }, "key $rex")
+        assertReported(withPermission(rex) { it.copy(row = it.row.dropLast(1)) }, "key $rex")
+    }
+
+    @Test
+    fun `INV-AC-24483 the label removed from addedRows while its key stays fails naming the key`() {
+        val v = RolePermissionsChecker.check(real, added = RolePermissionsChecker.addedRows - rexRow)
+        assertTrue(v.any { "key $rex" in it && "row '$rexRow'" in it }, "$v")
     }
 }
