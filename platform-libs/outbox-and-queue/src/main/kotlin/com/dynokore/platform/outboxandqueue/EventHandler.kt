@@ -9,4 +9,14 @@ package com.dynokore.platform.outboxandqueue
 interface EventHandler {
     /** Applies [event]; throws on an infrastructure failure, which rolls the whole transaction back. */
     fun handle(event: Envelope): HandleOutcome
+
+    /**
+     * Applies [event] with the [record] it was read from (its position in the topic and the stored envelope JSON).
+     * A handler that needs the position overrides this method; the one-argument method stays the contract of all
+     * others, and this default forwards to it. A replayed dead letter carries [LogRecord.REPLAY_OFFSET].
+     */
+    fun handle(
+        event: Envelope,
+        record: LogRecord,
+    ): HandleOutcome = handle(event)
 }

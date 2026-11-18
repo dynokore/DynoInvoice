@@ -120,7 +120,7 @@ class JdbcInboxConsumer
                 }
 
                 is ReplayCheck.Valid -> {
-                    applyChecked(check.envelope)
+                    applyChecked(check.envelope, check.raw)
                 }
             }
 
@@ -147,7 +147,7 @@ class JdbcInboxConsumer
                 if (envelope.tenant != expectedTenant) {
                     throw ContractViolation("replayed envelope is for another tenant")
                 }
-                ReplayCheck.Valid(envelope)
+                ReplayCheck.Valid(envelope, raw)
             } catch (violation: ContractViolation) {
                 ReplayCheck.Invalid(violation.message ?: "contract violation")
             }
@@ -156,13 +156,19 @@ class JdbcInboxConsumer
         internal fun deadLetterReplayed(
             raw: String,
             reason: String,
-        ) = offsets.deadLetter(LogRecord(REPLAY_OFFSET, raw), reason)
+        ) = offsets.deadLetter(LogRecord(LogRecord.REPLAY_OFFSET, raw), reason)
 
-        /** Applies a valid replayed [envelope] in its tenant's transaction (the caller's when one is open). */
-        internal fun applyChecked(envelope: Envelope): ReplayOutcome {
+        /**
+         * Applies a valid replayed [envelope] in its tenant's transaction (the caller's when one is open). [raw] is
+         * the stored text handed to the handler as its record.
+         */
+        internal fun applyChecked(
+            envelope: Envelope,
+            raw: String,
+        ): ReplayOutcome {
             val step =
                 scope.bindWorkload(envelope.tenant) {
-                    scope.transactions.inTransaction { ledger.apply(envelope) }
+                    scope.transactions.inTransaction { ledger.apply(envelope, LogRecord(LogRecord.REPLAY_OFFSET, raw)) }
                 }
             return when (step) {
                 Step.APPLIED -> ReplayOutcome.APPLIED
@@ -208,7 +214,7 @@ class JdbcInboxConsumer
                         if (record.offset < offsets.lockOffset()) {
                             Step.DUPLICATE
                         } else {
-                            ledger.apply(envelope).also { offsets.advance(record.offset) }
+                            ledger.apply(envelope, record).also { offsets.advance(record.offset) }
                         }
                     }
                 }
@@ -230,7 +236,6 @@ class JdbcInboxConsumer
 
         private companion object {
             const val BATCH = 100
-            const val REPLAY_OFFSET = 0L // a replayed record has no position in the topic
         }
     }
 
@@ -238,6 +243,7 @@ class JdbcInboxConsumer
 internal sealed interface ReplayCheck {
     class Valid(
         val envelope: Envelope,
+        val raw: String,
     ) : ReplayCheck
 
     class Invalid(

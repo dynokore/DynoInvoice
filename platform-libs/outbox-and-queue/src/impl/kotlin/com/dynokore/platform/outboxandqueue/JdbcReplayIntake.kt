@@ -160,6 +160,18 @@ class JdbcReplayIntake
                     delegate.handle(event)
                 }
 
+            override fun handle(
+                event: Envelope,
+                record: LogRecord,
+            ): HandleOutcome =
+                if (event.type ==
+                    ReplayProtocol.REPLAY_COMPLETED
+                ) {
+                    recordMarker(event)
+                } else {
+                    delegate.handle(event, record)
+                }
+
             private fun recordMarker(event: Envelope): HandleOutcome {
                 val replayId = json.readCompleted(event.dataJson)
                 // The marker is recorded in a platform-bound transaction of its own, whatever tenant the event is

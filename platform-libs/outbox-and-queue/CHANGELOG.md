@@ -6,6 +6,12 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [6.30.0] - 2026-11-18
+### Added
+- `EventHandler.handle(event, record)`, a default method that forwards to `handle(event)`: a handler that needs the position overrides it and receives the `LogRecord` (offset and stored envelope JSON) of each polled record, in the transaction that applies the envelope; a replayed dead letter carries `LogRecord.REPLAY_OFFSET` and `LogRecord.replayed` is true for it. The replay intake forwards the record and a replay-completed marker reaches no handler call. Existing handlers are unchanged (INV-T-24593, INV-AC-24592).
+### Changed
+- `JdbcReplayDelivery` hands the handler the stored text of a queue-replayed dead letter (`check.raw`), byte for byte, never JSON re-serialised from the envelope; the `raw` parameter of the internal `applyChecked` is required (INV-T-24593, INV-AC-24592).
+
 ## [6.29.0] - 2026-11-18
 ### Added
 - `JdbcInboxConsumer.subscription` is a public read-only member, so a composition can group consumer beans by consumer name, and `rejectReplayed(raw, reason)` dead-letters a replayed item with its true reason (INV-T-24578, INV-AC-24577).

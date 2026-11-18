@@ -31,7 +31,7 @@ class JdbcReplayDelivery(
 
                 is ReplayCheck.Valid -> {
                     inTenant(item) {
-                        val outcome = inbox.applyChecked(check.envelope)
+                        val outcome = inbox.applyChecked(check.envelope, check.raw)
                         queue.complete(item)
                         outcome
                     }

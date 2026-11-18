@@ -29,7 +29,10 @@ internal class InboxLedger(
     private val inbox: Table<*> = DSL.table(DSL.name(s, OutboxSchema.INBOX))
     private val sequences: Table<*> = DSL.table(DSL.name(s, OutboxSchema.CONSUMER_SEQUENCE))
 
-    fun apply(envelope: Envelope): Step {
+    fun apply(
+        envelope: Envelope,
+        record: LogRecord,
+    ): Step {
         if (!claimInbox(envelope)) return Step.DUPLICATE
         if (trackSources &&
             envelope.type != ReplayProtocol.REPLAY_COMPLETED
@@ -38,14 +41,21 @@ internal class InboxLedger(
         }
         // A record-topic event is deduped by event id only: no docsequence check, no held row (INV-Q-3809).
         val sequence = envelope.docSequence?.takeUnless { envelope.type in recordTypes }
-        return if (sequence != null && sequence <= heldSequence(envelope)) Step.STALE else handle(envelope, sequence)
+        return if (sequence != null &&
+            sequence <= heldSequence(envelope)
+        ) {
+            Step.STALE
+        } else {
+            handle(envelope, record, sequence)
+        }
     }
 
     private fun handle(
         envelope: Envelope,
+        record: LogRecord,
         sequence: Long?,
     ): Step {
-        val outcome = handler.handle(envelope)
+        val outcome = handler.handle(envelope, record)
         if (sequence != null) recordSequence(envelope, sequence)
         return when (outcome) {
             HandleOutcome.APPLIED -> Step.APPLIED

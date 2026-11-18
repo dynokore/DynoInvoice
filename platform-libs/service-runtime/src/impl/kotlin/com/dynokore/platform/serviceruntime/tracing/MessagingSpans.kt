@@ -4,6 +4,7 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventBinding
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.HandleOutcome
+import com.dynokore.platform.outboxandqueue.LogRecord
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
@@ -75,4 +76,10 @@ class TracedEventHandler(
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome =
         MessagingSpans.run(tracer, SpanKind.CONSUMER, MessagingSpans.PROCESS, event) { delegate.handle(event) }
+
+    override fun handle(
+        event: Envelope,
+        record: LogRecord,
+    ): HandleOutcome =
+        MessagingSpans.run(tracer, SpanKind.CONSUMER, MessagingSpans.PROCESS, event) { delegate.handle(event, record) }
 }

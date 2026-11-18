@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.22.1] - 2026-11-18
+### Changed
+- `TracedEventHandler` forwards `handle(event, record)` under the same CONSUMER span, so the log record reaches the wrapped handler; no new public member (INV-T-24593, INV-AC-24592); outbox-and-queue steps to 6.30.0.
+
 ## [13.22.0] - 2026-11-18
 ### Changed
 - `replayDelivery` serves replay for every `InboxConsumer` bean, selected by consumer name: one `ConsumerRoutedReplayDelivery` holds a queue per consumer name, and the bean of a consumer with several beans is the one whose topic holds the record type of the item (INV-T-24578, INV-AC-24577); outbox-and-queue steps to 6.29.0.
