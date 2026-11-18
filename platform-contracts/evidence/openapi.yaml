@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -455,14 +455,19 @@ paths:
       description: >-
         Verification queries (services.yaml evidence-svc `provides`;
         capabilities "routine verification and the integrity report",
-        §35.11). Changes no state (INV-REQ-958).
+        §35.11). The report is the tenant-wide roll-up of the per-entity,
+        per-period results of INV-REQ-661. `chainValid` is true only when the
+        latest integrity run of every entity and period of the tenant is
+        VERIFIED; NEVER_RUN counts as not valid. `brokenLinks` lists the
+        identifiers of the open integrity failures. `generatedAt` is the read
+        time. It changes no state and is not audit-logged.
       tags: [verification]
       x-principal: reporting
       x-caller-auth: end-user
       x-sync-edge: console-bff->evidence-svc
       x-timeout: 2000
       x-error-codes: []
-      x-requirements: []
+      x-requirements: [INV-REQ-661]
       parameters:
         - name: tenantId
           in: query
@@ -2021,10 +2026,15 @@ components:
         generatedAt:
           type: string
           format: date-time
+          description: The time the report was read.
         chainValid:
           type: boolean
+          description: >-
+            True only when the latest integrity run of every entity and
+            period of the tenant is VERIFIED; NEVER_RUN counts as not valid.
         brokenLinks:
           type: array
+          description: The identifiers of the open integrity failures.
           items:
             type: string
       required: [tenantId, generatedAt, chainValid, brokenLinks]

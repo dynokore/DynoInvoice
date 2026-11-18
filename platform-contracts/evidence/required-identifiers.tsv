@@ -9,6 +9,10 @@
 # INV-T-5959 gap 1). categoryCode is a query parameter of reverseLookup (kind query_parameter, INV-Q-6006 A).
 identifier	kind	file	requirement
 getIntegrityStatus	operation	openapi.yaml	INV-REQ-661
+getIntegrityReport	operation	openapi.yaml	INV-REQ-661
+chainValid	property	openapi.yaml	INV-REQ-661
+brokenLinks	property	openapi.yaml	INV-REQ-661
+generatedAt	property	openapi.yaml	INV-REQ-661
 getEvidenceRetrieval	operation	openapi.yaml	INV-REQ-664
 reproduction	property	openapi.yaml	INV-REQ-1345
 packVersions	property	openapi.yaml	INV-REQ-691
