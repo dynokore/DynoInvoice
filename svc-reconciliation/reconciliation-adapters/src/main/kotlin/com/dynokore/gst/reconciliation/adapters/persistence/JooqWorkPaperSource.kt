@@ -2,7 +2,6 @@ package com.dynokore.gst.reconciliation.adapters.persistence
 
 import com.dynokore.gst.reconciliation.application.workpaper.GetWorkPaper
 import com.dynokore.gst.reconciliation.application.workpaper.SourceWorkPaper
-import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperBox
 import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperSource
 import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperView
 import tools.jackson.databind.SerializationFeature
@@ -49,7 +48,19 @@ class JooqWorkPaperSource(
         }
         doc["supportingDocuments"] = view.supportingDocuments
         doc["unexplainedResidual"] = view.unexplainedResidual
-        doc["boxes"] = view.boxes.map(::box)
+        doc["boxes"] =
+            view.boxes.map { b ->
+                linkedMapOf<String, Any?>(
+                    "variance" to b.variance,
+                    "varianceClasses" to
+                        b.varianceClasses.map {
+                            linkedMapOf<String, Any?>("varianceClass" to it.varianceClass, "amount" to it.amount)
+                        },
+                    "filedAmount" to b.filedAmount,
+                    "submittedAmount" to b.submittedAmount,
+                    "box" to b.box,
+                )
+            }
         doc["header"] =
             linkedMapOf<String, Any?>(
                 "returnForm" to view.header.returnForm,
@@ -61,18 +72,6 @@ class JooqWorkPaperSource(
         doc["runId"] = view.runId
         return doc
     }
-
-    private fun box(b: WorkPaperBox): Map<String, Any?> =
-        linkedMapOf(
-            "variance" to b.variance,
-            "varianceClasses" to
-                b.varianceClasses.map {
-                    linkedMapOf<String, Any?>("varianceClass" to it.varianceClass, "amount" to it.amount)
-                },
-            "filedAmount" to b.filedAmount,
-            "submittedAmount" to b.submittedAmount,
-            "box" to b.box,
-        )
 
     private companion object {
         val MAPPER: JsonMapper =

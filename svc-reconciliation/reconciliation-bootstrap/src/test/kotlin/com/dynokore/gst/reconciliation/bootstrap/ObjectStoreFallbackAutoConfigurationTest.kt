@@ -49,13 +49,8 @@ class ObjectStoreFallbackAutoConfigurationTest {
         Files.writeString(mountRoot.resolve("object-store/access-key-id"), "AKIDEXAMPLE")
         Files.writeString(mountRoot.resolve("object-store/secret-access-key"), "secret-example")
         return ApplicationContextRunner()
-            .withUserConfiguration(
-                WorkPaperSealConfiguration::class.java,
-                // the SealWorkPaper bean reads the work-paper through GetWorkPaper (INV-T-24382)
-                WorkPaperReadConfiguration::class.java,
-                RunReadConfiguration::class.java,
-                ModulePropertiesConfiguration::class.java,
-            ).withBean(SecretStore::class.java, { MountedFileSecretStore(mountRoot) })
+            .withUserConfiguration(WorkPaperSealConfiguration::class.java, ModulePropertiesConfiguration::class.java)
+            .withBean(SecretStore::class.java, { MountedFileSecretStore(mountRoot) })
             .withBean(DSLContext::class.java, { DSL.using(SQLDialect.POSTGRES) })
             .withBean(EvidenceArtefactRecorder::class.java, {
                 object : EvidenceArtefactRecorder {
