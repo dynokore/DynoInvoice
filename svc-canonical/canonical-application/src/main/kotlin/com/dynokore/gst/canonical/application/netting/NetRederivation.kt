@@ -14,7 +14,7 @@ import java.util.UUID
  * re-derived net of the same credit notes, unless the ERP declares them itself. It opens no transaction: the caller
  * runs [afterErpVersion] in the transaction that wrote the ERP version, so the derived version is written through
  * [CanonicalVersionWriter] in the same transaction. A refused derivation writes nothing: the ERP version stays as
- * posted and submission-svc decides the credit note again. Declared Doc UUIDs are compared as UUID values, never as text.
+ * posted and submission-svc decides the credit note again. Declared Doc UUIDs compare as UUID values, not text.
  */
 class NetRederivation(
     private val records: NetDerivationRecords,
