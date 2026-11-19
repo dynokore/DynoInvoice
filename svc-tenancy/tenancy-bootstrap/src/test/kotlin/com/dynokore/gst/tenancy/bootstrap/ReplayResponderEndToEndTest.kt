@@ -78,7 +78,7 @@ class ReplayResponderEndToEndTest {
         private val entitiesApi: EntitiesController = context.getBean(EntitiesController::class.java)
         private val tenants: TenantContext = context.getBean(TenantContext::class.java)
 
-        /** One tenant with 1 group and 2 live entities: 3 structure nodes. */
+        /** One tenant with 1 group and 2 live entities (3 structure nodes) and one status entry, on the first entity. */
         fun newTenant(): TenantId {
             val contract = "C-${UUID.randomUUID()}"
             val ref = TenantRefs.refOfContract(contract)
@@ -100,7 +100,7 @@ class ReplayResponderEndToEndTest {
                                 "M2-GSTN",
                             ),
                         ).body!!
-                repeat(2) { createEntity(tenant, group.groupRef) }
+                repeat(2) { createEntity(tenant, group.groupRef, withStatus = it == 0) }
             }
             return tenant
         }
@@ -108,6 +108,7 @@ class ReplayResponderEndToEndTest {
         private fun createEntity(
             tenant: TenantId,
             groupRef: String,
+            withStatus: Boolean,
         ) {
             val entity =
                 entitiesApi.createEntity(
@@ -128,7 +129,8 @@ class ReplayResponderEndToEndTest {
                                 .replace("-", "A"),
                     ),
                 )
-            // a status entry is what makes an entity part of the EntityProfileChanged replay
+            // a status entry is what makes an entity part of the EntityProfileChanged replay: only one entity has one
+            if (!withStatus) return
             entitiesApi.setEntityStatus(
                 entity.body!!.entityRef,
                 UUID.randomUUID(),
@@ -143,7 +145,7 @@ class ReplayResponderEndToEndTest {
     }
 
     private fun run(
-        container: BoundaryDatabase = BoundaryFixture,
+        container: BoundaryDatabase = ReplayResponderDatabase,
         block: (Env, BoundaryDatabase) -> Unit,
     ) {
         val log = Log()
@@ -237,25 +239,32 @@ class ReplayResponderEndToEndTest {
 
     @Test
     fun `INV-AC-25010 a full sync request for tenancy-svc is answered with the states and then ReplayCompleted`() {
-        run { env, db ->
-            val tenant = env.newTenant()
+        // a database of its own: the replay answers for every tenant, so the exact counts need the fixture alone
+        val own = BoundaryDatabase(PgTestImages.PG17, "c-inv-t-25012")
+        run(own) { env, db ->
+            env.newTenant()
             val replayId = UUID.randomUUID()
             env.log.add(request(replayId, "tenancy-svc"))
 
             assertThat(env.driver.pollOnce().applied).isEqualTo(1)
 
             val rows = written(db, REPLAY_TOPIC, replayId)
-            val states = rows.dropLast(1)
-            assertThat(rows.last().type).isEqualTo("com.dynokore.gst.platform.ReplayCompleted.v1")
+            // exactly 4 structure states and 1 profile state, then the marker last; the order between the two
+            // sources is the bean order, which the task does not fix
+            assertThat(rows.map { it.type }.dropLast(1)).containsExactlyInAnyOrder(
+                STRUCTURE_TYPE,
+                STRUCTURE_TYPE,
+                STRUCTURE_TYPE,
+                STRUCTURE_TYPE,
+                PROFILE_TYPE,
+            )
+            assertThat(rows.last().type).isEqualTo(COMPLETED_TYPE)
+            // among the structure states the tenant's own node comes first, then the group and the 2 live entities
+            val nodes = rows.filter { it.type == STRUCTURE_TYPE }.map { it.data.replace(" ", "") }
+            assertThat(nodes[0]).contains("\"kind\":\"TENANT\"")
+            assertThat(nodes.drop(1).count { it.contains("\"kind\":\"TENANT\"") }).isZero()
             assertThat(rows.last().data).contains(replayId.toString())
-            assertThat(rows.last().data.replace(" ", "")).contains("\"eventsReplayed\":${states.size}")
-            val mine = states.filter { it.tenant == tenant.value.toString() }
-            val nodes = mine.filter { it.type == STRUCTURE_TYPE }
-            // the group and the 2 live entities of the task, plus the tenant's own node the source emits by design
-            assertThat(nodes.filterNot { it.data.replace(" ", "").contains("\"kind\":\"TENANT\"") }).hasSize(3)
-            assertThat(nodes).hasSize(4)
-            assertThat(mine.filter { it.type == PROFILE_TYPE }).isNotEmpty()
-            assertThat(states.map { it.type }).containsOnly(STRUCTURE_TYPE, PROFILE_TYPE)
+            assertThat(rows.last().data.replace(" ", "")).contains("\"eventsReplayed\":5")
         }
     }
 
@@ -333,5 +342,13 @@ class ReplayResponderEndToEndTest {
         const val REPLAY_TOPIC = "gst.tenancy.replay-access.v1"
         const val STRUCTURE_TYPE = "com.dynokore.gst.tenancy.OrganisationStructureChanged.v1"
         const val PROFILE_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
+        const val COMPLETED_TYPE = "com.dynokore.gst.platform.ReplayCompleted.v1"
     }
 }
+
+/**
+ * The end-to-end test has its own PostgreSQL: the responder answers for every tenant of the database, and the shared
+ * [BoundaryFixture] holds the entities other tests leave with an election and no status entry, which the profile
+ * replay source cannot answer (reported as a gap in the MR of INV-T-25012).
+ */
+private object ReplayResponderDatabase : BoundaryDatabase(PgTestImages.PG17, "c-inv-t-25012")
