@@ -231,7 +231,7 @@ class EntityProfileReplayWithoutStatusDbTest {
         }
 
     @Test
-    fun `INV-AC-25373 R1 the replay returns exactly the entities with an entry and none of E-N or of the other tenant`() {
+    fun `INV-AC-25373 R1 the replay returns exactly the entities with an entry, not E-N, not another tenant`() {
         val s = seed()
         val t1 = replay(s.t1)
         t1.payloads.map { it.get("entityRef").asString() } shouldContainExactlyInAnyOrder
