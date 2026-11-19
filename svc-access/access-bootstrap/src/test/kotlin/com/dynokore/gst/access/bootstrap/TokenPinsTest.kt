@@ -6,8 +6,8 @@ import java.io.File
 
 /**
  * The contract pin and the tables of INV-T-8850 (INV-AC-8848). The bundle suffix is compared by equality with the first
- * 8 characters of the platform-contracts main commit pinned by INV-T-24952 (the INV-T-24946 merge commit) (it contains the INV-T-8026 merge, so the
- * contract still holds issueAccessToken); the operations row and the criterion row are compared by equality on the
+ * 8 characters of the platform-contracts main commit pinned by INV-T-24952 (the INV-T-24946 merge commit, which contains the
+ * INV-T-8026 merge, so the contract still holds issueAccessToken); the operations row and the criterion row are compared by equality on the
  * task key.
  */
 class TokenPinsTest {

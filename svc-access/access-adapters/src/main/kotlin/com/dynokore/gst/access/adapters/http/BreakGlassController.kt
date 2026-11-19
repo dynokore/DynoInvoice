@@ -55,7 +55,8 @@ class BreakGlassSealing(
  * signInBreakGlass (INV-T-8853, INV-T-13465) answers 429 (SRT-012, Retry-After) while the back-off runs, 404 for an
  * unknown unlock, 409 (no code) when the unlock is resealed or
  * past its expiry, 403 for a wrong credential or a tenant with no account row, and 200 otherwise.
- * resealBreakGlass admits a member of the unlocking pair only, whatever role it holds (403 otherwise, nothing changes), is 409 (no code)
+ * resealBreakGlass admits a member of the unlocking pair only, whatever role it holds (403 otherwise, nothing
+ * changes), is 409 (no code)
  * after the expiry, and carries the new
  * `sealingCredential` only in the 200 of the call that rotated it (INV-AC-8900); a second call answers the data alone.
  */
