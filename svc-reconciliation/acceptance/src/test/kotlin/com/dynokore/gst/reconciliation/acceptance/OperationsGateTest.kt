@@ -44,7 +44,15 @@ class OperationsGateTest {
         // getWorkPaper, annotateVariance: INV-T-24380; attestWorkPaper: INV-T-24459. None is a stub.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) -
-            setOf("uploadGstReturn", "listRuns", "getRun", "getReconciliation", "getWorkPaper", "annotateVariance", "attestWorkPaper")
+            setOf(
+                "uploadGstReturn",
+                "listRuns",
+                "getRun",
+                "getReconciliation",
+                "getWorkPaper",
+                "annotateVariance",
+                "attestWorkPaper",
+            )
     }
 
     @Test
