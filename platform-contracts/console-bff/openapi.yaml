@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.20.0
+  version: 1.21.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -2015,6 +2015,17 @@ components:
         kind:
           type: string
           enum: [DOCUMENT, GROUP]
+        ref:
+          type: string
+          minLength: 1
+          maxLength: 128
+      required: [kind, ref]
+    DeferralTargetResponse:
+      type: object
+      properties:
+        kind:
+          type: string
+          enum: [DOCUMENT, GROUP]
           x-extensible-enum: true
         ref:
           type: string
@@ -2037,7 +2048,7 @@ components:
           type: string
           maxLength: 40
         target:
-          $ref: '#/components/schemas/DeferralTarget'
+          $ref: '#/components/schemas/DeferralTargetResponse'
         state:
           type: string
           enum: [DEFERRED, UNDONE]
@@ -2118,7 +2129,6 @@ components:
         mode:
           type: string
           enum: [PREVIEW, APPLY]
-          x-extensible-enum: true
         scope:
           type: string
           enum: [TENANT, ENTITY]

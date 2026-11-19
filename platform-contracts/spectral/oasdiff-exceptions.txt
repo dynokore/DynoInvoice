@@ -157,3 +157,13 @@ POST /internal/v1/control-plane/release-trains/{trainVersion}/gate-runs request 
 # INV-T-25184 (answered design question on the request-enumeration findings, owner 2026-11-18 "Accept all 42 recommendations", option A; breakdown tooling/gap25007-gap.md) on INV-Q-3569's reasoning (no train is published and no consumer is deployed): CreateConnectionRequest externalService and environmentTag lose x-extensible-enum; the enum members are unchanged and the generated request type is closed (masterdata 1.24.0 to 1.25.0).
 POST /internal/v1/masterdata/connections request property `environmentTag` was restricted to a list of enum values
 POST /internal/v1/masterdata/connections request property `externalService` was restricted to a list of enum values
+#
+# INV-T-25180 (owner ruling 2026-11-18 option A, answered design question on the request-enumeration
+# findings, tooling/gap25007-gap.md): DeferralTarget.kind loses x-extensible-enum, so the request enum is
+# closed (API-09); members unchanged. Permitted within v1 on INV-Q-3569's reasoning: no train is cut and no consumer is deployed.
+POST /bff/entities/{entityRef}/deferrals request property `target/kind` was restricted to a list of enum values
+#
+# INV-T-25180 (owner ruling 2026-11-18 option A, answered design question on the request-enumeration
+# findings, tooling/gap25007-gap.md): ApplyOperatingProfileRequest.mode loses x-extensible-enum, so the request enum is
+# closed (API-09); members unchanged. Permitted within v1 on INV-Q-3569's reasoning: no train is cut and no consumer is deployed.
+POST /bff/entities/{entityRef}/operating-profile request property `mode` was restricted to a list of enum values

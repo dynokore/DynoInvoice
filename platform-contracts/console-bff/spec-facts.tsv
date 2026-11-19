@@ -3,3 +3,10 @@ openapi.yaml	/components/schemas/Exception/properties/disposition/type	equals	"s
 openapi.yaml	/components/schemas/Exception/properties/disposition/x-extensible-enum	equals	["AUTO_RELEASE","AUTO_RETRY","MANUAL","OVERRIDABLE","TERMINAL"]	INV-REQ-940
 openapi.yaml	/components/schemas/Exception/properties/disposition/enum	absent	-	INV-REQ-940
 openapi.yaml	/components/schemas/Exception/required	contains	"disposition"	INV-REQ-940
+openapi.yaml	/components/schemas/DeferralTarget/properties/kind/x-extensible-enum	absent	-	INV-REQ-957
+openapi.yaml	/components/schemas/DeferralTarget/properties/kind/enum	equals	["DOCUMENT","GROUP"]	INV-REQ-957
+openapi.yaml	/components/schemas/ApplyOperatingProfileRequest/properties/mode/x-extensible-enum	absent	-	INV-REQ-1245
+openapi.yaml	/components/schemas/ApplyOperatingProfileRequest/properties/mode/enum	equals	["PREVIEW","APPLY"]	INV-REQ-1245
+openapi.yaml	/components/schemas/DeferralTargetResponse/properties/kind/x-extensible-enum	equals	true	INV-REQ-957
+openapi.yaml	/components/schemas/DeferDocumentRequest/properties/target/$ref	equals	"#/components/schemas/DeferralTarget"	INV-REQ-957
+openapi.yaml	/components/schemas/Deferral/properties/target/$ref	equals	"#/components/schemas/DeferralTargetResponse"	INV-REQ-957
