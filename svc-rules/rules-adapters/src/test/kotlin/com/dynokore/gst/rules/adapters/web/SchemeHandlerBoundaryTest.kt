@@ -287,13 +287,25 @@ class SchemeHandlerBoundaryTest {
         }
     }
 
+    /** The option list as the producer writes it: `[{"key":"<key>"}]`, the key escaped as a JSON string. */
+    private fun optionList(key: String) = "[{\"key\":" + JsonMapper().writeValueAsString(key) + "}]"
+
     private fun vp21(
         f: Fixture,
         value: String,
         entity: String = "E1",
         key: String = "VP-21",
     ) = f.policy.accept(
-        PolicyChanged(PolicyScope.entity(tenant, entity), key, value, start, PolicySource.PROFILE, null, TOPIC, 1),
+        PolicyChanged(
+            PolicyScope.entity(tenant, entity),
+            key,
+            optionList(value),
+            start,
+            PolicySource.PROFILE,
+            null,
+            TOPIC,
+            1,
+        ),
     )
 
     @Suppress("LongParameterList") // the request members of one invented evaluation

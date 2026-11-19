@@ -1,5 +1,7 @@
 package com.dynokore.gst.rules.bootstrap
 
+import com.dynokore.gst.rules.adapters.scope.VoluntaryOverSubmission
+import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.configresolver.PolicyScope
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -90,27 +92,34 @@ class PolicyTopicReaderBoundaryTest {
         scope: String,
         vp: String,
         value: String,
-    ) = LogRecord(
-        offset,
-        EnvelopeJson().write(
-            Envelope(
-                EventId(UUID.randomUUID().toString()),
-                "/gst/tenancy-svc",
-                PlatformEventTypes.POLICY_CHANGED,
-                "agg-1",
-                Instant.parse("2026-10-12T02:00:00Z"),
-                tenant,
-                EntityRef("E-001"),
-                null,
-                null,
-                null,
-                "svc-1",
-                CorrelationId("corr-1"),
-                CausationId("cause-1"),
-                """{"scope":"$scope","vpId":"$vp","value":"$value","effectiveDate":"2026-10-01","source":"OVERRIDE"}""",
+        raw: Boolean = false,
+    ): LogRecord {
+        val json = if (raw) value else "\"$value\""
+        val payload =
+            """{"scope":"$scope","vpId":"$vp","value":$json,""" +
+                """"effectiveDate":"2026-10-01","source":"OVERRIDE"}"""
+        return LogRecord(
+            offset,
+            EnvelopeJson().write(
+                Envelope(
+                    EventId(UUID.randomUUID().toString()),
+                    "/gst/tenancy-svc",
+                    PlatformEventTypes.POLICY_CHANGED,
+                    "agg-1",
+                    Instant.parse("2026-10-12T02:00:00Z"),
+                    tenant,
+                    EntityRef("E-001"),
+                    null,
+                    null,
+                    null,
+                    "svc-1",
+                    CorrelationId("corr-1"),
+                    CausationId("cause-1"),
+                    payload,
+                ),
             ),
-        ),
-    )
+        )
+    }
 
     private fun log(topic: String = TOPIC) =
         FakeLog().also {
@@ -198,6 +207,32 @@ class PolicyTopicReaderBoundaryTest {
         started(log()) { context ->
             context.getBeansOfType(PolicyFeed::class.java).size shouldBe 1
             context.getBeansOfType(PolicyTopicReader::class.java).size shouldBe 1
+        }
+    }
+
+    @Test
+    fun `INV-AC-25208 a VP-21 option list ON record turns the election on for its entity only`() {
+        val onList = """[{"key":"ON"}]"""
+        val log = FakeLog().also { it.add(TOPIC, record(7, "ENTITY:E1", "VP-21", onList, raw = true)) }
+        started(log) { context ->
+            val replica = context.getBean(PolicyReplica::class.java)
+            val election = context.getBean(VoluntaryOverSubmission::class.java)
+            log.visibleUpTo = 7
+            context.getBean(PolicyTopicReader::class.java).pollOnce()
+            replica.vp(e1, "VP-21") shouldBe onList
+            election.isOn(tenant, "E1", TransactionDate(day)) shouldBe true
+            election.isOn(tenant, "E2", TransactionDate(day)) shouldBe false
+        }
+    }
+
+    @Test
+    fun `INV-AC-25208 a VP-21 record whose value is the string ON leaves the election off`() {
+        val log = FakeLog().also { it.add(TOPIC, record(7, "ENTITY:E1", "VP-21", "ON")) }
+        started(log) { context ->
+            log.visibleUpTo = 7
+            context.getBean(PolicyTopicReader::class.java).pollOnce()
+            context.getBean(PolicyReplica::class.java).vp(e1, "VP-21") shouldBe on
+            context.getBean(VoluntaryOverSubmission::class.java).isOn(tenant, "E1", TransactionDate(day)) shouldBe false
         }
     }
 

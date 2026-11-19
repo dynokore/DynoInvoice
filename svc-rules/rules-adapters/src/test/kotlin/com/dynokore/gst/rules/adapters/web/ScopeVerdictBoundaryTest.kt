@@ -205,6 +205,9 @@ class ScopeVerdictBoundaryTest {
         ),
     )
 
+    /** The option list as the producer writes it: `[{"key":"<key>"}]`, the key escaped as a JSON string. */
+    private fun optionList(key: String) = "[{\"key\":" + JsonMapper().writeValueAsString(key) + "}]"
+
     private fun election(
         f: Fixture,
         value: String,
@@ -215,7 +218,7 @@ class ScopeVerdictBoundaryTest {
         PolicyChanged(
             PolicyScope.entity(tenant, entity),
             vp,
-            value,
+            optionList(value),
             start,
             PolicySource.PROFILE,
             null,
