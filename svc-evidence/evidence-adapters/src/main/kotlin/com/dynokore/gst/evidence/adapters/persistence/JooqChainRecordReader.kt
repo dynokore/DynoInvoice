@@ -8,6 +8,8 @@ import com.dynokore.gst.evidence.application.lookup.ChainItem
 import com.dynokore.gst.evidence.application.lookup.ChainItemKind
 import com.dynokore.gst.evidence.application.lookup.ChainRecordReader
 import com.dynokore.gst.evidence.application.lookup.ChainRecords
+import com.dynokore.gst.evidence.application.lookup.PackVersionRef
+import com.dynokore.gst.evidence.application.lookup.StoredDecisionTrace
 import com.dynokore.gst.evidence.domain.chain.RecordKind
 import com.dynokore.platform.evidencestore.EntityRef
 import com.dynokore.platform.evidencestore.EvidenceLedger
@@ -15,14 +17,19 @@ import com.dynokore.platform.evidencestore.EvidenceRecord
 import com.dynokore.platform.evidencestore.PeriodRef
 import com.dynokore.platform.tenancykernel.TenantId
 import org.jooq.DSLContext
+import org.jooq.impl.DSL
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
- * The PAYLOAD and ACKNOWLEDGEMENT items of one version (INV-REQ-691, ruling of 2026-10-14). The records are located
+ * The PAYLOAD, ACKNOWLEDGEMENT and DECISION_TRACE items of one version (INV-REQ-691, ruling of 2026-10-14). The records are located
  * through `applied_record` by the source event ids of `acknowledgement_locator` and `sealed_payload`, then read from
  * the chain with [EvidenceLedger.findByEntityAndPeriod]; no chain table is scanned by content. A link without its
- * `applied_record` row, or without its record in the chain, is [ChainRecords.Incomplete], never skipped.
+ * `applied_record` row, or without its record in the chain, is [ChainRecords.Incomplete], never skipped. The
+ * DECISION_TRACE items are the `decision_trace` rows of (tenant, docUuid, version) (INV-Q-20484 A: a null version
+ * never matches), each with the distinct pack versions of its decisions; a trace that cannot be read, or whose
+ * `applied_record` row is missing, is [ChainRecords.Incomplete], never skipped or sent without its pack versions.
  */
 class JooqChainRecordReader(
     private val dsl: DSLContext,
@@ -59,16 +66,70 @@ class JooqChainRecordReader(
             } else {
                 null
             }
-        val pairs = applied.values.map { it.entityRef to it.periodRef }.distinct()
-        return if (acks == null || payloads == null || pairs.size != 1) {
+        val traces = if (payloads != null) traces(tenant, docUuid, version) else null
+        val pairs =
+            (applied.values.map { it.entityRef to it.periodRef } + traces.orEmpty().map { it.pair }).distinct()
+        return if (acks == null || payloads == null || traces == null || pairs.size != 1) {
             ChainRecords.Incomplete
         } else {
             ChainRecords.Complete(
-                (acks + payloads).sortedBy { it.key }.mapIndexed { i, item -> item.copy(sequence = i + 1L) },
+                (acks + payloads + traces.map { it.item }).sortedBy { it.key }.mapIndexed { i, item -> item.copy(sequence = i + 1L) },
                 pairs.single().first,
                 pairs.single().second,
             )
         }
+    }
+
+    private class Trace(
+        val pair: Pair<String, String>,
+        val item: ChainItem,
+    )
+
+    /** The DECISION_TRACE items of the version in `seq` order, or null when one is unreadable or unlocated. */
+    private fun traces(
+        tenant: TenantId,
+        docUuid: UUID,
+        version: Int,
+    ): List<Trace>? {
+        val rows =
+            dsl
+                .select(T_SEQ, T_RECORDED_AT, T_CONTENT, T_HASH, T_ENTITY, T_PERIOD, APPLIED_RECORD.APPLIED_AT)
+                .from(TRACE)
+                .leftJoin(APPLIED_RECORD)
+                .on(APPLIED_RECORD.TENANT_ID.eq(T_TENANT))
+                .and(APPLIED_RECORD.KIND.eq(RecordKind.DECISION_TRACE.table))
+                .and(APPLIED_RECORD.ENTITY_REF.eq(T_ENTITY))
+                .and(APPLIED_RECORD.PERIOD_REF.eq(T_PERIOD))
+                .and(APPLIED_RECORD.SEQ.eq(T_SEQ))
+                .where(T_TENANT.eq(tenant.value))
+                .and(T_DOC.eq(docUuid))
+                .and(T_VERSION.eq(version))
+                .orderBy(T_SEQ)
+                .fetch()
+        val traces =
+            rows.map { r ->
+                val seq = checkNotNull(r[T_SEQ])
+                val appliedAt = r[APPLIED_RECORD.APPLIED_AT]?.toInstant()
+                val recordedAt = checkNotNull(r[T_RECORDED_AT]).toInstant()
+                val parsed = DecisionTraceContent.parse(recordedAt, r[T_CONTENT] ?: ByteArray(0))
+                if (appliedAt == null || parsed !is StoredDecisionTrace.Valid) {
+                    null
+                } else {
+                    val packs: List<PackVersionRef> = parsed.decisions.flatMap { it.packVersions }.distinct()
+                    Trace(
+                        checkNotNull(r[T_ENTITY]) to checkNotNull(r[T_PERIOD]),
+                        ChainItem(
+                            ChainItemKind.DECISION_TRACE,
+                            recordedAt,
+                            checkNotNull(r[T_HASH]),
+                            0,
+                            ChainCursor(appliedAt, ChainItemKind.DECISION_TRACE, seq),
+                            packs,
+                        ),
+                    )
+                }
+            }
+        return if (traces.any { it == null }) null else traces.filterNotNull()
     }
 
     private fun ackEvents(
@@ -165,5 +226,19 @@ class JooqChainRecordReader(
     ): ChainItem {
         val reference = if (kind == ChainItemKind.ACKNOWLEDGEMENT) ackId else "payload/$docUuid/v$version/${row.seq}"
         return ChainItem(kind, record.recordedAt, reference, 0, ChainCursor(row.appliedAt, kind, row.seq))
+    }
+
+    private companion object {
+        val TRACE = DSL.table(DSL.name("evidence", "decision_trace"))
+        val T_TENANT = DSL.field(DSL.name("evidence", "decision_trace", "tenant_id"), UUID::class.java)
+        val T_DOC = DSL.field(DSL.name("evidence", "decision_trace", "doc_uuid"), UUID::class.java)
+        val T_VERSION = DSL.field(DSL.name("evidence", "decision_trace", "version"), Int::class.javaObjectType)
+        val T_SEQ = DSL.field(DSL.name("evidence", "decision_trace", "seq"), Long::class.javaObjectType)
+        val T_ENTITY = DSL.field(DSL.name("evidence", "decision_trace", "entity_ref"), String::class.java)
+        val T_PERIOD = DSL.field(DSL.name("evidence", "decision_trace", "period_ref"), String::class.java)
+        val T_HASH = DSL.field(DSL.name("evidence", "decision_trace", "content_hash"), String::class.java)
+        val T_CONTENT = DSL.field(DSL.name("evidence", "decision_trace", "content"), ByteArray::class.java)
+        val T_RECORDED_AT =
+            DSL.field(DSL.name("evidence", "decision_trace", "recorded_at"), OffsetDateTime::class.java)
     }
 }

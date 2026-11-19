@@ -16,12 +16,17 @@ import java.util.UUID
 /** The permission key of `getAcknowledgementChain`; a decision names a permission, never a role (INV-Q-10027). */
 const val ENQUIRY_LOOKUP_BY_ACKNOWLEDGEMENT = "enquiry-lookup.by-acknowledgement"
 
-/** The kinds of chain item this slice answers; the decision-trace item waits for its own ruling (INV-REQ-942). */
-enum class ChainItemKind { PAYLOAD, ACKNOWLEDGEMENT }
+/**
+ * The kinds of chain item. The declaration order is the tie-break of [ChainCursor] after the append instant, so
+ * DECISION_TRACE is declared last and the order of the first two kinds is unchanged (INV-REQ-942).
+ */
+enum class ChainItemKind { PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE }
 
 /**
  * One item of the chain. [sequence] is the 1-based rank in the append order of the whole version (never the raw
- * per-table `seq`); [key] is the order key the rank comes from and the page cursor carries.
+ * per-table `seq`); [key] is the order key the rank comes from and the page cursor carries. [packVersions] is
+ * filled on the DECISION_TRACE item only (the distinct pairs of its decisions, first-seen order) and is empty on
+ * the other kinds, which carry none (`EvidenceChainItem.packVersions`).
  */
 data class ChainItem(
     val kind: ChainItemKind,
@@ -29,6 +34,7 @@ data class ChainItem(
     val reference: String,
     val sequence: Long,
     val key: ChainCursor,
+    val packVersions: List<PackVersionRef> = emptyList(),
 )
 
 /** The answer of [ChainRecordReader]: the items of the version, or a stored link whose record is missing. */
@@ -43,11 +49,11 @@ sealed interface ChainRecords {
         val periodRef: String,
     ) : ChainRecords
 
-    /** A locator or sealed-payload link has no `applied_record` row, or the chain lacks the record it names. */
+    /** A link has no `applied_record` row, the chain lacks the record it names, or a stored trace is unreadable. */
     data object Incomplete : ChainRecords
 }
 
-/** Reads the PAYLOAD and ACKNOWLEDGEMENT items of one version in the caller's tenant transaction (INV-REQ-726). */
+/** Reads the PAYLOAD, ACKNOWLEDGEMENT and DECISION_TRACE items of one version in the caller's tenant transaction (INV-REQ-726). */
 fun interface ChainRecordReader {
     fun read(
         tenant: TenantId,
@@ -58,7 +64,7 @@ fun interface ChainRecordReader {
 }
 
 /**
- * The order key of an item: append instant, then kind (PAYLOAD before ACKNOWLEDGEMENT), then raw `seq`. A page starts
+ * The order key of an item: append instant, then kind (PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE), then raw `seq`. A page starts
  * strictly after the key in the cursor; the cursor never holds a rank.
  */
 data class ChainCursor(
