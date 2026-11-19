@@ -1,0 +1,107 @@
+package com.dynokore.gst.submission.application.correction
+
+import com.dynokore.gst.submission.application.register.NetDerivationData
+import com.dynokore.gst.submission.domain.correction.CorrectionDecision
+import com.dynokore.gst.submission.domain.correction.CorrectionReason
+import com.dynokore.gst.submission.domain.correction.CreditNoteCorrection
+import com.dynokore.gst.submission.domain.correction.OriginalStanding
+import com.dynokore.gst.submission.domain.correction.StateClass
+import com.dynokore.gst.submission.domain.ordering.LifecycleState
+
+/**
+ * Applies the correction decision of a received purchase credit note (INV-REQ-558 behavior 6, INV-REQ-559) and the
+ * outcomes of the net derivation. It runs in the caller's transaction. Zero or negative net is refused upstream as
+ * `NET_NOT_POSITIVE` and arrives here as a refusal (open owner question, fail-closed).
+ */
+class CreditNoteCorrectionHandler(
+    private val originals: OriginalVersionSource,
+    private val declarations: NettingDeclarations,
+    private val transitions: CreditNoteTransitions,
+    private val requests: NetDerivationRequestPort,
+    private val refusals: NetRefusedMarks,
+) {
+    /** Decides the credit note and applies the result once. */
+    fun decide(creditNoteDocUuid: String) {
+        val versions = originals.versionsOf(creditNoteDocUuid)
+        val decision =
+            CreditNoteCorrection.decide(
+                versions,
+                declarations.declared(creditNoteDocUuid),
+                refusals.isRefused(creditNoteDocUuid),
+            )
+        when (decision) {
+            is CorrectionDecision.SubmitSeparately -> transitions.submitSeparately(creditNoteDocUuid)
+            CorrectionDecision.SubmitAsPosted -> transitions.submitAsPosted(creditNoteDocUuid)
+            CorrectionDecision.Wait -> transitions.wait(creditNoteDocUuid)
+            is CorrectionDecision.NotSubmittable -> transitions.notSubmittable(creditNoteDocUuid, decision.reason)
+            CorrectionDecision.NetIntoOriginal -> requestNet(creditNoteDocUuid)
+        }
+    }
+
+    private fun requestNet(creditNoteDocUuid: String) {
+        val original =
+            checkNotNull(originals.originalOf(creditNoteDocUuid)) { "net into original: no resolved original" }
+        requests.request(original.docUuid, original.currentVersion, listOf(creditNoteDocUuid))
+    }
+
+    /**
+     * A derived version of [originalDocUuid] arrived. Each credit note it names becomes NOT_SUBMITTABLE with
+     * NETTED_BY_SYSTEM, once. When a version of the original was already sent, the derived version is cancelled by
+     * the revision path and never submitted, so the credit note is not netted: it is decided again as refused.
+     */
+    fun onDerivedVersion(
+        originalDocUuid: String,
+        netDerivation: NetDerivationData,
+    ) {
+        val already = transitions.nettedBySystem(originalDocUuid).toSet()
+        netDerivation.creditNotes.map { it.docUuid }.distinct().filter { it !in already }.forEach { creditNote ->
+            if (originalWasSent(originals.versionsOf(creditNote))) {
+                onRefused(listOf(creditNote), REFUSED_AFTER_SENT)
+            } else {
+                transitions.notSubmittable(creditNote, CorrectionReason.NETTED_BY_SYSTEM)
+            }
+        }
+    }
+
+    /** The derivation of [creditNoteDocUuids] was refused: store `netRefused` and decide again. */
+    @Suppress("UnusedParameter") // the reason is carried by the event; the decision depends on the mark only
+    fun onRefused(
+        creditNoteDocUuids: List<String>,
+        reason: String,
+    ) {
+        creditNoteDocUuids.distinct().forEach {
+            refusals.store(it)
+            decide(it)
+        }
+    }
+
+    /**
+     * A version of [originalDocUuid] arrived. One with a [netDerivation] is a derived version. One without it, that
+     * does not declare a credit note currently NETTED_BY_SYSTEM (an ERP revision whose re-derivation was refused),
+     * stores `netRefused` for that credit note, lifts it and decides again.
+     */
+    @Suppress("UnusedParameter") // the version is part of the event key; the decision reads the register
+    fun onOriginalVersion(
+        originalDocUuid: String,
+        version: Int,
+        netDerivation: NetDerivationData?,
+        declaredKeys: Set<String>,
+    ) {
+        if (netDerivation != null) {
+            onDerivedVersion(originalDocUuid, netDerivation)
+            return
+        }
+        transitions.nettedBySystem(originalDocUuid).filter { it !in declaredKeys }.forEach {
+            refusals.store(it)
+            transitions.lift(it)
+            decide(it)
+        }
+    }
+
+    private fun originalWasSent(versions: List<LifecycleState>): Boolean =
+        versions.map(OriginalStanding::classOf).any { it == StateClass.AT_IRAS || it == StateClass.SENT_OUT }
+
+    private companion object {
+        const val REFUSED_AFTER_SENT = "ORIGINAL_SENT"
+    }
+}
