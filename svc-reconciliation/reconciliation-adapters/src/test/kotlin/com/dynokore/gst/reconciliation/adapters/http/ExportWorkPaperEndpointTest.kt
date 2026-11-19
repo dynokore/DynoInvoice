@@ -1,6 +1,7 @@
 package com.dynokore.gst.reconciliation.adapters.http
 
 import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.classic.spi.IThrowableProxy
 import ch.qos.logback.core.read.ListAppender
 import com.dynokore.gst.reconciliation.adapters.export.UnsupportedExportTextException
 import com.dynokore.gst.reconciliation.application.run.GetRun
@@ -160,7 +161,12 @@ class ExportWorkPaperEndpointTest {
         WorkPaperRenderer { _, format ->
             events += "render"
             rendered += format
-            if (renderThrows) throw UnsupportedExportTextException("Items row 3 evidence")
+            if (renderThrows) {
+                // The value reaches the failure path (message and cause); the endpoint must neither return nor log it.
+                throw UnsupportedExportTextException("Items row 3 evidence $SECRET").apply {
+                    initCause(IllegalStateException(SECRET))
+                }
+            }
             RenderedExport(
                 if (format == ExportFormat.PDF) ExportContentTypes.PDF else ExportContentTypes.SPREADSHEET,
                 bytesB,
@@ -441,9 +447,9 @@ class ExportWorkPaperEndpointTest {
         text.contains(SECRET) shouldBe false
         audited shouldBe emptyList()
         events shouldBe listOf("decide", "use-case", "render")
-        appender.list.any {
-            it.formattedMessage.contains(SECRET) || it.throwableProxy?.message?.contains(SECRET) == true
-        } shouldBe false
+        fun leaks(proxy: IThrowableProxy?): Boolean =
+            proxy != null && (proxy.message.orEmpty().contains(SECRET) || leaks(proxy.cause))
+        appender.list.any { it.formattedMessage.contains(SECRET) || leaks(it.throwableProxy) } shouldBe false
     }
 
     @Test
