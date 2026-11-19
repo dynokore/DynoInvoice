@@ -26,6 +26,7 @@
 # of INV-NOTE-10136; the holders of vp-NN.set are the set_by roles of VP-NN.
 # vp-82.set (INV-T-10283, INV-Q-10280 A): the key of VP-82 (INV-REQ-9271), held by tenant.admin in both forms.
 # vp-83.set (INV-T-24783, owner ruling of 2026-11-18): the key of VP-83 (INV-REQ-24775), held by tenant.admin in both forms, as vp-82.set; the holder was changed from tax.operator to tenant.admin by INV-T-25080 (owner ruling of 2026-11-19).
+# vp-84.set (INV-T-25104, owner ruling of 2026-11-18): the key of VP-84 (INV-REQ-25100), held by tenant.admin in both forms, as vp-83.set.
 # enquiry-lookup.by-acknowledgement, enquiry-lookup.reverse and rendition-sample.record (INV-T-10492, INV-Q-10378 A, INV-Q-10380 A): the last three rows of section 2 of INV-NOTE-10136.
 
 
@@ -1040,6 +1041,12 @@ permissions:
       - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
       - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
   - key: vp-83.set
+    kind: WRITE
+    row: "Set a variation point"
+    cells:
+      - {role: tenant.admin, form: SAAS, allowance: PERMITTED}
+      - {role: tenant.admin, form: PRIVATE, allowance: PERMITTED}
+  - key: vp-84.set
     kind: WRITE
     row: "Set a variation point"
     cells:

@@ -447,6 +447,7 @@ object RolePermissionsChecker {
             "vp-81.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "vp-82.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "vp-83.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
+            "vp-84.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "filing-frequency.change" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin")),
             "period.confirm" to Required(PermissionKind.WRITE, cells(permitted, both, "entity.admin", "tax.approver")),
             "submission.withdraw" to Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver")),
