@@ -257,52 +257,41 @@ class AttestWorkPaperEndpointTest {
 
     private fun json(response: ResponseEntity<*>): Map<String, Any?> = parser.parseMap(response.body as String)
 
+    /** The catalogue entry a refusal must carry, read from the library entry and never retyped. */
+    private data class Expected(
+        val status: Int,
+        val code: String,
+        val title: String,
+        val severity: String,
+        val disposition: String,
+        val owner: String,
+    )
+
     private fun assertEnvelope(
         response: ResponseEntity<*>,
-        status: Int,
-        code: String,
-        title: String,
-        severity: String,
-        disposition: String,
-        owner: String,
+        expected: Expected,
     ) {
-        response.statusCode.value() shouldBe status
+        response.statusCode.value() shouldBe expected.status
         response.headers.getFirst("Content-Type") shouldBe Problems.CONTENT_TYPE
         val body = json(response)
-        body["status"] as Int shouldBe status
-        body["code"] shouldBe code
-        body["type"] shouldBe Problems.typeOf(code)
-        body["title"] shouldBe title
-        body["severity"] shouldBe severity
-        body["disposition"] shouldBe disposition
-        body["remediationOwner"] shouldBe owner
+        body["status"] as Int shouldBe expected.status
+        body["code"] shouldBe expected.code
+        body["type"] shouldBe Problems.typeOf(expected.code)
+        body["title"] shouldBe expected.title
+        body["severity"] shouldBe expected.severity
+        body["disposition"] shouldBe expected.disposition
+        body["remediationOwner"] shouldBe expected.owner
     }
 
     private fun assertPeriod(
         response: ResponseEntity<*>,
-        entry: PeriodErrorCode,
-    ) = assertEnvelope(
-        response,
-        entry.httpStatus,
-        entry.code,
-        entry.title,
-        entry.severity,
-        entry.disposition,
-        entry.owner.text,
-    )
+        e: PeriodErrorCode,
+    ) = assertEnvelope(response, Expected(e.httpStatus, e.code, e.title, e.severity, e.disposition, e.owner.text))
 
     private fun assertClosed(
         response: ResponseEntity<*>,
-        entry: ClosedErrorCode,
-    ) = assertEnvelope(
-        response,
-        entry.httpStatus,
-        entry.code,
-        entry.title,
-        "BLOCK",
-        entry.disposition,
-        entry.remediationOwner,
-    )
+        e: ClosedErrorCode,
+    ) = assertEnvelope(response, Expected(e.httpStatus, e.code, e.title, "BLOCK", e.disposition, e.remediationOwner))
 
     @Test
     fun `INV-AC-24458 the first call answers 200 with the user ID, asks once, stores once and seals once`() {

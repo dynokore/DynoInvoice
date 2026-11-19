@@ -63,7 +63,7 @@ class AuthorityReplicaAttestAuthority internal constructor(
     }
 }
 
-/** The refusals of `attestWorkPaper` (no token is SRT-003, as in `getComplianceMetrics`); each is rendered once by [AttestationRefusalAdvice]. */
+/** The refusals of `attestWorkPaper`; no token is SRT-003, as in `getComplianceMetrics`. */
 enum class AttestationRefusalCode {
     SEPARATION_OF_DUTIES,
     UNEXPLAINED_VARIANCE,

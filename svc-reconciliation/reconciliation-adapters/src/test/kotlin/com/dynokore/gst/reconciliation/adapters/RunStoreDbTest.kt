@@ -609,7 +609,7 @@ class RunReadDbTest : RunStoreDbFixture() {
                     java.lang.reflect.Modifier
                         .isPublic(it.modifiers)
             }.map { it.name }
-            .toSet() shouldBe setOf("listRuns", "getRun", "getWorkPaper")
+            .toSet() shouldBe setOf("listRuns", "getRun", "getWorkPaper", "attestWorkPaper")
     }
 
     @Test

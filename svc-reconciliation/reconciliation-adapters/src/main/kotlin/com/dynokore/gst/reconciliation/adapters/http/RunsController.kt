@@ -51,6 +51,7 @@ import com.dynokore.gst.reconciliation.application.workpaper.AttestationRefusal 
  * transaction. A refusal is a client error (400 or 404), never a 5xx; a limit is never clamped.
  */
 @RestController
+@Suppress("LongParameterList")
 open class RunsController(
     private val listRuns: ListRuns,
     private val getRun: GetRun,
@@ -107,16 +108,9 @@ open class RunsController(
         runId: UUID,
         attestWorkPaperRequest: AttestWorkPaperRequest,
     ): ResponseEntity<Attestation> {
-        val caller =
-            requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
-                ?: throw AttestationRefusal(AttestationRefusalCode.UNAUTHENTICATED)
+        val caller = caller()
         val tenant = tenants.current().toString()
-        val entityRef =
-            transactions.inTransaction { getRun.execute(tenant, runId.toString()) }?.run?.entityRef
-                ?: throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
-        if (caller.entitySetCurrent && !caller.covers(EntityRef(entityRef))) {
-            throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
-        }
+        val entityRef = entityOf(caller, tenant, runId)
         if (!attestAuthority.holds(caller.actor, ATTEST_PERMISSION, entityRef)) {
             throw AttestationRefusal(AttestationRefusalCode.ACCESS_DENIED)
         }
@@ -129,32 +123,39 @@ open class RunsController(
                     caller.actor,
                 )
             }
-        val stored =
-            when (result) {
-                is AttestationResult.Attested -> {
-                    result.stored
-                }
-
-                is AttestationResult.Replayed -> {
-                    result.stored
-                }
-
-                AttestationResult.RunNotFound -> {
-                    throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
-                }
-
-                is AttestationResult.Refused -> {
-                    throw AttestationRefusal(
-                        when (result.reason) {
-                            UseCaseRefusal.SEPARATION_OF_DUTIES -> AttestationRefusalCode.SEPARATION_OF_DUTIES
-                            UseCaseRefusal.UNEXPLAINED_VARIANCE -> AttestationRefusalCode.UNEXPLAINED_VARIANCE
-                        },
-                    )
-                }
-            }
+        val stored = storedOrRefusal(result)
         sealWorkPaper.execute(tenant, runId.toString())
         return ResponseEntity.ok(attestation(stored))
     }
+
+    private fun caller(): EndUserPrincipal =
+        requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
+            ?: throw AttestationRefusal(AttestationRefusalCode.UNAUTHENTICATED)
+
+    /** The run's entity, read before any decision; an unknown run or an entity outside a current set is 404 (API-24). */
+    private fun entityOf(
+        caller: EndUserPrincipal,
+        tenant: String,
+        runId: UUID,
+    ): String {
+        val entityRef = transactions.inTransaction { getRun.execute(tenant, runId.toString()) }?.run?.entityRef
+        val visible = entityRef != null && (!caller.entitySetCurrent || caller.covers(EntityRef(entityRef)))
+        return entityRef.takeIf { visible } ?: throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
+    }
+
+    private fun storedOrRefusal(result: AttestationResult): StoredAttestation =
+        when (result) {
+            is AttestationResult.Attested -> result.stored
+            is AttestationResult.Replayed -> result.stored
+            AttestationResult.RunNotFound -> throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
+            is AttestationResult.Refused -> throw AttestationRefusal(refusalCode(result.reason))
+        }
+
+    private fun refusalCode(reason: UseCaseRefusal) =
+        when (reason) {
+            UseCaseRefusal.SEPARATION_OF_DUTIES -> AttestationRefusalCode.SEPARATION_OF_DUTIES
+            UseCaseRefusal.UNEXPLAINED_VARIANCE -> AttestationRefusalCode.UNEXPLAINED_VARIANCE
+        }
 
     private fun attestation(stored: StoredAttestation) =
         Attestation(
