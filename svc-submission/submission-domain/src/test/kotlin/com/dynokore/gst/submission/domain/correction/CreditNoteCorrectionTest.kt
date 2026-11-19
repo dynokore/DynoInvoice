@@ -1,14 +1,18 @@
 package com.dynokore.gst.submission.domain.correction
 
+import com.dynokore.gst.submission.domain.correction.CorrectionDecision.NetIntoOriginal
 import com.dynokore.gst.submission.domain.correction.CorrectionDecision.NotSubmittable
 import com.dynokore.gst.submission.domain.correction.CorrectionDecision.SubmitAsPosted
 import com.dynokore.gst.submission.domain.correction.CorrectionDecision.SubmitSeparately
 import com.dynokore.gst.submission.domain.correction.CorrectionDecision.Wait
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.ACKNOWLEDGED
+import com.dynokore.gst.submission.domain.ordering.LifecycleState.AWAITING_PRECEDING
+import com.dynokore.gst.submission.domain.ordering.LifecycleState.BLOCKED
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.CANCELLED
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.DEAD_LETTERED
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.EXTERNALLY_SUBMITTED
+import com.dynokore.gst.submission.domain.ordering.LifecycleState.HELD
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.NETWORK_ISSUED
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.NOT_SUBMITTABLE
 import com.dynokore.gst.submission.domain.ordering.LifecycleState.QUEUED
@@ -28,7 +32,8 @@ class CreditNoteCorrectionTest {
     private fun decide(
         versions: List<LifecycleState>,
         declared: Boolean = false,
-    ) = CreditNoteCorrection.decide(versions, declared)
+        netRefused: Boolean = false,
+    ) = CreditNoteCorrection.decide(versions, declared, netRefused)
 
     private val netted = NotSubmittable(CorrectionReason.NETTED_INTO_REVISION)
 
@@ -38,8 +43,8 @@ class CreditNoteCorrectionTest {
     }
 
     @Test
-    fun `INV-AC-2786 ready original without declaration is submitted as posted, also not submittable and none`() {
-        decide(listOf(READY)) shouldBe SubmitAsPosted
+    fun `INV-AC-2786 ready original without declaration is netted, not submittable and none are submitted as posted`() {
+        decide(listOf(READY)) shouldBe NetIntoOriginal
         decide(listOf(NOT_SUBMITTABLE)) shouldBe SubmitAsPosted
         decide(emptyList()) shouldBe SubmitAsPosted
     }
@@ -125,8 +130,8 @@ class CreditNoteCorrectionTest {
     }
 
     @Test
-    fun `INV-AC-23340 row e ready without declaration is submitted as posted`() {
-        decide(listOf(READY)) shouldBe SubmitAsPosted
+    fun `INV-AC-23340 row e ready without declaration is netted into the original`() {
+        decide(listOf(READY)) shouldBe NetIntoOriginal
     }
 
     @Test
@@ -181,5 +186,64 @@ class CreditNoteCorrectionTest {
     fun `INV-AC-23340 reason carries its string and decision is deterministic`() {
         CorrectionReason.NETTED_INTO_REVISION.code shouldBe "NETTED_INTO_REVISION"
         decide(listOf(CANCELLED, QUEUED), true) shouldBe decide(listOf(CANCELLED, QUEUED), true)
+    }
+
+    @Test
+    fun `INV-AC-23340 row e ready and awaiting preceding are netted into the original`() {
+        decide(listOf(READY)) shouldBe NetIntoOriginal
+        decide(listOf(AWAITING_PRECEDING)) shouldBe NetIntoOriginal
+    }
+
+    @Test
+    fun `INV-AC-23340 row e not submittable held blocked rejected are submitted as posted`() {
+        listOf(NOT_SUBMITTABLE, HELD, BLOCKED, REJECTED).forEach {
+            decide(listOf(it)) shouldBe SubmitAsPosted
+        }
+    }
+
+    @Test
+    fun `INV-AC-23340 row e wait wins over netting for sent with ready and queued with ready`() {
+        decide(listOf(SENT, READY)) shouldBe Wait
+        decide(listOf(QUEUED, READY)) shouldBe Wait
+    }
+
+    @Test
+    fun `INV-AC-23340 row e empty list is submitted as posted`() {
+        decide(emptyList()) shouldBe SubmitAsPosted
+    }
+
+    @Test
+    fun `INV-AC-23340 netted by system reason carries its string`() {
+        CorrectionReason.NETTED_BY_SYSTEM.code shouldBe "NETTED_BY_SYSTEM"
+    }
+
+    @Test
+    fun `INV-AC-25345 refused net gives submit as posted where the net would apply`() {
+        decide(listOf(READY), netRefused = true) shouldBe SubmitAsPosted
+        decide(listOf(AWAITING_PRECEDING), netRefused = true) shouldBe SubmitAsPosted
+        decide(listOf(READY), netRefused = false) shouldBe NetIntoOriginal
+    }
+
+    @Test
+    fun `INV-AC-25345 refused net changes no other result`() {
+        val lists =
+            listOf(
+                listOf(READY),
+                listOf(AWAITING_PRECEDING),
+                listOf(READY, QUEUED),
+                listOf(ACKNOWLEDGED),
+                listOf(SENT),
+                emptyList(),
+            )
+        val changed = mutableListOf<List<LifecycleState>>()
+        for (l in lists) {
+            for (d in listOf(false, true)) {
+                if (decide(l, d, false) != decide(l, d, true)) changed += l
+            }
+        }
+        changed.toSet() shouldBe setOf(listOf(READY), listOf(AWAITING_PRECEDING))
+        decide(listOf(READY), true, true) shouldBe decide(listOf(READY), true, false)
+        decide(listOf(ACKNOWLEDGED), false, true) shouldBe SubmitSeparately(false)
+        decide(listOf(READY, QUEUED), false, true) shouldBe Wait
     }
 }
