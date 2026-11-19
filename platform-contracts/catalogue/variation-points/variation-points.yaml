@@ -49,6 +49,7 @@
 # Re-extracted 2026-10-31 (INV-T-11912; Keel INV-CS-11906): checks that VP-44 is available (INV-REQ-1305 io_contract.status, coordinator ruling INV-Q-11897 A) after the INV-T-13488 re-vendor; no row changes; 82 rows.
 # Re-extracted 2026-11-02 (INV-T-12497; Keel INV-CS-12494): VP-21 is available (INV-REQ-1282 io_contract.status, owner answer INV-Q-12264 A); re-vendored with check-drift.py --write, only the revision key of VP-21 moved (INV-Q-16033 A); 82 rows.
 # Re-extracted 2026-11-19 (INV-T-25258; coordinator ruling, owner delegation 2026-10-18): re-vendors the file in one check-drift.py --write run: the revision key of the 82 existing rows is refreshed and the new rows VP-83 (INV-REQ-24775) and VP-84 (INV-REQ-25100) are added, no other row changes; 84 rows.
+# Re-extracted 2026-11-20 (INV-T-25460; Keel INV-CS-25458): VP-83 becomes available (INV-REQ-24775 io_contract.status, coordinator ruling on the status of VP-83, option A); re-vendored with check-drift.py --write, only the status and revision keys of VP-83 moved; 84 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -3492,7 +3493,7 @@ variation_points:
     basis: "Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for the form of the row; the content is the owner's answer to INV-Q-9202 (option D, chat 2026-10-23, quoted in the body); no option is looser than the default, so no acknowledged_by; conventions G1-G6 option A; for the re-vendoring task named in tooling/oa1-gap.md"
 - id: VP-83
   requirement: INV-REQ-24775
-  revision: 5288cfee-5e1a-47a2-afb7-69bad26646ec
+  revision: 8b787fbb-00ee-47cd-bef4-72f368493353
   title: "How many days a counterparty request link stays valid is the tenant's setting; 7 days is the default and 1 to 30 days the bound"
   class: PARAMETER
   class_modifiers: []
@@ -3506,7 +3507,7 @@ variation_points:
     - "7 days"
     - "1 to 30 days"
   bounds: "1 to 30 days"
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-901"

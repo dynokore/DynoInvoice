@@ -68,10 +68,10 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
-    fun `INV-AC-24781 VP-83 offers exactly DAYS_7 then CUSTOM, planned, CUSTOM a whole number of days from 1 to 30 default 7`() {
+    fun `INV-AC-24781 VP-83 offers exactly DAYS_7 then CUSTOM, available, CUSTOM a whole number of days from 1 to 30 default 7`() {
         val vp83 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-83" }
         assertEquals("INV-REQ-24775", vp83.requirement)
-        assertEquals(VpStatus.PLANNED, vp83.status)
+        assertEquals(VpStatus.AVAILABLE, vp83.status)
         assertEquals("vp-83.set", vp83.setPermission)
         val fields = vp83.fields!!
         assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
