@@ -16,6 +16,24 @@ import java.util.concurrent.atomic.AtomicLong
 enum class PrincipalKind { HUMAN, CONSENT_AGENT, MACHINE }
 
 /**
+ * The permission key the live authorise of a high-risk operation sends for a [kind] principal (INV-T-9258; owner
+ * answer INV-Q-19441 A): a MACHINE principal uses [permission] as written, a person (HUMAN, CONSENT_AGENT) uses it
+ * with exactly one leading `machine.` removed. The prefix is matched case-sensitively; a key without it is used
+ * as written. A key whose person form would be empty (exactly `machine.`) is refused.
+ */
+fun livePermissionKey(
+    permission: String,
+    kind: PrincipalKind,
+): String {
+    if (kind == PrincipalKind.MACHINE || !permission.startsWith(MACHINE_KEY_PREFIX)) return permission
+    val person = permission.removePrefix(MACHINE_KEY_PREFIX)
+    require(person.isNotEmpty()) { "the person key of a live permission is empty" }
+    return person
+}
+
+private const val MACHINE_KEY_PREFIX = "machine."
+
+/**
  * The acting principal. Its kind comes from the propagated token, never from `AuthorityChanged` (INV-Q-3259).
  * A [PrincipalKind.MACHINE] principal exists only as the result of a verified machine access token (coordinator
  * rulings INV-Q-9028 A, INV-Q-9040 A, INV-Q-9032 A): the public constructor refuses that kind and the factory is
@@ -689,13 +707,15 @@ class AuthorityReplica(
         request: AuthorizationRequest,
         deadline: Deadline,
     ): AuthorityDecision =
-        when (val answer = fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable) {
+        answered(fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable) ?: degraded(request)
+
+    /** The decision of an access-svc answer; null when there was none ([FallbackResult.Unavailable]). */
+    private fun answered(answer: FallbackResult<AuthorityVerdict>): AuthorityDecision? =
+        when (answer) {
             is FallbackResult.Found -> {
-                AuthorityDecision(
-                    answer.value.allowed,
-                    DecisionSource.FALLBACK,
-                    if (answer.value.allowed) DecisionReason.GRANTED else DecisionReason.NO_GRANT,
-                )
+                val allowed = answer.value.allowed
+                val reason = if (allowed) DecisionReason.GRANTED else DecisionReason.NO_GRANT
+                AuthorityDecision(allowed, DecisionSource.FALLBACK, reason)
             }
 
             FallbackResult.NotFound -> {
@@ -703,9 +723,31 @@ class AuthorityReplica(
             }
 
             FallbackResult.Unavailable -> {
-                degraded(request)
+                null
             }
         }
+
+    /**
+     * The live decision of a high-risk operation (INV-REQ-1201 behaviour 7, INV-Q-9243 B, INV-Q-9245 A): one call to
+     * `access-svc` through the fallback, whatever the lag. It never reads the local replica, never runs the degraded
+     * rule and never consults the lag. A failed call, a missing fallback or a thrown failure is
+     * AUTHORITY_UNAVAILABLE for every principal kind, never an allow.
+     */
+    fun decideLive(
+        request: AuthorizationRequest,
+        deadline: Deadline,
+    ): AuthorityDecision {
+        val answer =
+            try {
+                fallback?.fetch(request, deadline) ?: FallbackResult.Unavailable
+            } catch (
+                @Suppress("TooGenericExceptionCaught") ignored: RuntimeException,
+            ) {
+                FallbackResult.Unavailable
+            }
+        return answered(answer)
+            ?: AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+    }
 
     /**
      * Decides an operation that names no entity: permitted only on a TENANT-scope grant of a role the

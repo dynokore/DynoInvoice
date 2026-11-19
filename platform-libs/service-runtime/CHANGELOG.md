@@ -6,6 +6,11 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.24.0] - 2026-11-19
+### Added
+- `AuthorityReplica.decideLive` and the public `livePermissionKey(permission, kind)` (a person's key is the row's key with one leading `machine.` removed, owner answer INV-Q-19441 A): one call to access-svc through the existing fallback whatever the lag, never the replica or the degraded rule; an unreachable access-svc is AUTHORITY_UNAVAILABLE for every principal kind (INV-T-9258, INV-AC-16549, INV-AC-9051).
+- `HighRiskLiveAuthoriseFilter` (order -44), registered when `META-INF/gst/high-risk-live-calls.tsv` has a row: a listed high-risk operation is decided live, a DENY is 403 SRT-004, an unreachable access-svc is 503 SRT-013 with nothing stored, for a person and a machine alike, whatever the degraded-allow table says; counter `high_risk_live_authorise_total` (`operation`, `result` ALLOW, DENY, UNREACHABLE) and one log line per call (INV-T-9258, INV-REQ-1201 behaviour 7, INV-Q-9243 B, INV-Q-9245 A).
+
 ## [13.23.0] - 2026-11-19
 ### Changed
 - Version step only (G-DVS, INV-T-24774, INV-AC-24773): the published bytes change because the dependency `evidence-store` steps to 2.6.0; no code change in this module.

@@ -1,5 +1,6 @@
 package com.dynokore.platform.serviceruntime.replica
 
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -485,5 +486,108 @@ class AuthorityReplicaTest {
                         .isStatic(it.modifiers)
             }.map { it.name }
             .toSet() shouldBe setOf("allowed", "source", "reason")
+    }
+
+    private fun live(
+        kind: PrincipalKind = PrincipalKind.HUMAN,
+        replicaUnderTest: AuthorityReplica = replica,
+    ) = replicaUnderTest.decideLive(request(kind), deadline(clock))
+
+    @Test
+    fun `INV-AC-9051 decideLive asks access-svc at lag 0 and never the replica, which holds an ALLOW`() {
+        grantTo(1)
+        decide(PrincipalKind.HUMAN).allowed shouldBe true
+        access.answer = { FallbackResult.Found(AuthorityVerdict(false)) }
+        live() shouldBe AuthorityDecision(false, DecisionSource.FALLBACK, DecisionReason.NO_GRANT)
+        access.calls shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-9051 decideLive Found ALLOW is a fallback grant with an empty replica`() {
+        live() shouldBe AuthorityDecision(true, DecisionSource.FALLBACK, DecisionReason.GRANTED)
+        access.calls shouldBe 1
+    }
+
+    @Test
+    fun `INV-AC-9051 decideLive NotFound is a fallback NO_GRANT`() {
+        access.answer = { FallbackResult.NotFound }
+        live() shouldBe AuthorityDecision(false, DecisionSource.FALLBACK, DecisionReason.NO_GRANT)
+    }
+
+    @Test
+    fun `INV-AC-16549 decideLive Unavailable is AUTHORITY_UNAVAILABLE for a person and a machine`() {
+        access.answer = { FallbackResult.Unavailable }
+        grantTo(1)
+        val refused = AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+        live(PrincipalKind.HUMAN) shouldBe refused
+        live(PrincipalKind.MACHINE) shouldBe refused
+    }
+
+    @Test
+    fun `INV-AC-16549 decideLive with no fallback is AUTHORITY_UNAVAILABLE even with a replica ALLOW`() {
+        val bare = AuthorityReplica(clock, TEST_ROLES)
+        FakeFeed(bare).publish(AuthorityChanged(TENANT_A, "p1", 1, roleGrantRecord("g1", grant)))
+        live(replicaUnderTest = bare) shouldBe
+            AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+    }
+
+    @Test
+    fun `INV-AC-16549 decideLive turns a thrown failure into AUTHORITY_UNAVAILABLE`() {
+        access.answer = { error("boom") }
+        live() shouldBe AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
+    }
+
+    @Test
+    fun `INV-AC-9051 decide keeps deciding locally within the bound after decideLive exists`() {
+        grantTo(1)
+        decide(PrincipalKind.HUMAN) shouldBe AuthorityDecision(true, DecisionSource.LOCAL, DecisionReason.GRANTED)
+        access.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-9051 livePermissionKey removes one leading machine prefix from a person key only`() {
+        val key = "machine.filing.confirm"
+        livePermissionKey(key, PrincipalKind.MACHINE) shouldBe key
+        livePermissionKey(key, PrincipalKind.HUMAN) shouldBe "filing.confirm"
+        livePermissionKey(key, PrincipalKind.CONSENT_AGENT) shouldBe "filing.confirm"
+        livePermissionKey("machine.machine.x", PrincipalKind.HUMAN) shouldBe "machine.x"
+        livePermissionKey("machine.machine.x", PrincipalKind.MACHINE) shouldBe "machine.machine.x"
+        for (lookAlike in listOf(
+            "Machine.filing.confirm",
+            "xmachine.filing.confirm",
+            "machine-filing",
+            "filing.confirm",
+        )) {
+            livePermissionKey(lookAlike, PrincipalKind.HUMAN) shouldBe lookAlike
+        }
+        shouldThrow<IllegalArgumentException> { livePermissionKey("machine.", PrincipalKind.HUMAN) }
+        livePermissionKey("machine.", PrincipalKind.MACHINE) shouldBe "machine."
+    }
+
+    @Test
+    fun `INV-AC-16549 decideLive refuses a machine on a degraded-allow operation that decide would allow`() {
+        val template = "/v1/entities/{entityRef}/periods/{periodRef}/filing"
+        val down = FakeFallback<AuthorizationRequest, AuthorityVerdict> { FallbackResult.Unavailable }
+        val marked =
+            AuthorityReplica(
+                clock,
+                OperationRoleMap { mapOf("machine.filing-workflow" to CellAllowance.PERMITTED) },
+                fallback = down,
+                degradedAllow = DegradedAllowTable(setOf("POST" to template)),
+            )
+        val machine =
+            Principal.machine("m1", TENANT_A, MachineEntityCoverage.Entity("e1"), "filing-workflow", "filing-workflow")
+        val asked =
+            AuthorizationRequest(
+                TENANT_A,
+                machine,
+                "e1",
+                "approve",
+                operation = OperationKey("POST", template, "filing-workflow"),
+            )
+        marked.decide(asked, deadline(clock)) shouldBe
+            AuthorityDecision(true, DecisionSource.DEGRADED, DecisionReason.MACHINE_FLOW_CONTINUES)
+        marked.decideLive(asked, deadline(clock)) shouldBe
+            AuthorityDecision(false, DecisionSource.DEGRADED, DecisionReason.AUTHORITY_UNAVAILABLE)
     }
 }

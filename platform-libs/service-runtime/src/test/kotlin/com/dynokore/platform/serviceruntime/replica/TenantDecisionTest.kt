@@ -193,6 +193,7 @@ class TenantDecisionTest {
                 "accept",
                 "decide",
                 "decideTenant",
+                "decideLive", // INV-T-9258: live authorise for high-risk operations
                 "getBreakGlassSessions",
                 "getConsents",
                 "getKeySets",

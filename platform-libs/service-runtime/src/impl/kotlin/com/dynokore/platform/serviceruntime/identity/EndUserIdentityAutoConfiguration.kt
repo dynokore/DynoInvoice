@@ -19,6 +19,7 @@ import com.nimbusds.jose.util.DefaultResourceRetriever
 import com.nimbusds.jose.util.JSONObjectUtils
 import com.nimbusds.jwt.proc.DefaultJWTProcessor
 import io.micrometer.core.instrument.MeterRegistry
+import jakarta.servlet.Filter
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
@@ -179,7 +180,52 @@ class EndUserIdentityAutoConfiguration {
         }
     }
 
+    /**
+     * The live authorise of the high-risk operations `META-INF/gst/high-risk-live-calls.tsv` lists (INV-T-9258), after
+     * the principal is bound (-50) and the entity-reference check (-45). A service with no row registers no filter; a
+     * non-empty table with no [AuthorityReplica] stops the start-up.
+     */
+    @Bean
+    fun highRiskLiveAuthoriseFilter(
+        authority: ObjectProvider<AuthorityReplica>,
+        meters: ObjectProvider<MeterRegistry>,
+        clock: ObjectProvider<Clock>,
+        resources: ResourceLoader,
+    ): FilterRegistrationBean<Filter> {
+        val rows =
+            HighRiskLiveAuthoriseFilter.rows(
+                checkNotNull(resources.classLoader) {
+                    "no class loader to read the contract resources"
+                },
+            )
+        if (rows.isEmpty()) {
+            // A disabled registration adds no filter to the container; Spring still needs a filter instance in it.
+            return FilterRegistrationBean<Filter>(
+                Filter {
+                    request,
+                    response,
+                    chain,
+                    ->
+                    chain.doFilter(request, response)
+                },
+            ).apply { isEnabled = false }
+        }
+        val replica =
+            checkNotNull(authority.ifAvailable) {
+                "${HighRiskLiveAuthoriseFilter.RESOURCE} lists operations but there is no AuthorityReplica bean"
+            }
+        return FilterRegistrationBean<Filter>(
+            HighRiskLiveAuthoriseFilter(replica, meters.ifAvailable, clock.getIfAvailable { Clock.systemUTC() }, rows),
+        ).apply {
+            order = ORDER_HIGH_RISK_LIVE
+            urlPatterns = listOf("/*")
+        }
+    }
+
     companion object {
+        /** After the entity-reference check (-45). */
+        const val ORDER_HIGH_RISK_LIVE = -44
+
         /** After the binding of the end-user principal (-50), before the entity-reference check (-45). */
         const val ORDER_BREAK_GLASS_RESTRICTION = -47
 
