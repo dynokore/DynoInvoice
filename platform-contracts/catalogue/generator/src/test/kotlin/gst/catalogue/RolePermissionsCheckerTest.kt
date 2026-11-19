@@ -466,6 +466,46 @@ class RolePermissionsCheckerTest {
     }
 
     @Test
+    fun `INV-AC-25101 probe a look-alike or re-cased vp-84 key is reported`() {
+        listOf("vp-84.set ", "vp-8.set", "VP-84.set").forEach { k ->
+            assertReported(withPermission("vp-84.set") { it.copy(key = k) }, "key vp-84.set: missing")
+        }
+    }
+
+    @Test
+    fun `INV-AC-25101 probe a security officer cell on vp-84 set is reported`() {
+        listOf(saasF, privF).forEach { f ->
+            assertReported(cellAdd("vp-84.set", "security.officer", f), "role security.officer key vp-84.set form $f")
+        }
+    }
+
+    @Test
+    fun `INV-AC-25101 probe the allowance WITHIN_SCOPE on vp-84 set is reported`() {
+        listOf(saasF, privF).forEach { f ->
+            val t = withPermission("vp-84.set") { p -> p.copy(cells = p.cells.map { if (it.form == f) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it }) }
+            assertReported(t, "role tenant.admin key vp-84.set form $f")
+        }
+    }
+
+    @Test
+    fun `INV-AC-25101 probe the PRIVATE or SAAS tenant admin cell removed from vp-84 set is reported`() {
+        listOf(saasF, privF).forEach { f -> assertFails(cellRemove("vp-84.set", "tenant.admin", f), "vp-84.set") }
+    }
+
+    @Test
+    fun `INV-AC-25101 probe the role tenant administrator in place of tenant admin on vp-84 set is reported`() {
+        val t = withPermission("vp-84.set") { p -> p.copy(cells = p.cells.map { it.copy(role = "tenant.administrator") }) }
+        assertFails(t, "vp-84.set")
+        assertReported(t, "key vp-84.set")
+    }
+
+    @Test
+    fun `INV-AC-25101 probe a key vp-85 set added is reported`() {
+        val extra = permission(real, "vp-84.set").copy(key = "vp-85.set")
+        assertReported(real.copy(permissions = real.permissions + extra), "vp-85.set")
+    }
+
+    @Test
     fun `INV-AC-25079 probe a missing tenant admin cell on vp-83 set is reported`() {
         listOf(saasF, privF).forEach { f ->
             assertFails(cellRemove("vp-83.set", "tenant.admin", f), "vp-83.set")
