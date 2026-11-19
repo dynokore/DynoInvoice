@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: transport API
-  version: 1.12.0
+  version: 1.13.0
   description: >-
     Contract-first source of truth for transport (API-01, STK-44). The
     `transport-contract` module generates its server interfaces and DTOs
@@ -912,7 +912,6 @@ components:
         kind:
           type: string
           enum: [ACKNOWLEDGEMENT, DELIVERY_STATUS, INBOUND_NETWORK_DOCUMENT, REJECTION]
-          x-extensible-enum: true
           description: >-
             For kind REJECTION (ruling INV-Q-9672 B) `docUuid`, `version` and
             `reasons` are required by the service, a rule the schema language

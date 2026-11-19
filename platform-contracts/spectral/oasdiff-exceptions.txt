@@ -186,3 +186,5 @@ POST /internal/v1/tenancy/entities/{entityRef}/rendition-responsibilities reques
 POST /internal/v1/tenancy/groups request property `groupKind` was restricted to a list of enum values
 # INV-T-25198: see the comment above (closed request enumeration, tooling/gap25007-gap.md, INV-Q-3569: no train is cut, no consumer deployed).
 POST /internal/v1/tenancy/installation/platform request property `platform` was restricted to a list of enum values
+# INV-T-25200: the answered design question on the request-enumeration findings closes the request enum `kind` of receiveApNotification (x-extensible-enum removed, members unchanged); tooling/gap25007-gap.md; INV-Q-3569 reasoning: no train is cut and no consumer is deployed.
+POST /v1/ap/{adapterId}/notifications request property `kind` was restricted to a list of enum values
