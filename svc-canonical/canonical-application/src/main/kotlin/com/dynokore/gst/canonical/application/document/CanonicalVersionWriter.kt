@@ -40,6 +40,25 @@ data class AppliedPackVersion(
     val version: String,
 )
 
+/** The kind of a net derivation; the spelling of the published schema. */
+enum class NetDerivationKind { SYSTEM_DERIVED, }
+
+/** A credit note netted into a version: its document and the version used. */
+data class NetDerivationCreditNoteFact(
+    val docUuid: UUID,
+    val version: Int,
+)
+
+/** The `netDerivation` of a version: the base version and the credit notes netted into it. */
+data class NetDerivationFact(
+    val baseVersion: Int,
+    val creditNotes: List<NetDerivationCreditNoteFact>,
+    val kind: NetDerivationKind = NetDerivationKind.SYSTEM_DERIVED,
+) {
+    /** The `nettedCreditNoteDocUuids` of the event: the credit note documents, in request order. */
+    val nettedCreditNoteDocUuids: List<UUID> get() = creditNotes.map { it.docUuid }
+}
+
 /**
  * The facts of one `CanonicalVersionCreated` event, supplied by the caller and never guessed by the writer. The
  * docsequence is not here: the publisher adapter reserves it. [aggregateId] null means absent.
@@ -56,6 +75,7 @@ data class CanonicalVersionCreatedFacts(
     val canonicalDocument: String,
     val aggregateId: String?,
     val routingFacts: RoutingFactsData,
+    val netDerivation: NetDerivationFact? = null,
 ) {
     init {
         require(traceReference.isNotBlank()) { "traceReference is blank" }

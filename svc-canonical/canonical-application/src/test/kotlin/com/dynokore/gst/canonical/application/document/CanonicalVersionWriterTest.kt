@@ -172,6 +172,14 @@ class CanonicalVersionWriterTest {
     }
 
     @Test
+    fun `INV-AC-25340 next version stages the netDerivation of the facts and defaults to null`() {
+        val fact = NetDerivationFact(2, listOf(NetDerivationCreditNoteFact(id(4), 1)))
+        tx.inTransaction { writer.next(id(2), 2, newVersion, facts(2).copy(netDerivation = fact)) }
+        tx.inTransaction { writer.next(id(3), 4, newVersion, facts(3)) }
+        staged.map { it.netDerivation } shouldBe listOf(fact, null)
+    }
+
+    @Test
     fun `INV-AC-22846 a stale write returns Conflict and stages nothing`() {
         val outcome = tx.inTransaction { writer.next(id(3), 1, newVersion, facts(3)) }
         outcome shouldBe UpdateOutcome.Conflict
