@@ -3,10 +3,16 @@ package com.dynokore.gst.reconciliation.adapters.http
 import com.dynokore.gst.reconciliation.application.run.GetRun
 import com.dynokore.gst.reconciliation.application.run.ListRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
+import com.dynokore.gst.reconciliation.application.workpaper.AttestWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.AttestationResult
 import com.dynokore.gst.reconciliation.application.workpaper.GetWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.SealWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.StoredAttestation
 import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperView
 import com.dynokore.gst.reconciliation.contract.api.RunsApi
+import com.dynokore.gst.reconciliation.contract.model.AttestWorkPaperRequest
 import com.dynokore.gst.reconciliation.contract.model.Attestation
+import com.dynokore.gst.reconciliation.contract.model.AttestationSoleAttester
 import com.dynokore.gst.reconciliation.contract.model.BoxComparison
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Run
@@ -16,11 +22,16 @@ import com.dynokore.gst.reconciliation.contract.model.VarianceClass
 import com.dynokore.gst.reconciliation.contract.model.VarianceShare
 import com.dynokore.gst.reconciliation.contract.model.WorkPaper
 import com.dynokore.gst.reconciliation.contract.model.WorkPaperHeader
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipal
+import com.dynokore.platform.serviceruntime.identity.EndUserPrincipalBindingFilter
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
+import jakarta.servlet.http.HttpServletRequest
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
@@ -28,6 +39,7 @@ import java.math.BigDecimal
 import java.net.URI
 import java.time.ZoneOffset
 import java.util.UUID
+import com.dynokore.gst.reconciliation.application.workpaper.AttestationRefusal as UseCaseRefusal
 
 /**
  * The run, work-paper and attestation operations of the reconciliation contract (TPL-08). `listRuns` and `getRun`
@@ -45,6 +57,10 @@ open class RunsController(
     private val getWorkPaper: GetWorkPaper,
     private val transactions: TransactionRunner,
     private val tenants: TenantContext,
+    private val attestWorkPaper: AttestWorkPaper,
+    private val sealWorkPaper: SealWorkPaper,
+    private val attestAuthority: AttestAuthority,
+    private val requests: ObjectProvider<HttpServletRequest>,
 ) : RunsApi {
     override fun listRuns(
         entityRef: String,
@@ -80,6 +96,72 @@ open class RunsController(
                 ?: return refusal(ClosedErrorCode.NOT_FOUND, "No such run.")
         return ResponseEntity.ok(workPaper(view))
     }
+
+    /**
+     * `attestWorkPaper` (INV-T-24459, INV-REQ-947): the run is read first (unknown run or an entity outside the
+     * caller's current entity set is 404, no decision), then one scoped permission is decided, then the use case runs
+     * with the caller's user ID as the approver, then the work-paper is sealed. A refusal throws
+     * [AttestationRefusal], rendered once by [AttestationRefusalAdvice].
+     */
+    override fun attestWorkPaper(
+        runId: UUID,
+        attestWorkPaperRequest: AttestWorkPaperRequest,
+    ): ResponseEntity<Attestation> {
+        val caller =
+            requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
+                ?: throw AttestationRefusal(AttestationRefusalCode.UNAUTHENTICATED)
+        val tenant = tenants.current().toString()
+        val entityRef =
+            transactions.inTransaction { getRun.execute(tenant, runId.toString()) }?.run?.entityRef
+                ?: throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
+        if (caller.entitySetCurrent && !caller.covers(EntityRef(entityRef))) {
+            throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
+        }
+        if (!attestAuthority.holds(caller.actor, ATTEST_PERMISSION, entityRef)) {
+            throw AttestationRefusal(AttestationRefusalCode.ACCESS_DENIED)
+        }
+        val result =
+            transactions.inTransaction {
+                attestWorkPaper.execute(
+                    tenant,
+                    runId.toString(),
+                    attestWorkPaperRequest.soleAttesterAcknowledgement,
+                    caller.actor,
+                )
+            }
+        val stored =
+            when (result) {
+                is AttestationResult.Attested -> {
+                    result.stored
+                }
+
+                is AttestationResult.Replayed -> {
+                    result.stored
+                }
+
+                AttestationResult.RunNotFound -> {
+                    throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
+                }
+
+                is AttestationResult.Refused -> {
+                    throw AttestationRefusal(
+                        when (result.reason) {
+                            UseCaseRefusal.SEPARATION_OF_DUTIES -> AttestationRefusalCode.SEPARATION_OF_DUTIES
+                            UseCaseRefusal.UNEXPLAINED_VARIANCE -> AttestationRefusalCode.UNEXPLAINED_VARIANCE
+                        },
+                    )
+                }
+            }
+        sealWorkPaper.execute(tenant, runId.toString())
+        return ResponseEntity.ok(attestation(stored))
+    }
+
+    private fun attestation(stored: StoredAttestation) =
+        Attestation(
+            attestedBy = stored.attestedBy,
+            attestedAt = stored.attestedAt.atOffset(ZoneOffset.UTC),
+            soleAttester = stored.soleAttester?.let { AttestationSoleAttester(it.acknowledgedBy, it.acknowledgedOn) },
+        )
 
     private fun workPaper(view: WorkPaperView) =
         WorkPaper(

@@ -1,5 +1,6 @@
 package com.dynokore.gst.reconciliation.adapters
 
+import com.dynokore.gst.reconciliation.adapters.http.AttestAuthority
 import com.dynokore.gst.reconciliation.adapters.http.RunsController
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqCompletedRuns
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqRunReader
@@ -10,7 +11,15 @@ import com.dynokore.gst.reconciliation.application.run.RunCursor
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.application.run.RunVarianceShare
+import com.dynokore.gst.reconciliation.application.workpaper.ArtefactRecordedPublisher
+import com.dynokore.gst.reconciliation.application.workpaper.AttestWorkPaper
 import com.dynokore.gst.reconciliation.application.workpaper.GetWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.RunAttestationWriter
+import com.dynokore.gst.reconciliation.application.workpaper.RunPreparers
+import com.dynokore.gst.reconciliation.application.workpaper.SealWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.SealedWorkPapers
+import com.dynokore.gst.reconciliation.application.workpaper.SingleAttestationPolicy
+import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperSource
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Run
 import com.dynokore.gst.reconciliation.contract.model.RunPage
@@ -31,15 +40,18 @@ import com.dynokore.platform.tenancykernel.TransactionRunnerImpl
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import jakarta.servlet.http.HttpServletRequest
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import org.postgresql.ds.PGSimpleDataSource
+import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.http.ResponseEntity
 import java.math.BigDecimal
 import java.sql.SQLException
+import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
@@ -144,6 +156,35 @@ open class RunStoreDbFixture {
             GetWorkPaper(reader, LazyRunAnnotations { session.dsl() }, LazyRunAttestations { session.dsl() }),
             session.runner,
             session.tenants,
+            AttestWorkPaper(
+                reader,
+                GetWorkPaper(reader, LazyRunAnnotations { session.dsl() }, LazyRunAttestations { session.dsl() }),
+                RunPreparers { _, _ -> null },
+                SingleAttestationPolicy { _, _, _ -> null },
+                LazyRunAttestations { session.dsl() },
+                RunAttestationWriter { _, _, _ -> error("this fixture never attests") },
+                Clock.systemUTC(),
+            ),
+            SealWorkPaper(
+                WorkPaperSource { _, _ -> null },
+                object : SealedWorkPapers {
+                    override fun latest(
+                        tenant: String,
+                        runId: String,
+                    ) = error("this fixture never seals")
+
+                    override fun put(
+                        tenant: String,
+                        entityRef: String,
+                        runId: String,
+                        sealVersion: Int,
+                        bytes: ByteArray,
+                    ) = error("this fixture never seals")
+                },
+                ArtefactRecordedPublisher { _, _, _, _, _ -> error("this fixture never seals") },
+            ),
+            AttestAuthority { _, _, _ -> false },
+            DefaultListableBeanFactory().getBeanProvider(HttpServletRequest::class.java),
         )
 
     protected fun <T> asTenant(
