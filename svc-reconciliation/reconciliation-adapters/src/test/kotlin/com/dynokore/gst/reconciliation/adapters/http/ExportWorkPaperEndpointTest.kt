@@ -405,6 +405,17 @@ class ExportWorkPaperEndpointTest {
     }
 
     @Test
+    fun `INV-AC-24485 (j) an unknown format answers 400 SRT-001 after the decision and renders nothing`() {
+        val response = call(r1, "CSV")
+        assertClosed(response, ClosedErrorCode.CONTRACT_VIOLATION)
+        ClosedErrorCode.CONTRACT_VIOLATION.code shouldBe "SRT-001"
+        response.statusCode.value() shouldBe 400
+        events shouldBe listOf("decide")
+        audited shouldBe emptyList()
+        rendered shouldBe emptyList()
+    }
+
+    @Test
     fun `INV-AC-24485 the authority asks the replica for the key and only LOCAL or FALLBACK allowed grants`() {
         val seen = mutableListOf<AuthorizationRequest>()
 
