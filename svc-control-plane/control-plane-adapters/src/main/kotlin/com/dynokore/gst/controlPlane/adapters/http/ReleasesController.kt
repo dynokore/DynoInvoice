@@ -24,6 +24,7 @@ import com.dynokore.gst.controlPlane.application.release.SetSupportWindow
 import com.dynokore.gst.controlPlane.application.release.SetSupportWindowCommand
 import com.dynokore.gst.controlPlane.contract.api.ReleasesApi
 import com.dynokore.gst.controlPlane.contract.model.AccreditationRecord
+import com.dynokore.gst.controlPlane.contract.model.AccreditationRecordSandboxAcknowledgementsInner
 import com.dynokore.gst.controlPlane.contract.model.AccreditationStatus
 import com.dynokore.gst.controlPlane.contract.model.AccreditationTaskPage
 import com.dynokore.gst.controlPlane.contract.model.ConcludeAccreditationTaskRequest
@@ -33,7 +34,6 @@ import com.dynokore.gst.controlPlane.contract.model.PublishTrainRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesRequest
 import com.dynokore.gst.controlPlane.contract.model.PurgeAuditEntriesResponse
 import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequest
-import com.dynokore.gst.controlPlane.contract.model.RecordAccreditationRequestSandboxAcknowledgementsInner
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResult
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultAccreditationCheck
 import com.dynokore.gst.controlPlane.contract.model.ReleaseGateResultGatesInner
@@ -165,8 +165,8 @@ class ReleasesController(
             recordedBy = record.recordedBy.value,
             sandboxAcknowledgements =
                 record.sandboxAcknowledgements.map {
-                    RecordAccreditationRequestSandboxAcknowledgementsInner(
-                        RecordAccreditationRequestSandboxAcknowledgementsInner.SubmissionType.valueOf(
+                    AccreditationRecordSandboxAcknowledgementsInner(
+                        AccreditationRecordSandboxAcknowledgementsInner.SubmissionType.valueOf(
                             it.submissionType.name,
                         ),
                         it.acknowledgementId,
