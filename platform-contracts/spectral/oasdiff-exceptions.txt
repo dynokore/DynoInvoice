@@ -188,3 +188,10 @@ POST /internal/v1/tenancy/groups request property `groupKind` was restricted to 
 POST /internal/v1/tenancy/installation/platform request property `platform` was restricted to a list of enum values
 # INV-T-25200: the answered design question on the request-enumeration findings closes the request enum `kind` of receiveApNotification (x-extensible-enum removed, members unchanged); tooling/gap25007-gap.md; INV-Q-3569 reasoning: no train is cut and no consumer is deployed.
 POST /v1/ap/{adapterId}/notifications request property `kind` was restricted to a list of enum values
+
+# INV-T-25192 (owner ruling 2026-11-18, option (A); answered design question on the request-enumeration findings; breakdown tooling/gap25007-gap.md; precedent INV-Q-3569):
+# MapTaxCodeRequest sourceClass and schemeTag and MappingSpreadsheetRow sourceClass lose x-extensible-enum; the enum members are unchanged and a request enumeration is closed (API-09).
+# Permitted within v1 because no train is cut and no consumer is deployed (INV-Q-3569's reasoning).
+POST /internal/v1/rules/mapping-packs/import request property `rows/items/sourceClass` was restricted to a list of enum values
+POST /internal/v1/rules/mapping-packs/{packId}/entries request property `schemeTag` was restricted to a list of enum values
+POST /internal/v1/rules/mapping-packs/{packId}/entries request property `sourceClass` was restricted to a list of enum values

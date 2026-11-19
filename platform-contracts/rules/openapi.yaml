@@ -1956,11 +1956,9 @@ components:
         sourceClass:
           type: string
           enum: [PRIMARY, SECONDARY, INFERRED]
-          x-extensible-enum: true
         schemeTag:
           type: string
           enum: [SELF_BILLING, CUSTOMER_ACCOUNTING, GROSS_MARGIN, DISCOUNTED_SALE_PRICE, APPROVED_MARINE_FUEL_TRADER, ACMT, A3PL, AISS, AMCS, ARCS, SWS, MES, IGDS, CASH_ACCOUNTING, ACMT_RECIPIENT_ACCOUNTING, ACMT_OVERSEAS_CLIENT_PURCHASE, AMCS_SELF_ACCOUNTING]
-          x-extensible-enum: true
           description: >-
             Optional scheme tag of the entry, drafted and signed off with it (INV-REQ-2444 b1, b2).
             The scenario pack lists which tags are handled (b3).
@@ -2061,7 +2059,6 @@ components:
         sourceClass:
           type: string
           enum: [PRIMARY, SECONDARY, INFERRED]
-          x-extensible-enum: true
         citation:
           type: string
           maxLength: 500
