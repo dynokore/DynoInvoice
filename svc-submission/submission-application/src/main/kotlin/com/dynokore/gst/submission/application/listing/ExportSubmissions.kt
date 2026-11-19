@@ -2,6 +2,7 @@ package com.dynokore.gst.submission.application.listing
 
 import com.dynokore.gst.submission.application.gstn.EntityGstns
 import com.dynokore.gst.submission.domain.listing.ExportHeader
+import com.dynokore.gst.submission.domain.listing.ExportTable
 import com.dynokore.gst.submission.domain.listing.SubmissionExport
 import com.dynokore.gst.submission.domain.listing.SubmissionFilter
 import com.dynokore.gst.submission.domain.listing.SubmissionRows
@@ -26,12 +27,16 @@ data class ExportSubmissionsRequest(
 )
 
 sealed interface ExportSubmissionsResult {
-    /** [csv] is the file; the three values are the `X-Export-*` response headers, computed from the same rows. */
+    /**
+     * [csv] is the file; the three values are the `X-Export-*` response headers; [table] is the format-neutral table
+     * from which all four are taken, so another format (XLSX) is written from the same rows, header and masking.
+     */
     data class Csv(
         val csv: String,
         val rowCount: Int,
         val totalTaxableAmount: BigDecimal,
         val totalGstAmount: BigDecimal,
+        val table: ExportTable,
     ) : ExportSubmissionsResult
 
     data object Forbidden : ExportSubmissionsResult
@@ -122,6 +127,7 @@ class ExportSubmissions(
             rowCount = table.rowCount,
             totalTaxableAmount = table.totalTaxableAmount,
             totalGstAmount = table.totalGstAmount,
+            table = table,
         )
     }
 

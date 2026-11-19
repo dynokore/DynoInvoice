@@ -4,9 +4,12 @@ import com.dynokore.gst.catalogue.DeploymentForm
 import com.dynokore.gst.catalogue.OperationRoles
 import com.dynokore.gst.submission.application.gstn.EntityGstns
 import com.dynokore.gst.submission.domain.listing.Direction
+import com.dynokore.gst.submission.domain.listing.ExportHeader
+import com.dynokore.gst.submission.domain.listing.SubmissionExport
 import com.dynokore.gst.submission.domain.listing.SubmissionFilter
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.listing.SubmissionRow
+import com.dynokore.gst.submission.domain.listing.SubmissionRows
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.reconciliation.ReconciliationBucket
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
@@ -362,6 +365,29 @@ class ExportSubmissionsTest {
         val csv = csvOf(export(source, principal = statusOnly))
         source.calls shouldBe 1
         masked(dataLines(csv.csv)).forEach { it shouldBe true }
+    }
+
+    @Test
+    fun `INV-AC-16345 the table of the result equals the table built from the same rows, header and masking`() {
+        listOf(holder to true, statusOnly to false).forEach { (principal, mayView) ->
+            val csv = csvOf(export(RecordingSource(rows), principal = principal))
+            val header =
+                ExportHeader("E1", "M00000000X", "P1", clock.instant(), principal.id, SubmissionFilter().canonical())
+            val selected =
+                SubmissionRows.assemble(
+                    SubmissionFilter().select(rows, documentBuckets(rows, clock.instant())::get),
+                    SubmissionRows.DEFAULT_SORT,
+                )
+            csv.table.header shouldBe header
+            csv.table.cells shouldBe SubmissionExport.table(header, selected, mayView).cells
+            csv.table.rowCount shouldBe csv.rowCount
+            csv.table.totalTaxableAmount shouldBe csv.totalTaxableAmount
+            csv.table.totalGstAmount shouldBe csv.totalGstAmount
+            SubmissionExport.csv(csv.table) shouldBe csv.csv
+            if (!mayView) {
+                csv.table.cells.forEach { cells -> maskedIdx.forEach { cells[it] shouldBe "" } }
+            }
+        }
     }
 
     @Test

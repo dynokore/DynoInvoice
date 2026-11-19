@@ -36,8 +36,10 @@ import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
 import jakarta.servlet.http.HttpServletRequest
+import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
+import java.io.ByteArrayInputStream
 import java.lang.reflect.Proxy
 import java.math.BigDecimal
 import java.time.Clock
@@ -267,9 +269,10 @@ class SubmissionExportControllerTest {
     }
 
     @Test
-    fun `INV-AC-22284 the formats XLSX and PDF get 400 SRT-001 and the source has zero calls`() {
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // the mandated case name is longer than 120
+    fun `INV-AC-22284 the format PDF and any value other than CSV and XLSX get 400 SRT-001 and the source has zero calls`() {
         val f = fixture(FULL)
-        listOf("XLSX", "PDF", "csv", "").forEach { format ->
+        listOf("PDF", "csv", "").forEach { format ->
             refused { export(f, format) } shouldBe (400 to "SRT-001")
         }
         f.source.calls shouldBe 0
@@ -368,6 +371,80 @@ class SubmissionExportControllerTest {
                 null,
             )
         }.statusCode.value() shouldBe 200
+    }
+
+    private val xlsxType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    private fun sheetOf(response: org.springframework.http.ResponseEntity<org.springframework.core.io.Resource>) =
+        XSSFWorkbook(ByteArrayInputStream(response.body!!.contentAsByteArray)).use { wb ->
+            val sheet = wb.getSheet("Submissions")
+            (0..sheet.lastRowNum).map { r -> sheet.getRow(r)?.map { it.toString() }.orEmpty() }
+        }
+
+    @Test
+    fun `INV-AC-16345 format XLSX serves the headers, type and fixed file name of the same rows`() {
+        val f = fixture(FULL)
+        val csv = export(f)
+        val xlsx = export(f, "XLSX")
+        xlsx.statusCode.value() shouldBe 200
+        xlsx.headers.contentType.toString() shouldBe xlsxType
+        xlsx.headers.getFirst("Content-Disposition") shouldBe "attachment; filename=\"submissions.xlsx\""
+        listOf("X-Export-Row-Count", "X-Export-Total-Taxable-Amount", "X-Export-Total-Gst-Amount").forEach {
+            xlsx.headers.getFirst(it) shouldBe csv.headers.getFirst(it)
+        }
+        val sheet = sheetOf(xlsx)
+        (sheet.size - 4).toString() shouldBe xlsx.headers.getFirst("X-Export-Row-Count")
+        sheet[1][0] shouldBe entity
+        sheet[1][4] shouldBe "m1"
+    }
+
+    @Test
+    fun `INV-AC-16345 a caller without doc view content gets the workbook with the content cells empty`() {
+        val full = sheetOf(export(fixture(FULL), "XLSX"))
+        val f = fixture(NO_CONTENT)
+        val masked = sheetOf(export(f, "XLSX"))
+        f.source.calls shouldBe 1
+        val columns = full[3]
+        val maskedColumns =
+            listOf("documentNumber", "counterpartyName", "counterpartyUen", "taxableAmount", "gstAmount")
+        masked.size shouldBe full.size
+        full.drop(4).zip(masked.drop(4)).forEach { (a, b) ->
+            columns.indices.forEach { i ->
+                if (columns[i] in maskedColumns) b[i] shouldBe "" else b[i] shouldBe a[i]
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-16345 a masked caller filtering on a masked fact is refused for XLSX and the source is not called`() {
+        val f = fixture(NO_CONTENT)
+        refused { export(f, "XLSX", counterparty = "Acme") } shouldBe (400 to "SRT-001")
+        f.source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16345 the XLSX file name and type are fixed and the PDF format is still refused`() {
+        val f = fixture(FULL)
+        val hostile = "../x\r\nSet-Cookie: a"
+        val xlsx =
+            bound {
+                f.controller.exportSubmissions(
+                    entity,
+                    hostile,
+                    "XLSX",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                )
+            }
+        xlsx.headers.getFirst("Content-Disposition") shouldBe "attachment; filename=\"submissions.xlsx\""
+        refused { export(f, "PDF") } shouldBe (400 to "SRT-001")
     }
 
     private companion object {
