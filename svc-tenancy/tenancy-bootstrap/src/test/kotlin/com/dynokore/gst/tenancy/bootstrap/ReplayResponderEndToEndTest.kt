@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.http.TenantsController
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.CreateTenantRequest
+import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -69,7 +70,10 @@ class ReplayResponderEndToEndTest {
         val context: AssertableWebApplicationContext,
         val log: Log,
     ) {
-        val driver: InboxConsumer = context.getBeansOfType(InboxConsumer::class.java).values.single { it is ReplayResponderDriver }
+        val driver: InboxConsumer =
+            context.getBeansOfType(InboxConsumer::class.java).values.single {
+                it is ReplayResponderDriver
+            }
         private val tenantsApi: TenantsController = context.getBean(TenantsController::class.java)
         private val entitiesApi: EntitiesController = context.getBean(EntitiesController::class.java)
         private val tenants: TenantContext = context.getBean(TenantContext::class.java)
@@ -96,27 +100,50 @@ class ReplayResponderEndToEndTest {
                                 "M2-GSTN",
                             ),
                         ).body!!
-                repeat(2) {
-                    entitiesApi.createEntity(
-                        UUID.randomUUID(),
-                        CreateEntityRequest(
-                            tenant.value.toString(),
-                            group.groupRef,
-                            "Entity ${UUID.randomUUID()}",
-                            CreateEntityRequest.Constitution.PRIVATE_LIMITED,
-                            null,
-                            null,
-                            "H" + UUID.randomUUID().toString().take(8).uppercase().replace("-", "A"),
-                        ),
-                    )
-                }
+                repeat(2) { createEntity(tenant, group.groupRef) }
             }
             return tenant
+        }
+
+        private fun createEntity(
+            tenant: TenantId,
+            groupRef: String,
+        ) {
+            val entity =
+                entitiesApi.createEntity(
+                    UUID.randomUUID(),
+                    CreateEntityRequest(
+                        tenant.value.toString(),
+                        groupRef,
+                        "Entity ${UUID.randomUUID()}",
+                        CreateEntityRequest.Constitution.PRIVATE_LIMITED,
+                        null,
+                        null,
+                        "H" +
+                            UUID
+                                .randomUUID()
+                                .toString()
+                                .take(8)
+                                .uppercase()
+                                .replace("-", "A"),
+                    ),
+                )
+            // a status entry is what makes an entity part of the EntityProfileChanged replay
+            entitiesApi.setEntityStatus(
+                entity.body!!.entityRef,
+                UUID.randomUUID(),
+                SetEntityStatusRequest(
+                    SetEntityStatusRequest.StatusKind.PARTIAL_EXEMPTION,
+                    java.time.LocalDate.of(2026, 7, 1),
+                    partiallyExempt = true,
+                    basis = "partial exemption review",
+                ),
+            )
         }
     }
 
     private fun run(
-        container: BoundaryDatabase = BoundaryFixture,
+        container: BoundaryDatabase = ReplayResponderDatabase,
         block: (Env, BoundaryDatabase) -> Unit,
     ) {
         val log = Log()
@@ -152,7 +179,7 @@ class ReplayResponderEndToEndTest {
             ),
         )
 
-    /** What the responder wrote to [topic] for [replayId], read as the database owner (forced RLS hides it otherwise). */
+    /** What the responder wrote to [topic] for [replayId], read as the database owner (RLS hides it otherwise). */
     private fun written(
         db: BoundaryDatabase,
         topic: String,
@@ -167,8 +194,17 @@ class ReplayResponderEndToEndTest {
                     st.setString(1, topic)
                     st.setString(2, "replay:$replayId")
                     st.executeQuery().use { rs ->
-                        generateSequence { if (rs.next()) Stored(rs.getString(1), rs.getString(2), rs.getString(3)) else null }
-                            .toList()
+                        generateSequence {
+                            if (rs.next()) {
+                                Stored(
+                                    rs.getString(1),
+                                    rs.getString(2),
+                                    rs.getString(3),
+                                )
+                            } else {
+                                null
+                            }
+                        }.toList()
                     }
                 }
         }
@@ -214,7 +250,10 @@ class ReplayResponderEndToEndTest {
             assertThat(rows.last().data).contains(replayId.toString())
             assertThat(rows.last().data.replace(" ", "")).contains("\"eventsReplayed\":${states.size}")
             val mine = states.filter { it.tenant == tenant.value.toString() }
-            assertThat(mine.filter { it.type == STRUCTURE_TYPE }).hasSize(3)
+            val nodes = mine.filter { it.type == STRUCTURE_TYPE }
+            // the group and the 2 live entities of the task, plus the tenant's own node the source emits by design
+            assertThat(nodes.filterNot { it.data.replace(" ", "").contains("\"kind\":\"TENANT\"") }).hasSize(3)
+            assertThat(nodes).hasSize(4)
             assertThat(mine.filter { it.type == PROFILE_TYPE }).isNotEmpty()
             assertThat(states.map { it.type }).containsOnly(STRUCTURE_TYPE, PROFILE_TYPE)
         }
@@ -228,8 +267,13 @@ class ReplayResponderEndToEndTest {
             env.log.add(request(replayId, "tenancy-svc"))
             env.driver.pollOnce()
 
-            assertThat(count(db, "select count(*) from tenancy.inbox where consumer = 'tenancy-svc' and event_id = ?", "req-$replayId"))
-                .isEqualTo(1)
+            assertThat(
+                count(
+                    db,
+                    "select count(*) from tenancy.inbox where consumer = 'tenancy-svc' and event_id = ?",
+                    "req-$replayId",
+                ),
+            ).isEqualTo(1)
             assertThat(nextOffset(db)).isGreaterThan(env.log.lastOffset())
         }
     }
@@ -246,9 +290,16 @@ class ReplayResponderEndToEndTest {
 
             for (id in listOf(other, prefixed)) {
                 assertThat(written(db, REPLAY_TOPIC, id)).isEmpty()
-                assertThat(count(db, "select count(*) from tenancy.outbox where correlation_id = ?", "replay:$id")).isZero()
-                assertThat(count(db, "select count(*) from tenancy.inbox where consumer = 'tenancy-svc' and event_id = ?", "req-$id"))
-                    .isEqualTo(1)
+                assertThat(
+                    count(db, "select count(*) from tenancy.outbox where correlation_id = ?", "replay:$id"),
+                ).isZero()
+                assertThat(
+                    count(
+                        db,
+                        "select count(*) from tenancy.inbox where consumer = 'tenancy-svc' and event_id = ?",
+                        "req-$id",
+                    ),
+                ).isEqualTo(1)
             }
             assertThat(nextOffset(db)).isGreaterThan(env.log.lastOffset())
         }
@@ -264,7 +315,9 @@ class ReplayResponderEndToEndTest {
 
             assertThat(env.driver.pollOnce().applied).isZero()
             assertThat(written(db, REPLAY_TOPIC, replayId)).hasSize(before)
-            assertThat(env.context.getBeansOfType(InboxConsumer::class.java).values).anyMatch { it is ReplayResponderDriver }
+            assertThat(
+                env.context.getBeansOfType(InboxConsumer::class.java).values,
+            ).anyMatch { it is ReplayResponderDriver }
         }
     }
 
@@ -282,3 +335,10 @@ class ReplayResponderEndToEndTest {
         const val PROFILE_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
     }
 }
+
+/**
+ * The end-to-end test has its own PostgreSQL: the responder answers for every tenant of the database, and the shared
+ * [BoundaryFixture] holds the entities other tests leave with an election and no status entry, which the profile
+ * replay source cannot answer (reported as a gap in the MR of INV-T-25012).
+ */
+private object ReplayResponderDatabase : BoundaryDatabase(PgTestImages.PG17, "c-inv-t-25012")

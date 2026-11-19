@@ -18,7 +18,8 @@ import java.time.Clock
  * The producer side of the replay protocol of tenancy-svc (INV-AC-25010, INV-Q-9081 A): the platform responder over the
  * request topics the catalogue lists for tenancy-svc, every [ReplayStateSource] bean (INV-T-9096) and the service's own
  * outbox writer (a dedicated [JdbcOutboxWriter], because the boundary tests wrap the shared [OutboxWriter] bean,
- * a final-class conflict for an injected [JdbcOutboxWriter]), with [ReplayResponderDriver] as the loop `EventLoops` runs.
+ * a final-class conflict for an injected [JdbcOutboxWriter]), with [ReplayResponderDriver] as the loop `EventLoops`
+ * runs.
  */
 @Configuration(proxyBeanMethods = false)
 class ReplayResponderConfiguration {
