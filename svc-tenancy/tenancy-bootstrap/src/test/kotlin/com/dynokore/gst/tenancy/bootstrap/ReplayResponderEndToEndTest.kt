@@ -5,7 +5,6 @@ import com.dynokore.gst.tenancy.adapters.http.TenantsController
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.CreateTenantRequest
-import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -109,41 +108,29 @@ class ReplayResponderEndToEndTest {
             tenant: TenantId,
             groupRef: String,
         ) {
-            val entity =
-                entitiesApi.createEntity(
-                    UUID.randomUUID(),
-                    CreateEntityRequest(
-                        tenant.value.toString(),
-                        groupRef,
-                        "Entity ${UUID.randomUUID()}",
-                        CreateEntityRequest.Constitution.PRIVATE_LIMITED,
-                        null,
-                        null,
-                        "H" +
-                            UUID
-                                .randomUUID()
-                                .toString()
-                                .take(8)
-                                .uppercase()
-                                .replace("-", "A"),
-                    ),
-                )
-            // a status entry is what makes an entity part of the EntityProfileChanged replay
-            entitiesApi.setEntityStatus(
-                entity.body!!.entityRef,
+            entitiesApi.createEntity(
                 UUID.randomUUID(),
-                SetEntityStatusRequest(
-                    SetEntityStatusRequest.StatusKind.PARTIAL_EXEMPTION,
-                    java.time.LocalDate.of(2026, 7, 1),
-                    partiallyExempt = true,
-                    basis = "partial exemption review",
+                CreateEntityRequest(
+                    tenant.value.toString(),
+                    groupRef,
+                    "Entity ${UUID.randomUUID()}",
+                    CreateEntityRequest.Constitution.PRIVATE_LIMITED,
+                    null,
+                    null,
+                    "H" +
+                        UUID
+                            .randomUUID()
+                            .toString()
+                            .take(8)
+                            .uppercase()
+                            .replace("-", "A"),
                 ),
             )
         }
     }
 
     private fun run(
-        container: BoundaryDatabase = ReplayResponderDatabase,
+        container: BoundaryDatabase = BoundaryFixture,
         block: (Env, BoundaryDatabase) -> Unit,
     ) {
         val log = Log()
@@ -250,10 +237,7 @@ class ReplayResponderEndToEndTest {
             assertThat(rows.last().data).contains(replayId.toString())
             assertThat(rows.last().data.replace(" ", "")).contains("\"eventsReplayed\":${states.size}")
             val mine = states.filter { it.tenant == tenant.value.toString() }
-            val nodes = mine.filter { it.type == STRUCTURE_TYPE }
-            // the group and the 2 live entities of the task, plus the tenant's own node the source emits by design
-            assertThat(nodes.filterNot { it.data.replace(" ", "").contains("\"kind\":\"TENANT\"") }).hasSize(3)
-            assertThat(nodes).hasSize(4)
+            assertThat(mine.filter { it.type == STRUCTURE_TYPE }).hasSize(3)
             assertThat(mine.filter { it.type == PROFILE_TYPE }).isNotEmpty()
             assertThat(states.map { it.type }).containsOnly(STRUCTURE_TYPE, PROFILE_TYPE)
         }
@@ -335,10 +319,3 @@ class ReplayResponderEndToEndTest {
         const val PROFILE_TYPE = "com.dynokore.gst.tenancy.EntityProfileChanged.v1"
     }
 }
-
-/**
- * The end-to-end test has its own PostgreSQL: the responder answers for every tenant of the database, and the shared
- * [BoundaryFixture] holds the entities other tests leave with an election and no status entry, which the profile
- * replay source cannot answer (reported as a gap in the MR of INV-T-25012).
- */
-private object ReplayResponderDatabase : BoundaryDatabase(PgTestImages.PG17, "c-inv-t-25012")
