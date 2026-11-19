@@ -239,7 +239,7 @@ class AggregateDocumentVersionEventDbTest {
     )
 
     @Test
-    fun `INV-AC-22809 aggregate document event carries the aggregateId, the other has none, a redelivery adds nothing, a later version keeps it`(
+    fun `INV-AC-22809 aggregate reference in the version events`(
         @TempDir dir: Path,
     ) = run(dir) {
         owner(
@@ -271,7 +271,9 @@ class AggregateDocumentVersionEventDbTest {
         }
         val plainEvent = events(plain.toString()).single()
         plainEvent.has("aggregateId") shouldBe false
-        rows("select aggregate_id from canonical.document where doc_uuid = '$plain'::uuid").single().single() shouldBe null
+        rows("select aggregate_id from canonical.document where doc_uuid = '$plain'::uuid")
+            .single()
+            .single() shouldBe null
 
         // a redelivery of the AggregateReady event (new event id, same aggregate)
         send("ev-2")
@@ -282,7 +284,9 @@ class AggregateDocumentVersionEventDbTest {
         // a later version of the aggregate document, supplied without the reference, carries the stored one
         val aggregateUuid = UUID.fromString(aggregateDoc[0])
         scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
-            runner.inTransaction { directWriter.next(aggregateUuid, 1, newVersion(canonical), facts(aggregateUuid, 2, canonical)) }
+            runner.inTransaction {
+                directWriter.next(aggregateUuid, 1, newVersion(canonical), facts(aggregateUuid, 2, canonical))
+            }
         }
         val later = events(aggregateDoc[0]!!)
         later.size shouldBe 2
