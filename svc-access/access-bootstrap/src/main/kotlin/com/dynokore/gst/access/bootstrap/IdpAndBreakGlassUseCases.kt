@@ -6,9 +6,8 @@ import com.dynokore.gst.access.adapters.events.BreakGlassAlertOutbox
 import com.dynokore.gst.access.adapters.events.BreakGlassSessionChangedOutbox
 import com.dynokore.gst.access.adapters.http.BreakGlassSealing
 import com.dynokore.gst.access.adapters.http.BreakGlassSignInReplay
-import com.dynokore.gst.access.adapters.http.InstallationRoleDirectory
-import com.dynokore.gst.access.adapters.http.ResealPermissionCheck
-import com.dynokore.gst.access.adapters.http.ResolvedResealPermissionCheck
+import com.dynokore.gst.access.adapters.http.ResealPairCheck
+import com.dynokore.gst.access.adapters.http.StoredPairResealCheck
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassAccounts
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassApprovals
 import com.dynokore.gst.access.adapters.persistence.JooqBreakGlassSessionView
@@ -327,11 +326,10 @@ class SealedAccountUseCases {
     ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, clock, sessionEvents)
 
     @Bean
-    fun resealPermissionCheck(
-        tenants: TenantContext,
-        roles: InstallationRoleDirectory,
-        matrix: PermissionMatrix,
-    ): ResealPermissionCheck = ResolvedResealPermissionCheck(tenants, roles, matrix)
+    fun resealPairCheck(
+        dependencies: GrantDependencies,
+        sessions: BreakGlassSessions,
+    ): ResealPairCheck = StoredPairResealCheck(dependencies.tx, sessions)
 
     @Bean
     fun breakGlassSignInReplay(
@@ -345,8 +343,8 @@ class SealedAccountUseCases {
     fun breakGlassSealing(
         signIn: SignInWithBackoffUseCase,
         reseal: ResealBreakGlassUseCase,
-        permission: ResealPermissionCheck,
+        pair: ResealPairCheck,
         replay: BreakGlassSignInReplay,
         mapper: ObjectMapper,
-    ) = BreakGlassSealing(signIn, reseal, permission, replay, mapper)
+    ) = BreakGlassSealing(signIn, reseal, pair, replay, mapper)
 }

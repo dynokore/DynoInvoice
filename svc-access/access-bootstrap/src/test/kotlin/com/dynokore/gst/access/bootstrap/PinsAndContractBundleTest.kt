@@ -125,13 +125,47 @@ class PinsAndContractBundleTest {
     }
 
     @Test
-    fun `the catalogue pin holds break-glass-reseal with one cell, deployment operator in PRIVATE (INV-T-16106)`() {
+    fun `INV-AC-24943 the pins follow INV-T-24946 and the staged reseal role equals the staged unlock role`() {
+        val bundle = Regex("""(?m)^platformContractsBundle\s*=\s*"([^"]+)"""").find(toml)!!.groupValues[1]
+        // f6b7b6e6 is the merge commit of INV-T-24946; the merge-base check is shown in the merge request
+        assertThat(bundle).isEqualTo("0.0.0-dev+f6b7b6e6")
+        val catalogue = Regex("""(?m)^gstCatalogue\s*=\s*"([^"]+)"""").find(toml)!!.groupValues[1]
+        assertThat(atLeast(parts(catalogue), parts("3.14.0"))).isTrue()
+        // probes: a catalogue below fails; 3.9.0 is below 3.14.0 although a string compare says otherwise
+        assertThat(atLeast(parts("3.13.0"), parts("3.14.0"))).isFalse()
+        assertThat(atLeast(parts("3.9.0"), parts("3.14.0"))).isFalse()
+        val openapi = resource("gst/contracts/access/openapi.yaml")
+        assertThat(roleOf(openapi, "resealBreakGlass")).isNotBlank().isEqualTo(roleOf(openapi, "unlockBreakGlass"))
+        assertThat(
+            roleOf(openapi, "resealBreakGlass"),
+        ).isNotEqualTo(roleOf(openapi.replace("deployment.operator", "x"), "unlockBreakGlass"))
+    }
+
+    /** The `x-operation` role text of [operation]: the lines of its operation block that name a role. */
+    private fun roleOf(
+        openapi: String,
+        operation: String,
+    ): String {
+        val block = Regex("""(?s)operationId:\s*$operation\b(.*?)(?=operationId:|\z)""").find(openapi)!!.groupValues[1]
+        val lines = block.lines().filter { it.contains("role", ignoreCase = true) }.map { it.trim() }
+        return lines.joinToString("\n")
+    }
+
+    @Test
+    fun `the catalogue pin gives break-glass-reseal the holders of break-glass-unlock (INV-T-16106, INV-T-24946)`() {
         val key = Permission("break-glass.reseal")
+        val unlock = Permission("break-glass.unlock")
+        DeploymentForm.entries.forEach { form ->
+            val matrix = PermissionMatrixLoader.load(form)
+            val holders = Role.entries.filter { matrix.allowance(it, key) == Allowance.PERMITTED }
+            assertThat(holders).describedAs("$form").isNotEmpty
+            assertThat(holders).describedAs("$form").isEqualTo(
+                Role.entries.filter { matrix.allowance(it, unlock) == Allowance.PERMITTED },
+            )
+        }
+        // the deployment operator holds the key in PRIVATE only; platform.engineer holds no cell
         val private = PermissionMatrixLoader.load(DeploymentForm.PRIVATE)
-        val holders = Role.entries.filter { private.allowance(it, key) == Allowance.PERMITTED }
-        assertThat(holders).containsExactly(Role.DEPLOYMENT_OPERATOR)
-        // the key is a SAAS cell for nobody; a catalogue below the version of INV-T-16106 cannot map the key at all
-        val saas = PermissionMatrixLoader.load(DeploymentForm.SAAS)
-        assertThat(Role.entries.filter { saas.allowance(it, key) == Allowance.PERMITTED }).isEmpty()
+        assertThat(private.allowance(Role.DEPLOYMENT_OPERATOR, key)).isEqualTo(Allowance.PERMITTED)
+        assertThat(private.allowance(Role.PLATFORM_ENGINEER, key)).isNotEqualTo(Allowance.PERMITTED)
     }
 }

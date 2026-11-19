@@ -97,7 +97,7 @@ object SealFixture {
     fun ServedContext.reseal(
         tenant: TenantId,
         unlockRef: String,
-        caller: String = OPERATOR,
+        caller: String = ADMIN,
         key: UUID = UUID.randomUUID(),
     ): MockHttpServletResponse =
         post(operation("resealBreakGlass"), viaConsole(token(caller, tenant)), "{}", key, "$BASE/$unlockRef/reseal")

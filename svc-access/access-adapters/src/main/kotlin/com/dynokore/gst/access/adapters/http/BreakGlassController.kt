@@ -39,7 +39,7 @@ import java.util.UUID
 class BreakGlassSealing(
     val signIn: SignInWithBackoffUseCase,
     val reseal: ResealBreakGlassUseCase,
-    val permission: ResealPermissionCheck,
+    val pair: ResealPairCheck,
     val replay: BreakGlassSignInReplay,
     val mapper: ObjectMapper,
 )
@@ -55,7 +55,7 @@ class BreakGlassSealing(
  * signInBreakGlass (INV-T-8853, INV-T-13465) answers 429 (SRT-012, Retry-After) while the back-off runs, 404 for an
  * unknown unlock, 409 (no code) when the unlock is resealed or
  * past its expiry, 403 for a wrong credential or a tenant with no account row, and 200 otherwise.
- * resealBreakGlass needs the permission `break-glass.reseal` (403 otherwise, nothing changes), is 409 (no code)
+ * resealBreakGlass admits a member of the unlocking pair only, whatever role it holds (403 otherwise, nothing changes), is 409 (no code)
  * after the expiry, and carries the new
  * `sealingCredential` only in the 200 of the call that rotated it (INV-AC-8900); a second call answers the data alone.
  */
@@ -198,9 +198,13 @@ open class BreakGlassController(
         unlockRef: String,
         idempotencyKey: UUID,
     ): ResponseEntity<BreakGlassResealResponse> {
-        // the permission of the operation (break-glass.reseal); checked before anything is read or written
-        if (!sealing.permission.mayReseal()) throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
         val actor = checkNotNull(tenants.currentActor()) { "no actor is bound" }
+        // membership of the unlocking pair decides, before anything is written: unknown 404, outsider 403
+        when (sealing.pair.admit(actor, unlockRef)) {
+            ResealAdmission.UNKNOWN -> throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
+            ResealAdmission.OUTSIDER -> throw ApiRefusal(ClosedErrorCode.ACCESS_DENIED)
+            ResealAdmission.MEMBER -> Unit
+        }
         return resealed(sealing.reseal.handle(actor, unlockRef))
     }
 

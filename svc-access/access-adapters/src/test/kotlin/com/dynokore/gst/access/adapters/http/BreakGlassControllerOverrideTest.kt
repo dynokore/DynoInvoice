@@ -236,7 +236,7 @@ class BreakGlassControllerOverrideTest {
                 clock,
             ),
             ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock) { _, _ -> },
-            { false },
+            { _, _ -> ResealAdmission.OUTSIDER },
             BreakGlassSignInReplay(
                 tx,
                 org.mockito.Mockito.mock(com.dynokore.platform.serviceruntime.http.IdempotencyStore::class.java),
