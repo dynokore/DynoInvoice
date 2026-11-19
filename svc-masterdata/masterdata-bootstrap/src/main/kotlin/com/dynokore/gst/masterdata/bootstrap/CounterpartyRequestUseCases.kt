@@ -8,6 +8,7 @@ import com.dynokore.gst.masterdata.adapters.persistence.JooqClientSignatories
 import com.dynokore.gst.masterdata.adapters.persistence.JooqCounterpartyRequests
 import com.dynokore.gst.masterdata.adapters.persistence.JooqLinkBindings
 import com.dynokore.gst.masterdata.adapters.registry.PolicySendMethod
+import com.dynokore.gst.masterdata.adapters.request.PolicyTenantLinkValidity
 import com.dynokore.gst.masterdata.application.clientsignatory.ApplyLinkOutcome
 import com.dynokore.gst.masterdata.application.clientsignatory.ClientSignatories
 import com.dynokore.gst.masterdata.application.clientsignatory.ClientSignatoryLinkPublisher
@@ -145,9 +146,13 @@ class CounterpartyRequestUseCases {
         clock: Clock,
     ): SendMethodPolicy = PolicySendMethod(policy, tenants, clock)
 
-    /** No tenant sets its own validity yet: every tenant has the default of [LinkValidityLimits]. */
+    /** VP-83 (INV-REQ-24775): the tenant's link validity, read with PolicyReader.resolve on every send. */
     @Bean
-    fun tenantLinkValidity(): TenantLinkValidity = TenantLinkValidity { null }
+    fun tenantLinkValidity(
+        policy: PolicyReader,
+        tenants: TenantContext,
+        clock: Clock,
+    ): TenantLinkValidity = PolicyTenantLinkValidity(policy, tenants, clock)
 
     @Bean
     fun sendPolicies(
