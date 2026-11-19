@@ -447,6 +447,7 @@ class ExportWorkPaperEndpointTest {
         text.contains(SECRET) shouldBe false
         audited shouldBe emptyList()
         events shouldBe listOf("decide", "use-case", "render")
+
         fun leaks(proxy: IThrowableProxy?): Boolean =
             proxy != null && (proxy.message.orEmpty().contains(SECRET) || leaks(proxy.cause))
         appender.list.any { it.formattedMessage.contains(SECRET) || leaks(it.throwableProxy) } shouldBe false
