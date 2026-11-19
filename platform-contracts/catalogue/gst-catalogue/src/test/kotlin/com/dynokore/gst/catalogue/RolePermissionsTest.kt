@@ -155,7 +155,7 @@ class RolePermissionsTest {
     }
 
     @Test
-    fun `INV-AC-24864 reconciliation run annotate and attest are PERMITTED to tax approver only and WITHIN_SCOPE to agent operator only`() {
+    fun `INV-AC-24864 reconciliation keys are PERMITTED to tax approver and WITHIN_SCOPE to agent operator only`() {
         listOf("reconciliation.run", "reconciliation.annotate", "reconciliation.attest").forEach { key ->
             both.forEach { form ->
                 val cells = RolePermissions.cells(form)
