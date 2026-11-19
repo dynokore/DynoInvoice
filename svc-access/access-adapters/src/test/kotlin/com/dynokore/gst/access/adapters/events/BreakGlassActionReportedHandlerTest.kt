@@ -63,6 +63,8 @@ class BreakGlassActionReportedHandlerTest {
                         approvedBy: List<String>,
                     ): BreakGlassSession = error("not used")
 
+                    override fun latest(): BreakGlassSession? = null
+
                     override fun find(ref: String): BreakGlassSession? =
                         BreakGlassSession(
                             "BG-1",

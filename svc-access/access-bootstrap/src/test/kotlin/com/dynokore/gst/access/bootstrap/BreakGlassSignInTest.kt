@@ -111,9 +111,10 @@ class BreakGlassSignInTest {
             served.pair(a.tenant)
             val credential = checkNotNull(a.sealing)
             val (resealed, _) = served.unlocked(a.tenant)
-            val (expiring, expiresAt) = served.unlocked(a.tenant)
-            assertThat(served.signIn(a.tenant, expiring, credential).status).isEqualTo(200)
+            // the first unlock is sealed before the second (a new unlock is refused while the latest is not sealed)
             val rotated = json(served.reseal(a.tenant, resealed))["sealingCredential"].asString()
+            val (expiring, expiresAt) = served.unlocked(a.tenant)
+            assertThat(served.signIn(a.tenant, expiring, rotated).status).isEqualTo(200)
             // the resealed unlock: the old and the new credential are both refused with 409
             assertConflictWithoutCode(served.signIn(a.tenant, resealed, credential))
             assertConflictWithoutCode(served.signIn(a.tenant, resealed, rotated))

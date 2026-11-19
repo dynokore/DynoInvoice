@@ -105,6 +105,10 @@ open class BreakGlassController(
                 deny("a named approver has no approval within the window")
             }
 
+            UnlockBreakGlassOutcome.LatestNotSealed -> {
+                throw ApiConflict("the latest unlock of the tenant is not sealed: reseal it before a new unlock")
+            }
+
             UnlockBreakGlassOutcome.IdpAvailable -> {
                 throw ApiConflict(
                     "the identity provider is available: the unlock needs the override reason IDP_PARTIAL_OUTAGE",
@@ -221,10 +225,6 @@ open class BreakGlassController(
 
             ResealBreakGlassOutcome.NotFound -> {
                 throw ApiRefusal(ClosedErrorCode.NOT_FOUND)
-            }
-
-            ResealBreakGlassOutcome.NotOpen -> {
-                throw ApiConflict("the break-glass session is not open")
             }
         }
 

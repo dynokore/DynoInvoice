@@ -52,6 +52,8 @@ class ReportBreakGlassActionTest {
 
                 override fun markSealed(ref: String) = Unit
 
+                override fun latest(): BreakGlassSession? = null
+
                 override fun find(ref: String): BreakGlassSession? {
                     finds += ref
                     return sessionsHeld[ref]

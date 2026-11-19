@@ -12,6 +12,7 @@ import com.dynokore.gst.access.bootstrap.SealFixture.capturedEvents
 import com.dynokore.gst.access.bootstrap.SealFixture.digestOf
 import com.dynokore.gst.access.bootstrap.SealFixture.pair
 import com.dynokore.gst.access.bootstrap.SealFixture.passExpiry
+import com.dynokore.gst.access.bootstrap.SealFixture.passTo
 import com.dynokore.gst.access.bootstrap.SealFixture.reseal
 import com.dynokore.gst.access.bootstrap.SealFixture.sessionStatus
 import com.dynokore.gst.access.bootstrap.SealFixture.signIn
@@ -26,13 +27,15 @@ import org.assertj.core.api.Assertions.catchThrowable
 import org.junit.jupiter.api.Test
 import org.springframework.http.ResponseEntity
 import org.springframework.mock.web.MockHttpServletResponse
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 
 /**
  * `resealBreakGlass` (INV-REQ-897 behaviour 4; INV-AC-8852 and the rotate part of INV-AC-1934): closes the unlock,
  * replaces the sealing credential and returns the new one once; only an identity stored as `approvedBy` of the unlock
- * may call it, whatever role it holds (INV-AC-24943, owner ruling 2026-11-18); a reseal after the expiry is 409 with
- * no catalogue code.
+ * may call it, whatever role it holds (INV-AC-24943, owner ruling 2026-11-18); a reseal after the expiry is accepted
+ * too (INV-AC-24944, owner ruling 2026-11-18).
  */
 class BreakGlassResealTest {
     private fun ServedContext.record(
@@ -239,22 +242,65 @@ class BreakGlassResealTest {
             assertThat(served.stored()).isEqualTo(everything)
         }
 
-    @Test
-    fun `INV-AC-8852 a reseal one second after expiresAt is 409 with no code and nothing changes`() =
+    private fun resealAfterExpiry(moveClock: ServedContext.(Instant) -> Unit) =
         withService { served ->
             val account = served.activated()
             val tenant = account.tenant
             served.pair(tenant)
             val (ref, expiresAt) = served.unlocked(tenant)
             val verifierBefore = verifier(tenant)
-            served.passExpiry(expiresAt)
-            val response = served.reseal(tenant, ref)
-            assertConflictWithoutCode(response)
-            assertThat(json(response).has("sealingCredential")).isFalse()
-            assertThat(verifier(tenant)).isEqualTo(verifierBefore)
-            assertThat(sessionStatus(tenant, ref)).isEqualTo("UNLOCKED")
+            served.moveClock(expiresAt)
+            val key = UUID.randomUUID()
+            val first = served.reseal(tenant, ref, key = key)
+            assertThat(first.status).describedAs(first.contentAsString).isEqualTo(200)
+            assertThat(json(first)["status"].asString()).isEqualTo("SEALED")
+            val rotated = json(first)["sealingCredential"].asString()
+            assertThat(verifier(tenant)).isNotEqualTo(verifierBefore).isEqualTo(digestOf(rotated))
+            assertThat(sessionStatus(tenant, ref)).isEqualTo("SEALED")
+            // the same Idempotency-Key and a new one: 200 without the property, no second rotation
+            listOf(key, UUID.randomUUID()).forEach { again ->
+                val second = served.reseal(tenant, ref, key = again)
+                assertThat(second.status).describedAs(second.contentAsString).isEqualTo(200)
+                assertThat(json(second).has("sealingCredential")).isFalse()
+                assertThat(verifier(tenant)).isEqualTo(digestOf(rotated))
+            }
+            // closed: sign-in and recording are 409 with no catalogue code
+            assertConflictWithoutCode(served.signIn(tenant, ref, rotated))
+            val refusal = catchThrowable { served.record(tenant, ref) }
+            assertThat(refusal).isInstanceOf(ApiConflict::class.java)
+            assertThat(ApiRefusalAdvice().conflict(refusal as ApiConflict).body).doesNotContain("\"code\"")
+            // the event with status SEALED once, one audit entry under the acting user
+            assertThat(capturedEvents(served).filter { it.contains("\"status\":\"SEALED\"") }).hasSize(1)
+            val audit = audits(served)
+            assertThat(audit).hasSize(1)
+            assertThat(audit.single()).contains(SealFixture.ADMIN)
             // an unknown unlock
             assertThat(served.reseal(tenant, "BG-NONE").status).isEqualTo(404)
+        }
+
+    @Test
+    fun `INV-AC-24944 a reseal one second after expiresAt is 200 with the credential once`() =
+        resealAfterExpiry { passExpiry(it) }
+
+    @Test
+    fun `INV-AC-24944 a reseal exactly at expiresAt is 200 with the credential once`() =
+        resealAfterExpiry { passTo(it) }
+
+    @Test
+    fun `INV-AC-24944 a reseal one day after expiresAt is 200 with the credential once`() =
+        resealAfterExpiry { passTo(it.plus(Duration.ofDays(1))) }
+
+    @Test
+    fun `INV-AC-24944 a reseal before expiresAt is 200 with the credential once as before`() =
+        withService { served ->
+            val tenant = served.activated().tenant
+            served.pair(tenant)
+            val (ref, expiresAt) = served.unlocked(tenant)
+            served.passTo(expiresAt.minusSeconds(1))
+            val response = served.reseal(tenant, ref)
+            assertThat(response.status).describedAs(response.contentAsString).isEqualTo(200)
+            assertThat(json(response)["sealingCredential"].asString()).isNotBlank()
+            assertThat(sessionStatus(tenant, ref)).isEqualTo("SEALED")
         }
 
     @Test

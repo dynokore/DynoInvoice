@@ -109,6 +109,13 @@ object SealFixture {
         clock.advance(Duration.between(now, expiresAt.plusSeconds(1)))
     }
 
+    /** Moves the test clock to exactly [instant]. */
+    fun ServedContext.passTo(instant: Instant) {
+        val clock = movableClock()
+        val now = clock.freeze()
+        clock.advance(Duration.between(now, instant))
+    }
+
     /** The rows of the sealed-account table for [tenant], one JSON text per row. */
     fun accountRows(tenant: TenantId): List<String> = rows("access.break_glass_account", tenant)
 

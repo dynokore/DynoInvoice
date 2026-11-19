@@ -30,6 +30,8 @@ class ResealPairCheckTest {
                     approvedBy: List<String>,
                 ) = error("not used")
 
+                override fun latest(): BreakGlassSession? = null
+
                 override fun find(ref: String) = found()
 
                 override fun markSealed(ref: String) = error("not used")

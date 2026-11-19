@@ -144,6 +144,8 @@ class BreakGlassControllerOverrideTest {
                 )
             }
 
+            override fun latest(): BreakGlassSession? = null
+
             override fun find(ref: String): BreakGlassSession? = null
 
             override fun markSealed(ref: String) = Unit

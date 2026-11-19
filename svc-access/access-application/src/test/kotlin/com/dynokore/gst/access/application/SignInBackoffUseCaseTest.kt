@@ -60,6 +60,8 @@ class SignInBackoffUseCaseTest {
                 approvedBy: List<String>,
             ): BreakGlassSession = error("not used")
 
+            override fun latest(): BreakGlassSession? = null
+
             override fun find(ref: String): BreakGlassSession? =
                 when (ref) {
                     "BG-1", "BG-2" -> session(ref, false, start.plusSeconds(36000))

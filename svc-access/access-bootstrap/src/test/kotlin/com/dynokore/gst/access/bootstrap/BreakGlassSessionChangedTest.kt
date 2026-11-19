@@ -27,8 +27,8 @@ import java.util.UUID
 
 /**
  * INV-AC-9303 (a, b, f; INV-Q-9119 A): an unlock and a reseal each append the platform event `BreakGlassSessionChanged`
- * once, in the command transaction, through the real context over PostgreSQL; a refused reseal and an unlock rolled
- * back after the session row was inserted append none.
+ * once, in the command transaction, through the real context over PostgreSQL; an unlock rolled back after the
+ * session row was inserted appends none; a reseal after the expiry is accepted (INV-AC-24944).
  */
 class BreakGlassSessionChangedTest {
     private val type = "com.dynokore.gst.platform.BreakGlassSessionChanged.v1"
@@ -74,14 +74,14 @@ class BreakGlassSessionChangedTest {
         }
 
     @Test
-    fun `INV-AC-9303 b - a reseal after the expiry is refused and appends nothing`() =
+    fun `INV-AC-9303 b INV-AC-24944 - a reseal after the expiry appends one SEALED event after the OPEN one`() =
         withService { served ->
             val tenant = served.activated().tenant
             served.pair(tenant)
             val (ref, expiresAt) = served.unlocked(tenant)
             served.passExpiry(expiresAt)
-            assertThat(served.reseal(tenant, ref).status).isEqualTo(409)
-            assertThat(changes(tenant).map { json(it)["status"].asString() }).containsExactly("OPEN")
+            assertThat(served.reseal(tenant, ref).status).isEqualTo(200)
+            assertThat(changes(tenant).map { json(it)["status"].asString() }).containsExactly("OPEN", "SEALED")
         }
 
     @Test

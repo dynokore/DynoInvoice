@@ -42,6 +42,12 @@ interface BreakGlassSessions {
 
     fun find(ref: String): BreakGlassSession?
 
+    /**
+     * The latest unlock of the bound tenant (greatest `unlockedAt`, ties by the greater ref in string order) or null.
+     * It first takes a transaction-scoped lock keyed by the tenant, so two unlocks of one tenant run one at a time.
+     */
+    fun latest(): BreakGlassSession?
+
     /** Marks the session of [ref] resealed (closed). */
     fun markSealed(ref: String)
 
@@ -127,6 +133,12 @@ sealed interface UnlockBreakGlassOutcome {
      * A, INV-AC-9302): nothing is written and no approval is consumed (403).
      */
     data object ApprovalMissing : UnlockBreakGlassOutcome
+
+    /**
+     * The latest unlock of the tenant is not SEALED, expired or not (INV-Q owner ruling 2026-11-18 A (3)): nothing is
+     * written and no approval is consumed (409), so a seal is never reused.
+     */
+    data object LatestNotSealed : UnlockBreakGlassOutcome
 }
 
 /** The one override reason that opens an unlock while the identity provider counts as available (INV-Q-11557 A). */
@@ -192,6 +204,7 @@ class UnlockBreakGlassUseCase(
             if (available && !overridden) return@inTransaction UnlockBreakGlassOutcome.IdpAvailable
             // while the provider counts as unavailable the reason is ignored and not recorded
             val recordedReason = if (available) IDP_PARTIAL_OUTAGE else null
+            if (sessions.latest()?.sealed == false) return@inTransaction UnlockBreakGlassOutcome.LatestNotSealed
             val hours = setting.hours
             check(BreakGlassRules.isSessionHours(hours)) { "the break-glass session length must be 1 to 8 hours" }
             val session = sessions.insert(hours, now, people.map { it.value })
@@ -290,16 +303,14 @@ sealed interface ResealBreakGlassOutcome {
     ) : ResealBreakGlassOutcome
 
     data object NotFound : ResealBreakGlassOutcome
-
-    /** The session is not open: its expiry has passed and it was not resealed (409). */
-    data object NotOpen : ResealBreakGlassOutcome
 }
 
 /**
- * `resealBreakGlass` (INV-REQ-897 behaviour 4, INV-Q-8837 A): closes an open session, replaces the sealing credential
- * and returns the new one once. A session that is sealed already answers its data and changes nothing; a session
- * past its expiry that was never sealed is refused. The caller's role is checked by the inbound adapter.
+ * `resealBreakGlass` (INV-REQ-897 behaviour 4, INV-Q-8837 A): closes an unsealed session whether or not its expiry
+ * has passed (owner ruling 2026-11-18 A (2)), replaces the sealing credential and returns the new one once. A session
+ * that is sealed already answers its data and changes nothing. The caller's role is checked by the inbound adapter.
  */
+@Suppress("UnusedPrivateProperty") // the clock no longer decides a reseal; the composition root still passes it
 class ResealBreakGlassUseCase(
     private val tx: TransactionRunner,
     private val sessions: BreakGlassSessions,
@@ -317,10 +328,6 @@ class ResealBreakGlassUseCase(
             when {
                 session.sealed -> {
                     ResealBreakGlassOutcome.AlreadySealed(session)
-                }
-
-                !session.isOpenAt(clock.instant()) -> {
-                    ResealBreakGlassOutcome.NotOpen
                 }
 
                 else -> {

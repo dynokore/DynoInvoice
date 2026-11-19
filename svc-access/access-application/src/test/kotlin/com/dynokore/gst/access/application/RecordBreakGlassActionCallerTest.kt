@@ -44,6 +44,8 @@ class RecordBreakGlassActionCallerTest {
                     approvedBy: List<String>,
                 ): BreakGlassSession = error("not used")
 
+                override fun latest(): BreakGlassSession? = null
+
                 override fun find(ref: String): BreakGlassSession? = found
 
                 override fun markSealed(ref: String) = Unit
