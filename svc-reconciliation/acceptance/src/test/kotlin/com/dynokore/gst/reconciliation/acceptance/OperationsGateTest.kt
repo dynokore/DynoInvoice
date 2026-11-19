@@ -44,8 +44,7 @@ class OperationsGateTest {
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
         // uploadGstReturn: INV-T-24367; listRuns, getRun: INV-T-24376; getReconciliation: INV-T-24421;
-        // getWorkPaper, annotateVariance: INV-T-24380; attestWorkPaper: INV-T-24459;
-        // exportWorkPaper: INV-T-24486. None is a stub.
+        // getWorkPaper, annotateVariance: INV-T-24380; attestWorkPaper: INV-T-24459; exportWorkPaper: INV-T-24486. None is a stub.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) -
             setOf(
