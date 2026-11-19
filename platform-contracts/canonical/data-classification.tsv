@@ -79,7 +79,6 @@ openapi.yaml	DocumentVersion.nettedCreditNoteKeys	NONE
 openapi.yaml	DocumentVersion.nettedCreditNoteDocUuids	NONE
 openapi.yaml	DocumentVersion.nettedByDocUuid	NONE
 openapi.yaml	DocumentVersion.gstNotAdjusted	NONE
-openapi.yaml	DocumentVersion.netDerivation	NONE
 openapi.yaml	PreparedReassignment.reassignmentId	NONE
 openapi.yaml	PreparedReassignment.entityRef	NONE
 openapi.yaml	PreparedReassignment.spanStart	NONE
@@ -136,7 +135,6 @@ openapi.yaml	RecordDocumentRequest.invoiceNote	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.documentDate	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.invoiceNote	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.identityTriple	IDENTIFYING
-schemas/canonical-version-created-payload.schema.json	netDerivation	NONE
 schemas/canonical-version-created-payload.schema.json	canonicalDocument.supplyType	NONE
 openapi.yaml	ReleaseHeldDocumentRequest.holdCode	NONE
 openapi.yaml	ReleaseHeldDocumentRequest.note	NONE
