@@ -35,7 +35,11 @@ import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.serviceruntime.resilience.http.CurrentDeadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import io.kotest.matchers.string.shouldNotContain
 import jakarta.servlet.http.HttpServletRequest
+import org.apache.pdfbox.Loader
+import org.apache.pdfbox.text.PDFTextStripper
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
@@ -140,6 +144,7 @@ class SubmissionExportControllerTest {
     private fun fixture(
         type: String,
         gstn: String? = "M90000002B",
+        sourceRows: List<SubmissionRow> = rows,
     ): Fixture {
         val replica = AuthorityReplica(clock, roleMap).also { it.onSnapshotComplete(0) }
         val caller: Principal =
@@ -149,7 +154,7 @@ class SubmissionExportControllerTest {
                 MachineEntityCoverage.Entity(entity),
                 type,
             )
-        val source = RecordingSource(rows)
+        val source = RecordingSource(sourceRows)
         val request =
             Proxy.newProxyInstance(javaClass.classLoader, arrayOf(HttpServletRequest::class.java)) { _, method, args ->
                 check(method.name == "getAttribute") { "unexpected request call ${method.name}" }
@@ -270,9 +275,9 @@ class SubmissionExportControllerTest {
 
     @Test
     @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // the mandated case name is longer than 120
-    fun `INV-AC-22284 the format PDF and any value other than CSV and XLSX get 400 SRT-001 and the source has zero calls`() {
+    fun `INV-AC-22284 any format value other than CSV, XLSX and PDF gets 400 SRT-001 and the source has zero calls`() {
         val f = fixture(FULL)
-        listOf("PDF", "csv", "").forEach { format ->
+        listOf("csv", "").forEach { format ->
             refused { export(f, format) } shouldBe (400 to "SRT-001")
         }
         f.source.calls shouldBe 0
@@ -423,7 +428,7 @@ class SubmissionExportControllerTest {
     }
 
     @Test
-    fun `INV-AC-16345 the XLSX file name and type are fixed and the PDF format is still refused`() {
+    fun `INV-AC-16345 the XLSX file name and type are fixed`() {
         val f = fixture(FULL)
         val hostile = "../x\r\nSet-Cookie: a"
         val xlsx =
@@ -444,7 +449,55 @@ class SubmissionExportControllerTest {
                 )
             }
         xlsx.headers.getFirst("Content-Disposition") shouldBe "attachment; filename=\"submissions.xlsx\""
-        refused { export(f, "PDF") } shouldBe (400 to "SRT-001")
+    }
+
+    private fun pdfText(response: org.springframework.http.ResponseEntity<org.springframework.core.io.Resource>) =
+        Loader
+            .loadPDF(
+                response.body!!.contentAsByteArray,
+            ).use { PDFTextStripper().getText(it) }
+            .filter { !it.isWhitespace() }
+
+    @Test
+    fun `INV-AC-16347 format PDF serves the headers, type and fixed file name of the same rows`() {
+        val f = fixture(FULL)
+        val csv = export(f)
+        val pdf = export(f, "PDF")
+        pdf.statusCode.value() shouldBe 200
+        pdf.headers.contentType.toString() shouldBe "application/pdf"
+        pdf.headers.getFirst("Content-Disposition") shouldBe "attachment; filename=\"submissions.pdf\""
+        listOf("X-Export-Row-Count", "X-Export-Total-Taxable-Amount", "X-Export-Total-Gst-Amount").forEach {
+            pdf.headers.getFirst(it) shouldBe csv.headers.getFirst(it)
+        }
+        pdfText(pdf) shouldContain "Acme"
+        export(f, "XLSX").statusCode.value() shouldBe 200
+        export(f, "CSV").statusCode.value() shouldBe 200
+    }
+
+    @Test
+    fun `INV-AC-16347 a caller without doc view content gets the PDF with the content cells empty`() {
+        val f = fixture(NO_CONTENT)
+        val text = pdfText(export(f, "PDF"))
+        f.source.calls shouldBe 1
+        text shouldNotContain "Acme"
+        text shouldNotContain "N-1-1"
+        text shouldNotContain "UEN-"
+        text shouldContain "E1"
+    }
+
+    @Test
+    fun `INV-AC-16347 a masked caller filtering on a masked fact is refused for PDF and the source is not called`() {
+        val f = fixture(NO_CONTENT)
+        refused { export(f, "PDF", counterparty = "Acme") } shouldBe (400 to "SRT-001")
+        f.source.calls shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-16347 a counterparty name outside the font answers 400 SRT-001 and no body`() {
+        val f = fixture(FULL, sourceRows = rows + row(5, 1, LifecycleState.QUEUED, "\u4e2d", "10.00"))
+        var response: org.springframework.http.ResponseEntity<org.springframework.core.io.Resource>? = null
+        refused { response = export(f, "PDF") } shouldBe (400 to "SRT-001")
+        response shouldBe null
     }
 
     private companion object {

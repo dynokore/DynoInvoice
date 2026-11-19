@@ -1,5 +1,7 @@
 package com.dynokore.gst.submission.adapters.http
 
+import com.dynokore.gst.submission.adapters.export.PdfExportWriter
+import com.dynokore.gst.submission.adapters.export.UnsupportedExportTextException
 import com.dynokore.gst.submission.adapters.export.XlsxExportWriter
 import com.dynokore.gst.submission.application.listing.ExportSubmissions
 import com.dynokore.gst.submission.application.listing.ExportSubmissionsRequest
@@ -40,8 +42,9 @@ data class ExportQuery(
 
 /**
  * The delegate that serves `exportSubmissions` for `TransactionsController` (the operation is tagged `transactions`,
- * so its generated interface is already implemented there; INV-REQ-978). CSV and XLSX are served from the same
- * `ExportTable` of the use case result; PDF and any other value are SRT-001 before the use case is called. The
+ * so its generated interface is already implemented there; INV-REQ-978). CSV, XLSX and PDF are served from the
+ * same `ExportTable` of the use case result; any other value is SRT-001 before the use case is called. A text the PDF
+ * font cannot encode is SRT-001 and nothing is sent. The
  * permission is
  * decided inside [ExportSubmissions] through `AuthorityReplica.decide`; this class reads no role name and holds no
  * permission string (INV-Q-10027). Refusals are thrown as [ComplianceRefusal] and rendered once by
@@ -67,20 +70,38 @@ class SubmissionExportController(
         headers.set(TOTAL_TAXABLE, csv.totalTaxableAmount.toPlainString())
         headers.set(TOTAL_GST, csv.totalGstAmount.toPlainString())
         val body =
-            if (query.format == XLSX) {
-                headers.contentType = MediaType.parseMediaType(XLSX_TYPE)
-                headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"submissions.xlsx\"")
-                ByteArrayOutputStream().also { XlsxExportWriter().write(csv.table, it) }.toByteArray()
-            } else {
-                headers.contentType = MediaType.parseMediaType("text/csv")
-                csv.csv.toByteArray(Charsets.UTF_8)
+            when (query.format) {
+                XLSX -> {
+                    headers.contentType = MediaType.parseMediaType(XLSX_TYPE)
+                    headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"submissions.xlsx\"")
+                    ByteArrayOutputStream().also { XlsxExportWriter().write(csv.table, it) }.toByteArray()
+                }
+
+                PDF -> {
+                    headers.contentType = MediaType.APPLICATION_PDF
+                    headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"submissions.pdf\"")
+                    try {
+                        ByteArrayOutputStream().also { PdfExportWriter().write(csv.table, it) }.toByteArray()
+                    } catch (_: UnsupportedExportTextException) {
+                        throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+                    }
+                }
+
+                else -> {
+                    headers.contentType = MediaType.parseMediaType("text/csv")
+                    csv.csv.toByteArray(Charsets.UTF_8)
+                }
             }
         return ResponseEntity.ok().headers(headers).body(ByteArrayResource(body))
     }
 
-    /** Only CSV and XLSX are served; any other value is SRT-001 before the use case is called. */
+    /** Only CSV, XLSX and PDF are served; any other value is SRT-001 before the use case is called. */
     private fun requireServed(format: String) {
-        if (format != CSV && format != XLSX) throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+        if (format != CSV && format != XLSX &&
+            format != PDF
+        ) {
+            throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+        }
     }
 
     /** The refusal a result that is not the CSV stands for. */
@@ -114,6 +135,7 @@ class SubmissionExportController(
     private companion object {
         const val CSV = "CSV"
         const val XLSX = "XLSX"
+        const val PDF = "PDF"
         const val XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         const val ROW_COUNT = "X-Export-Row-Count"
         const val TOTAL_TAXABLE = "X-Export-Total-Taxable-Amount"
