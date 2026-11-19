@@ -1,9 +1,6 @@
 package com.dynokore.gst.submission.application.register
 
-import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
 import com.dynokore.gst.submission.domain.deadline.SubmissionDeadline
-import com.dynokore.gst.submission.domain.listing.Direction
-import com.dynokore.gst.submission.domain.metrics.RowKind
 import com.dynokore.gst.submission.domain.register.ListFacts
 import com.dynokore.gst.submission.domain.register.ListFactsPolicy
 import com.dynokore.gst.submission.domain.register.ListFactsResult
@@ -27,7 +24,6 @@ class CanonicalVersionCreatedHandler(
     private val deadlines: FilingDeadlineSource,
     private val kinds: DocumentKindResolver,
     private val store: RegisterEntryStore,
-    private val corrections: CreditNoteCorrectionHandler? = null,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
         val data = reader.read(event.dataJson)
@@ -56,37 +52,10 @@ class CanonicalVersionCreatedHandler(
                 precedingDocUuid = data.precedingDocUuid,
             )
         return when (store.upsert(tenant, entry)) {
-            UpsertResult.INSERTED, UpsertResult.UPDATED -> {
-                correct(data, kind, facts)
-                HandleOutcome.APPLIED
-            }
-
-            UpsertResult.UNCHANGED -> {
-                HandleOutcome.IGNORED
-            }
+            UpsertResult.INSERTED, UpsertResult.UPDATED -> HandleOutcome.APPLIED
+            UpsertResult.UNCHANGED -> HandleOutcome.IGNORED
         }
     }
-
-    /** A purchase credit note is decided; an original's version applies the net derivation outcomes (INV-REQ-558). */
-    private fun correct(
-        data: CanonicalVersionCreatedData,
-        kind: RowKind,
-        facts: ListFacts,
-    ) {
-        val handler = corrections ?: return
-        when {
-            kind == RowKind.CREDIT_NOTE && facts.direction == Direction.PURCHASE -> {
-                handler.decide(data.docUuid)
-            }
-
-            kind == RowKind.INVOICE -> {
-                handler.onOriginalVersion(data.docUuid, data.version, data.netDerivation, declaredKeysOf(data.payload))
-            }
-        }
-    }
-
-    private fun declaredKeysOf(payload: Map<String, Any?>): Set<String> =
-        (payload["nettedCreditNoteDocUuids"] as? Collection<*>).orEmpty().filterIsInstance<String>().toSet()
 
     private fun factsOf(
         data: CanonicalVersionCreatedData,

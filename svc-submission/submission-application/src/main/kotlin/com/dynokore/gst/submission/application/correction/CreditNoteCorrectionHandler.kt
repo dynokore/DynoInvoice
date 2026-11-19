@@ -47,7 +47,8 @@ class CreditNoteCorrectionHandler(
     /**
      * A derived version of [originalDocUuid] arrived. Each credit note it names becomes NOT_SUBMITTABLE with
      * NETTED_BY_SYSTEM, once. When a version of the original was already sent, the derived version is cancelled by
-     * the revision path and never submitted, so the credit note is not netted: it is decided again as refused.
+     * the revision path and never submitted, so the credit note is neither marked nor netted: it is decided again
+     * (no `netRefused` mark), and the sent row applies.
      */
     fun onDerivedVersion(
         originalDocUuid: String,
@@ -56,7 +57,7 @@ class CreditNoteCorrectionHandler(
         val already = transitions.nettedBySystem(originalDocUuid).toSet()
         netDerivation.creditNotes.map { it.docUuid }.distinct().filter { it !in already }.forEach { creditNote ->
             if (originalWasSent(originals.versionsOf(creditNote))) {
-                onRefused(listOf(creditNote), REFUSED_AFTER_SENT)
+                decide(creditNote)
             } else {
                 transitions.notSubmittable(creditNote, CorrectionReason.NETTED_BY_SYSTEM)
             }
@@ -100,8 +101,4 @@ class CreditNoteCorrectionHandler(
 
     private fun originalWasSent(versions: List<LifecycleState>): Boolean =
         versions.map(OriginalStanding::classOf).any { it == StateClass.AT_IRAS || it == StateClass.SENT_OUT }
-
-    private companion object {
-        const val REFUSED_AFTER_SENT = "ORIGINAL_SENT"
-    }
 }

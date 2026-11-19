@@ -138,10 +138,12 @@ class CreditNoteCorrectionHandlerTest {
     }
 
     @Test
-    fun `INV-AC-25343 derived version after the original was sent is not netted`() {
+    fun `INV-AC-25343 derived version after the original was sent stores no mark and decides again`() {
         val w = World(listOf(LifecycleState.SENT, LifecycleState.READY))
         w.handler.onDerivedVersion(o, derivation)
-        w.calls shouldBe listOf("mark $a", "wait $a")
+        w.calls shouldBe listOf("wait $a")
+        w.refused shouldBe emptySet()
+        w.netted shouldBe emptySet()
     }
 
     @Test
