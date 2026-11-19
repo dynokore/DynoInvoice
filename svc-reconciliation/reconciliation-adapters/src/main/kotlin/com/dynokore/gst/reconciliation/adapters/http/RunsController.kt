@@ -139,7 +139,7 @@ open class RunsController(
 
     /**
      * `exportWorkPaper` (INV-T-24486, INV-REQ-982): no token is 401, then [ExportDelivery] runs the one fail-closed
-     * order (the run's entity, the scoped permission, PDF, the use case, the audit entry).
+     * order (the run's entity, the scoped permission, the use case for either format, the audit entry).
      */
     override fun exportWorkPaper(
         runId: UUID,
@@ -150,7 +150,6 @@ open class RunsController(
                 ?: return exportRefusal(ExportRefusal.UNAUTHENTICATED)
         return when (val step = delivery.deliver(caller, runId, format)) {
             is ExportStep.Answer -> step.response
-            ExportStep.Pdf -> super.exportWorkPaper(runId, format)
             ExportStep.UnknownFormat -> refusal(ClosedErrorCode.CONTRACT_VIOLATION, "Unknown export format.")
         }
     }

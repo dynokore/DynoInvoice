@@ -1,5 +1,7 @@
 package com.dynokore.gst.reconciliation.bootstrap
 
+import com.dynokore.gst.reconciliation.adapters.export.FormatWorkPaperRenderer
+import com.dynokore.gst.reconciliation.adapters.export.PdfWorkPaperRenderer
 import com.dynokore.gst.reconciliation.adapters.export.XlsxWorkPaperRenderer
 import com.dynokore.gst.reconciliation.adapters.http.AuthorityReplicaExportAuthority
 import com.dynokore.gst.reconciliation.adapters.http.ExportAuthority
@@ -19,7 +21,8 @@ import java.time.Clock
 
 /**
  * The beans of the `exportWorkPaper` endpoint (INV-T-24486, INV-REQ-982): the scoped-permission authority over
- * `AuthorityReplica.decide`, the spreadsheet renderer (no PDF renderer exists) and the `ExportWorkPaper` use case.
+ * `AuthorityReplica.decide`, the renderer that dispatches PDF and spreadsheet (INV-T-24543) and the
+ * `ExportWorkPaper` use case.
  * No `RunItems` bean exists on main, so the use case takes `JooqRunItems(dsl)` directly, as `JooqCompletedRuns` does.
  */
 @Configuration(proxyBeanMethods = false)
@@ -31,7 +34,8 @@ class ExportEndpointConfiguration {
     ): ExportAuthority = AuthorityReplicaExportAuthority(replica, tenants)
 
     @Bean
-    fun workPaperRenderer(): WorkPaperRenderer = XlsxWorkPaperRenderer()
+    fun workPaperRenderer(): WorkPaperRenderer =
+        FormatWorkPaperRenderer(XlsxWorkPaperRenderer(), PdfWorkPaperRenderer())
 
     @Bean
     @Suppress("LongParameterList")

@@ -1,5 +1,8 @@
 package com.dynokore.gst.reconciliation.adapters.http
 
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import com.dynokore.gst.reconciliation.adapters.export.UnsupportedExportTextException
 import com.dynokore.gst.reconciliation.application.run.GetRun
 import com.dynokore.gst.reconciliation.application.run.ListRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
@@ -51,6 +54,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import jakarta.servlet.http.HttpServletRequest
 import org.junit.jupiter.api.Test
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.support.DefaultListableBeanFactory
 import org.springframework.boot.json.JsonParserFactory
 import org.springframework.core.io.Resource
@@ -63,7 +68,9 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 
-/** INV-AC-24485 (INV-T-24486): `exportWorkPaper` of [RunsController] over fakes only. */
+private const val SECRET = "secret-field-value-9f3"
+
+/** INV-AC-24485 (INV-T-24486) and INV-AC-24541 (INV-T-24543): `exportWorkPaper` of [RunsController] over fakes only. */
 @Suppress("TooManyFunctions", "LargeClass")
 class ExportWorkPaperEndpointTest {
     private val now = Instant.parse("2026-11-19T08:00:00Z")
@@ -100,6 +107,7 @@ class ExportWorkPaperEndpointTest {
     private var relaxedCurrent = true
     private var vanishAfterFirstRead = false
     private var auditThrows = false
+    private var renderThrows = false
     private var reads = 0
 
     private val reader =
@@ -152,7 +160,11 @@ class ExportWorkPaperEndpointTest {
         WorkPaperRenderer { _, format ->
             events += "render"
             rendered += format
-            RenderedExport(ExportContentTypes.SPREADSHEET, bytesB)
+            if (renderThrows) throw UnsupportedExportTextException("Items row 3 evidence")
+            RenderedExport(
+                if (format == ExportFormat.PDF) ExportContentTypes.PDF else ExportContentTypes.SPREADSHEET,
+                bytesB,
+            )
         }
 
     private val relaxed =
@@ -322,14 +334,18 @@ class ExportWorkPaperEndpointTest {
     }
 
     @Test
-    fun `INV-AC-24485 (b) the PDF format is allowed and answers the generated 501 with nothing else`() {
+    fun `INV-AC-24541 (b) the PDF format is allowed, rendered as PDF and delivered with one audit entry`() {
         val response = call(r1, "PDF")
-        response.statusCode.value() shouldBe 501
-        response.body shouldBe null
+        response.statusCode.value() shouldBe 200
+        response.headers.getFirst("Content-Type") shouldBe ExportContentTypes.PDF
+        (response.body as Resource).inputStream.readBytes().toList() shouldBe bytesB.toList()
         asked shouldBe listOf(permission)
-        rendered shouldBe emptyList()
-        audited shouldBe emptyList()
-        events shouldBe listOf("decide")
+        rendered shouldBe listOf(ExportFormat.PDF)
+        audited shouldBe
+            listOf(
+                AuditEntry("U7", "exportWorkPaper", "run:00000000-0000-0000-0000-00000000abcd/format:PDF", null, null),
+            )
+        events shouldBe listOf("decide", "use-case", "render", "audit-write", "returned")
     }
 
     @Test
@@ -396,13 +412,38 @@ class ExportWorkPaperEndpointTest {
     }
 
     @Test
-    fun `INV-AC-24485 (i) a denied decision with the PDF format answers 403 SRT-004, not 501`() {
+    fun `INV-AC-24541 (i) a denied decision with the PDF format answers 403 SRT-004 and nothing is rendered`() {
         allow = false
         val response = call(r1, "PDF")
         assertClosed(response, ClosedErrorCode.ACCESS_DENIED)
+        ClosedErrorCode.ACCESS_DENIED.code shouldBe "SRT-004"
         events shouldBe listOf("decide")
         audited shouldBe emptyList()
         rendered shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-24541 (j) text the font cannot draw answers 500 SRT-010 with no detail, audit or log value`() {
+        renderThrows = true
+        val logger = LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME) as ch.qos.logback.classic.Logger
+        val appender = ListAppender<ILoggingEvent>().also { it.start() }
+        logger.addAppender(appender)
+        val response =
+            try {
+                call(r1, "PDF")
+            } finally {
+                logger.detachAppender(appender)
+            }
+        assertClosed(response, ClosedErrorCode.INTERNAL_ERROR)
+        ClosedErrorCode.INTERNAL_ERROR.code shouldBe "SRT-010"
+        val text = (response as ResponseEntity<*>).body as String
+        JsonParserFactory.getJsonParser().parseMap(text).containsKey("detail") shouldBe false
+        text.contains(SECRET) shouldBe false
+        audited shouldBe emptyList()
+        events shouldBe listOf("decide", "use-case", "render")
+        appender.list.any {
+            it.formattedMessage.contains(SECRET) || it.throwableProxy?.message?.contains(SECRET) == true
+        } shouldBe false
     }
 
     @Test

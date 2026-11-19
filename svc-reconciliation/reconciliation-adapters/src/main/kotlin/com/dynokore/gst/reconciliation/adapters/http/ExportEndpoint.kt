@@ -1,5 +1,6 @@
 package com.dynokore.gst.reconciliation.adapters.http
 
+import com.dynokore.gst.reconciliation.adapters.export.UnsupportedExportTextException
 import com.dynokore.gst.reconciliation.application.run.GetRun
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportFormat
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportOutcome
@@ -76,7 +77,10 @@ class AuthorityReplicaExportAuthority internal constructor(
     }
 }
 
-/** The refusals of `exportWorkPaper`: no token SRT-003, denied SRT-004, no such run SRT-005, policy replica SRT-013. */
+/**
+ * The refusals of `exportWorkPaper`: no token SRT-003, denied SRT-004, no such run SRT-005, policy replica SRT-013,
+ * text the PDF font cannot draw SRT-010.
+ */
 enum class ExportRefusal(
     val code: ClosedErrorCode,
 ) {
@@ -84,6 +88,7 @@ enum class ExportRefusal(
     ACCESS_DENIED(ClosedErrorCode.ACCESS_DENIED),
     NOT_FOUND(ClosedErrorCode.NOT_FOUND),
     NOT_READY(ClosedErrorCode.SERVICE_NOT_READY),
+    INTERNAL(ClosedErrorCode.INTERNAL_ERROR),
 }
 
 /** ARC-19, CS-14: an [ExportRefusal] as the API-20 envelope, by the builder of its family. */
@@ -108,16 +113,13 @@ sealed interface ExportStep {
         val response: ResponseEntity<Resource>,
     ) : ExportStep
 
-    /** The PDF writer does not exist yet: the generated 501 of the operation answers, after an allowed decision. */
-    data object Pdf : ExportStep
-
     data object UnknownFormat : ExportStep
 }
 
 /**
  * The fail-closed order of `exportWorkPaper` after the principal is read (INV-T-24486): the run's entity (unknown run
  * or an entity outside the caller's current set: 404, no decision), the scoped permission (denied: 403, whatever the
- * format), PDF, then [ExportWorkPaper]. The audit entry is written only for a delivered export, through
+ * format), then [ExportWorkPaper] for either format. The audit entry is written only for a delivered export, through
  * `AuditedOperations.read`, so the bytes are handed back only once it is written; a failed write propagates.
  */
 class ExportDelivery(
@@ -136,11 +138,20 @@ class ExportDelivery(
         val tenant = tenants.current()
         val entityRef = visibleEntity(caller, tenant.toString(), runId)
         return when {
-            entityRef == null -> refused(ExportRefusal.NOT_FOUND)
-            !authority.holds(caller.actor, EXPORT_PERMISSION, entityRef) -> refused(ExportRefusal.ACCESS_DENIED)
-            format == ExportFormat.PDF.name -> ExportStep.Pdf
-            format != ExportFormat.SPREADSHEET.name -> ExportStep.UnknownFormat
-            else -> ExportStep.Answer(spreadsheet(caller.actor, tenant, entityRef, runId))
+            entityRef == null -> {
+                refused(ExportRefusal.NOT_FOUND)
+            }
+
+            !authority.holds(caller.actor, EXPORT_PERMISSION, entityRef) -> {
+                refused(ExportRefusal.ACCESS_DENIED)
+            }
+
+            else -> {
+                ExportFormat.entries
+                    .firstOrNull { it.name == format }
+                    ?.let { ExportStep.Answer(export(caller.actor, tenant, entityRef, runId, it)) }
+                    ?: ExportStep.UnknownFormat
+            }
         }
     }
 
@@ -157,19 +168,22 @@ class ExportDelivery(
         return entityRef.takeIf { visible }
     }
 
-    private fun spreadsheet(
+    private fun export(
         actor: String,
         tenant: TenantId,
         entityRef: String,
         runId: UUID,
+        format: ExportFormat,
     ): ResponseEntity<Resource> {
         val id = runId.toString().lowercase()
-        return when (
-            val outcome =
-                transactions.inTransaction {
-                    export.execute(tenant.toString(), id, ExportFormat.SPREADSHEET)
-                }
-        ) {
+        val outcome =
+            try {
+                transactions.inTransaction { export.execute(tenant.toString(), id, format) }
+            } catch (_: UnsupportedExportTextException) {
+                // The message names a field and a row only; nothing of the export is logged or returned (ASVS V7).
+                return exportRefusal(ExportRefusal.INTERNAL)
+            }
+        return when (outcome) {
             ExportOutcome.RunNotFound -> {
                 exportRefusal(ExportRefusal.NOT_FOUND)
             }
@@ -180,7 +194,7 @@ class ExportDelivery(
 
             is ExportOutcome.Exported -> {
                 audited.read(
-                    AuditEntry(actor, "exportWorkPaper", exportAuditScope(runId, ExportFormat.SPREADSHEET.name)),
+                    AuditEntry(actor, "exportWorkPaper", exportAuditScope(runId, format.name)),
                     context(tenant, entityRef, id),
                 ) {
                     ResponseEntity
