@@ -1,11 +1,5 @@
 package com.dynokore.gst.evidence.application.lookup
 
-import com.dynokore.platform.auditlog.AuditEntry
-import com.dynokore.platform.auditlog.AuditedOperations
-import com.dynokore.platform.outboxandqueue.CausationId
-import com.dynokore.platform.outboxandqueue.CorrelationId
-import com.dynokore.platform.outboxandqueue.EntityRef
-import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
@@ -45,27 +39,6 @@ class DecisionTraceLookupTest {
             ),
         )
     private val reads = mutableListOf<String>()
-    private val entries = mutableListOf<AuditEntry>()
-    private val context =
-        EventContext(t1, EntityRef("ENT-1"), null, null, "agg", null, CorrelationId("c"), CausationId("d"))
-
-    private val audit =
-        object : AuditedOperations {
-            override fun <T> change(
-                entry: AuditEntry,
-                context: EventContext,
-                block: () -> T,
-            ): T = error("not used")
-
-            override fun <T> read(
-                entry: AuditEntry,
-                context: EventContext,
-                block: () -> T,
-            ): T {
-                entries += entry
-                return block()
-            }
-        }
 
     private fun reader(answer: StoredDecisionTrace?) =
         DecisionTraceReader { _, _, _ ->
@@ -108,7 +81,7 @@ class DecisionTraceLookupTest {
     private fun lookup(
         answer: StoredDecisionTrace?,
         replica: AuthorityReplica = replica(),
-    ) = DecisionTraceLookup(replica, reader(answer), audit).lookup(t1, user, doc, 1, context)
+    ) = DecisionTraceLookup(replica, reader(answer)).lookup(t1, user, doc, 1)
 
     @Test
     fun `INV-AC-20775 Found carries the decisions of the reader unchanged`() {
@@ -151,13 +124,10 @@ class DecisionTraceLookupTest {
     }
 
     @Test
-    fun `INV-AC-20775 the audit entry carries the acting user id and no role, and none when refused`() {
-        lookup(StoredDecisionTrace.Valid(at, decisions))
-        entries.size shouldBe 1
-        entries.single().actor shouldBe "user-42"
-        entries.single().toString().contains("auditor") shouldBe false
-        entries.clear()
-        lookup(null, replica(key = "other.key"))
-        entries shouldBe emptyList()
+    fun `INV-AC-20775 the constructor has exactly the parameters AuthorityReplica and DecisionTraceReader`() {
+        DecisionTraceLookup::class.java.constructors
+            .single()
+            .parameterTypes
+            .toList() shouldBe listOf(AuthorityReplica::class.java, DecisionTraceReader::class.java)
     }
 }
