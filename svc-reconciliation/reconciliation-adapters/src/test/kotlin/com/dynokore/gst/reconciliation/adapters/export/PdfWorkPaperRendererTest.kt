@@ -98,7 +98,7 @@ class PdfWorkPaperRendererTest {
 
     private fun tmpListing(): Set<String> =
         Files.list(Path.of(System.getProperty("java.io.tmpdir"))).use { s ->
-            s.map { it.fileName.toString() }.filter { it.startsWith("tmpPDFBox") }.toList().toSet()
+            s.map { it.fileName.toString() }.filter { it.startsWith("PDFBox") }.toList().toSet()
         }
 
     @Test
