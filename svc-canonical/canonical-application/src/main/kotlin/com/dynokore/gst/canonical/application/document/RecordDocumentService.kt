@@ -31,6 +31,7 @@ data class RecordDocumentCommand(
     val content: DocumentContent? = null,
     val documentNumber: String? = null,
     val networkPath: RoutingNetworkPath = RoutingNetworkPath.NOT_ON_NETWORK,
+    val nettedCreditNoteKeys: List<String> = emptyList(),
 )
 
 /** Builds the result text of a recorded document; implemented outside this service. */

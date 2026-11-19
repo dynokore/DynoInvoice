@@ -1,5 +1,6 @@
 package com.dynokore.gst.canonical.application.document
 
+import com.dynokore.gst.canonical.application.netting.DeclaredCreditNotes
 import com.dynokore.gst.canonical.application.netting.NetCreditNoteRef
 import com.dynokore.gst.canonical.application.netting.NetDerivationDocuments
 import com.dynokore.gst.canonical.application.netting.NetDerivationRecords
@@ -38,7 +39,8 @@ class DocumentRowWriterNetTest {
     private val calls = mutableListOf<String>()
     private val asked = mutableListOf<Pair<UUID, Int>>()
     private var predecessor: NetDerivationFact? = NetDerivationFact(2, listOf(NetDerivationCreditNoteFact(noteA, 2)))
-    private var declared: List<String> = emptyList()
+    private var declared: List<UUID> = emptyList()
+    private val declaredAsked = mutableListOf<Pair<RecordDocumentCommand, UUID>>()
 
     private fun line(
         amount: String,
@@ -185,7 +187,18 @@ class DocumentRowWriterNetTest {
             },
         )
 
-    private val rowWriter = DocumentRowWriter(versionWriter, rederivation) { declared }
+    private val declaredCreditNotes =
+        object : DeclaredCreditNotes {
+            override fun of(
+                command: RecordDocumentCommand,
+                entityId: UUID,
+            ): List<UUID> {
+                declaredAsked += command to entityId
+                return declared
+            }
+        }
+
+    private val rowWriter = DocumentRowWriter(versionWriter, rederivation, declaredCreditNotes)
 
     private val command =
         RecordDocumentCommand(
@@ -225,7 +238,7 @@ class DocumentRowWriterNetTest {
 
     @Test
     fun `INV-AC-25341 version 3 declaring the credit note writes the ERP version only`() {
-        declared = listOf(noteA.toString())
+        declared = listOf(noteA)
         rowWriter.write(command, original, 3, facts)
         calls shouldBe listOf("createVersion 3 erp", "stage 3")
     }
@@ -243,5 +256,19 @@ class DocumentRowWriterNetTest {
         rowWriter.write(command, original, 1, facts)
         calls shouldBe listOf("insert", "stage 1")
         asked shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-25341 the command and facts entityId go to declaredCreditNotes and its answer to the re-derivation`() {
+        declared = listOf(noteA)
+        rowWriter.write(command, original, 3, facts)
+        declaredAsked shouldBe listOf(command to entity)
+        calls shouldBe listOf("createVersion 3 erp", "stage 3")
+    }
+
+    @Test
+    fun `INV-AC-25341 version 1 does not ask declaredCreditNotes`() {
+        rowWriter.write(command, original, 1, facts)
+        declaredAsked shouldBe emptyList()
     }
 }

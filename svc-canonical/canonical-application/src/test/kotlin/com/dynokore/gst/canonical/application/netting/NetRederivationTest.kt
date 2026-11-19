@@ -213,14 +213,14 @@ class NetRederivationTest {
 
     @Test
     fun `INV-AC-25341 version 3 declaring the credit note writes nothing more`() {
-        rederivation.afterErpVersion(original, 3, listOf(noteA.toString()))
+        rederivation.afterErpVersion(original, 3, listOf(noteA))
         calls shouldBe emptyList()
         staged shouldBe emptyList()
     }
 
     @Test
-    fun `INV-AC-25341 a declared look-alike key still re-derives`() {
-        val lookAlikes = listOf(noteA.toString().uppercase() + " ", "x" + noteA, noteA.toString().dropLast(1), "")
+    fun `INV-AC-25341 a declared Doc UUID of another credit note still re-derives`() {
+        val lookAlikes = listOf(id(2), original, entity)
         rederivation.afterErpVersion(original, 3, lookAlikes)
         calls shouldBe listOf("createVersion 3 derived $expectedNet", "record 4 3 [$noteA]")
     }

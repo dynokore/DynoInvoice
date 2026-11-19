@@ -1,10 +1,17 @@
 package com.dynokore.gst.canonical.application.document
 
+import com.dynokore.gst.canonical.application.netting.DeclaredCreditNotes
+import com.dynokore.gst.canonical.application.netting.NetCreditNoteRef
+import com.dynokore.gst.canonical.application.netting.NetDerivationDocuments
+import com.dynokore.gst.canonical.application.netting.NetDerivationRecords
+import com.dynokore.gst.canonical.application.netting.NetDerivedVersions
+import com.dynokore.gst.canonical.application.netting.NetRederivation
 import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.DocumentState
 import com.dynokore.gst.canonical.domain.document.NewDocument
 import com.dynokore.gst.canonical.domain.document.NewVersion
 import com.dynokore.gst.canonical.domain.document.ScopeVerdict
+import com.dynokore.gst.canonical.domain.netting.Derived
 import com.dynokore.platform.serviceruntime.persistence.UpdateOutcome
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -76,7 +83,56 @@ class RowWritingResultBuilderTest {
                 aggregateId: String,
             ): Boolean = true
         }
-    private val rowWriter = DocumentRowWriter(CanonicalVersionWriter(store, publisher, refs))
+    private val versionWriter = CanonicalVersionWriter(store, publisher, refs)
+    private val noRederivation =
+        NetRederivation(
+            records =
+                object : NetDerivationRecords {
+                    override fun record(
+                        docUuid: UUID,
+                        version: Int,
+                        baseVersion: Int,
+                        creditNotes: List<NetCreditNoteRef>,
+                    ) = error("not used")
+
+                    override fun recordOf(
+                        docUuid: UUID,
+                        version: Int,
+                    ): NetDerivationFact? = null
+                },
+            documents =
+                object : NetDerivationDocuments {
+                    override fun currentVersion(docUuid: UUID) = error("not used")
+
+                    override fun base(
+                        docUuid: UUID,
+                        version: Int,
+                    ) = error("not used")
+
+                    override fun creditNote(
+                        docUuid: UUID,
+                        version: Int,
+                    ) = error("not used")
+                },
+            versions =
+                object : NetDerivedVersions {
+                    override fun build(
+                        docUuid: UUID,
+                        baseVersion: Int,
+                        derived: Derived,
+                    ) = error("not used")
+                },
+            writer = versionWriter,
+            factsFor = { _, _ -> error("not used") },
+        )
+    private val noDeclared =
+        object : DeclaredCreditNotes {
+            override fun of(
+                command: RecordDocumentCommand,
+                entityId: UUID,
+            ): List<UUID> = emptyList()
+        }
+    private val rowWriter = DocumentRowWriter(versionWriter, noRederivation, noDeclared)
 
     private fun version(
         verdict: ScopeVerdict? = ScopeVerdict.IN_SCOPE,
