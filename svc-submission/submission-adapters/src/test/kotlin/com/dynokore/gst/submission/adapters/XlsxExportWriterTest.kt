@@ -51,14 +51,15 @@ class XlsxExportWriterTest {
     private fun bytesOf(table: ExportTable): ByteArray =
         ByteArrayOutputStream().also { XlsxExportWriter().write(table, it) }.toByteArray()
 
-    private fun sxssfFiles(): Set<String> =
-        Files.list(Path.of(System.getProperty("java.io.tmpdir"))).use { s ->
-            s
-                .map { it.name }
-                .filter { it.startsWith("poi-sxssf-sheet") }
-                .toList()
-                .toSet()
-        }
+    /** POI creates its temporary sheet files in the temp directory or in its `poifiles` subdirectory. */
+    private fun sxssfFiles(): Set<String> {
+        val tmp = Path.of(System.getProperty("java.io.tmpdir"))
+        return listOf(tmp, tmp.resolve("poifiles"))
+            .filter { Files.isDirectory(it) }
+            .flatMap { dir -> Files.list(dir).use { s -> s.map { it.name }.toList() } }
+            .filter { it.startsWith("poi-sxssf-sheet") }
+            .toSet()
+    }
 
     private fun assertBody(
         sheet: Sheet,
