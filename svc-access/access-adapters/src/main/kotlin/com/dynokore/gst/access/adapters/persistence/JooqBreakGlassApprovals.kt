@@ -83,6 +83,22 @@ class JooqBreakGlassApprovals(
             .execute()
     }
 
+    override fun countUnconsumed(
+        approvers: Collection<String>,
+        after: Instant,
+    ): Int {
+        if (approvers.isEmpty()) return 0
+        // the same predicate as consume: exact equality, unconsumed, strictly later than the window start
+        return dsl
+            .select(BREAK_GLASS_APPROVAL.APPROVER_REF)
+            .from(BREAK_GLASS_APPROVAL)
+            .where(BREAK_GLASS_APPROVAL.APPROVER_REF.`in`(approvers))
+            .and(BREAK_GLASS_APPROVAL.CONSUMED_AT.isNull)
+            .and(BREAK_GLASS_APPROVAL.MADE_AT.gt(after.atOffset(ZoneOffset.UTC)))
+            .fetch()
+            .size
+    }
+
     override fun consume(
         approvers: Collection<String>,
         after: Instant,

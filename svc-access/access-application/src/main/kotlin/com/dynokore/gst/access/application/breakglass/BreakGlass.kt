@@ -42,10 +42,10 @@ interface BreakGlassSessions {
 
     fun find(ref: String): BreakGlassSession?
 
-    /**
-     * The latest unlock of the bound tenant (greatest `unlockedAt`, ties by the greater ref in string order) or null.
-     * It first takes a transaction-scoped lock keyed by the tenant, so two unlocks of one tenant run one at a time.
-     */
+    /** Takes a transaction-scoped lock keyed by the bound tenant, so two unlocks of one tenant run one at a time. */
+    fun lockTenant()
+
+    /** The latest unlock of the bound tenant (greatest `unlockedAt`, ties by the greater ref in string order) or null. */
     fun latest(): BreakGlassSession?
 
     /** Marks the session of [ref] resealed (closed). */
@@ -204,13 +204,18 @@ class UnlockBreakGlassUseCase(
             if (available && !overridden) return@inTransaction UnlockBreakGlassOutcome.IdpAvailable
             // while the provider counts as unavailable the reason is ignored and not recorded
             val recordedReason = if (available) IDP_PARTIAL_OUTAGE else null
-            if (sessions.latest()?.sealed == false) return@inTransaction UnlockBreakGlassOutcome.LatestNotSealed
             val hours = setting.hours
             check(BreakGlassRules.isSessionHours(hours)) { "the break-glass session length must be 1 to 8 hours" }
+            // one unlock of the tenant at a time: what follows reads the approvals and the latest unlock as committed
+            sessions.lockTenant()
+            val others = people.map { it.value }.filter { it != actor }
+            val windowStart = now.minus(approvalWindow)
+            // a missing approval (403) is decided before the latest unlock (409); nothing is consumed by either
+            if (approvals.countUnconsumed(others, windowStart) != others.size) throw ApprovalShortfall()
+            if (sessions.latest()?.sealed == false) return@inTransaction UnlockBreakGlassOutcome.LatestNotSealed
             val session = sessions.insert(hours, now, people.map { it.value })
             // every refusal is decided above; the approvals of the others go in this transaction, all or none
-            val others = people.map { it.value }.filter { it != actor }
-            if (approvals.consume(others, now.minus(approvalWindow), session.ref, now) != others.size) {
+            if (approvals.consume(others, windowStart, session.ref, now) != others.size) {
                 throw ApprovalShortfall()
             }
             effects.recordUnlock(actor, session.ref, recordedReason)

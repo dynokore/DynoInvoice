@@ -1,5 +1,6 @@
 package com.dynokore.gst.access.bootstrap
 
+import com.dynokore.gst.access.bootstrap.AcceptFirstAdministratorFixture.movableClock
 import com.dynokore.gst.access.bootstrap.AcceptFirstAdministratorFixture.token
 import com.dynokore.gst.access.bootstrap.AcceptFirstAdministratorFixture.viaConsole
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.json
@@ -9,13 +10,16 @@ import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.rows
 import com.dynokore.gst.access.bootstrap.FirstAdministratorFixture.withService
 import com.dynokore.gst.access.bootstrap.SealFixture.pair
 import com.dynokore.gst.access.bootstrap.SealFixture.passExpiry
+import com.dynokore.gst.access.bootstrap.SealFixture.passTo
 import com.dynokore.gst.access.bootstrap.SealFixture.reseal
 import com.dynokore.gst.access.bootstrap.SealFixture.unlocked
 import com.dynokore.gst.access.bootstrap.served.ServedContext
+import com.dynokore.gst.access.domain.role.Role
 import com.dynokore.platform.tenancykernel.TenantId
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.mock.web.MockHttpServletResponse
+import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -27,8 +31,13 @@ import java.util.concurrent.TimeUnit
  * PostgreSQL.
  */
 class BreakGlassUnlockRefusalTest {
-    private fun ServedContext.approveBoth(tenant: TenantId) {
-        listOf(SealFixture.ADMIN, SealFixture.APPROVER).forEach { approver ->
+    private fun ServedContext.approveBoth(tenant: TenantId) = approve(tenant, SealFixture.ADMIN, SealFixture.APPROVER)
+
+    private fun ServedContext.approve(
+        tenant: TenantId,
+        vararg approvers: String,
+    ) {
+        approvers.forEach { approver ->
             val approved =
                 post(
                     operation("approveBreakGlassUnlock"),
@@ -40,13 +49,25 @@ class BreakGlassUnlockRefusalTest {
         }
     }
 
-    private fun ServedContext.tryUnlock(tenant: TenantId): MockHttpServletResponse =
+    private fun ServedContext.tryUnlock(
+        tenant: TenantId,
+        caller: String = SealFixture.ADMIN,
+        other: String = SealFixture.APPROVER,
+    ): MockHttpServletResponse =
         post(
             operation("unlockBreakGlass"),
-            viaConsole(token(SealFixture.ADMIN, tenant)),
-            """{"tenantRef":"$tenant","approvedBy":["${SealFixture.ADMIN}","${SealFixture.APPROVER}"]}""",
+            viaConsole(token(caller, tenant)),
+            """{"tenantRef":"$tenant","approvedBy":["$caller","$other"]}""",
             UUID.randomUUID(),
         )
+
+    /** Tries the unlock with no valid approval of the second approver: 403, not 409, and nothing is written. */
+    private fun ServedContext.assertDeniedNotRefused(tenant: TenantId) {
+        val everything = stored()
+        val response = tryUnlock(tenant)
+        assertThat(response.status).describedAs(response.contentAsString).isEqualTo(403)
+        assertThat(stored()).isEqualTo(everything)
+    }
 
     private fun sessions(tenant: TenantId) = rows("access.break_glass_session", tenant)
 
@@ -181,19 +202,66 @@ class BreakGlassUnlockRefusalTest {
         }
 
     @Test
-    fun `INV-AC-24945 two simultaneous unlocks of one tenant answer one 201 and one 409`() =
+    fun `INV-AC-24945 an open latest unlock and no approval made is 403 with nothing written`() =
         withService { served ->
             val tenant = newTenant()
             served.pair(tenant)
+            served.unlocked(tenant)
+            // the approvals of that unlock are consumed: the second approver has none left
+            served.assertDeniedNotRefused(tenant)
+        }
+
+    @Test
+    fun `INV-AC-24945 a lapsed latest unlock and a consumed approval is 403 with nothing written`() =
+        withService { served ->
+            val tenant = newTenant()
+            served.pair(tenant)
+            val (_, expiresAt) = served.unlocked(tenant)
+            served.passExpiry(expiresAt)
+            served.assertDeniedNotRefused(tenant)
+        }
+
+    @Test
+    fun `INV-AC-24945 an open latest unlock and an approval made 15 minutes earlier is 403 with nothing written`() =
+        withService { served ->
+            val tenant = newTenant()
+            served.pair(tenant)
+            served.unlocked(tenant)
             served.approveBoth(tenant)
+            served.passTo(served.movableClock().instant().plus(Duration.ofMinutes(15)))
+            served.assertDeniedNotRefused(tenant)
+        }
+
+    @Test
+    fun `INV-AC-24945 an approval made by the caller alone does not stand for the second approver`() =
+        withService { served ->
+            val tenant = newTenant()
+            served.pair(tenant)
+            served.unlocked(tenant)
+            served.approve(tenant, SealFixture.ADMIN)
+            served.assertDeniedNotRefused(tenant)
+        }
+
+    @Test
+    fun `INV-AC-24945 two simultaneous unlocks of one tenant by two pairs answer one 201 and one 409`() =
+        withService { served ->
+            val tenant = newTenant()
+            served.pair(tenant)
+            Seeds.grant(served.application, tenant, SeedSpec(ADMIN_2, Role.TENANT_ADMIN))
+            Seeds.grant(served.application, tenant, SeedSpec(APPROVER_2, Role.TAX_APPROVER))
+            // each second approver has made an approval, so the 409 is decided by the latest unlock
+            served.approve(tenant, SealFixture.APPROVER, APPROVER_2)
             val start = CountDownLatch(1)
             val pool = Executors.newFixedThreadPool(2)
             try {
                 val calls =
-                    (1..2).map {
+                    listOf(
+                        SealFixture.ADMIN to SealFixture.APPROVER,
+                        ADMIN_2 to APPROVER_2,
+                    ).map { (caller, other) ->
                         pool.submit<MockHttpServletResponse> {
                             start.await()
-                            served.tryUnlock(tenant)
+                            served.tryUnlock(tenant, caller, other)
                         }
                     }
                 start.countDown()
@@ -202,8 +270,14 @@ class BreakGlassUnlockRefusalTest {
                     .describedAs(answers.joinToString { it.contentAsString })
                     .containsExactly(201, 409)
                 assertThat(sessions(tenant)).hasSize(1)
+                assertThat(json(answers.single { it.status == 409 }).has("code")).isFalse()
             } finally {
                 pool.shutdownNow()
             }
         }
+
+    private companion object {
+        const val ADMIN_2 = "IDN-ADM2"
+        const val APPROVER_2 = "IDN-APP2"
+    }
 }

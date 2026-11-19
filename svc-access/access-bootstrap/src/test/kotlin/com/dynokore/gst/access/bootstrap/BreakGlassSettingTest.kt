@@ -124,6 +124,15 @@ class BreakGlassSettingTest {
         }
     }
 
+    /** Closes the unlock [unlockRef] as a reseal does, so the next unlock of the tenant is not refused (INV-AC-24945). */
+    private fun sealed(unlockRef: String) =
+        BoundaryFixture.asSuperuser { c ->
+            c.prepareStatement("update access.break_glass_session set status = 'SEALED' where unlock_ref = ?").use {
+                it.setString(1, unlockRef)
+                check(it.executeUpdate() == 1)
+            }
+        }
+
     private fun store(
         context: AssertableWebApplicationContext,
         option: String,
@@ -167,13 +176,16 @@ class BreakGlassSettingTest {
             val clock = context.getBean(java.time.Clock::class.java) as MovableClock
             clock.freeze()
             // nothing stored: the default of 4 hours
-            assertThat(unlock(context, "IDN-ADM", "IDN-APP").body!!.sessionHours).isEqualTo(4)
+            val first = unlock(context, "IDN-ADM", "IDN-APP").body!!
+            assertThat(first.sessionHours).isEqualTo(4)
+            sealed(first.unlockRef)
             installation(context, 8)
             val stored = store(context, "DEFAULT_PAIR_4H", """{"window":6}""")
             assertThat(stored.status).describedAs(stored.contentAsString).isBetween(200, 299)
             val body = unlock(context, "IDN-ADM", "IDN-APP").body!!
             assertThat(body.sessionHours).isEqualTo(6)
             assertThat(body.expiresAt!!.toInstant()).isEqualTo(clock.instant().plus(Duration.ofHours(6)))
+            sealed(body.unlockRef)
             // 12 hours: refused as beyond the 8-hour bound, not as "not offered"; the stored 6 stays
             val twelve = store(context, "DEFAULT_PAIR_4H", """{"window":12}""")
             assertThat(twelve.status).describedAs(twelve.contentAsString).isBetween(400, 499)

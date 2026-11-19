@@ -50,6 +50,15 @@ interface BreakGlassApprovals {
     ): StoredApproval
 
     /**
+     * How many of [approvers] have an unconsumed approval made strictly after [after]; reads only, consumes nothing.
+     * The predicate is that of [consume].
+     */
+    fun countUnconsumed(
+        approvers: Collection<String>,
+        after: Instant,
+    ): Int
+
+    /**
      * Consumes, with one `UPDATE ... RETURNING`, the unconsumed approvals of [approvers] made strictly after [after],
      * for the session [unlockRef] at [consumedAt]; returns how many rows it consumed.
      */

@@ -58,7 +58,7 @@ class JooqBreakGlassSessions(
             .fetchOne()
             ?.let { toSession(it) }
 
-    override fun latest(): BreakGlassSession? {
+    override fun lockTenant() {
         // one writer per tenant: the lock is held to the end of the transaction, so the next unlock sees this row
         val digest =
             MessageDigest
@@ -66,13 +66,15 @@ class JooqBreakGlassSessions(
                 .digest("access.break-glass-unlock:${tenants.current()}".toByteArray(StandardCharsets.UTF_8))
         val key = ByteBuffer.wrap(digest).long
         dsl.select(DSL.function(DSL.name("pg_advisory_xact_lock"), SQLDataType.OTHER, DSL.inline(key))).fetch()
-        return dsl
+    }
+
+    override fun latest(): BreakGlassSession? =
+        dsl
             .selectFrom(BREAK_GLASS_SESSION)
             .orderBy(BREAK_GLASS_SESSION.UNLOCKED_AT.desc(), BREAK_GLASS_SESSION.UNLOCK_REF.desc())
             .limit(1)
             .fetchOne()
             ?.let { toSession(it) }
-    }
 
     override fun markSealed(ref: String) {
         dsl

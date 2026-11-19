@@ -144,6 +144,8 @@ class BreakGlassControllerOverrideTest {
                 )
             }
 
+            override fun lockTenant() = Unit
+
             override fun latest(): BreakGlassSession? = null
 
             override fun find(ref: String): BreakGlassSession? = null
@@ -191,6 +193,11 @@ class BreakGlassControllerOverrideTest {
                 madeAt: Instant,
                 window: Duration,
             ): com.dynokore.gst.access.application.breakglass.StoredApproval = error("not used")
+
+            override fun countUnconsumed(
+                approvers: Collection<String>,
+                after: Instant,
+            ): Int = approvers.size
 
             override fun consume(
                 approvers: Collection<String>,
