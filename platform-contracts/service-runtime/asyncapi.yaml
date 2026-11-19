@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: service-runtime shared event components
-  version: 1.28.0
+  version: 1.29.0
   description: >-
     Not a service: holds the CloudEvents envelope every other directory's
     asyncapi.yaml references (API-40, ./schemas/cloud-event-envelope.schema.json)
@@ -606,7 +606,7 @@ components:
         A signed rule pack is staged: pack identifier, pack type, version, effective-from, minimum engine
         version and the signed artefact — manifest, checksums, signature and contents (INV-REQ-815,
         INV-REQ-1226). Class: platform. Written under the platform tenant with the platform entity: the
-        wire form has no tenantid and no entityref. Emitted by: rules-svc. Consumed by: masterdata-svc, notification-svc, payload-svc, reconciliation-svc, submission-svc, tenancy-svc. Delivery: At-least-once; retained while any pack version it carries
+        wire form has no tenantid and no entityref. Emitted by: rules-svc. Consumed by: canonical-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, submission-svc, tenancy-svc. Delivery: At-least-once; retained while any pack version it carries
         can still be resolved (FR-Z.10). Supersedes the domain-class com.dynokore.gst.rules.RulePackStaged.v1,
         which rules-svc no longer produces.
       contentType: application/cloudevents+json
@@ -620,7 +620,7 @@ components:
       description: >-
         A rule pack version is activated: pack identifier, version and effective-from (INV-REQ-815,
         INV-REQ-1226). Class: platform. Written under the platform tenant with the platform entity: the
-        wire form has no tenantid and no entityref. Emitted by: rules-svc. Consumed by: masterdata-svc, notification-svc, payload-svc, reconciliation-svc, submission-svc, tenancy-svc. Delivery: At-least-once; not retained.
+        wire form has no tenantid and no entityref. Emitted by: rules-svc. Consumed by: canonical-svc, masterdata-svc, notification-svc, payload-svc, reconciliation-svc, submission-svc, tenancy-svc. Delivery: At-least-once; not retained.
         Supersedes the domain-class com.dynokore.gst.rules.RulePackActivated.v1, which rules-svc no longer
         produces.
       contentType: application/cloudevents+json
