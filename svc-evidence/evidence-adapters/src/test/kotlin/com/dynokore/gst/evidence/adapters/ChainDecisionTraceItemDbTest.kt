@@ -101,18 +101,33 @@ class ChainDecisionTraceItemDbTest {
         version: Int,
     ) = tx(tenant) { dsl, t -> reader(dsl).read(t, "A$version", doc, version) }
 
-    private fun contentHashes(
+    private data class Row(
+        val seq: Long,
+        val hash: String,
+        val recordedAt: Instant,
+    )
+
+    private fun rows(
         tenant: UUID,
         version: Int,
-    ): List<String> =
+    ): List<Row> =
         EvidenceDb.superuser().use { c ->
             c
                 .prepareStatement(
-                    "select content_hash from evidence.decision_trace where tenant_id = ? and version = ? order by seq",
+                    "select seq, content_hash, recorded_at from evidence.decision_trace " +
+                        "where tenant_id = ? and version = ? order by seq",
                 ).use {
                     it.setObject(1, tenant)
                     it.setInt(2, version)
-                    it.executeQuery().use { rows -> buildList { while (rows.next()) add(rows.getString(1)) } }
+                    it.executeQuery().use { r ->
+                        buildList {
+                            while (r.next()) {
+                                add(
+                                    Row(r.getLong(1), r.getString(2), r.getTimestamp(3).toInstant()),
+                                )
+                            }
+                        }
+                    }
                 }
         }
 
@@ -131,10 +146,12 @@ class ChainDecisionTraceItemDbTest {
         val items = read(t, 2).shouldBeInstanceOf<ChainRecords.Complete>().items
         val traces = items.filter { it.kind == ChainItemKind.DECISION_TRACE }
         traces.size shouldBe 2
-        traces.map { it.reference } shouldBe contentHashes(t, 2)
+        val stored = rows(t, 2)
+        stored.size shouldBe 2
+        traces.map { it.reference } shouldBe stored.map { it.hash }
         traces.map { it.packVersions } shouldBe listOf(listOf(m, s), listOf(m))
-        traces.map { it.recordedAt } shouldBe listOf(at, at)
-        traces.map { it.key.seq } shouldBe listOf(0L, 1L)
+        traces.map { it.recordedAt } shouldBe stored.map { it.recordedAt }
+        traces.map { it.key.seq } shouldBe stored.map { it.seq }
         items.map { it.kind } shouldBe
             listOf(
                 ChainItemKind.PAYLOAD,

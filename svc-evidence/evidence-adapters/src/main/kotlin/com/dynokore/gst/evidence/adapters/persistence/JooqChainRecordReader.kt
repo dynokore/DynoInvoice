@@ -73,7 +73,12 @@ class JooqChainRecordReader(
             ChainRecords.Incomplete
         } else {
             ChainRecords.Complete(
-                (acks + payloads + traces.map { it.item }).sortedBy { it.key }.mapIndexed { i, item -> item.copy(sequence = i + 1L) },
+                (acks + payloads + traces.map { it.item }).sortedBy { it.key }.mapIndexed { i, item ->
+                    item.copy(
+                        sequence =
+                            i + 1L,
+                    )
+                },
                 pairs.single().first,
                 pairs.single().second,
             )

@@ -53,7 +53,7 @@ sealed interface ChainRecords {
     data object Incomplete : ChainRecords
 }
 
-/** Reads the PAYLOAD, ACKNOWLEDGEMENT and DECISION_TRACE items of one version in the caller's tenant transaction (INV-REQ-726). */
+/** Reads the PAYLOAD, ACKNOWLEDGEMENT and DECISION_TRACE items of one version in a tenant transaction (INV-REQ-726). */
 fun interface ChainRecordReader {
     fun read(
         tenant: TenantId,
@@ -64,8 +64,8 @@ fun interface ChainRecordReader {
 }
 
 /**
- * The order key of an item: append instant, then kind (PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE), then raw `seq`. A page starts
- * strictly after the key in the cursor; the cursor never holds a rank.
+ * The order key of an item: append instant, then kind (PAYLOAD, ACKNOWLEDGEMENT, DECISION_TRACE), then raw `seq`.
+ * A page starts strictly after the key in the cursor; the cursor never holds a rank.
  */
 data class ChainCursor(
     val appliedAt: Instant,

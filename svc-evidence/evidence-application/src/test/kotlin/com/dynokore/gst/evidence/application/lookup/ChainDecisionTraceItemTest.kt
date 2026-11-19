@@ -76,9 +76,7 @@ class ChainDecisionTraceItemTest {
         override fun find(
             tenant: TenantId,
             ackId: String,
-        ): AcknowledgementLocator? {
-            return if (tenant == t1 && ackId == "A1") AcknowledgementLocator("A1", doc, 2) else null
-        }
+        ): AcknowledgementLocator? = if (tenant == t1 && ackId == "A1") AcknowledgementLocator("A1", doc, 2) else null
     }
 
     private inner class Reader(
@@ -89,9 +87,7 @@ class ChainDecisionTraceItemTest {
             ackId: String,
             docUuid: UUID,
             version: Int,
-        ): ChainRecords {
-            return answer
-        }
+        ): ChainRecords = answer
     }
 
     private class Audit : AuditedOperations {
@@ -154,7 +150,6 @@ class ChainDecisionTraceItemTest {
         }
     }
 
-
     private fun grant(
         tenant: TenantId,
         version: Long,
@@ -187,41 +182,6 @@ class ChainDecisionTraceItemTest {
         }
         return replica
     }
-
-    private fun grant(
-        tenant: TenantId,
-        version: Long,
-        scope: GrantScope,
-        scopeRef: String?,
-    ) = AuthorityChanged(
-        tenant,
-        user.id,
-        version,
-        AuthorityRecord.RoleGrantRecord(
-            "g$version",
-            RoleGrantState.ACTIVE,
-            RoleGrant("auditor", scope, scopeRef ?: tenant.value.toString(), Instant.parse(SINCE), null),
-        ),
-    )
-
-    private fun replica(
-        key: String = ENQUIRY_LOOKUP_BY_ACKNOWLEDGEMENT,
-        current: Boolean = true,
-        scope: GrantScope = GrantScope.TENANT,
-        scopeRef: String? = null,
-    ): AuthorityReplica {
-        val roles = OperationRoleMap { if (it == key) mapOf("auditor" to CellAllowance.PERMITTED) else emptyMap() }
-        val unavailable = ReplicaFallback<AuthorizationRequest, AuthorityVerdict> { _, _ -> FallbackResult.Unavailable }
-        val replica = AuthorityReplica(clock, roles, fallback = unavailable)
-        listOf(t1, t2).forEachIndexed { i, tenant -> replica.accept(grant(tenant, i + 1L, scope, scopeRef)) }
-        if (current) {
-            replica.onSnapshotComplete(2)
-            replica.observeHead(2)
-        }
-        return replica
-    }
-
-    private fun complete(vararg items: ChainItem) = ChainRecords.Complete(items.toList(), "ENT-1", "2026-Q1")
 
     private val context =
         EventContext(t1, EntityRef("ENT-1"), null, null, "agg", null, CorrelationId("c"), CausationId("d"))
