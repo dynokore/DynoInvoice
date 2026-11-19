@@ -5,16 +5,3 @@ openapi.yaml	/components/schemas/DocumentSummary/properties/documentFunction/enu
 openapi.yaml	/components/schemas/DocumentSummary/properties/documentFunction/x-extensible-enum	equals	true	INV-REQ-371
 openapi.yaml	/components/schemas/DocumentVersion/properties/documentFunction/enum	equals	["INVOICE","CREDIT_NOTE","DEBIT_NOTE","BILL_FOR_PAYMENT","ADJUSTMENT","NOT_A_BILL"]	INV-REQ-371
 openapi.yaml	/components/schemas/DocumentVersion/properties/documentFunction/x-extensible-enum	equals	true	INV-REQ-371
-# INV-T-25346 (INV-AC-25337): the net derivation contract of INV-REQ-558: the four notSubmittableReason enums, the netDerivation object and the NetDerivationRefused payload.
-openapi.yaml	/components/schemas/RecordDocumentResponse/properties/notSubmittableReason/enum	equals	["BUYER_REJECTED","ISSUANCE_REFUSED","NETTED_INTO_REVISION","NETTED_BY_SYSTEM"]	INV-REQ-558
-openapi.yaml	/components/schemas/DocumentSummary/properties/notSubmittableReason/enum	equals	["BUYER_REJECTED","ISSUANCE_REFUSED","NETTED_INTO_REVISION","NETTED_BY_SYSTEM"]	INV-REQ-558
-openapi.yaml	/components/schemas/DocumentVersion/properties/notSubmittableReason/enum	equals	["BUYER_REJECTED","ISSUANCE_REFUSED","NETTED_INTO_REVISION","NETTED_BY_SYSTEM"]	INV-REQ-558
-schemas/canonical-version-created-payload.schema.json	/properties/notSubmittableReason/enum	equals	["BUYER_REJECTED","ISSUANCE_REFUSED","NETTED_INTO_REVISION","NETTED_BY_SYSTEM"]	INV-REQ-558
-openapi.yaml	/components/schemas/DocumentVersion/properties/netDerivation/required	equals	["kind","baseVersion","creditNotes"]	INV-REQ-558
-openapi.yaml	/components/schemas/DocumentVersion/properties/netDerivation/properties/kind/enum	equals	["SYSTEM_DERIVED"]	INV-REQ-558
-openapi.yaml	/components/schemas/DocumentVersion/properties/netDerivation/properties/creditNotes/items/required	equals	["docUuid","version"]	INV-REQ-558
-schemas/canonical-version-created-payload.schema.json	/properties/netDerivation/required	equals	["kind","baseVersion","creditNotes"]	INV-REQ-558
-schemas/canonical-version-created-payload.schema.json	/properties/netDerivation/properties/kind/enum	equals	["SYSTEM_DERIVED"]	INV-REQ-558
-schemas/canonical-version-created-payload.schema.json	/properties/netDerivation/properties/creditNotes/items/required	equals	["docUuid","version"]	INV-REQ-558
-schemas/net-derivation-refused-payload.schema.json	/required	equals	["originalDocUuid","requestEventId","reason"]	INV-REQ-558
-schemas/net-derivation-refused-payload.schema.json	/properties/reason/enum	equals	["NOT_A_CREDIT_NOTE","OTHER_ENTITY","CURRENCY_MISMATCH","NOT_PRECEDING","BASE_CHANGED","DOCUMENT_NOT_FOUND","NET_NOT_POSITIVE"]	INV-REQ-558
