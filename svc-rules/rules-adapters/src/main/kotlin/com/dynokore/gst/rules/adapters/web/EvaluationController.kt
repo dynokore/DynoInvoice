@@ -225,6 +225,8 @@ open class EvaluationController(
                     CodeDocumentCommand(tenant, rateDate, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))),
                 )
         val coding = codingOf(result, tenant, rateDate, input)
+        // the catalogue of the pack version in force at the rate date, the one the prevailing rate comes from
+        val catalogue = if (result is DocumentCodingResult.Coded) packs.catalogueAt(tenant, rateDate) else null
         val (outcome, answered) = scopeOutcomeOf(request, tenant, dating.ownDate, coding)
         val trace = ScopeRequestFacts.traceWith(traceOf(result, tenant, rateDate, input), outcome)
         val classifiedResult = classified as? Classified.Done
@@ -238,7 +240,16 @@ open class EvaluationController(
                     dating.extraTrace
             }
         val versions = versionsApplied(tenant, rateDate) + listOfNotNull(classifiedResult?.version)
-        return answer(outcome, answered, result, versions, withDates, classified, dating.straddleNote)
+        return answer(
+            outcome,
+            answered,
+            result,
+            versions,
+            withDates,
+            classified,
+            dating.straddleNote,
+            catalogue = catalogue,
+        )
     }
 
     /** What the classification of the request came to; [None] when the request carries no `documentFunction`. */
@@ -498,6 +509,7 @@ open class EvaluationController(
         classified: Classified?,
         straddleNote: String?,
         refusalRuleId: String? = null,
+        catalogue: CodeCatalogue? = null,
     ): EvaluationResult {
         val fields = fieldsOf(classified)
         val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
@@ -522,14 +534,13 @@ open class EvaluationController(
             }
 
             is LineCoding.Coded -> {
-                val document = (result as DocumentCodingResult.Coded).document
-                val line = document.lines.single()
+                val line = (result as DocumentCodingResult.Coded).document.lines.single()
                 val answeredCode = ScopeRequestFacts.categoryCodeOf(outcome, coding.categoryCode)
                 EvaluationResult(
                     scopeVerdict = scope,
                     categoryCode = answeredCode,
                     rate = line.rate,
-                    supplyType = supplyTypeOf(document.catalogue, answeredCode),
+                    supplyType = supplyTypeOf(catalogue, answeredCode),
                     ibt022Statement = coding.ibt022Statement,
                     disregardedSupplyWarning = warning,
                     decisionTrace = trace,

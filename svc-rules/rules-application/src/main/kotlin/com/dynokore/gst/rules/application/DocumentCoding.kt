@@ -50,12 +50,6 @@ data class Subtotal(
 data class CodedDocument(
     val lines: List<CodedDocumentLine>,
     val subtotals: List<Subtotal>,
-    /**
-     * The code catalogue of the pack version the lines were coded and rated against (the one read of `catalogueAt`);
-     * callers read the entry of an answered code from it and never read the pack a second time. Null only where a
-     * document is built without a pack read.
-     */
-    val catalogue: CodeCatalogue? = null,
 )
 
 sealed interface DocumentCodingResult {
@@ -132,7 +126,7 @@ class DocumentCoder(
                     val c = coding as LineCoding.Coded
                     CodedDocumentLine(line.lineId, line.amount, line.taxAmount, c.categoryCode, rateOf(c, catalogue))
                 }
-            DocumentCodingResult.Coded(build(coded, catalogue))
+            DocumentCodingResult.Coded(build(coded))
         }
     }
 
@@ -155,10 +149,7 @@ class DocumentCoder(
         what: String,
     ): BigDecimal = text.toBigDecimalOrNull() ?: throw DocumentCodingFailure("$what is not numeric: '$text'")
 
-    private fun build(
-        lines: List<CodedDocumentLine>,
-        catalogue: CodeCatalogue,
-    ): CodedDocument {
+    private fun build(lines: List<CodedDocumentLine>): CodedDocument {
         val subtotals =
             lines
                 .groupBy { it.categoryCode }
@@ -170,7 +161,7 @@ class DocumentCoder(
                     }
                     Subtotal(code, rate, group.sumOf { it.amount }, group.sumOf { it.taxAmount })
                 }
-        return CodedDocument(lines, subtotals, catalogue)
+        return CodedDocument(lines, subtotals)
     }
 
     private companion object {

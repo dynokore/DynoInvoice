@@ -1,6 +1,5 @@
 package com.dynokore.gst.rules.adapters.web
 
-import com.dynokore.gst.rules.adapters.packs.PackContentsFailure
 import com.dynokore.gst.rules.adapters.packs.PackContentsReader
 import com.dynokore.gst.rules.adapters.scope.PackScopeVerdictPort
 import com.dynokore.gst.rules.adapters.scope.ProfileScopeFacts
@@ -10,6 +9,7 @@ import com.dynokore.gst.rules.application.DocumentCoder
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.contract.model.EvaluateDocumentRequest
 import com.dynokore.gst.rules.contract.model.EvaluationResult
+import com.dynokore.gst.rules.adapters.packs.PackContentsFailure
 import com.dynokore.gst.rules.domain.coding.CatalogueEntry
 import com.dynokore.gst.rules.domain.coding.CodeCatalogue
 import com.dynokore.gst.rules.domain.resolution.PackLookup
@@ -45,11 +45,10 @@ import java.time.ZoneOffset
 import java.util.UUID
 
 /**
- * INV-AC-24844: the `supplyType` member of the `evaluateDocument` answer is the `supplyType` of the entry of the
- * answered `categoryCode` in the code catalogue pack version in force at the transaction date. It is absent when
- * the entry names none or the code has no entry. A value outside the five members is an unreadable pack
- * (PackContentsFailure), never copied. The real controller, use case and pack reader run over in-memory packs with
- * invented data.
+ * INV-AC-24844: the `supplyType` member of the `evaluateDocument` answer is the `supplyType` of the entry of the answered
+ * `categoryCode` in the code catalogue pack version in force at the transaction date; absent when the entry names none
+ * or the code has no entry; a value outside the five members is an unreadable pack (PackContentsFailure), never copied.
+ * The real controller, use case and pack reader run over in-memory packs with invented data.
  */
 class EvaluationSupplyTypeTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000e1"))
@@ -71,7 +70,7 @@ class EvaluationSupplyTypeTest {
         supplyType: String?,
     ) = """{"code":"$code","group":"SUPPLY_STANDARD_RATED","side":"SUPPLY","annexERate":"9",""" +
         """"sourceClass":"PRIMARY","sourceReference":"i"""" +
-        supplyType?.let { ""","supplyType":"$it"""" }.orEmpty() + "}"
+        (supplyType?.let { ""","supplyType":"$it"""" } ?: "") + "}"
 
     private fun catalogue(vararg codes: String) = """{"complete":true,"codes":[${codes.joinToString(",")}]}"""
 
@@ -98,7 +97,6 @@ class EvaluationSupplyTypeTest {
     ) = PackVersion(PackManifest(PackId("$label-id"), type, PackVersionLabel(label), from, null, "1.0.0"))
 
     /** Catalogue contents by version: [old] is in force before 2026-04-01, [current] from it on. */
-    @Suppress("LongMethod") // one wiring of the real controller over in-memory packs and replicas
     private fun controller(
         current: String,
         old: String = current,
@@ -218,16 +216,13 @@ class EvaluationSupplyTypeTest {
 
     @Test
     fun `INV-AC-24844 look-alike codes have no entry and answer no supplyType`() {
-        val entry = CatalogueEntry("SR", "G", "SUPPLY", "9", null, null, null, "ZERO_RATED")
-        val catalogue = CodeCatalogue(true, listOf(entry))
+        val catalogue = CodeCatalogue(true, listOf(CatalogueEntry("SR", "G", "SUPPLY", "9", null, null, null, "ZERO_RATED")))
         catalogue.entryOf("SR ") shouldBe null
         catalogue.entryOf("sr") shouldBe null
         catalogue.entryOf("SR")?.supplyType shouldBe "ZERO_RATED"
         // the mapping pack decoder admits only bare codes, so a look-alike never reaches the lookup
         val c = controller(both, mapped = arrayOf("TS" to "SR ", "LS" to "sr"))
-        listOf("TS", "LS").forEach {
-            shouldThrow<PackContentsFailure> { answer(c, it) }.field shouldBe "$.entries[0].irasCode"
-        }
+        listOf("TS", "LS").forEach { shouldThrow<PackContentsFailure> { answer(c, it) }.field shouldBe "$.entries[0].irasCode" }
     }
 
     @Test
