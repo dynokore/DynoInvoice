@@ -1274,6 +1274,12 @@ permissions:
     cells:
       - {role: security.officer, form: SAAS, allowance: PERMITTED}
       - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
+  - key: privacy-case.read
+    kind: READ
+    row: "Read a privacy case record"
+    cells:
+      - {role: security.officer, form: SAAS, allowance: PERMITTED}
+      - {role: security.officer, form: PRIVATE, allowance: PERMITTED}
   - key: sample-copy.request
     kind: WRITE
     row: "Request an anonymised production sample copy"
