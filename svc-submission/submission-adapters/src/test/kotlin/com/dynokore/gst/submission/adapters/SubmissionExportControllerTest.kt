@@ -483,6 +483,12 @@ class SubmissionExportControllerTest {
         text shouldNotContain "N-1-1"
         text shouldNotContain "UEN-"
         text shouldContain "E1"
+        val amounts = listOf("100.00", "200.00", "50.00", "300.50", "400.00", "9.00", "18.00", "4.50", "27.05", "36.00")
+        val unmasked = pdfText(export(fixture(FULL), "PDF"))
+        amounts.forEach {
+            unmasked shouldContain it
+            text shouldNotContain it
+        }
     }
 
     @Test
