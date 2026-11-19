@@ -238,6 +238,39 @@ class AggregateDocumentVersionEventDbTest {
         routingFacts = RoutingFactsData(RoutingDirection.SALE, RoutingNetworkPath.NOT_ON_NETWORK),
     )
 
+    private fun Boundary.writePlain(
+        plain: UUID,
+        canonical: String,
+    ) = scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
+        runner.inTransaction {
+            directWriter.createFirst(
+                NewDocument(
+                    plain,
+                    tenant,
+                    entityId,
+                    null,
+                    Direction.SALE,
+                    380,
+                    "N-$plain",
+                    "issuer",
+                    2026,
+                    null,
+                    DocumentState.READY,
+                    null,
+                    newVersion(canonical),
+                ),
+                facts(plain, 1, canonical),
+            )
+        }
+    }
+
+    private fun Boundary.writeLater(
+        doc: UUID,
+        canonical: String,
+    ) = scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
+        runner.inTransaction { directWriter.next(doc, 1, newVersion(canonical), facts(doc, 2, canonical)) }
+    }
+
     @Test
     fun `INV-AC-22809 aggregate reference in the version events`(
         @TempDir dir: Path,
@@ -260,28 +293,7 @@ class AggregateDocumentVersionEventDbTest {
             rows("select canonical::text from canonical.document_version where tenant_id = '$tenant'")
                 .single()
                 .single()!!
-        scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
-            runner.inTransaction {
-                directWriter.createFirst(
-                    NewDocument(
-                        plain,
-                        tenant,
-                        entityId,
-                        null,
-                        Direction.SALE,
-                        380,
-                        "N-$plain",
-                        "issuer",
-                        2026,
-                        null,
-                        DocumentState.READY,
-                        null,
-                        newVersion(canonical),
-                    ),
-                    facts(plain, 1, canonical),
-                )
-            }
-        }
+        writePlain(plain, canonical)
         val plainEvent = events(plain.toString()).single()
         plainEvent.has("aggregateId") shouldBe false
         rows("select aggregate_id from canonical.document where doc_uuid = '$plain'::uuid")
@@ -296,11 +308,7 @@ class AggregateDocumentVersionEventDbTest {
 
         // a later version of the aggregate document, supplied without the reference, carries the stored one
         val aggregateUuid = UUID.fromString(aggregateDoc[0])
-        scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
-            runner.inTransaction {
-                directWriter.next(aggregateUuid, 1, newVersion(canonical), facts(aggregateUuid, 2, canonical))
-            }
-        }
+        writeLater(aggregateUuid, canonical)
         val later = events(aggregateDoc[0]!!)
         later.size shouldBe 2
         later[1]["version"].asInt() shouldBe 2
