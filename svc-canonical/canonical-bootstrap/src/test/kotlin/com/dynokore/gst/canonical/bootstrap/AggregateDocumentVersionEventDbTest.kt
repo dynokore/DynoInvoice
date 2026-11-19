@@ -256,14 +256,27 @@ class AggregateDocumentVersionEventDbTest {
 
         // the document that is no aggregate, through the same writer
         val plain = UUID.randomUUID()
-        val canonical = rows("select canonical::text from canonical.document_version where tenant_id = '$tenant'")
-            .single().single()!!
+        val canonical =
+            rows("select canonical::text from canonical.document_version where tenant_id = '$tenant'")
+                .single()
+                .single()!!
         scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
             runner.inTransaction {
                 directWriter.createFirst(
                     NewDocument(
-                        plain, tenant, entityId, null, Direction.SALE, 380, "N-$plain", "issuer", 2026, null,
-                        DocumentState.READY, null, newVersion(canonical),
+                        plain,
+                        tenant,
+                        entityId,
+                        null,
+                        Direction.SALE,
+                        380,
+                        "N-$plain",
+                        "issuer",
+                        2026,
+                        null,
+                        DocumentState.READY,
+                        null,
+                        newVersion(canonical),
                     ),
                     facts(plain, 1, canonical),
                 )
