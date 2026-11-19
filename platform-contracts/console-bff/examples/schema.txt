@@ -1,2 +1,3 @@
 ../openapi.yaml#/components/schemas/PortfolioPage portfolio-*.json
 ../openapi.yaml#/components/schemas/ResolveGroupRequest resolve-group-request-*.json
+../openapi.yaml#/components/schemas/EntityRenditionEvidence entity-rendition-evidence-*.json

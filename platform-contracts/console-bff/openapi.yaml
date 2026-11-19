@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: console-bff API
-  version: 1.19.0
+  version: 1.20.0
   description: >-
     Contract-first source of truth for console-bff (API-01, STK-44). The
     `console-bff-contract` module generates its server interfaces and DTOs
@@ -1145,6 +1145,81 @@ paths:
                 type: string
         default:
           $ref: '#/components/responses/Error'
+  /bff/entities/{entityRef}/rendition-evidence:
+    get:
+      operationId: getEntityRenditionEvidence
+      summary: Read the rendition attestation history and the sample checks of one entity
+      description: >-
+        People, through console-bff only (INV-REQ-1036). Composes two routed
+        reads for one entity (owner ruling 2026-11-18, option A): tenancy-svc's
+        read of the rendition attestation history (tenancy/openapi.yaml
+        `GET /internal/v1/tenancy/entities/{entityRef}/rendition-attestations`)
+        and evidence-svc's read of the stored SAMPLE_CHECK artefacts. One page
+        of each is composed: `attestationsCursor` is passed to the first read
+        and `sampleChecksCursor` to the second, each answer carries its own
+        `nextCursor` (omitted on its last page), there is no join across pages
+        and console-bff stores nothing. `limit` applies to each page. No offset
+        and no total (API-18). It changes no state and produces no event.
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `console-web ->
+        console-bff`, 5 s for two downstream calls (x-timeout 5000): the
+        attestation read and the sample-check read.
+      tags: [evidence]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-timeout: 5000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1036]
+      parameters:
+        - name: entityRef
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 40
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: attestationsCursor
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: sampleChecksCursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of attestation records and one page of sample check artefacts of the entity.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntityRenditionEvidence'
+              examples:
+                default:
+                  value:
+                    attestations:
+                      items:
+                        - documentClass: "INVOICE"
+                          renderer: "SELF"
+                          attestedBy: "user-0042"
+                          attestedAt: "2026-04-01T02:00:00Z"
+                          sequence: 1
+                    sampleChecks:
+                      items:
+                        - artefactType: "SAMPLE_CHECK"
+                          reference: "sample-check-0001"
+                          hash: "0000000000000000000000000000000000000000000000000000000000000000"
+                          recordedAt: "2026-04-01T02:05:00Z"
+        default:
+          $ref: '#/components/responses/Error'
   /bff/documents/{docUuid}/version-comparison:
     get:
       operationId: compareDocumentVersions
@@ -1535,6 +1610,80 @@ components:
           type: string
           format: date
       required: [docUuid, entityRef, documentNumber, version, state]
+    RenditionAttestationRecord:
+      type: object
+      required: [documentClass, renderer, attestedBy, attestedAt, sequence]
+      properties:
+        documentClass:
+          type: string
+          maxLength: 64
+        renderer:
+          type: string
+          enum: [SELF, AGENT, AGGREGATOR]
+          x-extensible-enum: true
+        attestedBy:
+          type: string
+          maxLength: 128
+          description: The acting user ID that attested, never a role.
+        attestedAt:
+          type: string
+          format: date-time
+        sequence:
+          type: integer
+          format: int64
+          minimum: 1
+          description: The history row number, unique within the entity.
+    SampleCheckArtefact:
+      type: object
+      description: A stored SAMPLE_CHECK evidence artefact (INV-REQ-1036).
+      required: [artefactType, reference, hash, recordedAt]
+      properties:
+        artefactType:
+          type: string
+          enum: [SAMPLE_CHECK]
+          x-extensible-enum: true
+        reference:
+          type: string
+          maxLength: 200
+        hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        recordedAt:
+          type: string
+          format: date-time
+    RenditionAttestationRecordPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/RenditionAttestationRecord'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; omitted on the last page.
+    SampleCheckArtefactPage:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/SampleCheckArtefact'
+        nextCursor:
+          type: string
+          description: Opaque cursor of the next page; omitted on the last page.
+    EntityRenditionEvidence:
+      type: object
+      description: One page of the rendition attestation history and one page of the sample checks of an entity (INV-REQ-1036).
+      required: [attestations, sampleChecks]
+      properties:
+        attestations:
+          $ref: '#/components/schemas/RenditionAttestationRecordPage'
+        sampleChecks:
+          $ref: '#/components/schemas/SampleCheckArtefactPage'
     DocumentSearchPage:
       type: object
       properties:

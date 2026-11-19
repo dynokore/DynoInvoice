@@ -94,3 +94,4 @@ PendingOverride.exceptionId	schema_property	openapi.yaml	INV-REQ-500
 PendingOverride.reason	schema_property	openapi.yaml	INV-REQ-500
 PendingOverride.requestedAt	schema_property	openapi.yaml	INV-REQ-500
 PendingOverride.status	schema_property	openapi.yaml	INV-REQ-500
+getEntityRenditionEvidence	operation	openapi.yaml	INV-REQ-1036
