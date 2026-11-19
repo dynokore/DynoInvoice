@@ -20,6 +20,10 @@ import org.junit.jupiter.api.assertThrows
 import java.nio.file.Files
 import java.nio.file.Path
 
+/** The CJK character the standard font cannot encode, written without a literal (English-only sources). */
+@Suppress("MagicNumber")
+private val HAN = Character.toString(0x4E2D)
+
 class PdfWorkPaperRendererTest {
     private val renderer = PdfWorkPaperRenderer()
     private val long = "E" + "x".repeat(118) + "Z"
@@ -187,13 +191,13 @@ class PdfWorkPaperRendererTest {
         val e = assertThrows<UnsupportedExportTextException> { render(export) }
         assertTrue(e.message!!.contains(field), "message names ${e.message}")
         assertFalse(e.message!!.contains(value))
-        assertFalse(e.message!!.contains("中"))
+        assertFalse(e.message!!.contains(HAN))
         assertEquals(before, tmpListing())
     }
 
     @Test
     fun `INV-AC-24540 U+4E2D in the entity, box, document, evidence, description and attester is refused`() {
-        val c = "中"
+        val c = HAN
         refused(fixture(entity = c), "Summary entity", c)
         refused(fixture(box = "B$c"), "Boxes row 1 box", c)
         refused(fixture(doc = "D$c"), "Boxes row 1 supporting documents", c)
@@ -204,7 +208,7 @@ class PdfWorkPaperRendererTest {
 
     @Test
     fun `INV-AC-24540 the evidence row number is named and the control character U+0007 is refused`() {
-        val e = assertThrows<UnsupportedExportTextException> { render(fixture(evidence = "EV中")) }
+        val e = assertThrows<UnsupportedExportTextException> { render(fixture(evidence = "EV$HAN")) }
         assertEquals("Items row 2 evidence", e.message)
         refused(fixture(description = "bell\u0007"), "Relaxed controls row 1 description", "bell")
     }
