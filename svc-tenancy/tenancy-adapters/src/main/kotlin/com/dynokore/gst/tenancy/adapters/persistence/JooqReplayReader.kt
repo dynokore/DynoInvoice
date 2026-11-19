@@ -42,7 +42,11 @@ data class ReplayNode(
     val entityRef: String,
     /** The node exactly as getEntityStructure answers it, profile included. */
     val node: StructureNodeState,
-    /** The effective_from of the entry with the greatest recorded_at (ties: the greater effective_from), if any. */
+    /**
+     * For an entity with a status entry, the effective_from of the status entry with the greatest recorded_at (ties: the
+     * greater effective_from); for an entity with no status entry, the greatest effectiveDate among the entries of
+     * [node].profile. Never null for an entity selected by a profile replay; null for other nodes.
+     */
     val profileEffectiveDate: LocalDate?,
     /** The id of the row in tenancy.entity; set for an ENTITY node only (INV-AC-21529). */
     val entityId: UUID? = null,
@@ -80,7 +84,7 @@ interface ReplayReader {
         limit: Int,
     ): List<ReplayNode>
 
-    /** Up to [limit] entities that have at least one status entry, within [scope], strictly after [after]. */
+    /** Up to [limit] entities that have a status entry, an exempt-purchase election or a migration cutover, within [scope], strictly after [after]. */
     fun profiles(
         scope: ReplayScope?,
         after: ReplayCursor?,
@@ -235,11 +239,17 @@ class JooqReplayReader(
                     e.structureVersion.column("structure_version"),
                 )
             val node = entityNode(entity, profileOf(entity))
-            ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, node, greatest[entity.id], entity.id)
+            // A status entry dates the state; an entity with only an election or a cutover is dated by its latest entry.
+            val dated = greatest[entity.id] ?: node.profile.maxOfOrNull { it.effectiveDate }
+            ReplayNode(NodeType.ENTITY, entity.ref, entity.ref, node, dated, entity.id)
         }
     }
 
-    /** The entity has a status entry, an exempt-purchase election or a migration cutover: a replay returns it. */
+    /**
+     * The entity has a status entry, an exempt-purchase election or a migration cutover: a replay returns it. Its state
+     * is dated by the latest status entry by recorded_at when it has one, otherwise by the greatest effectiveDate of
+     * its profile entries.
+     */
     private fun hasProfileEntry(): Condition =
         DSL
             .exists(DSL.selectOne().from(ENTITY_STATUS).where(ENTITY_STATUS.ENTITY_ID.eq(ENTITY.ID)))

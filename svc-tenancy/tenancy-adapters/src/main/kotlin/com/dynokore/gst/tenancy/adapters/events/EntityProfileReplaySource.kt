@@ -16,9 +16,11 @@ import tools.jackson.databind.node.ObjectNode
 
 /**
  * The producer side of the replay of EntityProfileChanged (INV-REQ-1199, INV-Q-9081 A, INV-Q-11719 A): one state per
- * entity of the bound tenant that has at least one status entry. `changedAttributes` lists every profile entry of the
- * node in order (attribute and newValue, no oldValue); `effectiveDate` is the effective_from of the entry with the
- * greatest recorded_at. The node, the stored `structureVersion` and the absent `docSequence` are as for
+ * entity of the bound tenant that has a status entry, an exempt-purchase election or a migration cutover.
+ * `changedAttributes` lists every profile entry of the node in order (attribute and newValue, no oldValue);
+ * `effectiveDate` is, for an entity with a status entry, the effective_from of the status entry with the greatest
+ * recorded_at (ties: the greater effective_from), and for an entity with no status entry the greatest effectiveDate
+ * among the entries of its node.profile. The node, the stored `structureVersion` and the absent `docSequence` are as for
  * [OrganisationStructureReplaySource].
  */
 class EntityProfileReplaySource(
