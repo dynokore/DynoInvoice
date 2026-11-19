@@ -28,14 +28,27 @@ class NetRederivation(
         newVersion: Int,
         declaredCreditNoteKeys: List<String>,
     ) {
-        val predecessor = records.recordOf(docUuid, newVersion - 1) ?: return
+        val predecessor = records.recordOf(docUuid, newVersion - 1)
         val declared = declaredCreditNoteKeys.toSet()
-        if (predecessor.creditNotes.any { it.docUuid.toString() in declared }) return
-        val base = documents.base(docUuid, newVersion) ?: return
+        if (predecessor != null && predecessor.creditNotes.none { it.docUuid.toString() in declared }) {
+            val derived = derive(docUuid, newVersion, predecessor)
+            if (derived != null) write(docUuid, newVersion, predecessor, derived)
+        }
+    }
+
+    /** The net of the new version and the predecessor's credit notes; null when a document is unknown or refused. */
+    private fun derive(
+        docUuid: UUID,
+        newVersion: Int,
+        predecessor: NetDerivationFact,
+    ): Derived? {
+        val base = documents.base(docUuid, newVersion)
         val notes = predecessor.creditNotes.map { documents.creditNote(it.docUuid, it.version) }
-        if (notes.any { it == null }) return
-        val derived = NetDerivation.derive(docUuid, base, notes.filterNotNull())
-        if (derived is Derived) write(docUuid, newVersion, predecessor, derived)
+        return if (base == null || notes.any { it == null }) {
+            null
+        } else {
+            NetDerivation.derive(docUuid, base, notes.filterNotNull()) as? Derived
+        }
     }
 
     private fun write(
