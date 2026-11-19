@@ -3,6 +3,9 @@ package com.dynokore.gst.canonical.bootstrap
 import com.dynokore.gst.canonical.adapters.CanonicalDb
 import com.dynokore.gst.canonical.adapters.SignedBindings
 import com.dynokore.gst.canonical.adapters.events.AggregateReadyHandler
+import com.dynokore.gst.canonical.adapters.events.OutboxCanonicalVersionCreatedPublisher
+import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentAggregateRefs
+import com.dynokore.gst.canonical.adapters.persistence.JooqDocumentStore
 import com.dynokore.gst.canonical.application.aggregate.AggregateDocumentJson
 import com.dynokore.gst.canonical.application.aggregate.AggregateEntityIds
 import com.dynokore.gst.canonical.application.aggregate.AggregateSupplierIdentity
@@ -36,6 +39,7 @@ import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.EventLogReader
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.outboxandqueue.LogRecord
+import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.PollResult
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
@@ -87,6 +91,19 @@ class AggregateDocumentVersionEventDbTest {
         val scope: TenantScope = context.getBean(TenantScope::class.java)
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val writer: CanonicalVersionWriter = context.getBean(CanonicalVersionWriter::class.java)
+
+        /** The same writer over the same stores with a fixed trace, for writes made outside an inbound event. */
+        val directWriter =
+            CanonicalVersionWriter(
+                JooqDocumentStore(dsl),
+                OutboxCanonicalVersionCreatedPublisher(
+                    context.getBean(OutboxWriter::class.java),
+                    scope.tenants,
+                    { CorrelationId("corr-direct") },
+                    { CausationId("cause-direct") },
+                ),
+                JooqDocumentAggregateRefs(dsl, scope.tenants),
+            )
         val log = Log()
         val tenant: UUID = UUID.randomUUID()
         val entityId: UUID = UUID.randomUUID()
@@ -243,7 +260,7 @@ class AggregateDocumentVersionEventDbTest {
             .single().single()!!
         scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
             runner.inTransaction {
-                writer.createFirst(
+                directWriter.createFirst(
                     NewDocument(
                         plain, tenant, entityId, null, Direction.SALE, 380, "N-$plain", "issuer", 2026, null,
                         DocumentState.READY, null, newVersion(canonical),
@@ -265,7 +282,7 @@ class AggregateDocumentVersionEventDbTest {
         // a later version of the aggregate document, supplied without the reference, carries the stored one
         val aggregateUuid = UUID.fromString(aggregateDoc[0])
         scope.bind(TenantId(tenant), SignedBindings.ACTOR) {
-            runner.inTransaction { writer.next(aggregateUuid, 1, newVersion(canonical), facts(aggregateUuid, 2, canonical)) }
+            runner.inTransaction { directWriter.next(aggregateUuid, 1, newVersion(canonical), facts(aggregateUuid, 2, canonical)) }
         }
         val later = events(aggregateDoc[0]!!)
         later.size shouldBe 2
