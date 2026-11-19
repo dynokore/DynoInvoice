@@ -321,9 +321,8 @@ class SealedAccountUseCases {
         sessions: BreakGlassSessions,
         keeper: SealedAccountKeeper,
         audit: GrantAudit,
-        clock: Clock,
         sessionEvents: BreakGlassSessionEvents,
-    ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, clock, sessionEvents)
+    ) = ResealBreakGlassUseCase(dependencies.tx, sessions, keeper, audit, sessionEvents)
 
     @Bean
     fun resealPairCheck(

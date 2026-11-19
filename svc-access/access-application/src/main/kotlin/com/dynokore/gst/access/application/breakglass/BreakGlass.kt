@@ -315,13 +315,11 @@ sealed interface ResealBreakGlassOutcome {
  * has passed (owner ruling 2026-11-18 A (2)), replaces the sealing credential and returns the new one once. A session
  * that is sealed already answers its data and changes nothing. The caller's role is checked by the inbound adapter.
  */
-@Suppress("UnusedPrivateProperty") // the clock no longer decides a reseal; the composition root still passes it
 class ResealBreakGlassUseCase(
     private val tx: TransactionRunner,
     private val sessions: BreakGlassSessions,
     private val keeper: SealedAccountKeeper,
     private val audit: GrantAudit,
-    private val clock: Clock,
     private val sessionEvents: BreakGlassSessionEvents,
 ) {
     fun handle(

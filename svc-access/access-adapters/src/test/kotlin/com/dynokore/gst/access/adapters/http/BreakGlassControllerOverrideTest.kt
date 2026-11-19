@@ -244,7 +244,7 @@ class BreakGlassControllerOverrideTest {
                 effects,
                 clock,
             ),
-            ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit, clock) { _, _ -> },
+            ResealBreakGlassUseCase(tx, sessions, keeper, effectsAudit) { _, _ -> },
             { _, _ -> ResealAdmission.OUTSIDER },
             BreakGlassSignInReplay(
                 tx,
