@@ -67,4 +67,14 @@ dependencies {
     testImplementation(libs.platform.konsistRules)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.postgresql)
+    testImplementation(libs.jsonSchemaValidator)
+}
+
+// The sample tests read the staged contract documents: the payload schema of PackDryRunSampleRecorded (INV-T-19915).
+tasks.withType<Test>().configureEach {
+    val contractDir =
+        project(":canonical-contract").layout.buildDirectory.dir(
+            "contracts-repo/platform-contracts/canonical/${libs.versions.platformContractsBundle.get()}",
+        )
+    systemProperty("gst.contract.dir", contractDir.get().asFile.path)
 }
