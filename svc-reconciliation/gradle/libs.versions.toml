@@ -32,6 +32,8 @@ poi = "6.0.0"
 log4j = "2.26.1"
 # Apache PDFBox for the PDF export of INV-REQ-982; newest stable 3.x on Maven Central 2026-11-18 (ruling: library ruling option A, licence check STK-66).
 pdfbox = "3.0.8"
+# LWJGL (HarfBuzz JVM binding, BSD-3-Clause) for text shaping in the PDF export of INV-REQ-982; newest stable on Maven Central 2026-11-20 (owner ruling 2026-11-18 option B, licence check STK-66).
+lwjgl = "3.4.3"
 
 [libraries]
 platform-bom = { module = "com.dynokore.platform:platform-libs-bom", version.ref = "platformLibsBom" }
@@ -73,6 +75,9 @@ jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
 poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
 # Library ruling option A (Apache-2.0, STK-66 licence check); used by reconciliation-adapters only (ARC-03).
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+# Owner ruling 2026-11-18 option B (HarfBuzz through a JVM binding, STK-66 licence check); used by reconciliation-adapters only (ARC-03). The core library is the binding's own dependency; both carry platform natives.
+lwjgl-core = { module = "org.lwjgl:lwjgl", version.ref = "lwjgl" }
+lwjgl-harfbuzz = { module = "org.lwjgl:lwjgl-harfbuzz", version.ref = "lwjgl" }
 log4j-bom = { module = "org.apache.logging.log4j:log4j-bom", version.ref = "log4j" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-databasePostgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
