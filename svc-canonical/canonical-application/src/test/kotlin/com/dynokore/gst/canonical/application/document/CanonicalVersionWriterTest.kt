@@ -22,6 +22,7 @@ class CanonicalVersionWriterTest {
     private val staged = mutableListOf<CanonicalVersionCreatedFacts>()
     private val stored = mutableListOf<String>()
     private var failPublisher = false
+    private var bindResult = true
 
     /** Documents and their current version; a stale expected version answers Conflict. */
     private val current = mutableMapOf(id(2) to 2, id(3) to 4, id(4) to 2)
@@ -73,6 +74,14 @@ class CanonicalVersionWriterTest {
     private val refs =
         object : DocumentAggregateRefs {
             override fun aggregateIdOf(docUuid: UUID): String? = if (docUuid == id(2)) "AGG-2026-0002" else null
+
+            override fun bind(
+                docUuid: UUID,
+                aggregateId: String,
+            ): Boolean {
+                calls += "bind $docUuid $aggregateId"
+                return bindResult
+            }
         }
 
     private var commits = 0
@@ -142,7 +151,7 @@ class CanonicalVersionWriterTest {
     fun `INV-AC-22846 first version stages one fact set with the caller's aggregateId`() {
         tx.inTransaction { writer.createFirst(newDocument(1), facts(1, aggregateId = "AGG-2026-0001")) }
         staged.map { it.version to it.aggregateId } shouldBe listOf(1 to "AGG-2026-0001")
-        calls shouldBe listOf("insert ${id(1)}", "stage")
+        calls shouldBe listOf("insert ${id(1)}", "bind ${id(1)} AGG-2026-0001", "stage")
     }
 
     @Test
@@ -244,5 +253,46 @@ class CanonicalVersionWriterTest {
     fun `INV-AC-23003 an unannounced write stages no routing facts`() {
         tx.inTransaction { writer.nextUnannounced(id(4), 2, newVersion, UnannouncedReason.NO_SCOPE_VERDICT) }
         staged shouldBe emptyList<CanonicalVersionCreatedFacts>()
+    }
+
+    @Test
+    fun `INV-AC-25234 first version with an aggregateId inserts, binds the inserted docUuid, then stages`() {
+        tx.inTransaction { writer.createFirst(newDocument(1), facts(1, aggregateId = "AGG-2026-0001")) }
+        calls shouldBe listOf("insert ${id(1)}", "bind ${id(1)} AGG-2026-0001", "stage")
+    }
+
+    @Test
+    fun `INV-AC-25234 first version without an aggregateId makes no bind call`() {
+        tx.inTransaction { writer.createFirst(newDocument(1), facts(1)) }
+        calls shouldBe listOf("insert ${id(1)}", "stage")
+    }
+
+    @Test
+    fun `INV-AC-25234 a bind that changes no row throws and stages nothing`() {
+        bindResult = false
+        assertThrows<IllegalStateException> {
+            tx.inTransaction { writer.createFirst(newDocument(1), facts(1, aggregateId = "AGG-2026-0001")) }
+        }
+        staged shouldBe emptyList<CanonicalVersionCreatedFacts>()
+        calls shouldBe listOf("insert ${id(1)}", "bind ${id(1)} AGG-2026-0001")
+        rollbacks shouldBe 1
+        stored shouldBe emptyList<String>()
+    }
+
+    @Test
+    fun `INV-AC-25234 facts of another docUuid are refused and nothing is inserted`() {
+        assertThrows<IllegalArgumentException> {
+            tx.inTransaction { writer.createFirst(newDocument(1), facts(5, aggregateId = "AGG-2026-0001")) }
+        }
+        calls shouldBe emptyList<String>()
+        staged shouldBe emptyList<CanonicalVersionCreatedFacts>()
+    }
+
+    @Test
+    fun `INV-AC-25234 the other three operations make no bind call`() {
+        tx.inTransaction { writer.createFirstUnannounced(newDocument(1), UnannouncedReason.NO_SCOPE_VERDICT) }
+        tx.inTransaction { writer.next(id(2), 2, newVersion, facts(2, aggregateId = "AGG-2026-0009")) }
+        tx.inTransaction { writer.nextUnannounced(id(3), 4, newVersion, UnannouncedReason.NO_SCOPE_VERDICT) }
+        calls.none { it.startsWith("bind") } shouldBe true
     }
 }

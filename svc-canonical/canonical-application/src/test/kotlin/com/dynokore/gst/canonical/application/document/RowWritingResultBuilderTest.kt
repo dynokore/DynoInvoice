@@ -70,6 +70,11 @@ class RowWritingResultBuilderTest {
     private val refs =
         object : DocumentAggregateRefs {
             override fun aggregateIdOf(docUuid: UUID): String? = null
+
+            override fun bind(
+                docUuid: UUID,
+                aggregateId: String,
+            ): Boolean = true
         }
     private val rowWriter = DocumentRowWriter(CanonicalVersionWriter(store, publisher, refs))
 

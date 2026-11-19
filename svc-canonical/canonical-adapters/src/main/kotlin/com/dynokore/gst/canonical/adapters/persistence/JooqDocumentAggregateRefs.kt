@@ -12,18 +12,18 @@ class JooqDocumentAggregateRefs(
     private val tenants: TenantContext,
 ) : DocumentAggregateRefs {
     /** Sets the aggregate reference of the tenant's document only where it is null; a second bind changes nothing. */
-    fun bind(
+    override fun bind(
         docUuid: UUID,
         aggregateId: String,
-    ) {
+    ): Boolean {
         require(aggregateId.isNotBlank()) { "aggregateId is blank" }
-        dsl
+        return dsl
             .update(DOCUMENT)
             .set(DOCUMENT.AGGREGATE_ID, aggregateId)
             .where(DOCUMENT.TENANT_ID.eq(tenants.current().value))
             .and(DOCUMENT.DOC_UUID.eq(docUuid))
             .and(DOCUMENT.AGGREGATE_ID.isNull)
-            .execute()
+            .execute() == 1
     }
 
     override fun aggregateIdOf(docUuid: UUID): String? =

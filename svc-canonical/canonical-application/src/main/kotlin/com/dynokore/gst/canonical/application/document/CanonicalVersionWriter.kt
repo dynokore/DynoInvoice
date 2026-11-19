@@ -72,6 +72,12 @@ interface CanonicalVersionCreatedPublisher {
 /** The aggregate reference stored for a document, or null when it has none. */
 interface DocumentAggregateRefs {
     fun aggregateIdOf(docUuid: UUID): String?
+
+    /** Sets the reference of [docUuid]; true only when this call set the column, false when it changed no row. */
+    fun bind(
+        docUuid: UUID,
+        aggregateId: String,
+    ): Boolean
 }
 
 /** Why a version is written without an event. The writer cannot verify the reason; the call site chooses it. */
@@ -91,7 +97,16 @@ class CanonicalVersionWriter(
         document: NewDocument,
         facts: CanonicalVersionCreatedFacts,
     ) {
+        val aggregateId = facts.aggregateId
+        require(aggregateId == null || facts.docUuid == document.docUuid) {
+            "facts docUuid ${facts.docUuid} differs from document ${document.docUuid}"
+        }
         store.insert(document)
+        if (aggregateId != null) {
+            check(aggregateRefs.bind(document.docUuid, aggregateId)) {
+                "aggregate reference of ${document.docUuid} was not set"
+            }
+        }
         publisher.stage(facts)
     }
 

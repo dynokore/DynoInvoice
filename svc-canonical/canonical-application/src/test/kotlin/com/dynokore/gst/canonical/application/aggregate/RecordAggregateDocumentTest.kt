@@ -85,6 +85,11 @@ class RecordAggregateDocumentTest {
             },
             object : DocumentAggregateRefs {
                 override fun aggregateIdOf(docUuid: UUID): String? = null
+
+                override fun bind(
+                    docUuid: UUID,
+                    aggregateId: String,
+                ): Boolean = true
             },
         )
 
