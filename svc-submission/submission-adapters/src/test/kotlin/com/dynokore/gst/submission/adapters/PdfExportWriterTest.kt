@@ -107,14 +107,14 @@ class PdfExportWriterTest {
 
     @Test
     fun `INV-AC-16347 a character outside WinAnsi throws naming column and row and writes zero bytes`() {
-        val table = tableOf(listOf(cellsOf(1), cellsOf(2, name = "中Secret")))
+        val table = tableOf(listOf(cellsOf(1), cellsOf(2, name = "\u4e2dSecret")))
         val sink = CountingStream()
         val e = shouldThrow<UnsupportedExportTextException> { PdfExportWriter().write(table, sink) }
         e.column shouldBe "counterpartyName"
         e.row shouldBe 2
         sink.count shouldBe 0
-        (e.message ?: "") shouldNotContain "Secret"
-        (e.message ?: "") shouldContain "counterpartyName"
+        e.message.orEmpty() shouldNotContain "Secret"
+        e.message.orEmpty() shouldContain "counterpartyName"
     }
 
     @Test

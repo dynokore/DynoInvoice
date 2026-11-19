@@ -7,6 +7,7 @@ import com.dynokore.gst.submission.application.listing.ExportSubmissions
 import com.dynokore.gst.submission.application.listing.ExportSubmissionsRequest
 import com.dynokore.gst.submission.application.listing.ExportSubmissionsResult
 import com.dynokore.gst.submission.domain.listing.Direction
+import com.dynokore.gst.submission.domain.listing.ExportTable
 import com.dynokore.gst.submission.domain.listing.SubmissionFilter
 import com.dynokore.gst.submission.domain.listing.SubmissionKind
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
@@ -80,11 +81,7 @@ class SubmissionExportController(
                 PDF -> {
                     headers.contentType = MediaType.APPLICATION_PDF
                     headers.set(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"submissions.pdf\"")
-                    try {
-                        ByteArrayOutputStream().also { PdfExportWriter().write(csv.table, it) }.toByteArray()
-                    } catch (_: UnsupportedExportTextException) {
-                        throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
-                    }
+                    pdfBytes(csv.table)
                 }
 
                 else -> {
@@ -94,6 +91,14 @@ class SubmissionExportController(
             }
         return ResponseEntity.ok().headers(headers).body(ByteArrayResource(body))
     }
+
+    /** The PDF bytes; a text the font cannot encode is SRT-001 and nothing has been written. */
+    private fun pdfBytes(table: ExportTable): ByteArray =
+        try {
+            ByteArrayOutputStream().also { PdfExportWriter().write(table, it) }.toByteArray()
+        } catch (_: UnsupportedExportTextException) {
+            throw ComplianceRefusal(ClosedErrorCode.CONTRACT_VIOLATION)
+        }
 
     /** Only CSV, XLSX and PDF are served; any other value is SRT-001 before the use case is called. */
     private fun requireServed(format: String) {

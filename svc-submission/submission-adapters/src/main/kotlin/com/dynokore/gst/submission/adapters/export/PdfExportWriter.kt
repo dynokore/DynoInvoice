@@ -151,7 +151,7 @@ class PdfExportWriter {
             at: Float = y,
         ) {
             if (line.isEmpty()) return
-            val s = stream!!
+            val s = checkNotNull(stream)
             s.beginText()
             s.setFont(font, FONT_SIZE)
             s.newLineAtOffset(x, at)
@@ -179,11 +179,12 @@ class PdfExportWriter {
             return lines
         }
 
-        private fun widthOf(s: String) = font.getStringWidth(s) / 1000f * FONT_SIZE
+        private fun widthOf(s: String) = font.getStringWidth(s) / GLYPH_UNITS * FONT_SIZE
     }
 
     companion object {
         const val FONT_SIZE = 7f
+        private const val GLYPH_UNITS = 1000f
         private const val LEADING = 8.5f
         private const val MARGIN = 20f
         private const val NAME_ROOM = 2
