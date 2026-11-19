@@ -1,5 +1,6 @@
 package com.dynokore.gst.canonical.application.document
 
+import com.dynokore.gst.canonical.application.netting.NetRederivation
 import com.dynokore.gst.canonical.domain.document.NewDocument
 import com.dynokore.platform.serviceruntime.persistence.UpdateOutcome
 import java.util.UUID
@@ -14,10 +15,13 @@ class DocumentRowConflict(
  * Writes the row of a record only through the single version writer, so `CanonicalVersionCreated` is staged in the
  * same transaction as the version (transactional outbox). It takes no store: nothing is written behind the writer.
  * A version without a scope verdict or without a prescribed period is written but not announced; a later version
- * announces.
+ * announces. After an ERP version above 1 it calls [rederivation] in the same transaction (INV-REQ-558 behavior 6);
+ * [declaredKeysOf] answers the `nettedCreditNoteKeys` the ERP declared on the record.
  */
 class DocumentRowWriter(
     private val writer: CanonicalVersionWriter,
+    private val rederivation: NetRederivation? = null,
+    private val declaredKeysOf: (RecordDocumentCommand) -> List<String> = { emptyList() },
 ) {
     fun write(
         command: RecordDocumentCommand,
@@ -43,6 +47,7 @@ class DocumentRowWriter(
                 writer.nextUnannounced(docUuid, expected, facts.version, reason)
             }
         if (outcome is UpdateOutcome.Conflict) throw DocumentRowConflict(docUuid, expected)
+        rederivation?.afterErpVersion(docUuid, version, declaredKeysOf(command))
     }
 
     private fun unannouncedReason(facts: DocumentRowFacts): UnannouncedReason? =
