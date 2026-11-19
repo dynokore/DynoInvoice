@@ -45,7 +45,7 @@ interface BreakGlassSessions {
     /** Takes a transaction-scoped lock keyed by the bound tenant, so two unlocks of one tenant run one at a time. */
     fun lockTenant()
 
-    /** The latest unlock of the bound tenant (greatest `unlockedAt`, ties by the greater ref in string order) or null. */
+    /** The latest unlock of the bound tenant (greatest `unlockedAt`, ties: greater ref in string order), or null. */
     fun latest(): BreakGlassSession?
 
     /** Marks the session of [ref] resealed (closed). */

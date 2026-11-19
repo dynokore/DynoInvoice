@@ -124,7 +124,7 @@ class BreakGlassSettingTest {
         }
     }
 
-    /** Closes the unlock [unlockRef] as a reseal does, so the next unlock of the tenant is not refused (INV-AC-24945). */
+    /** Closes the unlock [unlockRef] as a reseal does, so the next unlock of the tenant is not refused. */
     private fun sealed(unlockRef: String) =
         BoundaryFixture.asSuperuser { c ->
             c.prepareStatement("update access.break_glass_session set status = 'SEALED' where unlock_ref = ?").use {
