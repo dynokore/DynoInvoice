@@ -203,8 +203,8 @@ class EntityProfileReplayWithoutStatusDbTest {
         return s
     }
 
-    /** The code (at most 10 of A-Z, 0-9): the ref without its dash, then the last four of the ref. */
-    private fun codeOf(ref: String) = ref.take(5).replace("-", "") + ref.takeLast(4).uppercase()
+    /** The code (at most 10 of A-Z, 0-9): the last ten characters of the upper-cased ref without its dashes. */
+    private fun codeOf(ref: String) = ref.replace("-", "").uppercase().takeLast(CODE_LENGTH)
 
     private class Replayed(
         val rows: List<ReplayNode>,
@@ -360,3 +360,4 @@ private val pgFastCommand =
     arrayOf("postgres", "-c", "fsync=off", "-c", "synchronous_commit=off", "-c", "full_page_writes=off")
 
 private const val PAGE = 2
+private const val CODE_LENGTH = 10
