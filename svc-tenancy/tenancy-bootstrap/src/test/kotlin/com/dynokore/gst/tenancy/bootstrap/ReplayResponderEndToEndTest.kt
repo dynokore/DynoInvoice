@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.http.TenantsController
 import com.dynokore.gst.tenancy.contract.model.CreateEntityRequest
 import com.dynokore.gst.tenancy.contract.model.CreateGroupRequest
 import com.dynokore.gst.tenancy.contract.model.CreateTenantRequest
+import com.dynokore.gst.tenancy.contract.model.SetEntityStatusRequest
 import com.dynokore.gst.tenancy.domain.TenantRefs
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.CorrelationId
@@ -108,22 +109,34 @@ class ReplayResponderEndToEndTest {
             tenant: TenantId,
             groupRef: String,
         ) {
-            entitiesApi.createEntity(
+            val entity =
+                entitiesApi.createEntity(
+                    UUID.randomUUID(),
+                    CreateEntityRequest(
+                        tenant.value.toString(),
+                        groupRef,
+                        "Entity ${UUID.randomUUID()}",
+                        CreateEntityRequest.Constitution.PRIVATE_LIMITED,
+                        null,
+                        null,
+                        "H" +
+                            UUID
+                                .randomUUID()
+                                .toString()
+                                .take(8)
+                                .uppercase()
+                                .replace("-", "A"),
+                    ),
+                )
+            // a status entry is what makes an entity part of the EntityProfileChanged replay
+            entitiesApi.setEntityStatus(
+                entity.body!!.entityRef,
                 UUID.randomUUID(),
-                CreateEntityRequest(
-                    tenant.value.toString(),
-                    groupRef,
-                    "Entity ${UUID.randomUUID()}",
-                    CreateEntityRequest.Constitution.PRIVATE_LIMITED,
-                    null,
-                    null,
-                    "H" +
-                        UUID
-                            .randomUUID()
-                            .toString()
-                            .take(8)
-                            .uppercase()
-                            .replace("-", "A"),
+                SetEntityStatusRequest(
+                    SetEntityStatusRequest.StatusKind.PARTIAL_EXEMPTION,
+                    java.time.LocalDate.of(2026, 7, 1),
+                    partiallyExempt = true,
+                    basis = "partial exemption review",
                 ),
             )
         }
@@ -237,7 +250,10 @@ class ReplayResponderEndToEndTest {
             assertThat(rows.last().data).contains(replayId.toString())
             assertThat(rows.last().data.replace(" ", "")).contains("\"eventsReplayed\":${states.size}")
             val mine = states.filter { it.tenant == tenant.value.toString() }
-            assertThat(mine.filter { it.type == STRUCTURE_TYPE }).hasSize(3)
+            val nodes = mine.filter { it.type == STRUCTURE_TYPE }
+            // the group and the 2 live entities of the task, plus the tenant's own node the source emits by design
+            assertThat(nodes.filterNot { it.data.replace(" ", "").contains("\"kind\":\"TENANT\"") }).hasSize(3)
+            assertThat(nodes).hasSize(4)
             assertThat(mine.filter { it.type == PROFILE_TYPE }).isNotEmpty()
             assertThat(states.map { it.type }).containsOnly(STRUCTURE_TYPE, PROFILE_TYPE)
         }
