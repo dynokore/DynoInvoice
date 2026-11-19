@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/submission/schemas/net-derivation-requested-payload.schema.json",
+  "title": "NetDerivationRequestedPayload",
+  "description": "Payload of the NetDerivationRequested event (class: domain), with which submission-svc asks canonical-svc to record a derived version of an original that was not yet submitted, net of the listed credit notes (INV-REQ-558). The entity and tenant travel in the CloudEvents envelope. The CloudEvents id of the event is the idempotency key of the consumer. Within a major version this schema is additive-only (API-41): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "originalDocUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The Doc UUID of the original document the net version is derived from."
+    },
+    "expectedBaseVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The version of the original the decision was taken on; canonical-svc refuses the request when the original has a newer version."
+    },
+    "creditNotes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "description": "The credit notes netted into the derived version, each at the version the decision was taken on.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "docUuid": {
+            "type": "string",
+            "format": "uuid",
+            "description": "The Doc UUID of the credit note."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The version of the credit note the decision was taken on."
+          }
+        },
+        "required": [
+          "docUuid",
+          "version"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "originalDocUuid",
+    "expectedBaseVersion",
+    "creditNotes"
+  ],
+  "additionalProperties": true
+}

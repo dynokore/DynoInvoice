@@ -4,3 +4,7 @@ openapi.yaml	/components/schemas/TransactionStatus/properties/documentFunction/e
 openapi.yaml	/components/schemas/TransactionStatus/properties/documentFunction/x-extensible-enum	equals	true	INV-REQ-371
 openapi.yaml	/components/schemas/ResolveAmendmentHoldRequest/properties/decision/x-extensible-enum	absent	-	INV-REQ-957
 openapi.yaml	/components/schemas/ResolveAmendmentHoldRequest/properties/decision/enum	equals	["RESUBMIT_NEW_VERSION","CREDIT_NOTE_REQUIRED"]	INV-REQ-957
+# INV-T-25347 (INV-AC-25338): the NetDerivationRequested payload members and the four notSubmittableReason values of INV-REQ-558.
+schemas/net-derivation-requested-payload.schema.json	/required	equals	["originalDocUuid","expectedBaseVersion","creditNotes"]	INV-REQ-558
+schemas/net-derivation-requested-payload.schema.json	/properties/creditNotes/items/required	equals	["docUuid","version"]	INV-REQ-558
+schemas/obligation-register-entry.schema.json	/properties/notSubmittableReason/enum	equals	["BUYER_REJECTED","ISSUANCE_REFUSED","NETTED_INTO_REVISION","NETTED_BY_SYSTEM"]	INV-REQ-558

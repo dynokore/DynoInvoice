@@ -263,3 +263,8 @@ entities	property	schemas/unsubmitted-document-count-measured-payload.schema.jso
 entityRef	property	schemas/unsubmitted-document-count-measured-payload.schema.json	INV-REQ-956
 # INV-T-23667 (INV-REQ-2467). Optional member connectionRef of SubmissionTypeDecided.
 connectionRef	property	schemas/submission-type-decided-payload.schema.json	INV-REQ-2467
+# INV-T-25347 (INV-REQ-558). NetDerivationRequested and NetDerivationRefused are catalogued by the asyncapi files; no row for the event names.
+NETTED_BY_SYSTEM	enum_value	schemas/obligation-register-entry.schema.json	INV-REQ-558
+originalDocUuid	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
+expectedBaseVersion	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
+creditNotes	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558

@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: submission events
-  version: 1.11.0
+  version: 1.12.0
   description: >-
     Every event submission produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -78,6 +78,11 @@ channels:
     messages:
       UnsubmittedDocumentCountMeasured:
         $ref: '#/components/messages/UnsubmittedDocumentCountMeasured'
+  submissionNetDerivationRequested:
+    address: 'gst.submission.net-derivation-requested.v1'
+    messages:
+      NetDerivationRequested:
+        $ref: '#/components/messages/NetDerivationRequested'
   submissionExampleHappened:
     address: 'gst.submission.example-happened.v1'
     messages:
@@ -158,6 +163,13 @@ operations:
       $ref: '#/channels/submissionUnsubmittedDocumentCountMeasured'
     messages:
       - $ref: '#/channels/submissionUnsubmittedDocumentCountMeasured/messages/UnsubmittedDocumentCountMeasured'
+  publishNetDerivationRequested:
+    action: send
+    description: NetDerivationRequested — submission-svc asks canonical-svc to record the net version of an unsubmitted original (INV-REQ-558).
+    channel:
+      $ref: '#/channels/submissionNetDerivationRequested'
+    messages:
+      - $ref: '#/channels/submissionNetDerivationRequested/messages/NetDerivationRequested'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -292,6 +304,18 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/unsubmitted-document-count-measured-payload.schema.json'
+    NetDerivationRequested:
+      name: com.dynokore.gst.submission.NetDerivationRequested.v1
+      title: NetDerivationRequested
+      summary: NetDerivationRequested — the request to derive the net version of an unsubmitted original (INV-REQ-558).
+      description: >-
+        submission-svc asks canonical-svc to record a derived version of an original that was not yet submitted,
+        net of the listed credit notes (INV-REQ-558). The payload holds identifiers and versions only; the entity and
+        tenant travel in the CloudEvents envelope. The CloudEvents id of the event is the idempotency key of the consumer.
+        Emitted by: submission-svc. Consumed by: canonical-svc. Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/net-derivation-requested-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.submission.ExampleHappened.v1
       title: ExampleHappened

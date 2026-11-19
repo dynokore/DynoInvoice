@@ -54,9 +54,9 @@
     },
     "notSubmittableReason": {
       "type": "string",
-      "enum": ["BUYER_REJECTED", "ISSUANCE_REFUSED", "NETTED_INTO_REVISION"],
+      "enum": ["BUYER_REJECTED", "ISSUANCE_REFUSED", "NETTED_INTO_REVISION", "NETTED_BY_SYSTEM"],
       "x-extensible-enum": true,
-      "description": "Set only when `state` is NOT_SUBMITTABLE. ISSUANCE_REFUSED is set by submission-svc from `PayloadRejected` of a version whose network path is RELAY_ISSUANCE (INV-REQ-324). Absent otherwise; never required."
+      "description": "Set only when `state` is NOT_SUBMITTABLE. ISSUANCE_REFUSED is set by submission-svc from `PayloadRejected` of a version whose network path is RELAY_ISSUANCE (INV-REQ-324). NETTED_BY_SYSTEM is set by submission-svc when a derived version of the original names the credit note in `netDerivation` (INV-REQ-558). Absent otherwise; never required."
     }
   },
   "required": [
