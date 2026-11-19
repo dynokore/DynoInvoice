@@ -15,8 +15,8 @@ import tools.jackson.databind.ObjectMapper
 
 /**
  * The producer-side replay sources of tenancy-svc (INV-T-9096, INV-Q-9081 A): one [ReplayStateSource] per event type
- * it emits as current state. The responder, the replay and request topics and the driver that consume them are not
- * built here (INV-Q-11721).
+ * it emits as current state. The responder, the topics and the driver are built by the catalogue of INV-T-25011 and by
+ * [ReplayResponderConfiguration] (INV-T-25012).
  */
 @Configuration(proxyBeanMethods = false)
 class ReplaySourcesConfiguration {
