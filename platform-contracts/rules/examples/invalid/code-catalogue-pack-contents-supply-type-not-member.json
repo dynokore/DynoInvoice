@@ -1,0 +1,14 @@
+{
+  "complete": false,
+  "codes": [
+    {
+      "code": "ES33",
+      "group": "SUPPLY_ZERO_RATED_EXEMPT_OUT_OF_SCOPE",
+      "side": "SUPPLY",
+      "annexERate": "NA",
+      "sourceClass": "PRIMARY",
+      "sourceReference": "test data",
+      "supplyType": "EXEMPT "
+    }
+  ]
+}

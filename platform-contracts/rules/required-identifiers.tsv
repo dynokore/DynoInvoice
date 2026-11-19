@@ -414,3 +414,5 @@ acknowledgePackDelta.SRT-008	operation_error_code	openapi.yaml	INV-REQ-957
 armRegulatoryPack.SRT-008	operation_error_code	openapi.yaml	INV-REQ-957
 acknowledgePackDelta.409	operation_response	openapi.yaml	INV-REQ-957
 armRegulatoryPack.409	operation_response	openapi.yaml	INV-REQ-957
+EvaluationResult.supplyType	schema_property	openapi.yaml	INV-REQ-772
+supplyType	property	schemas/code-catalogue-pack-contents.schema.json	INV-REQ-772

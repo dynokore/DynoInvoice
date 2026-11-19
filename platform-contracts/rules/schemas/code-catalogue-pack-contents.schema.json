@@ -69,6 +69,12 @@
             "type": "string",
             "description": "The wording of the code.",
             "minLength": 1
+          },
+          "supplyType": {
+            "type": "string",
+            "description": "The return category the entry names (the supply type of the GST return). Absent when the entry names none.",
+            "enum": ["STANDARD_RATED", "ZERO_RATED", "EXEMPT", "OUT_OF_SCOPE", "IMPORTS"],
+            "x-extensible-enum": true
           }
         },
         "required": [
