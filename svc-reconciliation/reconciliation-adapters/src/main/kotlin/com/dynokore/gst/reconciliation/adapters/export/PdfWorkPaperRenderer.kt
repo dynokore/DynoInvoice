@@ -30,6 +30,7 @@ class UnsupportedExportTextException(
  * replaced, no font is embedded). The document uses a temporary-file-backed stream cache (bounded memory) and is
  * closed in a `finally`. No clock is read and no date is stored, so the content depends on the export only.
  */
+@Suppress("MagicNumber") // the column widths of the four tables, in points on an A4 landscape page
 class PdfWorkPaperRenderer : WorkPaperRenderer {
     override fun render(
         export: WorkPaperExport,
