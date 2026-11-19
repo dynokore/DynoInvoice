@@ -46,10 +46,9 @@ import java.util.UUID
 
 /**
  * INV-AC-24844: the `supplyType` member of the `evaluateDocument` answer is the `supplyType` of the entry of the
- * answered `categoryCode` in the code catalogue pack version in force at the transaction date. It is absent when
- * the entry names none or the code has no entry. A value outside the five members is an unreadable pack
- * (PackContentsFailure), never copied. The real controller, use case and pack reader run over in-memory packs with
- * invented data.
+ * answered `categoryCode` in the code catalogue pack version in force at the transaction date; absent when the entry names none
+ * or the code has no entry; a value outside the five members is an unreadable pack (PackContentsFailure), never copied.
+ * The real controller, use case and pack reader run over in-memory packs with invented data.
  */
 class EvaluationSupplyTypeTest {
     private val tenant = TenantId(UUID.fromString("00000000-0000-0000-0000-0000000000e1"))
