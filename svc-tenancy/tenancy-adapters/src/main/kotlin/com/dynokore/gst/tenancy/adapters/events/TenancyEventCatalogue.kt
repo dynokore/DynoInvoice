@@ -5,6 +5,7 @@ import com.dynokore.gst.tenancy.adapters.election.ConsumedElectionEvents
 import com.dynokore.gst.tenancy.adapters.rendition.ConsumedRenditionEvents
 import com.dynokore.platform.outboxandqueue.CatalogueEntry
 import com.dynokore.platform.outboxandqueue.EventCatalogue
+import com.dynokore.platform.outboxandqueue.TopicsYamlCatalogue
 import com.dynokore.platform.productruntime.PlatformEventCatalogue
 import com.dynokore.platform.productruntime.ReplicaFeeds
 import org.yaml.snakeyaml.Yaml
@@ -39,17 +40,31 @@ object TenancyEventCatalogue {
     const val PLAN_LIMIT_EXCEEDED_TYPE = "com.dynokore.gst.tenancy.PlanLimitExceeded.v1"
     const val ASYNCAPI_RESOURCE = "gst/contracts/tenancy/asyncapi.yaml"
 
+    /** The event-log topic catalogue of the pinned platform-contracts bundle, staged by tenancy-contract. */
+    const val TOPICS_RESOURCE = "gst/contracts/event-log/topics.yaml"
+
     /**
      * The scaffold channel the contract keeps only because its removal would be a breaking change (asyncapi header).
      */
     private val PLACEHOLDER_CHANNELS = setOf("tenancyExampleHappened")
 
-    fun load(): EventCatalogue {
-        val text =
-            checkNotNull(TenancyEventCatalogue::class.java.classLoader.getResourceAsStream(ASYNCAPI_RESOURCE)) {
-                "$ASYNCAPI_RESOURCE is not on the classpath"
-            }.use { it.readBytes().toString(Charsets.UTF_8) }
-        return build(text)
+    fun load(): EventCatalogue = build(resourceText(ASYNCAPI_RESOURCE), resourceText(TOPICS_RESOURCE))
+
+    /**
+     * [build] of the asyncapi document, plus the replay topics tenancy-svc produces and the request topics it reads,
+     * both taken from [topicsYaml] (platform-contracts event-log/topics.yaml, INV-AC-25009); no topic is named here.
+     */
+    fun build(
+        asyncApi: String,
+        topicsYaml: String,
+    ): EventCatalogue {
+        val base = build(asyncApi)
+        val topics = TopicsYamlCatalogue.parse(topicsYaml)
+        return EventCatalogue(
+            base.entries(),
+            topics.replayTopics().filter { it.producer == SERVICE },
+            topics.requestTopicsReadBy(SERVICE),
+        )
     }
 
     fun build(asyncApi: String): EventCatalogue {
@@ -209,3 +224,8 @@ object TenancyEventCatalogue {
             }
     }
 }
+
+private fun resourceText(name: String): String =
+    checkNotNull(TenancyEventCatalogue::class.java.classLoader.getResourceAsStream(name)) {
+        "$name is not on the classpath"
+    }.use { it.readBytes().toString(Charsets.UTF_8) }

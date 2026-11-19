@@ -89,6 +89,13 @@ fun stageService(
 
 stageContracts()
 
+/** The event-log topic catalogue of the bundle (replay and request topics): fail closed, never an empty catalogue. */
+val topicsYamlName = "event-log/topics.yaml"
+val topicsYaml = File(stagedRepo.get().asFile, ".bundle/$topicsYamlName")
+check(topicsYaml.isFile) {
+    "the platform-contracts bundle ${bundleVersion.get()} has no $topicsYamlName"
+}
+
 contractServer { generatorSource("platform-contracts:tenancy:openapi.yaml") }
 
 dependencies {
@@ -119,6 +126,11 @@ val stageContractResources =
                 "installation-status-changed-payload.schema.json",
             )
             into("gst/contracts/service-runtime/schemas")
+        }
+        // the event-log topic catalogue: the replay and request topics of the event catalogue (INV-AC-25009)
+        from(stagedRepo.map { it.dir(".bundle/event-log") }) {
+            include("topics.yaml")
+            into("gst/contracts/event-log")
         }
         // the payload schema of the one event tenancy consumes from submission-svc (PeriodFilingStatusChanged)
         from(stagedRepo.map { it.dir(".bundle/submission/schemas") }) {
