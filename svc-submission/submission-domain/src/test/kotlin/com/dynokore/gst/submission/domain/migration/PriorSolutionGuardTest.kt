@@ -228,8 +228,70 @@ class PriorSolutionGuardTest {
     }
 
     @Test
-    fun `INV-AC-2108 hold reasons are the two named members`() {
+    fun `INV-AC-2108 hold reasons are the three named members`() {
         HoldReason.entries.map { it.name } shouldBe
-            listOf("RESUBMISSION_OF_EXTERNALLY_SUBMITTED", "CORRECTION_OF_PRE_CUTOVER_DOCUMENT")
+            listOf(
+                "RESUBMISSION_OF_EXTERNALLY_SUBMITTED",
+                "CORRECTION_OF_PRE_CUTOVER_DOCUMENT",
+                "NO_PREDECESSOR_ESTABLISHED",
+            )
+    }
+
+    private val noPredecessorCn get() = doc(number = "CN-1", date = after).copy(creditNote = true)
+    private val noPredecessor = hold(HoldReason.NO_PREDECESSOR_ESTABLISHED)
+
+    @Test
+    fun `INV-AC-24869 credit note with neither preceding date nor number is held when cutover present`() {
+        PriorSolutionGuard.decide(noPredecessorCn, cutover, imported) shouldBe noPredecessor
+    }
+
+    @Test
+    fun `INV-AC-24869 the same credit note with cutover absent is not affected`() {
+        PriorSolutionGuard.decide(noPredecessorCn, null, imported) shouldBe NotAffected
+    }
+
+    @Test
+    fun `INV-AC-24869 debit note with neither field is not affected`() {
+        PriorSolutionGuard.decide(noPredecessorCn.copy(creditNote = false), cutover, imported) shouldBe NotAffected
+    }
+
+    @Test
+    fun `INV-AC-24869 credit note with an unmatched preceding number is not affected`() {
+        PriorSolutionGuard.decide(noPredecessorCn.copy(precedingDocumentNumber = "INV-777"), cutover, imported) shouldBe
+            NotAffected
+    }
+
+    @Test
+    fun `INV-AC-24869 credit note with a preceding date not before the cutover is not affected`() {
+        val d = noPredecessorCn.copy(precedingDocumentDate = LocalDate.of(2026, 3, 2))
+        PriorSolutionGuard.decide(d, cutover, imported) shouldBe NotAffected
+    }
+
+    @Test
+    fun `INV-AC-24869 blank preceding number counts as absent and is held`() {
+        PriorSolutionGuard.decide(noPredecessorCn.copy(precedingDocumentNumber = " "), cutover, imported) shouldBe
+            noPredecessor
+    }
+
+    @Test
+    fun `INV-AC-24869 resubmission hold still comes first for a credit note with neither field`() {
+        val d = noPredecessorCn.copy(versions = listOf(LifecycleState.EXTERNALLY_SUBMITTED))
+        PriorSolutionGuard.decide(d, cutover, imported) shouldBe hold(HoldReason.RESUBMISSION_OF_EXTERNALLY_SUBMITTED)
+    }
+
+    @Test
+    fun `INV-AC-24869 the new reason carries the catalogue code of SUB-017`() {
+        (PriorSolutionGuard.decide(noPredecessorCn, cutover, imported) as HoldForCorrection).code shouldBe
+            ErrorCode.SUB_017.code
+    }
+
+    @Test
+    fun `INV-AC-24869 look-alike reason names are not members`() {
+        val names = HoldReason.entries.map { it.name }
+        listOf(
+            "NO_PREDECESSOR_ESTABLISHED ",
+            "no_predecessor_established",
+        ).forEach { names.contains(it) shouldBe false }
+        names.contains("NO_PREDECESSOR_ESTABLISHED") shouldBe true
     }
 }

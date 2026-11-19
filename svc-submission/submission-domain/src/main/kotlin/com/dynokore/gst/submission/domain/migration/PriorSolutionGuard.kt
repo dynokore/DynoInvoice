@@ -4,7 +4,11 @@ import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import java.time.LocalDate
 
 /** Why a document is held for manual handling under SUB-017 (INV-Q-6887 A). */
-enum class HoldReason { RESUBMISSION_OF_EXTERNALLY_SUBMITTED, CORRECTION_OF_PRE_CUTOVER_DOCUMENT }
+enum class HoldReason {
+    RESUBMISSION_OF_EXTERNALLY_SUBMITTED,
+    CORRECTION_OF_PRE_CUTOVER_DOCUMENT,
+    NO_PREDECESSOR_ESTABLISHED,
+}
 
 /**
  * One document of the ERP request as the guard sees it.
@@ -111,7 +115,11 @@ object PriorSolutionGuard {
             }?.let { PriorSolutionDecision.ExternallySubmitted(it.acknowledgementRef) }
     }
 
-    /** Rules 3 and 4: a credit note referring to a pre-cutover document is held, anything else is not affected. */
+    /**
+     * Rules 3 to 5: a credit note referring to a pre-cutover document is held (rule 3); a credit note with
+     * neither a preceding date nor a preceding number is held (rule 4, NO_PREDECESSOR_ESTABLISHED); anything else
+     * is not affected (rule 5). Only reached when a cutover date is present.
+     */
     private fun correctionOf(
         document: PriorSolutionDocument,
         cutoverDate: LocalDate,
@@ -131,12 +139,11 @@ object PriorSolutionGuard {
                                 it.transactionDate.isBefore(cutoverDate)
                         }
                 }
-        return if (refersToPreCutover) {
-            hold(
-                HoldReason.CORRECTION_OF_PRE_CUTOVER_DOCUMENT,
-            )
-        } else {
-            PriorSolutionDecision.NotAffected
+        val noPredecessor = document.creditNote && precedingDate == null && precedingNumber.isNullOrBlank()
+        return when {
+            refersToPreCutover -> hold(HoldReason.CORRECTION_OF_PRE_CUTOVER_DOCUMENT)
+            noPredecessor -> hold(HoldReason.NO_PREDECESSOR_ESTABLISHED)
+            else -> PriorSolutionDecision.NotAffected
         }
     }
 }
