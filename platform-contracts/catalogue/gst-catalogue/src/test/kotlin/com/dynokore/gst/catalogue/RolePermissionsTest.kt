@@ -129,7 +129,8 @@ class RolePermissionsTest {
                 Req("rendition-sample.record", PermissionKind.WRITE, "tax.operator", y, both),
                 Req("audit-entry.purge", PermissionKind.WRITE, "platform.engineer", y, listOf(saas)),
             ) +
-            listOf(Req("filed-return.upload", PermissionKind.WRITE, "tax.approver", y, both)) +
+            listOf("filed-return.upload", "reconciliation.run", "reconciliation.annotate", "reconciliation.attest")
+                .map { Req(it, PermissionKind.WRITE, "tax.approver", y, both) } +
             listOf(
                 "filing.confirm",
                 "filed-return.upload",
@@ -151,6 +152,20 @@ class RolePermissionsTest {
             assertEquals(setOf("agent.operator"), holders(ws), "WITHIN_SCOPE $form")
         }
         assertEquals(PermissionKind.WRITE, RolePermissions.kind(uploadKey))
+    }
+
+    @Test
+    fun `INV-AC-24864 reconciliation run annotate and attest are PERMITTED to tax approver only and WITHIN_SCOPE to agent operator only`() {
+        listOf("reconciliation.run", "reconciliation.annotate", "reconciliation.attest").forEach { key ->
+            both.forEach { form ->
+                val cells = RolePermissions.cells(form)
+
+                fun holders(a: RoleAllowance) = cells.filter { (_, perms) -> perms[key] == a }.keys
+                assertEquals(setOf("tax.approver"), holders(y), "PERMITTED $key $form")
+                assertEquals(setOf("agent.operator"), holders(ws), "WITHIN_SCOPE $key $form")
+            }
+            assertEquals(PermissionKind.WRITE, RolePermissions.kind(key), key)
+        }
     }
 
     @Test

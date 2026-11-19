@@ -336,9 +336,84 @@ class RolePermissionsCheckerTest {
         assertReported(cellAdd(upload, "auditor", DeploymentForm.SAAS), "role auditor key $upload form SAAS", "extra")
     }
 
+    private val reconKeys = listOf("reconciliation.run", "reconciliation.annotate", "reconciliation.attest")
+
     @Test
-    fun `probe 25e tax approver on reconciliation run is still reported`() {
-        assertReported(cellAdd("reconciliation.run", "tax.approver", DeploymentForm.SAAS), "role tax.approver key reconciliation.run form SAAS", "extra")
+    fun `INV-AC-24864 probe 25e the three reconciliation keys pin WRITE and exactly the four cells`() {
+        reconKeys.forEach { k ->
+            val p = permission(real, k)
+            assertEquals(PermissionKind.WRITE, p.kind, k)
+            assertEquals(
+                setOf(
+                    CellRow("agent.operator", DeploymentForm.SAAS, RoleAllowance.WITHIN_SCOPE),
+                    CellRow("agent.operator", DeploymentForm.PRIVATE, RoleAllowance.WITHIN_SCOPE),
+                    CellRow("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED),
+                    CellRow("tax.approver", DeploymentForm.PRIVATE, RoleAllowance.PERMITTED),
+                ),
+                p.cells.toSet(),
+                k,
+            )
+            assertEquals(4, p.cells.size, k)
+        }
+        assertEquals(emptyList<String>(), RolePermissionsChecker.check(real))
+    }
+
+    @Test
+    fun `INV-AC-24864 probe 25e1 a removed tax approver cell of each reconciliation key is reported per form`() {
+        reconKeys.forEach { k ->
+            DeploymentForm.values().forEach { f ->
+                assertReported(cellRemove(k, "tax.approver", f), "role tax.approver key $k form $f", "missing")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-24864 probe 25e2 a changed allowance on a reconciliation key is reported`() {
+        reconKeys.forEach { k ->
+            val approver =
+                withPermission(k) { p ->
+                    p.copy(cells = p.cells.map { if (it.role == "tax.approver" && it.form == DeploymentForm.SAAS) it.copy(allowance = RoleAllowance.WITHIN_SCOPE) else it })
+                }
+            assertReported(approver, "role tax.approver key $k form SAAS", "required PERMITTED")
+            val operator =
+                withPermission(k) { p ->
+                    p.copy(cells = p.cells.map { if (it.role == "agent.operator" && it.form == DeploymentForm.SAAS) it.copy(allowance = RoleAllowance.PERMITTED) else it })
+                }
+            assertReported(operator, "role agent.operator key $k form SAAS")
+        }
+    }
+
+    @Test
+    fun `INV-AC-24864 probe 25e3 tax operator finance viewer and auditor cells on a reconciliation key are reported`() {
+        reconKeys.forEach { k ->
+            listOf("tax.operator", "finance.viewer", "auditor").forEach { r ->
+                assertReported(cellAdd(k, r, DeploymentForm.SAAS), "role $r key $k form SAAS", "extra")
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-24864 probe 25e4 a tax approver cell on look-alike keys is an unknown key and a doubled export cell a duplicate`() {
+        listOf("reconciliation.runs", "Reconciliation.run", "reconciliation.run ").forEach { k ->
+            val extra =
+                real.copy(
+                    permissions =
+                        real.permissions +
+                            permission(real, "reconciliation.run").copy(
+                                key = k,
+                                cells = listOf(CellRow("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED)),
+                            ),
+                )
+            assertReported(extra, "key $k: not one of the keys the criteria require")
+        }
+        val trailing = withPermission("reconciliation.run") { it.copy(key = "reconciliation.run ") }
+        assertReported(trailing, "key reconciliation.run: missing")
+        assertReported(trailing, "key reconciliation.run : not one of the keys the criteria require")
+        val twice =
+            withPermission("reconciliation.export") {
+                it.copy(cells = it.cells + CellRow("tax.approver", DeploymentForm.SAAS, RoleAllowance.PERMITTED))
+            }
+        assertReported(twice, "reconciliation.export", "tax.approver")
     }
 
     @Test

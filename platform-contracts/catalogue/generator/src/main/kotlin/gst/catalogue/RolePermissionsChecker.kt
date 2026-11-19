@@ -361,9 +361,12 @@ object RolePermissionsChecker {
                 Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
             "filed-return.upload" to
                 Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
-            "reconciliation.run" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
-            "reconciliation.annotate" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
-            "reconciliation.attest" to Required(PermissionKind.WRITE, cells(withinScope, both, "agent.operator")),
+            "reconciliation.run" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
+            "reconciliation.annotate" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
+            "reconciliation.attest" to
+                Required(PermissionKind.WRITE, cells(permitted, both, "tax.approver") + cells(withinScope, both, "agent.operator")),
             "vp-01.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "vp-02.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
             "vp-03.set" to Required(PermissionKind.WRITE, cells(permitted, both, "tenant.admin")),
