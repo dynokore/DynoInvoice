@@ -28,6 +28,7 @@ import com.dynokore.gst.reconciliation.application.workpaper.export.RelaxedContr
 import com.dynokore.gst.reconciliation.application.workpaper.export.RelaxedControlsUnavailable
 import com.dynokore.gst.reconciliation.application.workpaper.export.RenderedExport
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperRenderer
+import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -407,9 +408,14 @@ class ExportWorkPaperEndpointTest {
     @Test
     fun `INV-AC-24485 (j) an unknown format answers 400 SRT-001 after the decision and renders nothing`() {
         val response = call(r1, "CSV")
-        assertClosed(response, ClosedErrorCode.CONTRACT_VIOLATION)
-        ClosedErrorCode.CONTRACT_VIOLATION.code shouldBe "SRT-001"
+        val e = ClosedErrorCode.CONTRACT_VIOLATION
+        e.code shouldBe "SRT-001"
         response.statusCode.value() shouldBe 400
+        response.headers.getFirst("Content-Type") shouldBe Problems.CONTENT_TYPE
+        val body = (response as ResponseEntity<*>).body as ErrorEnvelope
+        body.status shouldBe 400
+        body.code shouldBe "SRT-001"
+        body.title shouldBe e.title
         events shouldBe listOf("decide")
         audited shouldBe emptyList()
         rendered shouldBe emptyList()
