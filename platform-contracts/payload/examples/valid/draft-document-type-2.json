@@ -1,0 +1,12 @@
+{
+  "entityRef": "E-001",
+  "currency": "SGD",
+  "totalIncludingTax": "545.00",
+  "submissionType": "TYPE_2",
+  "supplierGstn": "M90012345X",
+  "invoiceDate": "2026-03-22",
+  "gstAmount": "45.00",
+  "lines": [
+    { "categoryCode": "S", "taxableAmount": "500.00", "gstAmount": "45.00" }
+  ]
+}
