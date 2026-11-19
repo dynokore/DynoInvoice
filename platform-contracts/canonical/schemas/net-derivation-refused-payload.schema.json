@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://platform-contracts.invoice.internal/canonical/schemas/net-derivation-refused-payload.schema.json",
+  "title": "NetDerivationRefusedPayload",
+  "description": "Payload of the NetDerivationRefused event: canonical-svc refuses a net derivation that submission-svc requested (INV-REQ-558). It holds identifiers only. Within a major version this schema is additive-only (API-41, FR-K.4): a field is never removed, renamed, retyped or made required.",
+  "type": "object",
+  "properties": {
+    "originalDocUuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "The Doc UUID of the original document whose net derivation is refused."
+    },
+    "requestEventId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The CloudEvents id of the NetDerivationRequested event that is answered."
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "NOT_A_CREDIT_NOTE",
+        "OTHER_ENTITY",
+        "CURRENCY_MISMATCH",
+        "NOT_PRECEDING",
+        "BASE_CHANGED",
+        "DOCUMENT_NOT_FOUND",
+        "NET_NOT_POSITIVE"
+      ],
+      "x-extensible-enum": true,
+      "description": "Why the derivation is refused. NOT_A_CREDIT_NOTE, OTHER_ENTITY and CURRENCY_MISMATCH name an invalid credit note: NOT_A_CREDIT_NOTE a named document that is not a credit note, OTHER_ENTITY a credit note of another entity, CURRENCY_MISMATCH a different currency or exchange rate or SGD totals stated on one side only. NOT_PRECEDING: a credit note whose precedingDocUuid is not the original. BASE_CHANGED: a base version that differs from the expected one. DOCUMENT_NOT_FOUND: an unknown original or credit note version. NET_NOT_POSITIVE: a net whose total is not above zero or that has a tax code group below zero."
+    },
+    "creditNotes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "properties": {
+          "docUuid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "docUuid",
+          "version"
+        ]
+      }
+    }
+  },
+  "required": [
+    "originalDocUuid",
+    "requestEventId",
+    "reason"
+  ],
+  "additionalProperties": true
+}

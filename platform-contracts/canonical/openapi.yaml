@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: canonical API
-  version: 2.0.0
+  version: 2.1.0
   description: >-
     Contract-first source of truth for canonical (API-01, STK-44). The
     `canonical-contract` module generates its server interfaces and DTOs
@@ -869,13 +869,14 @@ components:
             SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
         notSubmittableReason:
           type: string
-          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION]
+          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION, NETTED_BY_SYSTEM]
           x-extensible-enum: true
           description: >-
-            Set by canonical-svc when `scopeVerdict` is NOT_SUBMITTABLE for one of these three causes: BUYER_REJECTED,
-            ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
-            `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
-            older consumer validates.
+            Why a NOT_SUBMITTABLE `scopeVerdict` holds. BUYER_REJECTED, ISSUANCE_REFUSED and NETTED_INTO_REVISION are
+            set by canonical-svc (INV-REQ-432). BUYER_REJECTED is set when a received document's `buyerDisposition`
+            is REJECTED. NETTED_BY_SYSTEM is set by submission-svc when a derived version of the original names the
+            credit note in `netDerivation` (INV-REQ-558), and never by canonical-svc. Other causes keep their
+            `reasons` items and set none. Optional so an older consumer validates.
       required: [docUuid, version, scopeVerdict, transactionDate, prescribedPeriodRef]
     ReasonItem:
       type: object
@@ -918,13 +919,14 @@ components:
             SYSTEM when the System generated one (INV-AC-1433). Optional so an older consumer validates (INV-REQ-431).
         notSubmittableReason:
           type: string
-          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION]
+          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION, NETTED_BY_SYSTEM]
           x-extensible-enum: true
           description: >-
-            Set by canonical-svc when `scopeVerdict` is NOT_SUBMITTABLE for one of these three causes: BUYER_REJECTED,
-            ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
-            `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
-            older consumer validates.
+            Why a NOT_SUBMITTABLE `scopeVerdict` holds. BUYER_REJECTED, ISSUANCE_REFUSED and NETTED_INTO_REVISION are
+            set by canonical-svc (INV-REQ-432). BUYER_REJECTED is set when a received document's `buyerDisposition`
+            is REJECTED. NETTED_BY_SYSTEM is set by submission-svc when a derived version of the original names the
+            credit note in `netDerivation` (INV-REQ-558), and never by canonical-svc. Other causes keep their
+            `reasons` items and set none. Optional so an older consumer validates.
       required: [docUuid, currentVersion, documentFunction, scopeVerdict, transactionDate, prescribedPeriodRef]
     DocumentVersion:
       type: object
@@ -968,13 +970,14 @@ components:
             INV-AC-766). Optional. Never the `sourceKey` or the internal accounting reference.
         notSubmittableReason:
           type: string
-          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION]
+          enum: [BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION, NETTED_BY_SYSTEM]
           x-extensible-enum: true
           description: >-
-            Set by canonical-svc when `scopeVerdict` is NOT_SUBMITTABLE for one of these three causes: BUYER_REJECTED,
-            ISSUANCE_REFUSED or NETTED_INTO_REVISION (INV-REQ-432). BUYER_REJECTED is set when a received document's
-            `buyerDisposition` is REJECTED. Other causes keep their `reasons` items and set none. Optional so an
-            older consumer validates.
+            Why a NOT_SUBMITTABLE `scopeVerdict` holds. BUYER_REJECTED, ISSUANCE_REFUSED and NETTED_INTO_REVISION are
+            set by canonical-svc (INV-REQ-432). BUYER_REJECTED is set when a received document's `buyerDisposition`
+            is REJECTED. NETTED_BY_SYSTEM is set by submission-svc when a derived version of the original names the
+            credit note in `netDerivation` (INV-REQ-558), and never by canonical-svc. Other causes keep their
+            `reasons` items and set none. Optional so an older consumer validates.
         precedingDocUuid:
           type: string
           format: uuid
@@ -1000,6 +1003,37 @@ components:
             format: uuid
           description: >-
             Set by canonical-svc on the version of a revised invoice for the keys of `nettedCreditNoteKeys` that already name a recorded credit note of the same entity. Written only when the version is created (a version is never edited), so it may be absent. Read by submission-svc for the decision of INV-Q-6623 and INV-Q-6614 (INV-REQ-558). Optional so an older consumer validates.
+        netDerivation:
+          type: object
+          description: >-
+            Set when this version is the net amount that submission-svc derived from the original and the credit notes
+            it names (INV-REQ-558). Written only when the version is created (a version is never edited), so it may
+            be absent. The exactly-one choice is the required `kind`, not a oneOf. Optional so an older consumer
+            validates.
+          properties:
+            kind:
+              type: string
+              enum: [SYSTEM_DERIVED]
+              x-extensible-enum: true
+            baseVersion:
+              type: integer
+              minimum: 1
+            creditNotes:
+              type: array
+              minItems: 1
+              maxItems: 50
+              uniqueItems: true
+              items:
+                type: object
+                properties:
+                  docUuid:
+                    type: string
+                    format: uuid
+                  version:
+                    type: integer
+                    minimum: 1
+                required: [docUuid, version]
+          required: [kind, baseVersion, creditNotes]
         nettedByDocUuid:
           type: string
           format: uuid

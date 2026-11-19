@@ -61,9 +61,10 @@
       "enum": [
         "BUYER_REJECTED",
         "ISSUANCE_REFUSED",
-        "NETTED_INTO_REVISION"
+        "NETTED_INTO_REVISION",
+        "NETTED_BY_SYSTEM"
       ],
-      "description": "Why this version is not submittable. Set by canonical-svc only when scopeVerdict is NOT_SUBMITTABLE for one of these causes; same members and meaning as the notSubmittableReason property of the canonical API. Optional so that an older consumer validates. A consumer that finds NOT_SUBMITTABLE without it classifies the variance as unexplained."
+      "description": "Why this version is not submittable. BUYER_REJECTED, ISSUANCE_REFUSED and NETTED_INTO_REVISION are set by canonical-svc only when scopeVerdict is NOT_SUBMITTABLE; NETTED_BY_SYSTEM is set by submission-svc when a derived version of the original names the credit note in netDerivation (INV-REQ-558), never by canonical-svc. Same members and meaning as the notSubmittableReason property of the canonical API. Optional so that an older consumer validates. A consumer that finds NOT_SUBMITTABLE without it classifies the variance as unexplained."
     },
     "appliedPackVersions": {
       "type": "array",
@@ -953,6 +954,52 @@
         "lines",
         "taxSubtotals",
         "totals"
+      ],
+      "additionalProperties": true
+    },
+    "netDerivation": {
+      "type": "object",
+      "description": "Set when this version is the net amount that submission-svc derived from the original and the credit notes it names (INV-REQ-558). Written only when the version is created (a version is never edited), so it may be absent. The exactly-one choice is the required kind, not a oneOf. Optional so an older consumer validates.",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "SYSTEM_DERIVED"
+          ],
+          "x-extensible-enum": true
+        },
+        "baseVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "creditNotes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "properties": {
+              "docUuid": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "docUuid",
+              "version"
+            ]
+          }
+        }
+      },
+      "required": [
+        "kind",
+        "baseVersion",
+        "creditNotes"
       ],
       "additionalProperties": true
     }

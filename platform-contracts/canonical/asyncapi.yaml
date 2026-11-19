@@ -1,7 +1,7 @@
 asyncapi: 3.1.0
 info:
   title: canonical events
-  version: 1.16.0
+  version: 1.17.0
   description: >-
     Every event canonical produces or consumes (API-43, STK-45), wrapped at
     publish time in the CloudEvents 1.0.2 envelope every service shares
@@ -62,6 +62,11 @@ channels:
     messages:
       PeriodReassigned:
         $ref: '#/components/messages/PeriodReassigned'
+  canonicalNetDerivationRefused:
+    address: 'gst.canonical.net-derivation-refused.v1'
+    messages:
+      NetDerivationRefused:
+        $ref: '#/components/messages/NetDerivationRefused'
   canonicalExampleHappened:
     address: 'gst.canonical.example-happened.v1'
     messages:
@@ -115,6 +120,13 @@ operations:
       $ref: '#/channels/canonicalPeriodReassigned'
     messages:
       - $ref: '#/channels/canonicalPeriodReassigned/messages/PeriodReassigned'
+  publishNetDerivationRefused:
+    action: send
+    description: NetDerivationRefused — canonical-svc refuses a requested net derivation (INV-REQ-558).
+    channel:
+      $ref: '#/channels/canonicalNetDerivationRefused'
+    messages:
+      - $ref: '#/channels/canonicalNetDerivationRefused/messages/NetDerivationRefused'
   publishExampleHappened:
     action: send
     description: Placeholder operation (INV-T-2849 scaffold) — replace with a real one.
@@ -226,6 +238,17 @@ components:
       contentType: application/cloudevents+json
       payload:
         $ref: './schemas/period-reassigned-payload.schema.json'
+    NetDerivationRefused:
+      name: com.dynokore.gst.canonical.NetDerivationRefused.v1
+      title: NetDerivationRefused
+      summary: NetDerivationRefused — the answer to a refused net derivation request (INV-REQ-558).
+      description: >-
+        canonical-svc refuses the net derivation requested by the NetDerivationRequested event, with the reason
+        and the request event id; it holds identifiers only (INV-REQ-558). Emitted by: canonical-svc. Consumed by:
+        submission-svc. Delivery: At-least-once.
+      contentType: application/cloudevents+json
+      payload:
+        $ref: './schemas/net-derivation-refused-payload.schema.json'
     ExampleHappened:
       name: com.dynokore.gst.canonical.ExampleHappened.v1
       title: ExampleHappened

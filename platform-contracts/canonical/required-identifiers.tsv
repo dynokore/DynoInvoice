@@ -218,3 +218,25 @@ partyRef	property	schemas/document-held-payload.schema.json	INV-REQ-1016
 aggregateId	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-439
 # INV-T-23011: optional aggregateType on the canonicalDocument of CanonicalVersionCreated (INV-REQ-411)
 aggregateType	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-411
+# INV-T-25346: rows for INV-REQ-558 (net derivation). The events NetDerivationRefused and NetDerivationRequested and the member SYSTEM_DERIVED are catalogued by the asyncapi files and the enum of netDerivation.kind; they are not rows of this file.
+NETTED_BY_SYSTEM	enum_value	openapi.yaml	INV-REQ-558
+NETTED_BY_SYSTEM	enum_value	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+RecordDocumentResponse.notSubmittableReason.NETTED_BY_SYSTEM	schema_enum_value	openapi.yaml	INV-REQ-558
+DocumentSummary.notSubmittableReason.NETTED_BY_SYSTEM	schema_enum_value	openapi.yaml	INV-REQ-558
+DocumentVersion.notSubmittableReason.NETTED_BY_SYSTEM	schema_enum_value	openapi.yaml	INV-REQ-558
+netDerivation	property	openapi.yaml	INV-REQ-558
+netDerivation	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+DocumentVersion.netDerivation	schema_property	openapi.yaml	INV-REQ-558
+kind	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+baseVersion	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+creditNotes	property	schemas/canonical-version-created-payload.schema.json	INV-REQ-558
+originalDocUuid	property	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+requestEventId	property	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+reason	property	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+NOT_A_CREDIT_NOTE	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+OTHER_ENTITY	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+CURRENCY_MISMATCH	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+NOT_PRECEDING	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+BASE_CHANGED	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+DOCUMENT_NOT_FOUND	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
+NET_NOT_POSITIVE	enum_value	schemas/net-derivation-refused-payload.schema.json	INV-REQ-558
