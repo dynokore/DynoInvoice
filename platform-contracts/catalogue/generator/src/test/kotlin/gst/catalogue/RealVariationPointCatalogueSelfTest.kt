@@ -68,6 +68,25 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-AC-24781 VP-83 offers exactly DAYS_7 then CUSTOM, planned, CUSTOM a whole number of days from 1 to 30 default 7`() {
+        val vp83 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-83" }
+        assertEquals("INV-REQ-24775", vp83.requirement)
+        assertEquals(VpStatus.PLANNED, vp83.status)
+        assertEquals("vp-83.set", vp83.setPermission)
+        val fields = vp83.fields!!
+        assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
+        assertEquals(listOf("DAYS_7", "CUSTOM"), fields.options.map { it.key })
+        assertEquals(listOf(Strictness.DEFAULT, Strictness.NEUTRAL), fields.options.map { it.strictness })
+        assertTrue(fields.options.all { it.acknowledgedBy.isEmpty() })
+        assertTrue(fields.options[0].typedValue == null)
+        val custom = fields.options[1].typedValue!!
+        assertEquals(ValueType.INT, custom.type)
+        assertEquals("days", custom.unit)
+        assertEquals(Direction.NONE, custom.direction)
+        assertEquals(listOf(1, 30, 7), listOf(custom.min, custom.max, custom.default).map { it!!.number!!.toInt() })
+    }
+
+    @Test
     fun `INV-AC-8290 VP-81 offers exactly the three ruled options, available, set and acknowledged by tenant admin`() {
         val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
         assertEquals("INV-REQ-8287", vp81.requirement)
