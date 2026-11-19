@@ -17,6 +17,7 @@ object PackTypes {
     val MAPPING = PackType("MAPPING")
     val RETURN_MAPPING = PackType("RETURN_MAPPING")
     val ENDPOINT_ACCEPTANCE = PackType("ENDPOINT_ACCEPTANCE")
+    val BREACH_TERMS = PackType("BREACH_TERMS")
 
     /**
      * INV-REQ-770 behaviour 3 (INV-AC-1782): the rate and the code catalogue resolve at the preceding document's date

@@ -19,7 +19,17 @@ class PackContentsChecks : PackContentsCheck {
         when (packType) {
             PackTypes.CALENDAR.value -> guarded(packType, contents, CalendarPackChecks::refusal)
             PackTypes.SCENARIO.value -> guarded(packType, contents, ScenarioRenditionChecks::refusal)
+            PackTypes.BREACH_TERMS.value -> guarded(packType, contents) { decodedOrNull(contents) }
             else -> null
+        }
+
+    /** Runs the BREACH_TERMS decoder; its failure is the refusal text, success is no refusal. */
+    private fun decodedOrNull(contents: ByteArray): String? =
+        try {
+            BreachTermsPackContents.decode(contents)
+            null
+        } catch (e: PackContentsFailure) {
+            e.message
         }
 
     /** A shape the schema would have refused is refused here too, naming the member (fail closed). */
