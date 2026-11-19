@@ -1,10 +1,12 @@
 package com.dynokore.gst.reconciliation.adapters.http
 
+import com.dynokore.gst.reconciliation.adapters.http.ExportAuthority
 import com.dynokore.gst.reconciliation.application.run.GetRun
 import com.dynokore.gst.reconciliation.application.run.ListRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
 import com.dynokore.gst.reconciliation.application.run.RunBox
 import com.dynokore.gst.reconciliation.application.run.RunCursor
+import com.dynokore.gst.reconciliation.application.run.RunItems
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.application.workpaper.ArtefactRecordedPublisher
@@ -21,9 +23,15 @@ import com.dynokore.gst.reconciliation.application.workpaper.SingleAttestationPo
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAnnotation
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAttestation
 import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperSource
+import com.dynokore.gst.reconciliation.application.workpaper.export.ExportWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.export.RelaxedControlsSource
+import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperRenderer
 import com.dynokore.gst.reconciliation.contract.model.AttestWorkPaperRequest
 import com.dynokore.gst.reconciliation.contract.model.Attestation
+import com.dynokore.platform.auditlog.AuditEntry
+import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.PeriodErrorCode
 import com.dynokore.platform.serviceruntime.http.Problems
@@ -236,6 +244,28 @@ class AttestWorkPaperEndpointTest {
             seal,
             authority,
             beans.getBeanProvider(HttpServletRequest::class.java),
+            ExportWorkPaper(
+                GetWorkPaper(reader, noAnnotations, attestations),
+                noAnnotations,
+                RunItems { _, _ -> error("this fixture never exports") },
+                RelaxedControlsSource { _, _, _ -> error("this fixture never exports") },
+                WorkPaperRenderer { _, _ -> error("this fixture never exports") },
+                Clock.fixed(now, ZoneOffset.UTC),
+            ),
+            ExportAuthority { _, _, _ -> error("this fixture never exports") },
+            object : AuditedOperations {
+                override fun <T> change(
+                    entry: AuditEntry,
+                    context: EventContext,
+                    block: () -> T,
+                ): T = error("this fixture never audits")
+
+                override fun <T> read(
+                    entry: AuditEntry,
+                    context: EventContext,
+                    block: () -> T,
+                ): T = error("this fixture never audits")
+            },
         )
     }
 

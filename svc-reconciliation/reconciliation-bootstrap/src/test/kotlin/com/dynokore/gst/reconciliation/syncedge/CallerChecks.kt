@@ -145,7 +145,7 @@ class CallerChecks(
         private const val BODY_SHOWN = 120
         private const val SERVER_ERROR = 500
 
-        /** Operations a task has implemented (INV-T-24376, INV-T-24380, INV-T-24459): they answer no 501. */
+        /** Operations a task has implemented (INV-T-24376, 24380, 24459, 24486): they answer no 501. */
         private val IMPLEMENTED =
             setOf(
                 "GET /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs",
@@ -153,6 +153,7 @@ class CallerChecks(
                 "GET /internal/v1/reconciliation/runs/{runId}/work-paper",
                 "PUT /internal/v1/reconciliation/runs/{runId}/boxes/{box}/annotation",
                 "POST /internal/v1/reconciliation/runs/{runId}/attestation",
+                "GET /internal/v1/reconciliation/runs/{runId}/work-paper/export",
             )
         private val COUNTS =
             "select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', " +

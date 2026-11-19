@@ -1,6 +1,7 @@
 package com.dynokore.gst.reconciliation.adapters
 
 import com.dynokore.gst.reconciliation.adapters.http.AttestAuthority
+import com.dynokore.gst.reconciliation.adapters.http.ExportAuthority
 import com.dynokore.gst.reconciliation.adapters.http.RunsController
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqCompletedRuns
 import com.dynokore.gst.reconciliation.adapters.persistence.JooqRunReader
@@ -8,6 +9,7 @@ import com.dynokore.gst.reconciliation.application.run.GetRun
 import com.dynokore.gst.reconciliation.application.run.ListRuns
 import com.dynokore.gst.reconciliation.application.run.RecordedRun
 import com.dynokore.gst.reconciliation.application.run.RunCursor
+import com.dynokore.gst.reconciliation.application.run.RunItems
 import com.dynokore.gst.reconciliation.application.run.RunReader
 import com.dynokore.gst.reconciliation.application.run.RunSnapshot
 import com.dynokore.gst.reconciliation.application.run.RunVarianceShare
@@ -20,6 +22,9 @@ import com.dynokore.gst.reconciliation.application.workpaper.SealWorkPaper
 import com.dynokore.gst.reconciliation.application.workpaper.SealedWorkPapers
 import com.dynokore.gst.reconciliation.application.workpaper.SingleAttestationPolicy
 import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperSource
+import com.dynokore.gst.reconciliation.application.workpaper.export.ExportWorkPaper
+import com.dynokore.gst.reconciliation.application.workpaper.export.RelaxedControlsSource
+import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperRenderer
 import com.dynokore.gst.reconciliation.contract.model.ErrorEnvelope
 import com.dynokore.gst.reconciliation.contract.model.Run
 import com.dynokore.gst.reconciliation.contract.model.RunPage
@@ -27,6 +32,9 @@ import com.dynokore.gst.reconciliation.domain.boxes.UnmappedLine
 import com.dynokore.gst.reconciliation.domain.run.NotReconcilableDocument
 import com.dynokore.gst.reconciliation.domain.run.RunOutcome
 import com.dynokore.gst.reconciliation.domain.sgd.NotReconcilableReason
+import com.dynokore.platform.auditlog.AuditEntry
+import com.dynokore.platform.auditlog.AuditedOperations
+import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.reconciliationengine.Category
 import com.dynokore.platform.reconciliationengine.ClassifiedVariance
 import com.dynokore.platform.reconciliationengine.Comparison
@@ -185,6 +193,28 @@ open class RunStoreDbFixture {
             ),
             AttestAuthority { _, _, _ -> false },
             DefaultListableBeanFactory().getBeanProvider(HttpServletRequest::class.java),
+            ExportWorkPaper(
+                GetWorkPaper(reader, LazyRunAnnotations { session.dsl() }, LazyRunAttestations { session.dsl() }),
+                LazyRunAnnotations { session.dsl() },
+                RunItems { _, _ -> error("this fixture never exports") },
+                RelaxedControlsSource { _, _, _ -> error("this fixture never exports") },
+                WorkPaperRenderer { _, _ -> error("this fixture never exports") },
+                Clock.systemUTC(),
+            ),
+            ExportAuthority { _, _, _ -> false },
+            object : AuditedOperations {
+                override fun <T> change(
+                    entry: AuditEntry,
+                    context: EventContext,
+                    block: () -> T,
+                ): T = error("this fixture never audits")
+
+                override fun <T> read(
+                    entry: AuditEntry,
+                    context: EventContext,
+                    block: () -> T,
+                ): T = error("this fixture never audits")
+            },
         )
 
     protected fun <T> asTenant(
@@ -601,15 +631,13 @@ class RunReadDbTest : RunStoreDbFixture() {
 
     @Test
     fun `INV-AC-24375 every other operation of both controllers still answers 501`() {
-        val id = UUID.randomUUID()
-        controller.exportWorkPaper(id, "PDF").statusCode.value() shouldBe 501
         RunsController::class.java.declaredMethods
             .filter {
                 !it.isSynthetic && !it.isBridge &&
                     java.lang.reflect.Modifier
                         .isPublic(it.modifiers)
             }.map { it.name }
-            .toSet() shouldBe setOf("listRuns", "getRun", "getWorkPaper", "attestWorkPaper")
+            .toSet() shouldBe setOf("listRuns", "getRun", "getWorkPaper", "attestWorkPaper", "exportWorkPaper")
     }
 
     @Test

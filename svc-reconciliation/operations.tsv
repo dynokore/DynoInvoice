@@ -4,7 +4,7 @@ operation	getReconciliation	INV-T-24421
 operation	listRuns	INV-T-24376
 operation	getRun	INV-T-24376
 operation	getWorkPaper	INV-T-24380
-operation	exportWorkPaper	UNASSIGNED
+operation	exportWorkPaper	INV-T-24486
 operation	annotateVariance	INV-T-24380
 operation	attestWorkPaper	INV-T-24459
 channel	gst.reconciliation.gst-return-recorded.v1	INV-T-24367

@@ -23,6 +23,9 @@ class OperationsGateTest {
             listOf(ReturnsController::class.java, ReconciliationController::class.java, RunsController::class.java),
         )
 
+    /** A synthetic stub set for the probes: every real operation is implemented, the gate logic is still probed. */
+    private val probeStubs = setOf("exportWorkPaper")
+
     private fun run(
         table: String = tsv,
         spec: String = openapi,
@@ -35,13 +38,14 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 8
         OperationsGate.contractChannels(asyncapi).size shouldBe 3
         run(done = doneText).shouldBeEmpty()
-        doneText shouldBe ""
+        doneText shouldBe "INV-T-24486\n"
     }
 
     @Test
     fun `every operation of the real contract is a stub until a task overrides it`() {
         // uploadGstReturn: INV-T-24367; listRuns, getRun: INV-T-24376; getReconciliation: INV-T-24421;
-        // getWorkPaper, annotateVariance: INV-T-24380; attestWorkPaper: INV-T-24459. None is a stub.
+        // getWorkPaper, annotateVariance: INV-T-24380; attestWorkPaper: INV-T-24459;
+        // exportWorkPaper: INV-T-24486. None is a stub.
         stubs shouldBe
             OperationsGate.contractOperations(openapi) -
             setOf(
@@ -52,6 +56,7 @@ class OperationsGateTest {
                 "getWorkPaper",
                 "annotateVariance",
                 "attestWorkPaper",
+                "exportWorkPaper",
             )
     }
 
@@ -76,11 +81,11 @@ class OperationsGateTest {
 
     @Test
     fun `a listed operation marked done with a 501 stub fails`() {
-        val table = tsv.replaceFirst("exportWorkPaper\tUNASSIGNED", "exportWorkPaper\tINV-T-9999")
-        run(table = table).shouldBeEmpty()
-        run(table = table, done = "INV-T-9999\n") shouldContain
+        val table = tsv.replaceFirst("exportWorkPaper\tINV-T-24486", "exportWorkPaper\tINV-T-9999")
+        run(table = table, stubSet = probeStubs).shouldBeEmpty()
+        run(table = table, done = "INV-T-9999\n", stubSet = probeStubs) shouldContain
             "operation exportWorkPaper: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "exportWorkPaper").shouldBeEmpty()
+        run(table = table, done = "INV-T-9999\n", stubSet = probeStubs - "exportWorkPaper").shouldBeEmpty()
     }
 
     @Test
@@ -96,7 +101,7 @@ class OperationsGateTest {
         run(done = null) shouldContain "done-tasks.txt: the file is missing"
         run(done = "TBD\n") shouldContain "done-tasks.txt: 'TBD' is not exactly an INV-T key"
         run(done = "inv-t-5964\n") shouldContain "done-tasks.txt: 'inv-t-5964' is not exactly an INV-T key"
-        val table = tsv.replaceFirst("exportWorkPaper\tUNASSIGNED", "exportWorkPaper\tINV-T-5970")
+        val table = tsv.replaceFirst("exportWorkPaper\tINV-T-24486", "exportWorkPaper\tINV-T-5970")
         run(table = table, done = "INV-T-59700\n") shouldContain
             "done-tasks.txt: INV-T-59700 names no row of operations.tsv"
         run(table = table, done = "INV-T-5970 \n").shouldNotBeEmpty()
@@ -104,7 +109,7 @@ class OperationsGateTest {
 
     @Test
     fun `a listed key whose operation is implemented passes`() {
-        val table = tsv.replaceFirst("exportWorkPaper\tUNASSIGNED", "exportWorkPaper\tINV-T-5970")
-        run(table = table, done = "INV-T-5970\n", stubSet = stubs - "exportWorkPaper").shouldBeEmpty()
+        val table = tsv.replaceFirst("exportWorkPaper\tINV-T-24486", "exportWorkPaper\tINV-T-5970")
+        run(table = table, done = "INV-T-5970\n", stubSet = probeStubs - "exportWorkPaper").shouldBeEmpty()
     }
 }

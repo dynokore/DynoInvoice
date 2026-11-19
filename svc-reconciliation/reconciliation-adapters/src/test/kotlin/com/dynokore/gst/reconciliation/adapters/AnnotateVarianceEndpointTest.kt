@@ -166,8 +166,7 @@ class AnnotateVarianceEndpointTest : RunStoreDbFixture() {
     }
 
     @Test
-    fun `INV-AC-24379 exportWorkPaper and attestWorkPaper answer 501 and RunsController has no annotateVariance`() {
-        controller.exportWorkPaper(UUID.randomUUID(), "PDF").statusCode.value() shouldBe 501
+    fun `INV-AC-24379 RunsController has no annotateVariance`() {
         com.dynokore.gst.reconciliation.adapters.http.RunsController::class.java.declaredMethods
             .none { it.name == "annotateVariance" } shouldBe true
     }
