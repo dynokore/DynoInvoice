@@ -78,7 +78,7 @@ class ReplayResponderEndToEndTest {
         private val entitiesApi: EntitiesController = context.getBean(EntitiesController::class.java)
         private val tenants: TenantContext = context.getBean(TenantContext::class.java)
 
-        /** One tenant with 1 group and 2 live entities (3 structure nodes) and one status entry, on the first entity. */
+        /** One tenant: 1 group, 2 live entities (3 structure nodes) and one status entry, on the first entity. */
         fun newTenant(): TenantId {
             val contract = "C-${UUID.randomUUID()}"
             val ref = TenantRefs.refOfContract(contract)
