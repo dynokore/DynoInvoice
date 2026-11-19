@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [2.23.1] - 2026-11-19
+### Changed
+- Version step only (G-DVS, INV-T-25147): the published bytes change because the dependency `service-runtime` steps to 13.25.0 (PER-017, PER-018, SRT-015; coordinator ruling INV-T-25147); no code change in this module.
+
 ## [2.23.0] - 2026-11-19
 ### Added
 - `HighRiskLivePermissionKeysTest` proves the generated role map holds roles for the machine key and the person key of every high-risk live-call row (INV-T-9258, owner answer INV-Q-19441 A); the published bytes change because the dependency `service-runtime` steps to 13.24.0 (G-DVS).

@@ -45,6 +45,7 @@ class ProblemsTest {
                 "SRT-012" to 429,
                 "SRT-013" to 503,
                 "SRT-014" to 413,
+                "SRT-015" to 409,
             )
         ClosedErrorCode.entries.forEach { code ->
             val row = catalogue.getValue(code.code)

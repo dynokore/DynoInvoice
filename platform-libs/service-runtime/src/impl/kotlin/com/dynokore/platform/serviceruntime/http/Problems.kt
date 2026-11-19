@@ -61,6 +61,12 @@ enum class ClosedErrorCode(
         "Request over a size or count limit of its operation",
         "TERMINAL",
     ),
+
+    /**
+     * The bulk action is refused as a whole (HTTP 409; catalogue row SRT-015, coordinator ruling INV-T-25147). The
+     * `submittedCount` extension member of the row is not rendered by this task.
+     */
+    BULK_ACTION_REFUSED("SRT-015", HttpStatusCodes.CONFLICT, "Bulk action refused as a whole", "TERMINAL"),
     ;
 
     /** Every SRT code is remediated by the platform (error-codes.yaml `owner`). */

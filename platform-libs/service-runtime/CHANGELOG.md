@@ -6,6 +6,10 @@ train is its own (README.md: "own version and changelog").
 
 ## [Unreleased]
 
+## [13.25.0] - 2026-11-19
+### Added
+- `PeriodErrorCode` gains `ATTESTATION_SEPARATION_OF_DUTIES` (PER-017, 403) and `ATTESTATION_UNEXPLAINED_RESIDUAL` (PER-018, 409), rendered by `Problems.renderPeriod`; `ClosedErrorCode` gains `BULK_ACTION_REFUSED` (SRT-015, 409; the `submittedCount` extension member is not rendered). The catalogue snapshot is re-vendored at invoice-docs daceb509 (coordinator ruling INV-T-25147, INV-AC-25146; consumer INV-T-24459).
+
 ## [13.24.0] - 2026-11-19
 ### Added
 - `AuthorityReplica.decideLive` and the public `livePermissionKey(permission, kind)` (a person's key is the row's key with one leading `machine.` removed, owner answer INV-Q-19441 A): one call to access-svc through the existing fallback whatever the lag, never the replica or the degraded rule; an unreachable access-svc is AUTHORITY_UNAVAILABLE for every principal kind (INV-T-9258, INV-AC-16549, INV-AC-9051).
