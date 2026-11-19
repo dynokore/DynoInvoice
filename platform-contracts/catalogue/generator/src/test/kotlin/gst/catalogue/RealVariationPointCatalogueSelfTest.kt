@@ -87,6 +87,30 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-AC-25102 VP-84 offers exactly DEFAULT_30M_12H then SHORTER, planned, SHORTER a record of idle 1-30 minutes and absolute 1-12 hours, DOWN_STRICTER`() {
+        val vp84 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-84" }
+        assertEquals("INV-REQ-25100", vp84.requirement)
+        assertEquals(VpStatus.PLANNED, vp84.status)
+        assertEquals("vp-84.set", vp84.setPermission)
+        val fields = vp84.fields!!
+        assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
+        assertEquals(listOf("DEFAULT_30M_12H", "SHORTER"), fields.options.map { it.key })
+        assertEquals(listOf(Strictness.DEFAULT, Strictness.STRICTER), fields.options.map { it.strictness })
+        assertTrue(fields.options.all { it.acknowledgedBy.isEmpty() })
+        assertTrue(fields.options[0].typedValue == null)
+        val record = fields.options[1].typedValue!!
+        assertEquals(ValueType.RECORD, record.type)
+        assertEquals(listOf("idle", "absolute"), record.fields.keys.toList())
+        listOf("idle" to Triple("minutes", 30, 30), "absolute" to Triple("hours", 12, 12)).forEach { (name, want) ->
+            val f = record.fields.getValue(name)
+            assertEquals(ValueType.DURATION, f.type, name)
+            assertEquals(want.first, f.unit, name)
+            assertEquals(Direction.DOWN_STRICTER, f.direction, name)
+            assertEquals(listOf(1, want.second, want.third), listOf(f.min, f.max, f.default).map { it!!.number!!.toInt() }, name)
+        }
+    }
+
+    @Test
     fun `INV-AC-8290 VP-81 offers exactly the three ruled options, available, set and acknowledged by tenant admin`() {
         val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
         assertEquals("INV-REQ-8287", vp81.requirement)
