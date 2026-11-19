@@ -131,6 +131,50 @@ class ChainDecisionTraceItemDbTest {
                 }
         }
 
+    /** A trace row written straight (superuser), with or without its `applied_record` row. */
+    @Suppress("LongParameterList") // one row's identity
+    private fun insertTrace(
+        tenant: UUID,
+        entity: String,
+        period: String,
+        seq: Long,
+        docUuid: UUID,
+        withApplied: Boolean,
+    ) = EvidenceDb.superuser().use { c ->
+        RetentionPartitionFixture.ensureRetentionPartition(c, "decision_trace", tenant, entity, period)
+        c
+            .prepareStatement(
+                "insert into evidence.decision_trace (id, tenant_id, entity_ref, period_ref, seq, evidence_type, " +
+                    "content, content_hash, recorded_at, doc_uuid, version) " +
+                    "values (gen_random_uuid(), ?, ?, ?, ?, 'DECISION_TRACE', ?, 'h', now(), ?, 2)",
+            ).use {
+                it.setObject(1, tenant)
+                it.setString(2, entity)
+                it.setString(3, period)
+                it.setLong(4, seq)
+                it.setBytes(5, decisions(listOf(m)).toByteArray())
+                it.setObject(6, docUuid)
+                it.executeUpdate()
+            }
+        if (withApplied) {
+            c
+                .prepareStatement(
+                    "insert into evidence.applied_record (tenant_id, source_event_id, kind, entity_ref, " +
+                        "period_ref, seq, applied_at) values (?, ?, 'decision_trace', ?, ?, ?, now())",
+                ).use {
+                    it.setObject(1, tenant)
+                    it.setString(2, "T-DIRECT-$seq")
+                    it.setString(3, entity)
+                    it.setString(4, period)
+                    it.setLong(5, seq)
+                    it.executeUpdate()
+                }
+        }
+    }
+
+    private fun traceItems(records: ChainRecords) =
+        records.shouldBeInstanceOf<ChainRecords.Complete>().items.filter { it.kind == ChainItemKind.DECISION_TRACE }
+
     private fun fixture(t: UUID) {
         locate(t, 2)
         seal(t, 2)
@@ -190,6 +234,38 @@ class ChainDecisionTraceItemDbTest {
     fun `INV-AC-20779 a version with no trace row is Found with no DECISION_TRACE item`() {
         val t = UUID.randomUUID()
         fixture(t)
+        val items = read(t, 2).shouldBeInstanceOf<ChainRecords.Complete>().items
+        items.map { it.kind } shouldBe listOf(ChainItemKind.PAYLOAD, ChainItemKind.ACKNOWLEDGEMENT)
+    }
+
+    @Test
+    fun `INV-AC-20779 a trace row with no applied_record row makes the lookup Incomplete, with the row it is Found`() {
+        val withRow = UUID.randomUUID()
+        fixture(withRow)
+        insertTrace(withRow, "ENT-1", "2026-Q1", 1, doc, withApplied = true)
+        traceItems(read(withRow, 2)).size shouldBe 1
+        val without = UUID.randomUUID()
+        fixture(without)
+        insertTrace(without, "ENT-1", "2026-Q1", 1, doc, withApplied = false)
+        read(without, 2) shouldBe ChainRecords.Incomplete
+    }
+
+    @Test
+    fun `INV-AC-20779 a trace row of another entity or period makes the lookup Incomplete`() {
+        for ((entity, period) in listOf("ENT-2" to "2026-Q1", "ENT-1" to "2026-Q2")) {
+            val t = UUID.randomUUID()
+            fixture(t)
+            insertTrace(t, entity, period, 1, doc, withApplied = true)
+            read(t, 2) shouldBe ChainRecords.Incomplete
+        }
+    }
+
+    @Test
+    fun `INV-AC-20779 a trace of another document with the same entity and period is no item and not Incomplete`() {
+        val t = UUID.randomUUID()
+        fixture(t)
+        insertTrace(t, "ENT-1", "2026-Q1", 1, UUID.randomUUID(), withApplied = true)
+        insertTrace(t, "ENT-9", "2026-Q9", 1, UUID.randomUUID(), withApplied = false)
         val items = read(t, 2).shouldBeInstanceOf<ChainRecords.Complete>().items
         items.map { it.kind } shouldBe listOf(ChainItemKind.PAYLOAD, ChainItemKind.ACKNOWLEDGEMENT)
     }

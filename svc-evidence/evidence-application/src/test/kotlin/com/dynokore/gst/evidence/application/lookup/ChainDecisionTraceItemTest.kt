@@ -211,6 +211,13 @@ class ChainDecisionTraceItemTest {
     }
 
     @Test
+    fun `INV-AC-20779 only the DECISION_TRACE item carries the reader's packVersions`() {
+        val found = lookup(complete(payload, ack, trace1)).shouldBeInstanceOf<ChainLookupResult.Found>()
+        found.items.filter { it.kind != ChainItemKind.DECISION_TRACE }.all { it.packVersions.isEmpty() } shouldBe true
+        found.items.single { it.kind == ChainItemKind.DECISION_TRACE }.packVersions shouldBe packs
+    }
+
+    @Test
     fun `INV-AC-20779 an Incomplete from the reader is Incomplete for the use case`() {
         lookup(ChainRecords.Incomplete) shouldBe ChainLookupResult.Incomplete
     }
