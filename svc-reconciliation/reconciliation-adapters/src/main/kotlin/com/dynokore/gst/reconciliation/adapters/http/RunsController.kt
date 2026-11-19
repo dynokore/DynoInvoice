@@ -132,7 +132,7 @@ open class RunsController(
         requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal
             ?: throw AttestationRefusal(AttestationRefusalCode.UNAUTHENTICATED)
 
-    /** The run's entity, read before any decision; an unknown run or an entity outside a current set is 404 (API-24). */
+    /** The run's entity, read before any decision; unknown run or entity outside a current set: 404 (API-24). */
     private fun entityOf(
         caller: EndUserPrincipal,
         tenant: String,
@@ -145,16 +145,26 @@ open class RunsController(
 
     private fun storedOrRefusal(result: AttestationResult): StoredAttestation =
         when (result) {
-            is AttestationResult.Attested -> result.stored
-            is AttestationResult.Replayed -> result.stored
-            AttestationResult.RunNotFound -> throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
-            is AttestationResult.Refused -> throw AttestationRefusal(refusalCode(result.reason))
-        }
+            is AttestationResult.Attested -> {
+                result.stored
+            }
 
-    private fun refusalCode(reason: UseCaseRefusal) =
-        when (reason) {
-            UseCaseRefusal.SEPARATION_OF_DUTIES -> AttestationRefusalCode.SEPARATION_OF_DUTIES
-            UseCaseRefusal.UNEXPLAINED_VARIANCE -> AttestationRefusalCode.UNEXPLAINED_VARIANCE
+            is AttestationResult.Replayed -> {
+                result.stored
+            }
+
+            AttestationResult.RunNotFound -> {
+                throw AttestationRefusal(AttestationRefusalCode.NOT_FOUND)
+            }
+
+            is AttestationResult.Refused -> {
+                throw AttestationRefusal(
+                    when (result.reason) {
+                        UseCaseRefusal.SEPARATION_OF_DUTIES -> AttestationRefusalCode.SEPARATION_OF_DUTIES
+                        UseCaseRefusal.UNEXPLAINED_VARIANCE -> AttestationRefusalCode.UNEXPLAINED_VARIANCE
+                    },
+                )
+            }
         }
 
     private fun attestation(stored: StoredAttestation) =
