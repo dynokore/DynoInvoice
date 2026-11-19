@@ -30,6 +30,114 @@ class CodeCatalogueSeedCodesTest {
 
     private fun codeList(root: JsonNode) = root.path("codes").items().map { it.path("code").asString() }
 
+    // INV-AC-24841: supplyType of each entry, derived from the printed description by eight case-sensitive prefixes.
+    private val prefixes =
+        listOf(
+            "Standard-rated " to "STANDARD_RATED",
+            "Zero-rated " to "ZERO_RATED",
+            "Regulation 33 Exempt " to "EXEMPT",
+            "Non-Regulation 33 Exempt " to "EXEMPT",
+            "Exempt purchases" to "EXEMPT",
+            "Supplies outside the scope" to "OUT_OF_SCOPE",
+            "Out-of-scope purchases" to "OUT_OF_SCOPE",
+            "Import of goods" to "IMPORTS",
+        )
+
+    private val table =
+        mapOf(
+            "SR" to "STANDARD_RATED",
+            "TX" to "STANDARD_RATED",
+            "TXCA" to "STANDARD_RATED",
+            "TX-ESS" to "STANDARD_RATED",
+            "TX-N33" to "STANDARD_RATED",
+            "ZR" to "ZERO_RATED",
+            "ZP" to "ZERO_RATED",
+            "ES33" to "EXEMPT",
+            "ESN33" to "EXEMPT",
+            "EP" to "EXEMPT",
+            "OS" to "OUT_OF_SCOPE",
+            "OP" to "OUT_OF_SCOPE",
+            "IM" to "IMPORTS",
+            "ME" to "IMPORTS",
+            "IGDS" to "IMPORTS",
+            "IM-ESS" to "IMPORTS",
+            "IM-N33" to "IMPORTS",
+            "IM-RE" to "IMPORTS",
+        )
+
+    /** Every supplyType problem of the catalogue text; empty when it equals the table and the prefix derivation. */
+    private fun supplyProblems(text: String): List<String> {
+        val entries =
+            CodeCatalogueSeedFiles.mapper
+                .readTree(text)
+                .path("codes")
+                .items()
+        val actual =
+            entries
+                .filter { it.has("supplyType") }
+                .associate { it.path("code").asString() to it.path("supplyType").asString("") }
+        val derived =
+            entries
+                .mapNotNull { e ->
+                    val d = e.path("description").asString("")
+                    prefixes.firstOrNull { d.startsWith(it.first) }?.let { e.path("code").asString() to it.second }
+                }.toMap()
+        return listOfNotNull(
+            "count: ${entries.size} entries, expected 35".takeIf { entries.size != 35 },
+            "count: ${actual.size} supplyType members, expected 18".takeIf { actual.size != 18 },
+            "table: the code and value pairs differ from the table".takeIf { actual != table },
+            "prefix: the values differ from the description prefixes".takeIf { actual != derived },
+        )
+    }
+
+    private fun supplyFails(text: String) = supplyProblems(text).isNotEmpty() shouldBe true
+
+    @Test
+    fun `INV-AC-24841 the shipped catalogue has 18 supplyType members equal to the table and 17 without`() {
+        supplyProblems(CodeCatalogueSeedFiles.contents).shouldBeEmpty()
+        val entries =
+            CodeCatalogueSeedFiles.mapper
+                .readTree(CodeCatalogueSeedFiles.contents)
+                .path("codes")
+                .items()
+        entries.size shouldBe 35
+        entries.count { it.has("supplyType") } shouldBe 18
+        entries.filter { it.has("supplyType") }.forEach {
+            it.path("supplyType").isString shouldBe true
+        }
+    }
+
+    @Test
+    fun `INV-AC-24841 probe every supplyType removed fails`() {
+        supplyFails(edited { c -> c.items().forEach { (it as ObjectNode).remove("supplyType") } })
+    }
+
+    @Test
+    fun `INV-AC-24841 probe SR given EXEMPT fails`() {
+        supplyFails(edited { entry(it, "SR").put("supplyType", "EXEMPT") })
+    }
+
+    @Test
+    fun `INV-AC-24841 probe SRRC given STANDARD_RATED fails`() {
+        supplyFails(edited { entry(it, "SRRC").put("supplyType", "STANDARD_RATED") })
+    }
+
+    @Test
+    fun `INV-AC-24841 probe TX and TXNA values swapped fails`() {
+        supplyFails(
+            edited {
+                entry(it, "TX").remove("supplyType")
+                entry(it, "TXNA").put("supplyType", "STANDARD_RATED")
+            },
+        )
+    }
+
+    @Test
+    fun `INV-AC-24841 probe an entry added or removed fails the count of 35`() {
+        supplyFails(edited { it.add(entry(it, "SR").deepCopy()) })
+        supplyFails(edited { c -> c.remove(c.items().indexOfFirst { it.path("code").asString() == "NR" }) })
+    }
+
     @Test
     fun `INV-AC-2431 the shipped catalogue holds the 35 Annex E codes, PRIMARY, complete`() {
         CodeCatalogueSeedFiles.codeProblems(CodeCatalogueSeedFiles.contents).shouldBeEmpty()

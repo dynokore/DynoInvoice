@@ -8,7 +8,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 79",
-      "description": "Standard-rated supply of goods or services"
+      "description": "Standard-rated supply of goods or services",
+      "supplyType": "STANDARD_RATED"
     },
     {
       "code": "SRCA-S",
@@ -91,7 +92,8 @@
       "annexERate": "0",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 80",
-      "description": "Zero-rated supplies"
+      "description": "Zero-rated supplies",
+      "supplyType": "ZERO_RATED"
     },
     {
       "code": "ES33",
@@ -100,7 +102,8 @@
       "annexERate": "NA",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 80",
-      "description": "Regulation 33 Exempt Supplies"
+      "description": "Regulation 33 Exempt Supplies",
+      "supplyType": "EXEMPT"
     },
     {
       "code": "ESN33",
@@ -109,7 +112,8 @@
       "annexERate": "NA",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 80",
-      "description": "Non-Regulation 33 Exempt Supplies"
+      "description": "Non-Regulation 33 Exempt Supplies",
+      "supplyType": "EXEMPT"
     },
     {
       "code": "OS",
@@ -118,7 +122,8 @@
       "annexERate": "NA",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 80",
-      "description": "Supplies outside the scope of the GST Act"
+      "description": "Supplies outside the scope of the GST Act",
+      "supplyType": "OUT_OF_SCOPE"
     },
     {
       "code": "NG",
@@ -136,7 +141,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 81",
-      "description": "Standard-rated taxable purchases"
+      "description": "Standard-rated taxable purchases",
+      "supplyType": "STANDARD_RATED"
     },
     {
       "code": "IM",
@@ -145,7 +151,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 81",
-      "description": "Import of goods (9% GST paid to Singapore Customs on the import of goods into Singapore)"
+      "description": "Import of goods (9% GST paid to Singapore Customs on the import of goods into Singapore)",
+      "supplyType": "IMPORTS"
     },
     {
       "code": "ME",
@@ -154,7 +161,8 @@
       "annexERate": "0",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 81",
-      "description": "Import of goods under the Major Exporter Scheme (MES), A3PL scheme or other approved schemes"
+      "description": "Import of goods under the Major Exporter Scheme (MES), A3PL scheme or other approved schemes",
+      "supplyType": "IMPORTS"
     },
     {
       "code": "IGDS",
@@ -163,7 +171,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 81",
-      "description": "Import of goods under the Import GST Deferment Scheme (IGDS)"
+      "description": "Import of goods under the Import GST Deferment Scheme (IGDS)",
+      "supplyType": "IMPORTS"
     },
     {
       "code": "TXCA",
@@ -172,7 +181,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 81",
-      "description": "Standard-rated purchases of prescribed goods subject to customer accounting"
+      "description": "Standard-rated purchases of prescribed goods subject to customer accounting",
+      "supplyType": "STANDARD_RATED"
     },
     {
       "code": "TXNA",
@@ -200,7 +210,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 81",
-      "description": "Standard-rated purchases directly attributable to Regulation 33 exempt supplies"
+      "description": "Standard-rated purchases directly attributable to Regulation 33 exempt supplies",
+      "supplyType": "STANDARD_RATED"
     },
     {
       "code": "TXRC-ESS",
@@ -218,7 +229,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 82",
-      "description": "Import of goods with GST paid to Singapore Customs that are directly attributable to Regulation 33 exempt supplies"
+      "description": "Import of goods with GST paid to Singapore Customs that are directly attributable to Regulation 33 exempt supplies",
+      "supplyType": "IMPORTS"
     },
     {
       "code": "TX-N33",
@@ -227,7 +239,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 82",
-      "description": "Standard-rated purchases directly attributable to non-Regulation 33 exempt supplies"
+      "description": "Standard-rated purchases directly attributable to non-Regulation 33 exempt supplies",
+      "supplyType": "STANDARD_RATED"
     },
     {
       "code": "TXRC-N33",
@@ -245,7 +258,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 82",
-      "description": "Import of goods with GST paid to Singapore Customs that are directly attributable to non-Regulation 33 exempt supplies"
+      "description": "Import of goods with GST paid to Singapore Customs that are directly attributable to non-Regulation 33 exempt supplies",
+      "supplyType": "IMPORTS"
     },
     {
       "code": "TX-RE",
@@ -272,7 +286,8 @@
       "annexERate": "9",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 82",
-      "description": "Import of goods with GST paid to Singapore Customs that are residual"
+      "description": "Import of goods with GST paid to Singapore Customs that are residual",
+      "supplyType": "IMPORTS"
     },
     {
       "code": "ZP",
@@ -281,7 +296,8 @@
       "annexERate": "0",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 82",
-      "description": "Zero-rated purchases"
+      "description": "Zero-rated purchases",
+      "supplyType": "ZERO_RATED"
     },
     {
       "code": "BL",
@@ -299,7 +315,8 @@
       "annexERate": "NA",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 82",
-      "description": "Exempt purchases"
+      "description": "Exempt purchases",
+      "supplyType": "EXEMPT"
     },
     {
       "code": "OP",
@@ -308,7 +325,8 @@
       "annexERate": "NA",
       "sourceClass": "PRIMARY",
       "sourceReference": "R1 Annex E, page 83",
-      "description": "Out-of-scope purchases received from GST-registered suppliers; purchases from GST-registered suppliers where input tax is not claimed (e.g. not for business purposes, invalid tax invoices, not claiming input tax out of prudence etc.)"
+      "description": "Out-of-scope purchases received from GST-registered suppliers; purchases from GST-registered suppliers where input tax is not claimed (e.g. not for business purposes, invalid tax invoices, not claiming input tax out of prudence etc.)",
+      "supplyType": "OUT_OF_SCOPE"
     },
     {
       "code": "NR",

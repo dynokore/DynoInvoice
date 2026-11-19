@@ -33,4 +33,12 @@ class CodeCatalogueSeedSchemaTest {
         schemaErrors(CodeCatalogueSeedFiles.contents.replaceFirst("SUPPLY_STANDARD_RATED", "OTHER")).isEmpty() shouldBe
             false
     }
+
+    @Test
+    fun `INV-AC-24841 probe the look-alike supplyType ZERO_RATE fails the schema`() {
+        val root = CodeCatalogueSeedFiles.mapper.readTree(CodeCatalogueSeedFiles.contents) as ObjectNode
+        (root.path("codes").items().first { it.path("code").asString() == "SR" } as ObjectNode)
+            .put("supplyType", "ZERO_RATE")
+        schemaErrors(root.toString()).isEmpty() shouldBe false
+    }
 }
