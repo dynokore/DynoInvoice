@@ -17,6 +17,8 @@ object CodeCataloguePackContents {
     private val PURCHASE_GROUPS =
         setOf("PURCHASE_STANDARD_RATED", "PURCHASE_INPUT_TAX_ATTRIBUTION", "PURCHASE_ZERO_RATED_NON_REPORTABLE")
 
+    private val SUPPLY_TYPES = setOf("STANDARD_RATED", "ZERO_RATED", "EXEMPT", "OUT_OF_SCOPE", "IMPORTS")
+
     fun decode(contents: ByteArray): CodeCatalogue {
         val root = ContentsNode.root(PACK_TYPE, contents)
         val complete = root.optionalBoolean("complete") ?: root.fail("complete", "is required")
@@ -40,6 +42,8 @@ object CodeCataloguePackContents {
         val submissionRate = node.optionalText("submissionRate", pattern = SUBMISSION_RATE)
         val sourceClass = node.text("sourceClass", oneOf = SOURCE_CLASSES)
         val sourceReference = node.text("sourceReference", min = 1)
+        // a value outside the five members is never copied: the contents are unreadable (PackContentsFailure)
+        val supplyType = node.optionalText("supplyType", oneOf = SUPPLY_TYPES)
         return CatalogueEntry(
             code,
             group,
@@ -48,6 +52,7 @@ object CodeCataloguePackContents {
             submissionRate,
             SourceClass.valueOf(sourceClass),
             sourceReference,
+            supplyType,
         )
     }
 }

@@ -12,6 +12,8 @@ data class CatalogueEntry(
     val submissionRate: String?,
     val sourceClass: SourceClass?,
     val sourceReference: String?,
+    /** The return category the entry names, one of the five `SupplyType` members; null when the entry names none. */
+    val supplyType: String? = null,
 )
 
 /**

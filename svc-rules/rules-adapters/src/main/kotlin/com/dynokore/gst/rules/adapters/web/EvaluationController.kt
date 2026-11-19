@@ -29,6 +29,7 @@ import com.dynokore.gst.rules.domain.classification.ClassifyInput
 import com.dynokore.gst.rules.domain.classification.DocumentClassifier
 import com.dynokore.gst.rules.domain.classification.DocumentFunction
 import com.dynokore.gst.rules.domain.classification.SignOfTotal
+import com.dynokore.gst.rules.domain.coding.CodeCatalogue
 import com.dynokore.gst.rules.domain.coding.Direction
 import com.dynokore.gst.rules.domain.coding.ELECTED_SCHEMES
 import com.dynokore.gst.rules.domain.coding.ELECTION
@@ -224,6 +225,8 @@ open class EvaluationController(
                     CodeDocumentCommand(tenant, rateDate, listOf(DocumentLine(LINE_ID, ZERO, ZERO, input))),
                 )
         val coding = codingOf(result, tenant, rateDate, input)
+        // the catalogue of the pack version in force at the rate date, the one the prevailing rate comes from
+        val catalogue = if (result is DocumentCodingResult.Coded) packs.catalogueAt(tenant, rateDate) else null
         val (outcome, answered) = scopeOutcomeOf(request, tenant, dating.ownDate, coding)
         val trace = ScopeRequestFacts.traceWith(traceOf(result, tenant, rateDate, input), outcome)
         val classifiedResult = classified as? Classified.Done
@@ -237,7 +240,16 @@ open class EvaluationController(
                     dating.extraTrace
             }
         val versions = versionsApplied(tenant, rateDate) + listOfNotNull(classifiedResult?.version)
-        return answer(outcome, answered, result, versions, withDates, classified, dating.straddleNote)
+        return answer(
+            outcome,
+            answered,
+            result,
+            versions,
+            withDates,
+            classified,
+            dating.straddleNote,
+            catalogue = catalogue,
+        )
     }
 
     /** What the classification of the request came to; [None] when the request carries no `documentFunction`. */
@@ -497,6 +509,7 @@ open class EvaluationController(
         classified: Classified?,
         straddleNote: String?,
         refusalRuleId: String? = null,
+        catalogue: CodeCatalogue? = null,
     ): EvaluationResult {
         val fields = fieldsOf(classified)
         val scope = EvaluationResult.ScopeVerdict.valueOf(outcome.verdict.name)
@@ -522,10 +535,12 @@ open class EvaluationController(
 
             is LineCoding.Coded -> {
                 val line = (result as DocumentCodingResult.Coded).document.lines.single()
+                val answeredCode = ScopeRequestFacts.categoryCodeOf(outcome, coding.categoryCode)
                 EvaluationResult(
                     scopeVerdict = scope,
-                    categoryCode = ScopeRequestFacts.categoryCodeOf(outcome, coding.categoryCode),
+                    categoryCode = answeredCode,
                     rate = line.rate,
+                    supplyType = supplyTypeOf(catalogue, answeredCode),
                     ibt022Statement = coding.ibt022Statement,
                     disregardedSupplyWarning = warning,
                     decisionTrace = trace,
@@ -546,6 +561,16 @@ open class EvaluationController(
             }
         }
     }
+
+    /**
+     * The `supplyType` of the catalogue entry of the answered category code, by string equality; null (the member is
+     * not written) when the code has no entry or the entry names none. The adapter admits only the five members.
+     */
+    private fun supplyTypeOf(
+        catalogue: CodeCatalogue?,
+        code: String,
+    ): EvaluationResult.SupplyType? =
+        catalogue?.entryOf(code)?.supplyType?.let { EvaluationResult.SupplyType.forValue(it) }
 
     /** The four classification fields of the answer; null when none is answered. */
     private data class Fields(
