@@ -219,9 +219,11 @@ class RealVariationPointCatalogueSelfTest {
     @Test
     fun `INV-T-10133 every row sets through its own vp-NN set key, the first row of each of the ten groups of INV-T-10132, VP-81, VP-82 and the retired VP-27`() {
         val rows = VariationPointYamlParser.parse(vendoredFile, pendingFile).associateBy { it.id }
-        assertEquals(82, rows.size)
+        assertEquals(84, rows.size)
         rows.values.forEach { assertEquals(it.id.lowercase() + ".set", it.setPermission) }
         assertEquals("vp-82.set", rows.getValue("VP-82").setPermission)
+        assertEquals("vp-83.set", rows.getValue("VP-83").setPermission)
+        assertEquals("vp-84.set", rows.getValue("VP-84").setPermission)
         listOf("VP-14", "VP-01", "VP-26", "VP-21", "VP-66", "VP-04", "VP-05", "VP-30", "VP-45", "VP-52").forEach {
             assertEquals(it.lowercase() + ".set", rows.getValue(it).setPermission)
         }

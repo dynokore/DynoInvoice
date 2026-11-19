@@ -48,6 +48,7 @@
 # Re-extracted 2026-10-30 (INV-T-13488; INV-Q-13483 A): re-vendors the 14 rows that drifted from published Keel with check-drift.py --write: VP-06, VP-17, VP-18, VP-39, VP-57, VP-66, VP-67, VP-68, VP-70, VP-71 and VP-80 (revision only), VP-21 and VP-44 become available (INV-Q-12264, INV-Q-11897 A), VP-36 unit text (owner answer INV-Q-13173, option A); 82 rows.
 # Re-extracted 2026-10-31 (INV-T-11912; Keel INV-CS-11906): checks that VP-44 is available (INV-REQ-1305 io_contract.status, coordinator ruling INV-Q-11897 A) after the INV-T-13488 re-vendor; no row changes; 82 rows.
 # Re-extracted 2026-11-02 (INV-T-12497; Keel INV-CS-12494): VP-21 is available (INV-REQ-1282 io_contract.status, owner answer INV-Q-12264 A); re-vendored with check-drift.py --write, only the revision key of VP-21 moved (INV-Q-16033 A); 82 rows.
+# Re-extracted 2026-11-19 (INV-T-25258; coordinator ruling, owner delegation 2026-10-18): re-vendors the file in one check-drift.py --write run: the revision key of the 82 existing rows is refreshed and the new rows VP-83 (INV-REQ-24775) and VP-84 (INV-REQ-25100) are added, no other row changes; 84 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -69,7 +70,7 @@
 variation_points:
 - id: VP-01
   requirement: INV-REQ-1262
-  revision: a4abdd37-96b6-4789-80e6-f5aa40721e9e
+  revision: 98b79540-329b-4d42-b35f-209bde944932
   title: "Identities come from the platform or bundled provider by default, or from the customer's OIDC directory, or both, and the break-glass account always remains"
   class: POLICY
   class_modifiers: []
@@ -114,7 +115,7 @@ variation_points:
         refused: "electing CUSTOMER_OIDC or BOTH for a tenant with no connected and validated customer OIDC directory (access-svc)"
 - id: VP-02
   requirement: INV-REQ-1263
-  revision: 27a753c8-1f8a-44fa-a638-286af083195c
+  revision: 89e783dc-ff45-43ef-bdbe-4b1f1f300d17
   title: "Grants are provisioned by hand by default, or from directory groups mapped to grants, or by SCIM, always as role, scope and validity"
   class: POLICY
   class_modifiers: []
@@ -147,7 +148,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1263; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-03
   requirement: INV-REQ-1264
-  revision: 22ee9db7-3c74-4c6c-a2e5-f23a7024ca75
+  revision: 4e6466ac-aadd-46d9-a773-686cefb93ea0
   title: "A tenant's mapping packs are approved by a distinct tax.approver on staff by default; an external advisor, a non-finance officer or a recorded sole-operator acknowledgement are the alternatives"
   class: CONTROL
   class_modifiers: []
@@ -191,7 +192,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1264: \"the last option is the looser one\"; the middle two depend on G2; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-03 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-04
   requirement: INV-REQ-1265
-  revision: 2507a72c-1c38-44ff-a418-9d0f33f91eda
+  revision: 5c25084e-76a3-48d2-ad1e-79dbb39c9e5b
   title: "Mapping packs for an agent-managed client are approved by a second person at the agent plus client acknowledgement by default, and always by at least two people"
   class: CONTROL
   class_modifiers: []
@@ -225,7 +226,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3049, recommended option (A) accepted; INV-REQ-1265; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-05
   requirement: INV-REQ-1266
-  revision: 3f0c764d-4e46-40df-b4ae-c9aa47dfe9ef
+  revision: 61389e18-734e-4d4e-95d5-123074f26c0a
   title: "Grants are reviewed quarterly by default, or monthly, and never less often than quarterly"
   class: PARAMETER
   class_modifiers: []
@@ -255,7 +256,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1266: \"never less often than quarterly\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-06
   requirement: INV-REQ-1267
-  revision: 90990e86-1629-4adb-b20f-9f8863092032
+  revision: d6e7afc0-5a34-4000-a11e-aa396726d79f
   title: "Grant expiry notices go 14 and 3 days ahead by default, and at least one notice is always 3 or more days ahead"
   class: PARAMETER
   class_modifiers: []
@@ -297,7 +298,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-1267; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-07
   requirement: INV-REQ-1268
-  revision: 3e1429fd-3334-468e-84ed-cb896af18273
+  revision: 89edc02d-db7e-4ef7-80cc-dd1c5b6cacf2
   title: "Operator diagnostic access is approved by security.officer by default, or by tenant.admin with a sole-operator acknowledgement where no security officer exists"
   class: CONTROL
   class_modifiers: []
@@ -334,7 +335,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1268: the second option needs the sole-operator acknowledgement; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-07 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-08
   requirement: INV-REQ-1269
-  revision: 2d821719-8e5a-4e59-af36-2310e2afae0e
+  revision: e100ead0-944c-4f3c-a74f-972457535c34
   title: "Break-glass pairs deployment.operator or tenant.admin with tax.approver for 4 hours by default; other named pairs and 1 to 8 hours are possible, and it is always two people"
   class: CONTROL
   class_modifiers:
@@ -391,7 +392,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1269, INV-REQ-896 b2 (1 to 8 hours set by security.officer), INV-AC-2253 (only above 8 hours refused), INV-Q-2936 (non-waivable rows offer nothing looser; VP-08 tighten-only across scopes): the 1 to 8 h range is the row's bound, the installation value bounds the tenant's; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; DEFAULT_PAIR_4H typed window fixed at 4 h, directed fields only compared across scopes: coordinator ruling INV-Q-3204; resolution cap: INV-Q-3206; for INV-T-3176; owner ruling INV-Q-3320 (A′, 2026-10-11): INV-REQ-1269 allows 1 to 8 hours for any pair, so DEFAULT_PAIR_4H's window is 1 to 8 h, default 4 (supersedes INV-Q-3204's fixed 4 h); the key is kept; a write without the window is refused and the default 4 h is the window of the catalogue default only: coordinator ruling INV-Q-3548 (HIGH, reconciling INV-Q-3167 and INV-Q-3320); status available: coordinator ruling INV-Q-8841 (HIGH, delegated, owner 2026-10-14), for INV-T-8828 and INV-T-4938; owner words behind it: INV-ADR-2732 (owner decision 25 Sep 2026, ruling O1) principle 4, \"Each service built once, complete: a service is built to its full responsibility in one wave; capabilities are not sliced across waves by market priority, only a dependency can split one.\", and the Wave 2 exit of that ADR, \"grants, principals, access review, consent and break-glass run through the command APIs\"; this requirement's phase is Wave 2 and its owner is `access-svc`. Inference: the break-glass pairing and session length (the two options of this row) belong to the access service built in Wave 2, so the row cannot stay planned; this is a sequencing reading of those words, not a new function, and the owner may overrule it"
 - id: VP-09
   requirement: INV-REQ-1270
-  revision: 0b01365e-140d-4a64-ad32-a35c9a0a9b76
+  revision: 2eaed882-b708-467a-8439-88a54dd68b5f
   title: "The second confirmation of an identity triple change is given by another entity.admin or tenant.admin by default, or by a tax.approver, and always by a different person"
   class: CONTROL
   class_modifiers:
@@ -422,7 +423,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1270, non-waivable; G2; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-10
   requirement: INV-REQ-1271
-  revision: 85114598-2e32-4766-94f8-a42d4c331c81
+  revision: 2c3a09bc-64a3-43da-b5e4-4e65400c1030
   title: "An agent may do nothing for the client by default, or any combination of submitting invoice data, filing the GST return and approving mappings, as the client grants"
   class: POLICY
   class_modifiers: []
@@ -461,7 +462,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1271; keys literal in Keel; \"any combination\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-11
   requirement: INV-REQ-1272
-  revision: 683bc558-ee2f-4a15-9f84-db15ff4d6568
+  revision: 3bb3086c-406c-4131-b1cf-0b29b4f9f53a
   title: "The filer of record is derived by default — the agent where it files the return, otherwise the client — or is always the client, or either party may record"
   class: POLICY
   class_modifiers: []
@@ -494,7 +495,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1272; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-12
   requirement: INV-REQ-1273
-  revision: 049e47dd-5d1a-4b50-b166-2be4524cd76b
+  revision: 853f05b6-31e0-4d5d-b631-a4a56f434021
   title: "The client hears of a filing fact recorded by the agent by immediate notice by default, or by a notice it must acknowledge, or by daily digest, and the notice never delays the effect"
   class: POLICY
   class_modifiers: []
@@ -527,7 +528,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1273; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-13
   requirement: INV-REQ-1274
-  revision: e939bd43-409f-4b03-9e63-ddf773a04f96
+  revision: c03eb5a7-8b82-43bc-8dd6-a48941510ae0
   title: "When two filing facts disagree, the earlier date governs until corrected by default; using the filer of record's date is looser and needs the client signatory's acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -563,7 +564,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1274: \"the second option is the looser one\"; keys as in the TPL-10 example; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-13 client.signatory: bounds; INV-Q-3134; for INV-T-3148"
 - id: VP-14
   requirement: INV-REQ-1275
-  revision: 0f3bbd0e-fe2f-4132-a64d-338200aa2c2e
+  revision: 114c4750-40ef-47d7-b0c2-f29aff590cc5
   title: "The readiness verdict is advisory by default; the blocking option makes the filing workflow refuse to proceed without ready or a recorded override"
   class: POLICY
   class_modifiers: []
@@ -604,7 +605,7 @@ variation_points:
         refused: "electing BLOCKING for an entity that no filing-workflow principal names (submission-svc)"
 - id: VP-15
   requirement: INV-REQ-1276
-  revision: 7474266b-7633-433d-9142-c7fa4ce64441
+  revision: 8ef5b66d-779a-45ab-a1f4-58bdd3ba2302
   title: "A period is not ready on BLOCK-severity items by default, and a tax.approver may add named WARN codes but never make a BLOCK item non-blocking"
   class: CONTROL
   class_modifiers:
@@ -639,7 +640,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1276, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-16
   requirement: INV-REQ-1277
-  revision: e040f955-b751-4591-8f7f-63fd5750fbd6
+  revision: 4e637aa8-bf40-4dba-9125-2e6f9d719030
   title: "The filer of record is prompted to record the filing fact when the verdict first becomes ready and 3 days before the due date by default; prompts cannot be disabled and the last is at least 1 day before"
   class: PARAMETER
   class_modifiers: []
@@ -682,7 +683,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-1277; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-17
   requirement: INV-REQ-1278
-  revision: 388ac0d0-ac1b-4975-b2e4-0d467e1a925e
+  revision: f08a739c-7076-4f6a-8a27-dee70ed37758
   title: "Deadline alert thresholds default to the calendar pack per filing frequency and can only be made earlier, per entity"
   class: PARAMETER
   class_modifiers:
@@ -727,7 +728,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1278; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-18
   requirement: INV-REQ-1279
-  revision: cc52c935-f5ec-441f-9c00-723bd6980fd2
+  revision: 846300e7-6f58-43e0-a239-6ee12b12331f
   title: "The safety margin before a due date is the calendar-pack default, or larger, and the latest despatch never falls after the due date minus the margin"
   class: PARAMETER
   class_modifiers:
@@ -764,7 +765,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1279; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-19
   requirement: INV-REQ-1280
-  revision: 3dd975c8-a2f1-4e80-b27d-2effa376f1c7
+  revision: 5c19bc5c-0842-4eac-b748-aaf526590716
   title: "The exception queue enters deadline mode 3 days before the due date by default, or 1 to 10 days before"
   class: PARAMETER
   class_modifiers: []
@@ -801,7 +802,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1280 (1 to 10 days), INV-REQ-1019; single-scope PARAMETER with no stated bound, so no tighten direction (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-20
   requirement: INV-REQ-1281
-  revision: eb66d15a-57c1-4377-921e-5a0334207aba
+  revision: f158e3f6-33df-4fa5-9ca8-3be38c91c913
   title: "Type 2 and 3 documents are despatched continuously by default, or in a daily or weekly window, always before the due date minus the safety margin"
   class: POLICY
   class_modifiers: []
@@ -853,7 +854,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1281 (WEEKLY refusal is a cross-row check, not a bound); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-21
   requirement: INV-REQ-1282
-  revision: edb7e188-083c-4281-b266-2f847770b004
+  revision: 1dcd580b-5e55-4f1c-b389-fec29479b609
   title: "Voluntary over-submission is off by default; when on, OS lines transmit and DS lines never do"
   class: POLICY
   class_modifiers: []
@@ -883,7 +884,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1282; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: owner answer INV-Q-12264 option (A) (2026-10-28), for INV-T-4928"
 - id: VP-22
   requirement: INV-REQ-1283
-  revision: 37b84e97-b885-4cc6-8cb2-e07931a842e0
+  revision: 837f4f60-a0e5-4538-b62f-7038ae6b218e
   title: "Every entity elects its purchase transaction date basis — invoice date or posting date — before go-live, and applies it consistently"
   class: POLICY
   class_modifiers: []
@@ -926,7 +927,7 @@ variation_points:
         refused: "electing POSTING_DATE for an entity that does not claim input tax on the posting basis (tenancy-svc)"
 - id: VP-23
   requirement: INV-REQ-1284
-  revision: fe3c9cb3-1e7f-42fd-9b94-83efba3d5d76
+  revision: 5c4753b8-b982-439d-a208-f1d71b1e5b3f
   title: "Every entity that records purchases elects its apportionment submission mode — claimable portion or entire invoice — before go-live"
   class: POLICY
   class_modifiers: []
@@ -958,7 +959,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1284, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-24
   requirement: INV-REQ-1285
-  revision: 37b24bb4-f133-4906-a850-294982e619e7
+  revision: 4a46a85a-807f-4245-9881-c260a82d7f1c
   title: "An entity with foreign-currency documents elects an exchange rate source and basis from the scope pack's approved list before go-live"
   class: POLICY
   class_modifiers: []
@@ -996,7 +997,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3055, recommended option (A) accepted; INV-REQ-1285; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-25
   requirement: INV-REQ-1286
-  revision: fbca6433-18ac-4016-b9d6-87af9cdee28c
+  revision: 33ffd2d7-4b68-4387-bbdc-3232b4c0e5c6
   title: "Every entity elects its Type 1A issuance mode — Relay, Observe or None — with a second confirmation, before go-live"
   class: POLICY
   class_modifiers: []
@@ -1044,7 +1045,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1286, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-26
   requirement: INV-REQ-1287
-  revision: 36468f1e-b103-432e-bb5c-89b20693e15d
+  revision: c5bb3f78-0489-4c20-84dd-eeb4d81b8792
   title: "The pre-issuance check is advisory by default, or blocking inside the ERP, or off; validation on ingestion always applies"
   class: POLICY
   class_modifiers: []
@@ -1077,7 +1078,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1287; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-27
   requirement: INV-REQ-1288
-  revision: e20f8819-2e3f-4b52-afc1-034a6ba86514
+  revision: 0393865a-581e-462d-8e64-47f083dc7ba9
   title: "Retired: who renders the customer's invoice document is no longer a variation point; the System keeps no rendition templates"
   class: POLICY
   class_modifiers: []
@@ -1099,7 +1100,7 @@ variation_points:
   catalogue: null
 - id: VP-28
   requirement: INV-REQ-1289
-  revision: 7ae9c108-d8b6-4cef-b5ca-e23525372352
+  revision: df2e4625-7dfa-4851-bf3d-098325dc2ee0
   title: "A GST group transmits per member entity by default, or consolidated under the group, a change taking effect from the next prescribed period"
   class: POLICY
   class_modifiers: []
@@ -1130,7 +1131,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1289; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-29
   requirement: INV-REQ-1290
-  revision: e1513dc5-464c-469a-b795-3953062f5a64
+  revision: 49d27758-8986-456b-9802-bf604b7049c1
   title: "The GST register lookup for counterparties suggests and the operator confirms by default, or applies with provenance, or is off; the lookup is always evidence"
   class: POLICY
   class_modifiers: []
@@ -1163,7 +1164,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1290; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: coordinator ruling INV-Q-10167 (HIGH, delegated, owner 2026-10-14), for INV-T-4946"
 - id: VP-30
   requirement: INV-REQ-1291
-  revision: 40351f3a-dcc3-4024-9fdc-56a9bc764a11
+  revision: 5ca0b1c8-4b89-43b6-b7bd-2da11b12cef5
   title: "Counterparties are asked for their details by signed request link by default, by CSV exchange only, by both, or not at all"
   class: POLICY
   class_modifiers: []
@@ -1213,7 +1214,7 @@ variation_points:
         refused: "electing SIGNED_LINK or BOTH in a private installation without the INV-REQ-903 signed-link endpoint exposed (masterdata-svc)"
 - id: VP-31
   requirement: INV-REQ-1292
-  revision: 3e80015a-caf3-426f-a3d1-646ddb3c5628
+  revision: 9bcbec91-2dd9-4ed1-ac2e-8a838f7b77b2
   title: "A monetary change to a transmitted document asks the approver each time by default; while INV-NOTE-4#row:Q-15 is open only the credit note route is available"
   class: POLICY
   class_modifiers: []
@@ -1253,7 +1254,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1292; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-32
   requirement: INV-REQ-1293
-  revision: 3e9927c1-01f2-4048-a0a9-e715f9b9ad5c
+  revision: 68942044-1019-4100-8e24-c1354a7eeef9
   title: "An override is approved by one tax.approver by default, or also by a second approver above an amount or always; overridable codes only"
   class: CONTROL
   class_modifiers:
@@ -1296,7 +1297,7 @@ variation_points:
     second_approver: "a different person holding tax.approver for the entity"
 - id: VP-33
   requirement: INV-REQ-1294
-  revision: c302ce82-28b7-47ad-b740-643751dcf9bc
+  revision: 0c38ca64-f77e-44d3-a9a9-66460635a933
   title: "Each exception group is owned by the default owner of its code by default, or routed to named teams by entity, code or counterparty"
   class: POLICY
   class_modifiers: []
@@ -1327,7 +1328,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1294, INV-REQ-1184; INV-Q-2934 types PARAMETER and list rows only, so routing rules stay service data as for VP-47; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-34
   requirement: INV-REQ-1295
-  revision: 77ddbf4d-188a-42fb-ace3-3342d079b59d
+  revision: a8df7392-5aff-4a90-97b9-07488e95eb52
   title: "Ingestion looks back 7 days by default, or 1 to 60 days, per feed"
   class: PARAMETER
   class_modifiers: []
@@ -1364,7 +1365,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1295 (1 to 60 days), INV-REQ-790; single-scope PARAMETER with no stated bound, so no tighten direction (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-35
   requirement: INV-REQ-1296
-  revision: 98476599-55bc-4008-8404-adc271e90547
+  revision: 6d603ce1-c305-4211-af17-9f3e1ba412b2
   title: "Scheduled extraction runs daily by default, or several times a day, or weekly where the deadline gap can absorb it"
   class: PARAMETER
   class_modifiers: []
@@ -1422,7 +1423,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3059, recommended option (A) accepted; INV-REQ-1296; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_row: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-36
   requirement: INV-REQ-1297
-  revision: 56506916-d9ff-46c8-825e-76391536cfa1
+  revision: 38db1749-7cd6-4a4f-8d57-ba173871ebb6
   title: "The line-to-total tolerance is a per-currency default, or a tenant value within the ceiling, and a difference only warns"
   class: PARAMETER
   class_modifiers: []
@@ -1464,7 +1465,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1297; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-37
   requirement: INV-REQ-1298
-  revision: a914bab9-6368-47cc-a3cd-6739c0ab64d1
+  revision: 511b2f14-e53f-4a45-a748-9ebd758e9ac7
   title: "The exchange rate tolerance is the scope-pack default, or tighter, with PAY-006 outside it"
   class: PARAMETER
   class_modifiers:
@@ -1501,7 +1502,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1298; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-38
   requirement: INV-REQ-1299
-  revision: 216d6e3d-906f-4957-9eca-9990404a1762
+  revision: a3407a0f-90e6-4a25-a849-6a2d9c3a691c
   title: "Peppol directory lookups are cached 24 hours positive and 1 hour negative by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -1550,7 +1551,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1299; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: coordinator ruling INV-Q-10167 (HIGH, delegated, owner 2026-10-14), for INV-T-4946"
 - id: VP-39
   requirement: INV-REQ-1300
-  revision: a53ebca1-15c5-4b99-9729-3e9f9b37202c
+  revision: 43ef0696-cd07-4c0c-a211-0b2aef02a7c4
   title: "A regulatory pack is reviewed in the grace window and then activated by default, or activated at its effective date with notice only"
   class: POLICY
   class_modifiers: []
@@ -1580,7 +1581,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1300; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-40
   requirement: INV-REQ-1301
-  revision: 1f1dc404-1445-466a-ad6f-7138df8d8321
+  revision: 98f948e4-6fa9-4476-a60a-bd0041c4e8d0
   title: "The reconciliation work-paper is attested by a preparer and a separate approver by default; one attestation with a sole-operator acknowledgement is the looser option"
   class: CONTROL
   class_modifiers: []
@@ -1616,7 +1617,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1301: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-40 tenant.admin: owner ruling INV-Q-3155; for INV-T-3148"
 - id: VP-41
   requirement: INV-REQ-1302
-  revision: 06fae8da-97e8-4213-bca3-38b15998538c
+  revision: 7ef7d1b4-9148-41f1-93a6-2caeb84f63be
   title: "The reconciliation variance tolerance is a default per Box, or tenant values within the ceiling; a variance outside the taxonomy is always unexplained"
   class: PARAMETER
   class_modifiers: []
@@ -1658,7 +1659,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1302; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-42
   requirement: INV-REQ-1303
-  revision: ab757cee-e787-4ed2-827f-a833a8335d0b
+  revision: b68d8e7c-0f34-4762-ac40-57c366f2001e
   title: "A mapping dry run samples the last complete period by default, or the last 2 to 4 periods, never less than one complete period"
   class: PARAMETER
   class_modifiers: []
@@ -1694,7 +1695,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1303 (the last complete period, or the last 2 to 4 periods; never less than one complete period); single-scope PARAMETER without tighten-only, and no source says a larger sample is stricter, so NEUTRAL with no direction (G5 option A, as VP-19, VP-34); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-43
   requirement: INV-REQ-1304
-  revision: cc1cc80f-f898-4a92-94e5-bdcb80bfd8c3
+  revision: bb51339a-2a64-4683-9975-72d68fb60008
   title: "Evidence is retained 5 years by default, or longer with a recorded justification, and never shorter"
   class: PARAMETER
   class_modifiers: []
@@ -1751,7 +1752,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1304: \"never shorter than 5 years\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; per-tier record of three durations and the single writer setPolicy: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6527"
 - id: VP-44
   requirement: INV-REQ-1305
-  revision: 307200fe-49e4-4040-9700-f51d82e3847b
+  revision: 99054541-5b70-43ab-90d3-3b7432939c46
   title: "Anonymised production samples in workspaces are off by default; turning them on is looser and every copy then needs security.officer approval"
   class: CONTROL
   class_modifiers: []
@@ -1787,7 +1788,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1305: \"turning them on is looser\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-44 tenant.admin (security.officer sets the switch and approves each copy): owner ruling INV-Q-3157; for INV-T-3148"
 - id: VP-45
   requirement: INV-REQ-1306
-  revision: 2502aa08-ce94-49e3-b927-db8404cf2165
+  revision: 4466da1d-f605-4726-b409-5c63cfabd02a
   title: "Every SaaS tenant elects its data region at provisioning, fixed afterwards except through migration"
   class: POLICY
   class_modifiers: []
@@ -1829,7 +1830,7 @@ variation_points:
         refused: "electing VP-45 in a private installation (control-plane-svc; a private installation does not use provisionTenant, INV-FLOW-228); must_be_elected applies in the SaaS form only"
 - id: VP-46
   requirement: INV-REQ-1307
-  revision: 0ee4609c-f4d8-4e48-a1dc-5e6d40ae46e2
+  revision: 2dc1380c-fc1f-418a-9a18-2ed05e534c46
   title: "Alerts go by email to the default roles by default, and may add webhook or chat channels or named people, always to at least two recipients or with a sole-operator acknowledgement"
   class: POLICY
   class_modifiers: []
@@ -1880,7 +1881,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1307, INV-REQ-1113 b2 (a policy names recipients and channels together), INV-REQ-1115; 'adds' webhook or chat combines with the base (G3 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; cross_option: typed from the published text cited in each record's source, for INV-T-3528 (coordinator typing of published text, INV-Q-3526 A; tooling/vp-constraints-breakdown.md)"
 - id: VP-47
   requirement: INV-REQ-1308
-  revision: c642ee58-70e5-4b35-9fe7-0089215b997e
+  revision: 6c999848-1d70-43ba-a741-864cd2551673
   title: "Customer webhooks are off by default, or subscriptions by event type, with no invoice content in a body"
   class: POLICY
   class_modifiers: []
@@ -1911,7 +1912,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1308; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-48
   requirement: INV-REQ-1309
-  revision: 6dcd8b62-ccdb-407c-938f-39664f61a73c
+  revision: 83df774e-2bbb-4a0c-8409-70f922768d6f
   title: "Acknowledgement thresholds and the retry boundary of an AP connection come from the AP's documented service level by default, or tenant values within bounds"
   class: PARAMETER
   class_modifiers: []
@@ -1967,7 +1968,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-1309; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-49
   requirement: INV-REQ-1310
-  revision: d7117468-59ea-471d-a1c2-dcd7c5e00a1f
+  revision: 85401414-6dac-494f-8a0a-f8153cbd9044
   title: "An AP connection used in Observe mode must elect how acknowledgements arrive: AP callback, polling, or import of the AP's or IRSP's report"
   class: POLICY
   class_modifiers: []
@@ -2002,7 +2003,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1310, must elect; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-50
   requirement: INV-REQ-1311
-  revision: ed625cf5-2cf0-4786-86e1-6f3486c74575
+  revision: 4a7e3bb6-ead4-4c1a-9858-791bf886ca50
   title: "The System performs the wrongful GST charge check on every path by default; relying on the AP's documented check is looser and needs its record and tax.approver acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2052,7 +2053,7 @@ variation_points:
         refused: "setting RELY_ON_AP_CHECK where the AP's check is not recorded at connection set-up (payload-svc)"
 - id: VP-51
   requirement: INV-REQ-1312
-  revision: 44d9f6a2-5284-41f2-a1b7-c014c269cccf
+  revision: 223e284f-eae4-447e-b9c0-1d73a24ac8af
   title: "The implementation date is the mandatory date by default, or an earlier voluntary date, or the date IRAS communicates for a GST group, never later than mandatory"
   class: POLICY
   class_modifiers: []
@@ -2100,7 +2101,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1312: \"never later than the mandatory date\" (Keel states no minimum); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-52
   requirement: INV-REQ-1313
-  revision: 4e947546-b33b-4e29-b821-edca400050ec
+  revision: ea708917-4ec6-4ce2-b77d-5d9d075ff125
   title: "A private installation elects its platform at qualification: customer Kubernetes, the only option while the supplied appliance is deferred until demand is shown"
   class: POLICY
   class_modifiers: []
@@ -2138,7 +2139,7 @@ variation_points:
         refused: "electing VP-52 in a SaaS installation (tenancy-svc); in SaaS the row is not offered, so must_be_elected applies in the private form only"
 - id: VP-53
   requirement: INV-REQ-1314
-  revision: 69242876-504b-45c5-be4a-dec028c6a7ce
+  revision: 0dd8ff5c-9f29-43c3-9667-64434c0ebba6
   title: "An entity records every GST scheme it applies; pending the scheme question only four flows block with RUL-004 — ACMT recipient accounting, ACMT overseas-client purchases, AMCS self-accounting and Cash Accounting purchases — and missing or contradicted counterparty scheme data blocks with RUL-011"
   class: POLICY
   class_modifiers: []
@@ -2210,7 +2211,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1314: \"records every scheme it applies\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-54
   requirement: INV-REQ-1315
-  revision: 6c25119a-d0ee-4f2b-a0c8-7d667b5247cb
+  revision: 34b10f0d-db5e-4a52-93c2-67a0b441153d
   title: "Debit notes are mapped by the scope pack's classification rule by default, or each is held for review before submission"
   class: CONTROL
   class_modifiers:
@@ -2242,7 +2243,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1315, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-55
   requirement: INV-REQ-1316
-  revision: 41a1b253-6d30-4ec7-8824-a6f3eeada9f9
+  revision: 708e1517-e2b5-42db-826a-1814ce9f6c92
   title: "Aggregation windows are POS and STI daily and PCP monthly by default, or weekly, never spanning a prescribed period"
   class: PARAMETER
   class_modifiers: []
@@ -2280,7 +2281,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1316, INV-REQ-413 b1 (cadence per category), so the two deviations combine (G3 option A); PARAMETER without tighten-only, so NEUTRAL (G5 option A); conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-56
   requirement: INV-REQ-1317
-  revision: 87fefa58-6311-486e-bb2e-74bdab56fe27
+  revision: a492880c-8260-4c4b-bf37-90ec2d5e3567
   title: "The throughput ceiling of an AP connection is the rate agreed with the AP by default, or a lower tenant value"
   class: PARAMETER
   class_modifiers:
@@ -2317,7 +2318,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3053, recommended option (A) accepted; INV-REQ-1317; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-57
   requirement: INV-REQ-1318
-  revision: c4ab9559-2b72-4b87-b654-322faf96938e
+  revision: 44fb7636-9415-42a6-b1b9-9ae9e83f2633
   title: "The grace window for reviewing a regulatory pack delta is the platform maximum by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -2362,7 +2363,7 @@ variation_points:
       requirement: "INV-REQ-3210"
 - id: VP-58
   requirement: INV-REQ-1319
-  revision: 71b54303-b2de-4be0-adcc-8a3e3a6f0948
+  revision: b56fda12-568f-411c-948c-355bf0b47d71
   title: "Source documents for Types 2 and 3 are kept in the tenant's document store with a reference by default, or copied into the evidence store"
   class: POLICY
   class_modifiers: []
@@ -2392,7 +2393,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1319; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-59
   requirement: INV-REQ-1320
-  revision: 3fae03b2-43bb-4f5e-bb56-842bf07a384c
+  revision: 73555165-cd3e-4e0a-9d94-15aec4474057
   title: "A credit note whose preceding document cannot go first is released alone at the due date minus the safety margin with SUB-012 by default; holding it is looser and needs acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2434,7 +2435,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1320: \"holding is the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-59 tax.approver, plus client.signatory under delegation: INV-REQ-1320 b2, INV-Q-2223, INV-Q-3134; for INV-T-3148"
 - id: VP-60
   requirement: INV-REQ-1321
-  revision: db160a78-2ccb-404e-9c45-94731fd545a4
+  revision: a29171a2-aa84-4779-9874-5324946152f9
   title: "Under Relay mode the ERP may issue through its own AP when the issuance API is unavailable, and the System binds afterwards, by default; or issuance waits"
   class: POLICY
   class_modifiers: []
@@ -2465,7 +2466,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1321; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-61
   requirement: INV-REQ-1322
-  revision: 87647d25-a742-4c12-af52-0c1d99c59960
+  revision: 06dc26bf-46fa-4556-81a9-193a19a9f589
   title: "Every trigger class is covered by this System by default; covering named classes by another solution is looser and needs entity.admin acknowledgement and evidence"
   class: CONTROL
   class_modifiers: []
@@ -2511,7 +2512,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1322: \"the looser option\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-61 entity.admin (with evidence, per bounds): INV-Q-3134; for INV-T-3148"
 - id: VP-62
   requirement: INV-REQ-1323
-  revision: 2bc354e7-065b-4e8b-9e1d-33b02c7dcc56
+  revision: f940221f-779e-493f-8887-39ae377cda32
   title: "A due date on a weekend or public holiday does not move by default; moving it to the next working day is looser and needs tax.approver acknowledgement, and the client signatory's under an agent"
   class: CONTROL
   class_modifiers: []
@@ -2555,7 +2556,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1323: \"the second option is the looser one\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-62 tax.approver, plus client.signatory under delegation: INV-Q-181, INV-Q-2349, INV-Q-3134; for INV-T-3148"
 - id: VP-63
   requirement: INV-REQ-1401
-  revision: 73f17ae5-5c41-4d83-af8f-a04a8bc94ca5
+  revision: fc4d89f7-c618-4c97-9501-efd4e1fc901b
   title: "An individual's access or correction request is answered within the pack default of 30 days from receipt, or a shorter tenant period"
   class: PARAMETER
   class_modifiers:
@@ -2621,7 +2622,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1401; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; numbers of the row in the catalogue and read with the policy reader, notice lead default 7 calendar days: Coordinator ruling (owner delegation 2026-10-18) INV-Q-6836 (A); for INV-T-6840"
 - id: VP-64
   requirement: INV-REQ-1547
-  revision: dd4652bc-bc53-46ad-ba3c-c6f95d1c40bf
+  revision: 943c3c2d-adf0-4c68-a655-8f05910e4a74
   title: "A GST group omits an excluded member's data by default, or transmits it, in which case the member goes live"
   class: POLICY
   class_modifiers: []
@@ -2653,7 +2654,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1547; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; note (no election-time constraint): coordinator ruling INV-Q-3616 (HIGH); for INV-T-3528"
 - id: VP-65
   requirement: INV-REQ-1548
-  revision: 073c8fca-c138-4b7d-99b8-769831b6c704
+  revision: 7cfe23fb-a32a-44d4-898a-2ac434502514
   title: "A Check GST Register result is cached 24 hours if found (provisional) and 1 hour if not found by default, or shorter"
   class: PARAMETER
   class_modifiers:
@@ -2703,7 +2704,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-1548; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; status available: coordinator ruling INV-Q-10167 (HIGH, delegated, owner 2026-10-14), for INV-T-4946"
 - id: VP-66
   requirement: INV-REQ-2462
-  revision: 4e0e0289-2d8a-46d5-99fe-313170746706
+  revision: d365a358-2f13-4a67-82b4-75d21ae63fb2
   title: "The notice window for a custody holder's legal-hold request before retention deletion is 90 days by default at installation level; lengthening is free, shortening needs a recorded acknowledgement"
   class: CONTROL
   class_modifiers: []
@@ -2757,7 +2758,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2462; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-66 by form (security.officer in SaaS, the customer's tax.approver in private), distinct from the setter; one person holding both roles uses the recorded sole-operator acknowledgement: INV-Q-2480, INV-Q-3134; for INV-T-3148"
 - id: VP-67
   requirement: INV-REQ-2463
-  revision: a67a65ec-d6da-4829-946a-c135ae610bf3
+  revision: fc5ba862-0094-467c-9c90-d25051ff8ac7
   title: "A webhook delivery is retried for 72 hours by default before dead-letter, set per subscription and never beyond the operator's maximum"
   class: PARAMETER
   class_modifiers: []
@@ -2801,7 +2802,7 @@ variation_points:
       requirement: "INV-REQ-3211"
 - id: VP-68
   requirement: INV-REQ-2464
-  revision: ae147861-6c3d-40f3-87c6-22b3524ae34f
+  revision: 82f18500-0d93-4e09-8fb2-51d8f2c1af77
   title: "Credential-expiry reminders go 14 and 3 days ahead by default, and at least one reminder is always 3 or more days ahead"
   class: PARAMETER
   class_modifiers: []
@@ -2843,7 +2844,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3051, recommended option (A) accepted; INV-REQ-2464; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-69
   requirement: INV-REQ-2465
-  revision: e945c2cb-8290-48f5-ac5c-2a98e70d7bb9
+  revision: 23830e3d-4bee-4c46-ba69-dab7959a2887
   title: "An implementation.consultant grant lasts 30 days after go-live by default, set per grant, never beyond the 120-day platform maximum"
   class: PARAMETER
   class_modifiers: []
@@ -2881,7 +2882,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2465; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-70
   requirement: INV-REQ-2466
-  revision: f653111a-14d0-4aed-b324-4fb49830a9cd
+  revision: d4afaead-e556-48b2-982a-9c4bdf4dbf9b
   title: "Evidence retrieval time per storage tier is the storage class's documented time by default, or a stated time per tier, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -2922,7 +2923,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2466; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-71
   requirement: INV-REQ-2467
-  revision: d1e5d128-1ad9-4ce7-b4e0-69961438024f
+  revision: 0a77e301-4c77-4010-87ad-18c74ab0f5f2
   title: "Each Access Point connection elects the specification family, PINT_SG by default or SG_PEPPOL_BIS for a connection certified only for it; the release within it follows the submission date"
   class: POLICY
   class_modifiers: []
@@ -2965,7 +2966,7 @@ variation_points:
         refused: "activating the connection (INV-AC-2543), not the election"
 - id: VP-72
   requirement: INV-REQ-2468
-  revision: 6bfed7bc-91c3-4d5b-a598-9ef02de2829a
+  revision: 7164be0a-3b40-476a-b9c9-27b9a8feaf20
   title: "DEP-001 is raised when the control-plane feed has been unreachable, or no bundle imported, for 7 days by default, up to 30 days for an air-gapped installation"
   class: PARAMETER
   class_modifiers: []
@@ -3003,7 +3004,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2468, INV-AC-2498 (30 accepted, 31 refused); PARAMETER without tighten-only, so no LOOSER (G5 option A); the option is 'a longer limit', so nothing below 7; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-73
   requirement: INV-REQ-2756
-  revision: 71d242bd-623f-44e8-a552-6003e8b34618
+  revision: 3f9e2bfe-3ff6-4b8c-b2dc-e5e6f18cc7cd
   title: "Landing screen for a person holding several roles defaults to the role order of UI inventory §4.1, until the person chooses"
   class: POLICY
   class_modifiers: []
@@ -3037,7 +3038,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2756; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-74
   requirement: INV-REQ-2757
-  revision: 53fba9e1-1b43-4eaa-a818-97fa7955ae45
+  revision: 0cd9f8a7-0e2d-432c-bf45-17501a06a33d
   title: "Agent tenancy is available on in SaaS and off in a private installation by default, switchable per installation subject to live consents and the signed-link endpoint"
   class: POLICY
   class_modifiers: []
@@ -3111,7 +3112,7 @@ variation_points:
       PRIVATE: "OFF"
 - id: VP-75
   requirement: INV-REQ-2758
-  revision: 778c972d-b305-435a-adf5-0f3975f5af0b
+  revision: a95010d3-877a-4baa-a3c1-88a29e91dd3a
   title: "A signed-link passcode reaches its recipient in a separate message — SMS if on file, else a second e-mail — by default, and up to five wrong entries invalidate the link, tighten-only"
   class: CONTROL
   class_modifiers:
@@ -3168,7 +3169,7 @@ variation_points:
         refused: "setting SMS_ONLY with no SMS gateway bound to MessageDelivery (access-svc)"
 - id: VP-76
   requirement: INV-REQ-2759
-  revision: 7146c467-95ad-43eb-9ecd-a64416a39241
+  revision: 64711ef8-e40f-4332-85a1-6794501bb6c1
   title: "Rounding basis for a System-computed SGD-equivalent amount defaults to two decimal places, HALF_UP, per invoice"
   class: PARAMETER
   class_modifiers: []
@@ -3223,7 +3224,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3061, recommended option (A) accepted; INV-REQ-2759; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-77
   requirement: INV-REQ-2760
-  revision: 58a0efb7-930f-448a-8d94-0c414e5a3872
+  revision: 38f98b0d-9a94-471f-bc83-7e4c55d48af6
   title: "Machine-client authentication defaults to a SaaS-standard preset allowing client_secret_basic, tighten-only to a regulated-private preset that switches it off"
   class: CONTROL
   class_modifiers:
@@ -3255,7 +3256,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-2760, tighten_only; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-78
   requirement: INV-REQ-2761
-  revision: 1e337a0c-41ed-4f44-a69e-c266370b2980
+  revision: 73c74d89-f676-4de2-8789-43ce3e457bc5
   title: "Inbound request size and count limits default to 1 MB per document and 50 MB / 10,000 transactions per batch, tighten-only"
   class: CONTROL
   class_modifiers:
@@ -3308,7 +3309,7 @@ variation_points:
     basis: "Owner ruling (2026-10-11) on INV-Q-3057, recommended option (A) accepted; INV-REQ-2761; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000"
 - id: VP-79
   requirement: INV-REQ-3210
-  revision: 11876e62-3b42-45ec-a2f7-5ef09e9292ed
+  revision: bc6a8096-f16e-4388-93b4-be0e42ec25a3
   title: "The platform maximum grace window for reviewing a regulatory pack delta is 14 days by default, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -3353,7 +3354,7 @@ variation_points:
     basis: "Coordinator ruling (HIGH, owner rule 2026-10-11) on INV-Q-3202, option D; values from INV-Q-3059 (A); minimum 1 day as on VP-57; for INV-T-3176; private form: no effect, read-only on SCR-41.8, owner ruling INV-Q-3218; default option typed as fixed 14 days: coordinator ruling INV-Q-3223"
 - id: VP-80
   requirement: INV-REQ-3211
-  revision: f792b950-49d5-4a6b-bb81-8940c8d756df
+  revision: e2f95d20-011d-4d8b-a1ea-10fd58a72a06
   title: "The operator maximum webhook retry window is 168 hours by default, from 72 to 720 hours, set at installation level"
   class: PARAMETER
   class_modifiers: []
@@ -3399,7 +3400,7 @@ variation_points:
     basis: "Coordinator ruling (HIGH, owner rule 2026-10-11) on INV-Q-3202, option D; values from INV-Q-3059 (A); for INV-T-3176; default option typed as fixed 168 hours: coordinator ruling INV-Q-3223"
 - id: VP-81
   requirement: INV-REQ-8287
-  revision: 0b6828a6-b37d-430b-94a7-5f2e0db78c63
+  revision: 80f497c5-7527-4ac3-8e14-461270608d34
   title: "Who may hold security.officer and tenant.admin together under the sole-operator acknowledgement, and what withdrawing it does, is the tenant's setting; one holder with withdrawal blocked while anyone holds both is the default"
   class: CONTROL
   class_modifiers: []
@@ -3445,7 +3446,7 @@ variation_points:
     basis: "Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for INV-Q-8239 (owner answer 2026-10-22); acknowledged_by: tenant.admin by a delegated coordinator ruling (HIGH), by analogy with the rule of owner ruling INV-Q-3155 for VP-03, VP-40 and VP-07 (that owner ruling does not name VP-81); conventions G1-G6 option A; for INV-T-8291"
 - id: VP-82
   requirement: INV-REQ-9271
-  revision: b2780c7f-22d2-4f34-8abd-0c48702af234
+  revision: 7a41aebb-9fd2-48ba-bda2-13ff92586d8c
   title: "Which further pairs of roles one person may not hold together in a tenant is the tenant's setting; no further pair is the default"
   class: CONTROL
   class_modifiers: []
@@ -3489,3 +3490,87 @@ variation_points:
           distinct: true
           min_items: 1
     basis: "Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for the form of the row; the content is the owner's answer to INV-Q-9202 (option D, chat 2026-10-23, quoted in the body); no option is looser than the default, so no acknowledged_by; conventions G1-G6 option A; for the re-vendoring task named in tooling/oa1-gap.md"
+- id: VP-83
+  requirement: INV-REQ-24775
+  revision: 5288cfee-5e1a-47a2-afb7-69bad26646ec
+  title: "How many days a counterparty request link stays valid is the tenant's setting; 7 days is the default and 1 to 30 days the bound"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: masterdata-svc
+  set_permission: "vp-83.set"
+  must_be_elected: false
+  default: "7 days"
+  options:
+    - "7 days"
+    - "1 to 30 days"
+  bounds: "1 to 30 days"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-901"
+  form_dependence: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DAYS_7"
+        strictness: "DEFAULT"
+      - key: "CUSTOM"
+        strictness: "NEUTRAL"
+        typed_value:
+          type: "int"
+          unit: "days"
+          min: 1
+          max: 30
+          default: 7
+          direction: "NONE"
+    basis: "Owner ruling of 2026-11-18 (tooling/decisions.md), option (A) of the answered design question on the link validity channel; Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for the form of the row: the shape of INV-REQ-1280 (a default option and a ranged custom option); single-scope PARAMETER with a stated bound and no tighten direction, so direction NONE (conventions G1-G6 option A); tooling/oa1118a-gap.md"
+- id: VP-84
+  requirement: INV-REQ-25100
+  revision: 00739c87-0eaf-4642-ac46-45957064ba96
+  title: "How long a console session may stay idle and how long it may last in total is the tenant's setting; 30 minutes idle and 12 hours in total are the default and the longest allowed"
+  class: PARAMETER
+  class_modifiers: []
+  scope:
+    - "tenant"
+  owner: console-bff
+  set_permission: "vp-84.set"
+  must_be_elected: false
+  default: "30 minutes idle and 12 hours in total"
+  options:
+    - "30 minutes idle and 12 hours in total"
+    - "A shorter idle time of 1 to 30 minutes and a shorter total time of 1 to 12 hours"
+  bounds: "Idle 1 to 30 minutes; in total 1 to 12 hours; a tenant may only shorten"
+  status: planned
+  status_note: null
+  governs:
+    - "INV-REQ-868"
+  form_dependence: null
+  catalogue:
+    scope_levels:
+      - "TENANT"
+    options:
+      - key: "DEFAULT_30M_12H"
+        strictness: "DEFAULT"
+      - key: "SHORTER"
+        strictness: "STRICTER"
+        typed_value:
+          type: "record"
+          fields:
+            idle:
+              type: "duration"
+              unit: "minutes"
+              min: 1
+              max: 30
+              default: 30
+              direction: "DOWN_STRICTER"
+            absolute:
+              type: "duration"
+              unit: "hours"
+              min: 1
+              max: 12
+              default: 12
+              direction: "DOWN_STRICTER"
+    basis: "Owner ruling of 2026-11-18 (tooling/decisions.md), option (A) of the answered design question on the per-company session timeouts: typed bounds, defaults 30 minutes and 12 hours, DOWN_STRICTER; Coordinator ruling (delegated, owner 2026-10-14; owner delegation 2026-10-18: \"For any matter, after doing the breakdown, you rule per best practice.\") for the form of the row: the shape of VP-08 (a record of duration fields, each with min, max, default and direction) and of INV-REQ-24775 (a default option and one typed option); single-scope PARAMETER, the maximum of each field equals its default so that the tighten-only direction is enforced by the bound where the value is written; tooling/oa42e2-gap.md"
