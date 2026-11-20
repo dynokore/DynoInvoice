@@ -35,7 +35,6 @@ class SessionTenantTimeoutsTest {
         }
     }
 
-    private val tenantA = "11111111-1111-1111-1111-11111111aaaa"
     private val tenantB = "22222222-2222-2222-2222-22222222bbbb"
     private val opened = Instant.parse("2026-06-01T08:00:00Z")
 
@@ -43,13 +42,6 @@ class SessionTenantTimeoutsTest {
         ConsoleDb.superuser().use { c ->
             c.createStatement().execute("truncate console_bff.console_session")
             c.createStatement().execute("truncate console_bff.config_setting")
-            // the stored setting row of the fixture: tenant A shortens to idle 10 minutes and absolute 2 hours
-            c.createStatement().execute(
-                "insert into console_bff.config_setting (id, tenant_id, vp_key, scope_level, scope_id, option_keys, " +
-                    "option_values, source, effective_from, set_by, reason, recorded_at) values " +
-                    "(gen_random_uuid(), '$tenantA', 'VP-84', 'TENANT', '$tenantA', array['SHORTER'], " +
-                    "'{\"SHORTER\":{\"idle\":10,\"absolute\":2}}'::jsonb, 'OVERRIDE', '2026-01-01', 'fixture', 'test', now())",
-            )
         }
     }
 
@@ -77,16 +69,12 @@ class SessionTenantTimeoutsTest {
     }
 
     @Test
-    fun `INV-AC-25103 with the real PolicyReader a tenant with no setting is accepted at 29 and refused at 31 minutes idle`(
+    fun `INV-AC-25103 with the real PolicyReader a tenant with no setting idles 29 accepted 31 refused`(
         @TempDir dir: Path,
     ) {
         prepare()
         ConsoleContext.online(dir).run { context ->
             context.startupFailure shouldBe null
-            val rd = context.getBean(com.dynokore.platform.configresolver.PolicyReader::class.java)
-            val tc = context.getBean(com.dynokore.platform.tenancykernel.TenantContext::class.java)
-            val tr = context.getBean(com.dynokore.platform.tenancykernel.TransactionRunner::class.java)
-            val tid = com.dynokore.platform.tenancykernel.TenantId.of(tenantA)
             (verdict(context, tenantB, Duration.ofMinutes(29)) is SessionResolution.Resolved) shouldBe true
             verdict(context, tenantB, Duration.ofMinutes(31)) shouldBe SessionResolution.Refused(RefusalReason.EXPIRED)
         }
@@ -94,10 +82,12 @@ class SessionTenantTimeoutsTest {
 
     @Test
     fun `INV-AC-25103 the shipped preset equals the VP-84 default of the pinned catalogue`() {
-        val record = VariationPoint.entries.single { it.id == "VP-84" }.optionSpecs!!.single { it.key == "SHORTER" }.typedValue!!
+        val spec = VariationPoint.entries.single { it.id == "VP-84" }.optionSpecs!!.single { it.key == "SHORTER" }
+        val record = spec.typedValue!!
         val idle = record.fields["idle"]!!.default!!.number!!
         val absolute = record.fields["absolute"]!!.default!!.number!!
-        val yaml = ClassLoader.getSystemResourceAsStream("application.yaml")!!.use { Yaml().load<Map<String, Any?>>(it) }
+        val yaml =
+            ClassLoader.getSystemResourceAsStream("application.yaml")!!.use { Yaml().load<Map<String, Any?>>(it) }
 
         @Suppress("UNCHECKED_CAST")
         val session = (yaml["console"] as Map<String, Any?>)["session"] as Map<String, Any?>
