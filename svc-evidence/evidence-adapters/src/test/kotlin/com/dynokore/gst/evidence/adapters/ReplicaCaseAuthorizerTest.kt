@@ -25,6 +25,9 @@ import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong
 
+// Fixed instants only (P160): the clock is after every grant start, so no real-time dependence.
+private val FIXED_CLOCK: Clock = Clock.fixed(Instant.parse("2026-06-01T00:00:00Z"), java.time.ZoneOffset.UTC)
+
 /**
  * INV-AC-11698, INV-Q-11686 A, INV-Q-11688 A: [ReplicaCaseAuthorizer] permits a key only on a TENANT-scope grant that
  * `AuthorityReplica.decideTenant` decides LOCAL, asks for the key string exactly, and refuses everything else.
@@ -47,7 +50,7 @@ class ReplicaCaseAuthorizerTest {
                 else -> emptyMap()
             }
         }
-    private val replica = AuthorityReplica(Clock.systemUTC(), roles)
+    private val replica = AuthorityReplica(FIXED_CLOCK, roles)
     private val authorizer = ReplicaCaseAuthorizer(replica)
 
     private fun grant(
@@ -170,12 +173,12 @@ class ReplicaCaseAuthorizerTest {
     @Test
     fun `INV-AC-11698 a decision that is not LOCAL refuses and so does a failure of the decision`() {
         // no version received: the replica answers DEGRADED, never a permit
-        val cold = ReplicaCaseAuthorizer(AuthorityReplica(Clock.systemUTC(), roles))
+        val cold = ReplicaCaseAuthorizer(AuthorityReplica(FIXED_CLOCK, roles))
         shouldThrow<CaseAccessDenied> { cold.require(tenant, Principal("rec", PrincipalKind.HUMAN), record) }
         // a failure of the decision itself (the role map throws) refuses: fail closed
         val broken =
             AuthorityReplica(
-                Clock.systemUTC(),
+                FIXED_CLOCK,
                 OperationRoleMap { error("the permission matrix is unreadable") },
             )
         val grantOf =
