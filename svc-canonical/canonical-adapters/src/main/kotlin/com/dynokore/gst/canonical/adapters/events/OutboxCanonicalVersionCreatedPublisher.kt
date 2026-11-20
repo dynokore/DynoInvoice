@@ -15,7 +15,8 @@ import java.util.Locale
 /**
  * Stages CanonicalVersionCreated through the transactional outbox in the caller's transaction (INV-REQ-439). The
  * payload `docsequence` is the number `appendSequenced` reserves for the same row; this class reads no counter.
- * Optional members are written only when known: never a JSON null and never an empty string.
+ * Optional members are written only when known: never a JSON null and never an empty string. `netDerivation` (and
+ * the `nettedCreditNoteDocUuids` it implies) is written exactly as the facts carry it, and not at all without one.
  */
 class OutboxCanonicalVersionCreatedPublisher(
     private val outbox: OutboxWriter,
@@ -60,6 +61,19 @@ class OutboxCanonicalVersionCreatedPublisher(
             append(",\"canonicalDocument\":").append(facts.canonicalDocument)
             facts.aggregateId?.let { append(",\"aggregateId\":").append(json(it)) }
             append(",\"routingFacts\":").append(routing(facts.routingFacts))
+            facts.netDerivation?.let { net ->
+                append(",\"nettedCreditNoteDocUuids\":")
+                append(net.nettedCreditNoteDocUuids.joinToString(",", "[", "]") { json(it.toString()) })
+                append(",\"netDerivation\":{\"kind\":").append(json(net.kind.name))
+                append(",\"baseVersion\":").append(net.baseVersion)
+                append(",\"creditNotes\":")
+                append(
+                    net.creditNotes.joinToString(",", "[", "]") {
+                        "{\"docUuid\":${json(it.docUuid.toString())},\"version\":${it.version}}"
+                    },
+                )
+                append('}')
+            }
             append('}')
         }
 
