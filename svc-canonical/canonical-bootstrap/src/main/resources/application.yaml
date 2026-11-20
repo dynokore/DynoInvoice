@@ -39,3 +39,11 @@ canonical:
   # required, no default (twelve-factor config): RulesEdge.baseUrl and MasterDataEdge.baseUrl refuse a missing value
   rules-svc-url: ${CANONICAL_RULES_SVC_URL}
   masterdata-svc-url: ${CANONICAL_MASTERDATA_SVC_URL}
+inv:
+  tenancy:
+    # the scope pack replica of the dry-run sample holds platform reference data, no tenant data; each table's migration
+    # carries the comment 'platform-scoped: no tenant data' (TableClasses.verify, INV-ADR-3968 item 4a; INV-T-25433)
+    platform-scoped-tables:
+      - canonical.scope_pack_version
+      - canonical.scope_pack_function
+      - canonical.scope_pack_activation
