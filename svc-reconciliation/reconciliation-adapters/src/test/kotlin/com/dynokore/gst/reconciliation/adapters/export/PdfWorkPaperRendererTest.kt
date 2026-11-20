@@ -432,7 +432,10 @@ class PdfWorkPaperRendererTest {
             val mapped = listOf(46, 18, 41).map { cid2gid.codeToGID(it) }
             assertTrue(mapped.all { it > 0 }, "$mapped")
             assertEquals(3, mapped.toSet().size, "$mapped")
-            val subsetSize = descendant.fontDescriptor.fontFile2.toByteArray().size
+            val subsetSize =
+                descendant.fontDescriptor.fontFile2
+                    .toByteArray()
+                    .size
             assertTrue(subsetSize < ExportFonts().fontBytes("fonts/NotoSansTamil-Regular.ttf").size / 2, "$subsetSize")
         }
     }
