@@ -2,7 +2,6 @@ package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.SignedBindings
 import com.dynokore.gst.submission.adapters.SubmissionDb
-import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ObligationRegisterEntry as Entry
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Outbox
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.WorkQueue
@@ -41,6 +40,7 @@ import java.time.ZoneOffset
 import java.util.Base64
 import java.util.HexFormat
 import java.util.UUID
+import com.dynokore.gst.submission.adapters.persistence.jooq.tables.ObligationRegisterEntry as Entry
 
 /**
  * The submission half of the $9,000 invoice and $1,000 credit note netted into one $8,000 version (INV-AC-25366,
@@ -91,16 +91,15 @@ class NetSubmissionScenarioDbTest {
             }
         }
 
-        /** The canonical event of [doc] at [version]: payload shaped as canonical-version-created-payload.schema.json. */
+        /** The canonical event of [doc] at [version], shaped as canonical-version-created-payload.schema.json. */
         fun created(
             doc: String,
             version: Int,
             total: String,
             code: String,
-            preceding: String? = null,
-            net: String? = null,
+            members: List<String> = emptyList(),
         ): Envelope {
-            val data = createdJson(doc, version, total, code, preceding, net)
+            val data = createdJson(doc, version, total, code, members)
             schemaErrors(data).shouldBeEmpty()
             return envelope("com.dynokore.gst.canonical.CanonicalVersionCreated.v1", "/gst/canonical-svc", doc, data)
         }
@@ -145,7 +144,7 @@ class NetSubmissionScenarioDbTest {
             event: Envelope,
         ): HandleOutcome = asTenant { handler.handle(event) }
 
-        /** Version 1 of the original as the submission row it has once its payload is ready: state READY, not queued. */
+        /** Version 1 of the original as its submission row once the payload is ready: READY, not queued. */
         fun seedReadyOriginal() {
             asTenant {
                 dsl
@@ -232,14 +231,9 @@ class NetSubmissionScenarioDbTest {
         version: Int,
         total: String,
         code: String,
-        preceding: String?,
-        net: String?,
+        members: List<String>,
     ): String {
-        val extra =
-            listOfNotNull(
-                preceding?.let { """"precedingDocUuid":"$it"""" },
-                net?.let { """"netDerivation":$it""" },
-            ).joinToString("") { ",$it" }
+        val extra = members.joinToString("") { ",$it" }
         val party = """{"name":"Party","identifierScheme":"SG_UEN","identifierValue":"201912345A"}"""
         val line =
             """{"lineNumber":1,"description":"Goods","quantity":1,"unitPrice":"$total","lineAmount":"$total",
@@ -261,10 +255,17 @@ class NetSubmissionScenarioDbTest {
             """.trimMargin().replace("\n", "")
     }
 
+    private fun preceding(doc: String) = """"precedingDocUuid":"$doc""""
+
+    private fun netMember(net: String) = """"netDerivation":$net"""
+
     private fun netOf(
         kit: Kit,
         version: Int = 1,
-    ) = """{"kind":"SYSTEM_DERIVED","baseVersion":$version,"creditNotes":[{"docUuid":"${kit.creditNote}","version":1}]}"""
+    ): String {
+        val note = """{"docUuid":"${kit.creditNote}","version":1}"""
+        return """{"kind":"SYSTEM_DERIVED","baseVersion":$version,"creditNotes":[$note]}"""
+    }
 
     private fun schemaErrors(data: String): List<String> {
         val file =
@@ -289,7 +290,7 @@ class NetSubmissionScenarioDbTest {
     private fun Kit.arriveOriginalAndCreditNote() {
         deliver(canonical, created(original, 1, "9000.00", "380"))
         seedReadyOriginal()
-        deliver(canonical, created(creditNote, 1, "1000.00", "381", preceding = original))
+        deliver(canonical, created(creditNote, 1, "1000.00", "381", members = listOf(preceding(original))))
     }
 
     @Test
@@ -310,7 +311,7 @@ class NetSubmissionScenarioDbTest {
             .asString() shouldBe creditNote
         reason(creditNote) shouldBe null
         // (2) the derived version 2 that canonical-svc publishes, then the payload of that version
-        val derived = created(original, 2, "8000.00", "380", net = netOf(this))
+        val derived = created(original, 2, "8000.00", "380", members = listOf(netMember(netOf(this))))
         deliver(canonical, derived) shouldBe HandleOutcome.APPLIED
         deliver(payloadReady, readyEvent(original, 2)) shouldBe HandleOutcome.APPLIED
         // (3) the credit note is netted, version 1 is cancelled and version 2 alone is submittable
@@ -345,7 +346,7 @@ class NetSubmissionScenarioDbTest {
         deliver(canonical, created(original, 1, "9000.00", "380"))
         seedReadyOriginal()
         setOriginalState("SENT")
-        deliver(canonical, created(creditNote, 1, "1000.00", "381", preceding = original))
+        deliver(canonical, created(creditNote, 1, "1000.00", "381", members = listOf(preceding(original))))
         requests().size shouldBe 0
         reason(creditNote) shouldBe null
     }
