@@ -84,8 +84,8 @@ class SessionTenantTimeoutsTest {
     fun `INV-AC-25103 the shipped preset equals the VP-84 default of the pinned catalogue`() {
         val spec = VariationPoint.entries.single { it.id == "VP-84" }.optionSpecs!!.single { it.key == "SHORTER" }
         val record = spec.typedValue!!
-        val idle = record.fields["idle"]!!.default!!.number!!
-        val absolute = record.fields["absolute"]!!.default!!.number!!
+        val idle = record.fields.getValue("idle").default!!.number!!
+        val absolute = record.fields.getValue("absolute").default!!.number!!
         val yaml =
             ClassLoader.getSystemResourceAsStream("application.yaml")!!.use { Yaml().load<Map<String, Any?>>(it) }
 
