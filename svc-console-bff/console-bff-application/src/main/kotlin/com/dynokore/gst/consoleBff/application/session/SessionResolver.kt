@@ -7,6 +7,7 @@ import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
 import com.dynokore.gst.consoleBff.domain.session.SessionVerdict
 import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 
 enum class RefusalReason {
     NO_COOKIE,
@@ -34,11 +35,19 @@ sealed interface SessionResolution {
  * Fails closed: any store or standing exception is STORE_UNAVAILABLE.
  */
 class SessionResolver(
-    private val policy: SessionPolicy,
+    private val policies: TenantSessionPolicy,
     private val store: SessionStore,
     private val standing: PrincipalStanding,
     private val clock: Clock,
 ) {
+    /** The constructor for one fixed policy that applies to every tenant. */
+    constructor(
+        policy: SessionPolicy,
+        store: SessionStore,
+        standing: PrincipalStanding,
+        clock: Clock,
+    ) : this(TenantSessionPolicy { _, _ -> policy }, store, standing, clock)
+
     fun resolve(cookieValue: String?): SessionResolution =
         if (cookieValue.isNullOrBlank()) {
             refuse(RefusalReason.NO_COOKIE)
@@ -65,6 +74,7 @@ class SessionResolver(
         row: SessionRow,
     ): SessionResolution {
         val now = clock.instant()
+        val policy = policies.of(row.tenantId, now.atZone(ZoneOffset.UTC).toLocalDate())
         return when (policy.evaluate(row.openedAt, row.lastSeenAt, now)) {
             SessionVerdict.Valid -> {
                 resolveStanding(hash, row, now)

@@ -1,6 +1,8 @@
 package com.dynokore.gst.consoleBff.application.session
 
+import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
 import java.time.Instant
+import java.time.LocalDate
 
 /** What access-svc says the operator may see: `MASKED` unless an approved elevation exists (INV-REQ-862 b1-b3). */
 enum class ContentMode { MASKED, ELEVATED }
@@ -61,4 +63,15 @@ interface PrincipalStanding {
         principalId: String,
         authorityVersionAtOpen: Long,
     ): Standing
+}
+
+/**
+ * The session timeouts in force for a tenant on a UTC calendar date (INV-REQ-25100). An exception is a store failure
+ * to the resolver: the request is refused, never allowed with a default.
+ */
+fun interface TenantSessionPolicy {
+    fun of(
+        tenantId: String,
+        at: LocalDate,
+    ): SessionPolicy
 }
