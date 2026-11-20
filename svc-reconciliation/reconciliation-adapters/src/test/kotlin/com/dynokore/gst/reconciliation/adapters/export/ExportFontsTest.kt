@@ -14,6 +14,7 @@ import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.util.HexFormat
 
 class ExportFontsTest {
     companion object {

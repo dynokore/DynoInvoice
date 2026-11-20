@@ -6,6 +6,7 @@ import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.security.MessageDigest
+import java.util.HexFormat
 
 /** One row of `fonts/fonts.tsv`. */
 internal data class FontRecord(
@@ -28,7 +29,7 @@ internal data class FontRecord(
 internal class ExportFonts(
     private val directory: Path? = null,
 ) {
-    /** The two fonts in the fixed order Latin, Tamil; each is verified, then embedded as a subset (ISO 32000-1 9.6.4). */
+    /** The two fonts, Latin then Tamil; each is verified, then embedded as a subset (ISO 32000-1 9.6.4). */
     fun load(document: PDDocument): List<PDType0Font> =
         records().map { record ->
             ByteArrayInputStream(verified(record)).use { PDType0Font.load(document, it, true) }
@@ -64,7 +65,7 @@ internal class ExportFonts(
 
     private fun verified(record: FontRecord): ByteArray {
         val bytes = read(record.file)
-        val digest = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
         check(digest == record.sha256) { "${record.file}: SHA-256 differs from its row in $RECORD" }
         return bytes
     }
