@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration
 
 /**
  * The events canonical-svc may emit (INV-REQ-815 behaviour 2): the six of model/architecture/events.yaml it produces
- * and NetDerivationRefused (seven in all), each on the topic its AsyncAPI channel names. The emission guard of the
- * outbox refuses any other type.
+ * NetDerivationRefused (seven in all) and the platform event PackDryRunSampleRecorded, each on the topic its AsyncAPI
+ * channel names. The emission guard of the outbox refuses any other type.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
@@ -32,8 +32,12 @@ object CanonicalEvents {
             "NetDerivationRefused" to "gst.canonical.net-derivation-refused.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
+    /** The platform event canonical-svc emits besides its own (INV-REQ-772 b1): one page of the dry-run sample. */
+    val platformTopicByType: Map<String, String> =
+        mapOf("com.dynokore.gst.platform.PackDryRunSampleRecorded.v1" to "gst.platform.pack-dry-run-sample-recorded.v1")
+
     val entries: List<CatalogueEntry> =
-        topicByType.map { (type, topic) ->
+        (topicByType + platformTopicByType).map { (type, topic) ->
             CatalogueEntry(type, topic, setOf(SERVICE), contentTopic = false, retainedWhileResolvable = false)
         }
 }
