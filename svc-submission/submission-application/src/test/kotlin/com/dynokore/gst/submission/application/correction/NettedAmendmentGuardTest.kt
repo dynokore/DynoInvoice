@@ -46,7 +46,8 @@ class NettedAmendmentGuardTest {
                     calls += "notSubmittable $creditNoteDocUuid $reason"
                 }
 
-                override fun nettedBySystem(originalDocUuid: String) = if (originalDocUuid == "original-O") netted else emptyList()
+                override fun nettedBySystem(originalDocUuid: String): List<String> =
+                    if (originalDocUuid == "original-O") netted else emptyList()
 
                 override fun lift(creditNoteDocUuid: String) {
                     calls += "lift $creditNoteDocUuid"

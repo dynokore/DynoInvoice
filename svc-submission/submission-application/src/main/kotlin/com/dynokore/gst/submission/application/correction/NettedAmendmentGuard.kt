@@ -25,20 +25,28 @@ class NettedAmendmentGuard(
         creditNoteDocUuid: String,
         version: Int,
     ): AmendmentVerdict {
-        val original = originals.originalOf(creditNoteDocUuid) ?: return AmendmentVerdict.Proceed
-        if (creditNoteDocUuid !in transitions.nettedBySystem(original.docUuid)) return AmendmentVerdict.Proceed
-        val registered = creditNoteVersions.registeredVersionOf(creditNoteDocUuid) ?: return AmendmentVerdict.Proceed
-        if (registered >= version) return AmendmentVerdict.Proceed
-        val transmitted =
-            originals
-                .versionsOf(creditNoteDocUuid)
-                .map(OriginalStanding::classOf)
-                .any { it == StateClass.AT_IRAS || it == StateClass.SENT_OUT }
-        if (!transmitted) return AmendmentVerdict.Proceed
+        val original = originals.originalOf(creditNoteDocUuid)
+        val amends = original != null && amendsTransmittedNet(original.docUuid, creditNoteDocUuid, version)
+        if (original == null || !amends) return AmendmentVerdict.Proceed
         findings.record(
             NetFinding(NetFindingKind.AMENDED_AFTER_TRANSMISSION, creditNoteDocUuid, version, original.docUuid),
         )
         return AmendmentVerdict.Refused
+    }
+
+    private fun amendsTransmittedNet(
+        originalDocUuid: String,
+        creditNoteDocUuid: String,
+        version: Int,
+    ): Boolean {
+        val registered = creditNoteVersions.registeredVersionOf(creditNoteDocUuid)
+        return creditNoteDocUuid in transitions.nettedBySystem(originalDocUuid) &&
+            registered != null &&
+            registered < version &&
+            originals
+                .versionsOf(creditNoteDocUuid)
+                .map(OriginalStanding::classOf)
+                .any { it == StateClass.AT_IRAS || it == StateClass.SENT_OUT }
     }
 
     /** Records one NET_NOT_POSITIVE finding per distinct credit note when [reason] is `NET_NOT_POSITIVE`. */
