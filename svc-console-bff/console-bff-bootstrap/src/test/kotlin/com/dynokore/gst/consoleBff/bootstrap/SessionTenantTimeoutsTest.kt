@@ -1,6 +1,7 @@
 package com.dynokore.gst.consoleBff.bootstrap
 
 import com.dynokore.gst.catalogue.VariationPoint
+import com.dynokore.gst.catalogue.VpStatus
 import com.dynokore.gst.consoleBff.adapters.ConsoleDb
 import com.dynokore.gst.consoleBff.adapters.session.JooqSessionStore
 import com.dynokore.gst.consoleBff.adapters.session.PolicyTenantSessionPolicy
@@ -14,6 +15,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.yaml.snakeyaml.Yaml
+import java.nio.file.Files
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
@@ -73,11 +75,53 @@ class SessionTenantTimeoutsTest {
         @TempDir dir: Path,
     ) {
         prepare()
-        ConsoleContext.online(dir).run { context ->
+        val runner = ConsoleContext.online(dir)
+        useDatabaseBindingKey(dir)
+        runner.run { context ->
             context.startupFailure shouldBe null
             (verdict(context, tenantB, Duration.ofMinutes(29)) is SessionResolution.Resolved) shouldBe true
             verdict(context, tenantB, Duration.ofMinutes(31)) shouldBe SessionResolution.Refused(RefusalReason.EXPIRED)
         }
+    }
+
+    /** The schema's `bound_tenant()` verifies signatures with the key of [ConsoleDb]; the context must sign with it. */
+    private fun useDatabaseBindingKey(dir: Path) {
+        Files.writeString(dir.resolve("tenancy/binding-key-current"), ConsoleDb.BINDING_SECRET)
+    }
+
+    private val tenantA = "11111111-1111-1111-1111-11111111aaaa"
+
+    /** A stored tenant-scope setting row written by the fixture (console-bff mounts no setPolicy). */
+    private fun storeShorter(tenant: String) {
+        ConsoleDb.superuser().use { c ->
+            c.createStatement().execute(
+                "insert into console_bff.config_setting (id, tenant_id, vp_key, scope_level, scope_id, option_keys, " +
+                    "option_values, source, effective_from, set_by, reason, recorded_at) values " +
+                    "(gen_random_uuid(), '$tenant', 'VP-84', 'TENANT', '$tenant', array['SHORTER'], " +
+                    "'{\"SHORTER\":{\"idle\":10,\"absolute\":2}}'::jsonb, 'OVERRIDE', date '2026-01-01', 'u1', 'test', now())",
+            )
+        }
+    }
+
+    @Test
+    fun `INV-AC-25103 with the real PolicyReader a tenant with idle 10 minutes is accepted at 9 and refused at 11`(
+        @TempDir dir: Path,
+    ) {
+        prepare()
+        storeShorter(tenantA)
+        val runner = ConsoleContext.online(dir)
+        useDatabaseBindingKey(dir)
+        runner.run { context ->
+            context.startupFailure shouldBe null
+            (verdict(context, tenantA, Duration.ofMinutes(9)) is SessionResolution.Resolved) shouldBe true
+            verdict(context, tenantA, Duration.ofMinutes(11)) shouldBe SessionResolution.Refused(RefusalReason.EXPIRED)
+            verdict(context, tenantA, Duration.ofHours(2)) shouldBe SessionResolution.Refused(RefusalReason.EXPIRED)
+        }
+    }
+
+    @Test
+    fun `INV-AC-25103 the pinned VP-84 row is available`() {
+        VariationPoint.VP_84.status shouldBe VpStatus.AVAILABLE
     }
 
     @Test
