@@ -66,14 +66,14 @@ class CanonicalDocumentWriter {
     /**
      * The supply type of the document (INV-AC-24847): lines are grouped by the supplyType of their answers and the
      * group with the greatest absolute sum of line amounts wins; a tie goes to the first of [SUPPLY_ORDER], then to
-     * the lowest value in binary order. No line, or a line without a supplyType: no member (fail closed, nothing is
-     * guessed). A value is carried as is, never normalised.
+     * the lowest value in binary order. No line, or a line without a supplyType (null or empty): no member (fail
+     * closed, nothing is guessed). A value is carried as is, never normalised.
      */
     private fun supplyTypeOf(
         content: DocumentContent,
         lineTax: List<LineTaxFact>,
     ): String? {
-        if (content.lines.isEmpty() || lineTax.any { it.supplyType == null }) return null
+        if (content.lines.isEmpty() || lineTax.any { it.supplyType.isNullOrEmpty() }) return null
         val sums = linkedMapOf<String, BigDecimal>()
         content.lines.forEachIndexed { i, l ->
             sums.merge(checkNotNull(lineTax[i].supplyType), BigDecimal(l.lineAmount), BigDecimal::add)

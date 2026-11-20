@@ -186,7 +186,7 @@ class RulesClientTest {
     }
 
     @Test
-    fun `INV-AC-24847 the supplyType of the answer is carries the five members and the look-alike unchanged`() {
+    fun `INV-AC-24847 the supplyType of the answer is carried the five members and the look-alike unchanged`() {
         val client = client(FakeRegistry(fixedClock))
         stub.reply = Reply(200, """{"scopeVerdict":"IN_SCOPE","supplyType":"ZERO_RATED"}""")
         (client.evaluate(facts) as Verdict).supplyType shouldBe "ZERO_RATED"

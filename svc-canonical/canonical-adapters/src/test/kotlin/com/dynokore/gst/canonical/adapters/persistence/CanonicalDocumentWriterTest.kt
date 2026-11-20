@@ -148,6 +148,8 @@ class CanonicalDocumentWriterTest {
     @Test
     fun `INV-AC-24847 a line without an answer member gives no member and so do no lines`() {
         supplyOf(listOf("100.00", "50.00"), listOf("ZERO_RATED", null)).has("supplyType") shouldBe false
+        supplyOf(listOf("100.00", "50.00"), listOf("ZERO_RATED", "")).has("supplyType") shouldBe false
+        supplyOf(listOf("100.00"), listOf("")).has("supplyType") shouldBe false
         val none = content(lines = emptyList())
         mapper.readTree(writer.write(none, "INVOICE", emptyList())).has("supplyType") shouldBe false
     }
