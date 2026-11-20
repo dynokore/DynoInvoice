@@ -41,7 +41,7 @@ class ScopeEvaluationService(
      */
     private fun answerOf(verdicts: List<LineAnswer.Verdict>): ScopeAnswer {
         val first = verdicts.first()
-        val lineTax = verdicts.map { LineTaxFact(it.categoryCode.orEmpty(), it.rate.orEmpty()) }
+        val lineTax = verdicts.map { LineTaxFact(it.categoryCode.orEmpty(), it.rate.orEmpty(), it.supplyType) }
         val incomplete = lineTax.any { it.categoryCode.isBlank() || it.rate.isBlank() }
         val disagree =
             verdicts.any {

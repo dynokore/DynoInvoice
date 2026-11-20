@@ -59,7 +59,37 @@ class CanonicalDocumentWriter {
                 "taxSubtotals" to wrap(subs, "NONE"),
                 "totals" to wrap(totals, "NONE"),
             )
+        supplyTypeOf(content, lineTax)?.let { doc["supplyType"] = wrap(it, "NONE") }
         return mapper.writeValueAsString(doc)
+    }
+
+    /**
+     * The supply type of the document (INV-AC-24847): lines are grouped by the supplyType of their answers and the
+     * group with the greatest absolute sum of line amounts wins; a tie goes to the first of [SUPPLY_ORDER], then to
+     * the lowest value in binary order. No line, or a line without a supplyType: no member (fail closed, nothing is
+     * guessed). A value is carried as is, never normalised.
+     */
+    private fun supplyTypeOf(
+        content: DocumentContent,
+        lineTax: List<LineTaxFact>,
+    ): String? {
+        if (content.lines.isEmpty() || lineTax.any { it.supplyType == null }) return null
+        val sums = linkedMapOf<String, BigDecimal>()
+        content.lines.forEachIndexed { i, l ->
+            sums.merge(checkNotNull(lineTax[i].supplyType), BigDecimal(l.lineAmount), BigDecimal::add)
+        }
+        val rank = { type: String -> SUPPLY_ORDER.indexOf(type).let { if (it < 0) SUPPLY_ORDER.size else it } }
+        return sums.entries
+            .sortedWith(
+                Comparator<Map.Entry<String, BigDecimal>> { a, b -> b.value.abs().compareTo(a.value.abs()) }
+                    .thenBy { rank(it.key) }
+                    .thenBy { it.key },
+            ).first()
+            .key
+    }
+
+    private companion object {
+        val SUPPLY_ORDER = listOf("STANDARD_RATED", "ZERO_RATED", "EXEMPT", "OUT_OF_SCOPE", "IMPORTS")
     }
 
     private fun subtotalsOf(

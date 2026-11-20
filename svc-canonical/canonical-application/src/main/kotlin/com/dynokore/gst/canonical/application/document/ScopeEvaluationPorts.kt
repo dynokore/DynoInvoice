@@ -63,6 +63,7 @@ sealed interface LineAnswer {
         val mdePackVersion: String? = null,
         val documentTypeCode: String? = null,
         val appliedPacks: List<AppliedPackFact> = emptyList(),
+        val supplyType: String? = null,
     ) : LineAnswer
 
     data object Unavailable : LineAnswer

@@ -53,6 +53,8 @@ data class SampleDocument(
     val gstValue: String,
     /** True only for a foreign-currency document without stated SGD totals (values are then 0.00). */
     val sgdValuesAbsent: Boolean,
+    /** The `value` of `supplyType` of the current version, when it holds one; never recomputed. */
+    val supplyType: String? = null,
 )
 
 /** Port: the read side of the sample over canonical-svc's own stored versions, bound to one tenant. */
@@ -93,6 +95,8 @@ data class SampleItem(
     val sgdValuesAbsent: Boolean?,
     val periodRef: String,
     val docUuid: UUID,
+    /** Written only when non-null (never null, never an empty string). */
+    val supplyType: String? = null,
 ) {
     fun payload(): Map<String, Any> =
         buildMap {
@@ -106,6 +110,7 @@ data class SampleItem(
             sgdValuesAbsent?.let { put("sgdValuesAbsent", it) }
             put("periodRef", periodRef)
             put("docUuid", docUuid.toString())
+            supplyType?.takeIf { it.isNotEmpty() }?.let { put("supplyType", it) }
         }
 }
 

@@ -108,4 +108,52 @@ class CanonicalDocumentWriterTest {
         if (n.isString) n.asString().isEmpty() shouldBe false
         n.forEach { assertNoNullOrEmpty(it) }
     }
+
+    private fun supplyOf(
+        amounts: List<String>,
+        types: List<String?>,
+    ): JsonNode {
+        val c = content(lines = amounts.mapIndexed { i, a -> line(i + 1, a) })
+        return mapper.readTree(writer.write(c, "INVOICE", types.map { LineTaxFact("SR", "9.00", it) }))
+    }
+
+    @Test
+    fun `INV-AC-24847 one supply type is the value of the document with classification NONE`() {
+        val doc = supplyOf(listOf("100.00", "50.00"), listOf("ZERO_RATED", "ZERO_RATED"))
+        doc["supplyType"]["value"].asString() shouldBe "ZERO_RATED"
+        doc["supplyType"]["classification"].asString() shouldBe "NONE"
+        assertNoNullOrEmpty(doc)
+    }
+
+    private fun winner(
+        amounts: List<String>,
+        types: List<String>,
+    ): String = supplyOf(amounts, types)["supplyType"]["value"].asString()
+
+    @Test
+    fun `INV-AC-24847 the group with the larger absolute amount wins and a credit note counts by absolute value`() {
+        winner(listOf("100.00", "300.00"), listOf("STANDARD_RATED", "EXEMPT")) shouldBe "EXEMPT"
+        winner(listOf("100.00", "-300.00"), listOf("STANDARD_RATED", "EXEMPT")) shouldBe "EXEMPT"
+        winner(listOf("200.00", "-50.00", "-60.00"), listOf("STANDARD_RATED", "EXEMPT", "EXEMPT")) shouldBe
+            "STANDARD_RATED"
+    }
+
+    @Test
+    fun `INV-AC-24847 equal amounts go to the first in the fixed order`() {
+        winner(listOf("100.00", "-100.00"), listOf("EXEMPT", "ZERO_RATED")) shouldBe "ZERO_RATED"
+        winner(listOf("5.00", "5.00", "5.00"), listOf("IMPORTS", "OUT_OF_SCOPE", "STANDARD_RATED")) shouldBe
+            "STANDARD_RATED"
+    }
+
+    @Test
+    fun `INV-AC-24847 a line without an answer member gives no member and so do no lines`() {
+        supplyOf(listOf("100.00", "50.00"), listOf("ZERO_RATED", null)).has("supplyType") shouldBe false
+        val none = content(lines = emptyList())
+        mapper.readTree(writer.write(none, "INVOICE", emptyList())).has("supplyType") shouldBe false
+    }
+
+    @Test
+    fun `INV-AC-24847 the look-alike zero_rated is carried unchanged`() {
+        winner(listOf("100.00"), listOf("zero_rated")) shouldBe "zero_rated"
+    }
 }

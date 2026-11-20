@@ -48,6 +48,7 @@ class ScopeEvaluationServiceTest {
                         calls += it
                         when (it.internalTaxCode) {
                             "SR-STD" -> LineAnswer.Verdict("IN_SCOPE", "SR", "9.00")
+                            "SR-SUP" -> LineAnswer.Verdict("IN_SCOPE", "SR", "9.00", supplyType = "ZERO_RATED")
                             "ZR-EXP" -> LineAnswer.Verdict("EXCLUDED_TXN", "ZR", "0.00")
                             else -> LineAnswer.Unavailable
                         }
@@ -95,6 +96,13 @@ class ScopeEvaluationServiceTest {
         r.combined shouldBe listOf(listOf("IN_SCOPE", "EXCLUDED_TXN"))
         r.reads shouldBe listOf(d0320)
         r.lookups shouldBe listOf(CounterpartyLookup("E1", "PRIVATE_LIMITED", "UEN", "201954321B", d0320))
+    }
+
+    @Test
+    fun `INV-AC-24847 the supplyType of each line answer is copied unchanged to its LineTaxFact and may be null`() {
+        val answer = run().service.evaluate(c1("SR-SUP", "SR-STD"), "2026-Q1", d0320)
+        (answer as ScopeAnswer.Verdict).lineTax shouldBe
+            listOf(LineTaxFact("SR", "9.00", "ZERO_RATED"), LineTaxFact("SR", "9.00", null))
     }
 
     @Test

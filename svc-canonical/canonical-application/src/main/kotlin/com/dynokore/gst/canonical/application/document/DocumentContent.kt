@@ -50,4 +50,6 @@ data class ContentTotals(
 data class LineTaxFact(
     val categoryCode: String,
     val rate: String,
+    /** The `supplyType` of the line's rules answer, copied unchanged; null when the answer has none. */
+    val supplyType: String? = null,
 )

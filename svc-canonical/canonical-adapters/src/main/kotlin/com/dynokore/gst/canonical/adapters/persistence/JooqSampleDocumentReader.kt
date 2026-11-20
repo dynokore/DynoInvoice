@@ -101,6 +101,12 @@ class JooqSampleDocumentReader(
             taxableValue = values.taxable,
             gstValue = values.gst,
             sgdValuesAbsent = values.absent,
+            supplyType =
+                canonical
+                    .path("supplyType")
+                    .path("value")
+                    .asString(null)
+                    ?.takeIf { it.isNotEmpty() },
         )
     }
 

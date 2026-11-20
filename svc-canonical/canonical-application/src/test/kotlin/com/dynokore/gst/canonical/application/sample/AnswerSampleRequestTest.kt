@@ -68,6 +68,7 @@ class AnswerSampleRequestTest {
         code: Int = 380,
         absent: Boolean = false,
         preceding: String? = null,
+        supplyType: String? = null,
     ) = SampleDocument(
         UUID.randomUUID(),
         on,
@@ -77,6 +78,7 @@ class AnswerSampleRequestTest {
         if (absent) "0.00" else "100.00",
         if (absent) "0.00" else "9.00",
         absent,
+        supplyType,
     )
 
     private val functions =
@@ -226,5 +228,25 @@ class AnswerSampleRequestTest {
         items.getValue(credit.docUuid).payload()["precedingDocumentDate"] shouldBe "2026-02-27"
         items.getValue(flagged.docUuid).payload().containsKey("precedingDocumentDate") shouldBe false
         items.getValue(flagged.docUuid).entityRef shouldBe "ENT-1"
+    }
+
+    @Test
+    fun `INV-AC-24847 the item copies the supplyType of the document and writes it only when non-null`() {
+        val with = document(march.start, supplyType = "ZERO_RATED")
+        val look = document(march.start, supplyType = "zero_rated")
+        val without = document(april.start)
+        val publisher = Recording()
+        use(FakeReader(listOf(with, look, without)), publisher).answer(request)
+        val items =
+            publisher.pages
+                .single()
+                .documents
+                .associateBy { it.docUuid }
+        items.getValue(with.docUuid).payload()["supplyType"] shouldBe "ZERO_RATED"
+        items.getValue(look.docUuid).payload()["supplyType"] shouldBe "zero_rated"
+        items.getValue(without.docUuid).payload().containsKey("supplyType") shouldBe false
+        SampleItem("E", march.start, "SR", "NOT_A_BILL", null, "1.00", "0.00", null, "2026-03", UUID.randomUUID(), "")
+            .payload()
+            .containsKey("supplyType") shouldBe false
     }
 }

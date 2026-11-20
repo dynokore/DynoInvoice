@@ -46,6 +46,7 @@ internal object SampleKit {
         sgdIncluding: String? = null,
         exchangeRate: String? = null,
         preceding: String? = null,
+        supplyType: String? = null,
     ): String {
         val lines =
             subtotals.withIndex().joinToString(",") { (i, s) ->
@@ -64,7 +65,11 @@ internal object SampleKit {
                 sgdIncluding?.let { """"sgdTotalIncludingTax":"$it"""" },
                 exchangeRate?.let { """"exchangeRate":"$it"""" },
             ).joinToString(",")
-        val before = preceding?.let { """"precedingDocumentDate":{"value":"$it","classification":"NONE"},""" }.orEmpty()
+        val before =
+            (
+                preceding?.let { """"precedingDocumentDate":{"value":"$it","classification":"NONE"},""" }.orEmpty() +
+                    supplyType?.let { """"supplyType":{"value":"$it","classification":"NONE"},""" }.orEmpty()
+            )
         return """{"currency":{"value":"$currency","classification":"NONE"},$before""" +
             """"totals":{"value":{$totals},"classification":"NONE"},""" +
             """"parties":{"value":{"supplier":{},"buyer":{}},"classification":"content"},""" +
@@ -391,5 +396,31 @@ class SampleDocumentReaderTest {
                     ).map { it.single() }
             columns shouldBe expected.split(" ")
         }
+    }
+
+    @Test
+    fun `INV-AC-24847 a version with ZERO_RATED gives an item with ZERO_RATED and one without gives none`() {
+        val zero = insert(LocalDate.of(2026, 3, 10), SampleKit.canonical(two, supplyType = "ZERO_RATED"))
+        val none = insert(LocalDate.of(2026, 3, 11), SampleKit.canonical(two))
+        val read = items()
+        read.getValue(zero.docUuid.toString()).path("supplyType").asString() shouldBe "ZERO_RATED"
+        read.getValue(none.docUuid.toString()).has("supplyType") shouldBe false
+        val pages = answer()
+        pages.forEach { SampleKit.errors(it) shouldBe emptyList() }
+    }
+
+    @Test
+    fun `INV-AC-24847 the supplyType of another document or tenant is not read and currency is not mistaken for it`() {
+        val own = insert(LocalDate.of(2026, 3, 10), SampleKit.canonical(two))
+        insert(LocalDate.of(2026, 3, 10), SampleKit.canonical(two, supplyType = "EXEMPT"), within = UUID.randomUUID())
+        insert(
+            LocalDate.of(2026, 3, 10),
+            SampleKit.canonical(two, supplyType = "IMPORTS"),
+            owner = UUID.randomUUID(),
+            within = UUID.randomUUID(),
+        )
+        val item = items().getValue(own.docUuid.toString())
+        item.has("supplyType") shouldBe false
+        item.path("taxableValue").asString() shouldBe "110.00"
     }
 }

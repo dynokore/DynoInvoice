@@ -26,6 +26,7 @@ class RulesLineEvaluator(
                     mdePackVersion = answer.mdePackVersion,
                     documentTypeCode = answer.documentTypeCode,
                     appliedPacks = answer.appliedPacks,
+                    supplyType = answer.supplyType,
                 )
             }
 

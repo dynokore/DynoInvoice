@@ -84,6 +84,7 @@ class AnswerSampleRequest(
             sgdValuesAbsent = if (document.sgdValuesAbsent) true else null,
             periodRef = period.periodRef,
             docUuid = document.docUuid,
+            supplyType = document.supplyType,
         )
     }
 
