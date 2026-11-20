@@ -233,15 +233,16 @@ class PdfWorkPaperRendererTest {
 
     private val tamilWord = "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"
 
-    private fun latinFixtures() =
+    /** One variant per field: builds the export with the given field value, and the expected input text. */
+    private fun variants(): List<Pair<(String) -> WorkPaperExport, String>> =
         listOf(
-            fixture(entity = "E1\u00E9\u00F1") to "E1\u00E9\u00F1",
-            fixture(box = "B1\u00FC") to "B1\u00FC",
-            fixture(doc = "D1-\u00DF\u00E7") to "D1-\u00DF\u00E7",
-            fixture(evidence = "ev-$tamilWord") to "ev-$tamilWord",
-            fixture(description = "late filing $tamilWord") to "latefiling$tamilWord",
-            fixture(attester = "U7") to "U7",
-            fixture(description = "mix $tamilWord \u00E9 7") to "mix${tamilWord}\u00E97",
+            { v: String -> fixture(entity = v) } to "E1\u00E9\u00F1",
+            { v: String -> fixture(box = v) } to "B1\u00FC",
+            { v: String -> fixture(doc = v) } to "D1-\u00DF\u00E7",
+            { v: String -> fixture(evidence = v) } to "ev-$tamilWord",
+            { v: String -> fixture(description = v) } to "late filing $tamilWord",
+            { v: String -> fixture(attester = v) } to "U7",
+            { v: String -> fixture(description = v) } to "mix $tamilWord \u00E9 7",
         )
 
     /** The font name of every extracted character, by character. */
@@ -262,12 +263,19 @@ class PdfWorkPaperRendererTest {
 
     @Test
     fun `INV-AC-24552 Latin and Tamil texts extract back exactly in embedded subset fonts`() {
-        latinFixtures().forEach { (export, text) ->
-            val r = render(export)
+        variants().forEach { (build, text) ->
+            val r = render(build(text))
             assertEquals(ExportContentTypes.PDF, r.contentType)
             assertEquals("%PDF-", String(r.bytes, 0, 5, Charsets.US_ASCII))
             assertTrue(r.bytes.size < 1_048_576)
-            assertTrue(pages(r.bytes).joinToString("").contains(text), "text $text")
+            // string equality of the whole extracted text: the same export with a unique placeholder in the field,
+            // the placeholder replaced by the input text without whitespace, must equal the variant's text
+            val placeholder = text.take(2) + "QQ9" // same sort position as the text (items sort by document)
+            val expected = pages(render(build(placeholder)).bytes).joinToString("")
+            assertEquals(
+                expected.replace(placeholder, text.filterNot { it.isWhitespace() }),
+                pages(r.bytes).joinToString(""),
+            )
             Loader.loadPDF(r.bytes).use { doc ->
                 val names = doc.pages.flatMap { p -> p.resources.fontNames.map { p.resources.getFont(it) } }
                 assertTrue(names.isNotEmpty())
