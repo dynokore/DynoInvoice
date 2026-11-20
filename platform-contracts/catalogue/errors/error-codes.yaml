@@ -1,5 +1,6 @@
 # Vendored, read-only copy of invoice-docs' model/architecture/error-codes.yaml,
-# pinned at commit e6e0d41a29d6e73e0e875e6c9cda552e9a609054 (2026-11-18), the merge of invoice-docs INV-T-24689 adding PER-019, annotateVariance refused on an attested run (INV-T-24691, INV-REQ-633, coordinator ruling (delegated) HIGH option A of breakdown tooling/gap24380b-gap.md);
+# pinned at commit f30d4acd763184a05db8b9fad3b16043fc7ea2b1 (2026-11-20), the merge of invoice-docs INV-T-25061 giving every code its required headline (re-vendor INV-T-25063, INV-REQ-1022, coordinator ruling (delegated) HIGH option A of the owner ruling of 2026-11-18, breakdown tooling/owner-answers-1118-oa1118d-gap.md);
+# previously pinned at e6e0d41a29d6e73e0e875e6c9cda552e9a609054 (2026-11-18), the merge of invoice-docs INV-T-24689 adding PER-019, annotateVariance refused on an attested run (INV-T-24691, INV-REQ-633, coordinator ruling (delegated) HIGH option A of breakdown tooling/gap24380b-gap.md);
 # previously pinned at 6853b9ea033250fe4142ab80ae28f4be6cd05741 (2026-11-17), the merge of invoice-docs INV-T-24453 adding PER-017 and PER-018, the attestation refusal codes (INV-T-24455, INV-REQ-947, coordinator ruling (delegated) HIGH of breakdown tooling/req-breakdown-149.md Round 12);
 # previously pinned at 36e16dcccd878c8110f5ea58d509ef14ddb436e6 (2026-11-18), the merge of invoice-docs INV-T-24412 adding PER-016, reconciliation not readable yet, HTTP 503 with Retry-After (INV-T-24414, INV-REQ-657, coordinator ruling (delegated) HIGH of breakdown tooling/req-breakdown-149.md Round 8);
 # previously pinned at ee16235ac20eaa2a9dbfc7444e7263395cb5df1b (2026-11-16), the merge of invoice-docs INV-T-23952 adding EVD-003 to EVD-009, the retention deletion refusal codes of deleteAtRetentionEnd (INV-T-23954, coordinator ruling (delegated) HIGH option A of the answered design question of INV-T-22971, breakdown tooling/gap22971b-gap.md);
@@ -43,21 +44,25 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Source system not recognised
 - code: ING-002
   condition: sourceRevision lower than recorded
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Document revision is out of date
 - code: ING-003
   condition: Batch manifest count or total mismatch
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Batch totals do not match
 - code: ING-004
   condition: entityRef unknown or inactive
   severity: BLOCK
   disposition: MANUAL
   owner: Onboarding
+  headline: Business entity unknown or inactive
 - code: ING-005
   condition: documentDate — or the posting date where no invoice is issued — outside the GST registration period; the document
     is NOT_SUBMITTABLE, out of scope, and shown in onboarding (C-2). Not raised for a document before the obligation start,
@@ -65,72 +70,86 @@ error_codes:
   severity: INFO
   disposition: None — no queue item
   owner: Onboarding
+  headline: Document date outside GST registration
 - code: ING-006
   condition: aggregateType not POS, STI or PCP, or contradicting direction (C-3; extended 25 Sep 2026)
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Aggregate type invalid for direction
 - code: ING-007
   condition: Purchase line missing inputTaxClaimed
   severity: BLOCK
   disposition: MANUAL
   owner: Integration
+  headline: Input tax claim missing on purchase line
 - code: ING-008
   condition: Watermark gap detected in a pull feed
   severity: BLOCK
   disposition: MANUAL
   owner: Integration
+  headline: Gap found in the incoming document feed
 - code: ING-009
   condition: Document number absent on a bill for payment
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Document number missing on bill
 - code: ING-010
   condition: Duplicate documentNumber within entity, direction, type, issuing party and year (§10.3)
   severity: WARN
   disposition: MANUAL
   owner: Finance
+  headline: Possible duplicate document number
 - code: ING-011
   condition: Issued Doc UUID already bound to a different commercial document
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Document ID already used by another document
 - code: ING-012
   condition: Amendment changes direction, document type or entity
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Amendment changes a fixed document detail
 - code: ING-013
   condition: Inbound network document awaiting buyer acceptance (FR-AE.27)
   severity: HOLD
   disposition: AUTO_RELEASE on acceptance
   owner: Finance
+  headline: Waiting for buyer to accept document
 - code: ING-014
   condition: Simplified tax invoice replaced by a full tax invoice after its aggregate was transmitted (§33.9)
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Full invoice replaced a simplified invoice
 - code: ING-015
   condition: Adjustment document with mixed-sign lines (§33.11)
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Adjustment mixes increases and decreases
 - code: ING-016
   condition: Derivation incomplete because rules-svc or masterdata-svc is unavailable; the document waits in INGESTED and
     counts as unsubmitted in period readiness (FR-K.12). Added 25 Sep 2026
   severity: HOLD
   disposition: AUTO_RELEASE on recovery
   owner: Platform
+  headline: Waiting for tax data to be available
 - code: ING-017
   condition: Network receipt matches more than one document on the fallback correlation key (FR-AE.24). Added 25 Sep 2026
   severity: HOLD
   disposition: MANUAL
   owner: Finance
+  headline: Receipt matches more than one document
 - code: ING-018
   condition: Pre-aggregated call whose period crosses a prescribed-period boundary (FR-AE.49). Added 25 Sep 2026
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Summary period crosses a filing boundary
 - code: ING-019
   condition: Credit note with neither precedingDocumentNumber nor precedingDocumentDate sent without precedingBlankJustification
     or evidenceRef (FR-8.15; HTTP 400, as ING-009 under INV-Q-1841). Raised by ingestion-svc and canonical-svc. Added 11 Oct
@@ -138,128 +157,153 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Credit note missing original invoice details
 - code: ING-020
   condition: 'Inbound request over a size or count limit: a document above the document size limit, or a batch above the batch size limit or above the transaction-count limit the installation set, is refused and nothing is recorded (HTTP 422; INV-REQ-2761, INV-AC-2771, INV-Q-6041)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Request too large to accept
 - code: ING-021
   condition: 'Header-marked test request refused: the installation has no paired non-production workspace, so the request is not processed and nothing is stored in production (HTTP 422; INV-REQ-829, INV-AC-2060, INV-Q-6041)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Test request refused in production
 - code: MDM-001
   condition: Counterparty unresolved from partyRef
   severity: HOLD
   disposition: AUTO_RELEASE on counterparty resolution
   owner: Finance
+  headline: Customer not identified
 - code: MDM-002
   condition: Counterparty UEN absent and scheme not NONE
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Customer UEN missing
 - code: MDM-003
   condition: UEN fails format validation
   severity: BLOCK
   disposition: OVERRIDABLE
   owner: Finance
+  headline: Customer UEN format invalid
 - code: MDM-004
   condition: Partial NA population (C-7 breach)
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Not-applicable values partly filled
 - code: MDM-005
   condition: Entity identity triple not configured for the constitution
   severity: BLOCK
   disposition: MANUAL
   owner: Onboarding
+  headline: Company identity not set up
 - code: MDM-006
   condition: Address line 1 or postal code absent
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Address or postal code missing
 - code: MDM-007
   condition: Counterparty GSTN conflicts with the IRAS register
   severity: WARN
   disposition: MANUAL
   owner: Finance
+  headline: Customer GST number differs from IRAS
 - code: MDM-008
   condition: Directory lookup failed; routed as off-network
   severity: INFO
   disposition: AUTO_RETRY
   owner: Platform
+  headline: Network lookup failed; sent off-network
 - code: MDM-009
   condition: 'Counterparty import names a dry run that is unknown, not SUCCEEDED or for another fileHash (HTTP 422, nothing
     recorded; INV-Q-3749, INV-REQ-830 b2)'
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Import refers to an unusable dry run
 - code: MDM-010
   condition: "Import row names no counterparty: the row has no counterpartyRef and no held counterparty has its UEN, and a reference is never generated, so nothing is written for the row (INV-REQ-830, INV-Q-17289)"
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Import row names no customer
 - code: MDM-011
   condition: "The delivery method of a counterparty request does not offer a signed link: the setting VP-30 is CSV_ONLY or OFF, so no request is opened and no link is issued (HTTP 409; INV-REQ-901)"
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Signed link not offered for customer request
 - code: MDM-012
   condition: "Rate import source is not the entity's elected source: the request source differs by string equality from the source the entity elected, or none is elected, so nothing is stored and no ReferenceRateLoaded is emitted (HTTP 422; INV-REQ-506)"
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Rate source is not your chosen source
 - code: MDM-013
   condition: "Rate import source is not approved: the source is not on the approved list for the basis on the date, so nothing is stored and no ReferenceRateLoaded is emitted (HTTP 422; INV-REQ-506)"
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Rate source is not approved
 - code: MDM-014
   condition: "Rate import row has an invalid currency: the base or quote currency is not three upper-case letters, so the row is listed as rejected and the other rows are stored (INV-REQ-506)"
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Rate row has an invalid currency
 - code: MDM-015
   condition: "Rate import row has an invalid rate: the rate is not a positive decimal, so the row is listed as rejected and the other rows are stored (INV-REQ-506)"
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Rate row has an invalid rate
 - code: MDM-016
   condition: "Connection record names an unknown environment tag: the environmentTag of the request is not exactly PRODUCTION or SANDBOX, so no record is stored (UNKNOWN_ENVIRONMENT_TAG; HTTP 400; INV-REQ-834)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Connection environment label unknown
 - code: MDM-017
   condition: "Connection test cannot read the caller's environment: the installation environment tag of the service is unset or is not exactly PRODUCTION or SANDBOX, so the test is refused before any call to the external service (UNKNOWN_ENVIRONMENT; HTTP 500, a configuration error; INV-REQ-834)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Connection test cannot find environment
 - code: MDM-018
   condition: "Connection test refused: the environment tag of the connection record differs from the installation environment of the service, so a workspace never uses a production credential and the external service is not called (ENVIRONMENT_MISMATCH_REFUSED; HTTP 403; INV-REQ-834, INV-AC-1883)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: "Connection test blocked: wrong environment"
 - code: RUL-001
   condition: Internal tax code has no mapping in the active pack
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Tax code not mapped
 - code: RUL-002
   condition: No pack effective for the transaction date
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: No tax rules for the transaction date
 - code: RUL-003
   condition: Scope verdict indeterminate — conflicting rules matched
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Tax scope unclear; rules conflict
 - code: RUL-004
   condition: 'Scenario handler required but not configured for the entity: the line''s scheme is not elected (VP-53), or its
     flow is blocked in the scenario pack pending an open question (SRS FR-10.18, FR-AE.89). Amended 25 Sep 2026'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Tax scheme handling not configured
 - code: RUL-005
   condition: Pack activation fence failed; partial load detected. The fence aborts (FR-K.7), the activation is abandoned and
     reported (§5.5), and a person re-arms it; near the effective date DEP-001 escalates. Amended 25 Sep 2026 (Keel INV-Q-2132);
@@ -267,16 +311,19 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Tax rules activation failed
 - code: RUL-006
   condition: Mapped code not present in the IRAS catalogue version
   severity: BLOCK
   disposition: TERMINAL
   owner: Tax operations
+  headline: Mapped tax code not in IRAS list
 - code: RUL-007
   condition: Mapping pack sign-off attempted while a dependent entry is SECONDARY or INFERRED (FR-AA.17)
   severity: BLOCK
   disposition: OVERRIDABLE by tax.approver, with scoped and expiring acceptance
   owner: Tax operations
+  headline: Sign-off blocked by unconfirmed mappings
 - code: RUL-008
   condition: 'Rate resolution for a credit note requires the preceding document''s date, but the preceding document is unknown:
     precedingDocumentNumber populated, precedingDocumentDate blank, and no document of that number found for the entity (FR-AA.1;
@@ -284,6 +331,7 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Original invoice date needed for credit note
 - code: RUL-009
   condition: 'Mapping pack sign-off attempted with an entry naming an IRAS code that is not in the R1 Annex E code catalogue
     resolved for the pack''s effective date (SRS FR-T.5, FR-2.13). Not overridable. Added 25 Sep 2026. Amended 25 Sep 2026
@@ -292,12 +340,14 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Mapping uses a tax code IRAS does not list
 - code: RUL-010
   condition: Mapping or code catalogue entry carries a namespaced category code; codes are stored bare (SRS FR-W.7). Added
     25 Sep 2026
   severity: BLOCK
   disposition: TERMINAL
   owner: Tax operations
+  headline: Tax code carries a category prefix
 - code: RUL-011
   condition: 'Scheme handler needs counterparty scheme data that is missing or contradicted: the counterparty''s approved
     scheme status is not recorded for the transaction date, or the ARCS written-agreement flag contradicts the line''s category
@@ -305,6 +355,7 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Customer scheme data missing or conflicting
 - code: RUL-012
   condition: 'Document cannot be classified: the classification table of the scope pack version effective for the transaction
     date has no row for the document''s upstream function, upstream kind (`documentKind`) and sign of total; no document
@@ -312,6 +363,7 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Document type cannot be determined
 - code: RUL-013
   condition: 'Scheme tag refused at authoring: the scheme tag of a mapping entry is not declared by the scenario pack for the
     side (supply or purchase) of the entry''s IRAS code in the code catalogue, or no row of the scenario pack lists the tag,
@@ -319,184 +371,220 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Scheme tag not allowed for this tax code
 - code: PAY-001
   condition: Mandatory Data Element absent
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Required tax field missing
 - code: PAY-002
   condition: Schematron assertion failed
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Invoice structure rejected
 - code: PAY-003
   condition: Subtotal coverage breach (C-6)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Subtotals do not cover all lines
 - code: PAY-004
   condition: Line sum to total variance beyond tolerance
   severity: WARN
   disposition: MANUAL
   owner: Finance
+  headline: Line amounts do not add up to total
 - code: PAY-005
   condition: SGD tax-currency fields absent on a foreign currency document
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: SGD tax amounts missing on foreign invoice
 - code: PAY-006
   condition: Exchange rate not from an approved source
   severity: BLOCK
   disposition: OVERRIDABLE
   owner: Tax operations
+  headline: Exchange rate source not approved
 - code: PAY-007
   condition: Profile ID inconsistent with direction
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Profile does not match document direction
 - code: PAY-008
   condition: Aggregate placeholder applied to a field outside the permitted set (C-8)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Placeholder used in a field not allowed
 - code: PAY-009
   condition: Credit note amounts or codes do not tally with the original on a cancellation
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Credit note differs from original invoice
 - code: PAY-010
   condition: Document exceeds 10 MB
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Document file too large
 - code: PAY-011
   condition: Wrongful GST charge detected against the Check GST Register
   severity: BLOCK on the Relay path; WARN elsewhere
   disposition: OVERRIDABLE
   owner: Tax operations
+  headline: GST charged in error
 - code: PAY-012
   condition: Specification version selected for submission cannot represent content required by the transaction-date packs
     (§33.8)
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Chosen format cannot carry required tax content
 - code: PAY-013
   condition: No approved exchange rate on file for the document date (§35.2)
   severity: HOLD
   disposition: AUTO_RELEASE on ReferenceRateLoaded
   owner: Finance
+  headline: No approved exchange rate for the date
 - code: PAY-014
   condition: Rendition sample check found required wording missing — raised against the entity, not documents (§35.4)
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: Required wording missing from invoice sample
 - code: PAY-015
   condition: Document carries more than 999 lines, above IRAS's recommendation (SRS FR-4.12)
   severity: WARN
   disposition: MANUAL
   owner: Finance
+  headline: Document has too many lines
 - code: PAY-016
   condition: Foreign-currency document of an entity that has not elected its exchange rate source (VP-24, FR-AG.11). Added
     25 Sep 2026
   severity: HOLD
   disposition: AUTO_RELEASE when the election is recorded
   owner: Onboarding
+  headline: Exchange rate source not chosen
 - code: PAY-017
   condition: 'Override refused: the blocking check named is a code whose disposition is MANUAL or TERMINAL, which is fixed at source and never overridden (HTTP 422; INV-REQ-500, INV-AC-1584, INV-Q-6013)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Override not allowed for this check
 - code: PAY-018
   condition: Credit note issued without GST adjustment carries a line category code other than SR
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Credit note without GST uses wrong tax category
 - code: PAY-019
   condition: "A document version is held in payload-svc because its canonical version carries no identityTriple (senderId, supplierId, supplierGstn), so the Sender ID, Supplier ID (IBT-030) and Supplier GSTN (IBT-031) cannot be written; no payload is built until a new canonical version of the document carries identityTriple (HOLD; INV-REQ-699, INV-Q-7142)"
   severity: HOLD
   disposition: AUTO_RELEASE on a new canonical version of the document that carries identityTriple
   owner: Platform
+  headline: Sender identity missing from document
 - code: SUB-001
   condition: Transport timeout or connection failure
   severity: WARN
   disposition: AUTO_RETRY
   owner: Platform
+  headline: Submission delayed by a network failure
 - code: SUB-002
   condition: AP authentication failure
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Access Point sign-in failed
 - code: SUB-003
   condition: AP rejected the package structurally
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Access Point rejected the package format
 - code: SUB-004
   condition: IRAS rejected the submission
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Tax authority rejected the submission
 - code: SUB-005
   condition: Acknowledgement not received within threshold
   severity: WARN
   disposition: MANUAL
   owner: Platform
+  headline: No acknowledgement received in time
 - code: SUB-006
   condition: Duplicate Doc UUID across distinct commercial documents
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Document ID used for different documents
 - code: SUB-007
   condition: Same commercial document under two Doc UUIDs
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Same document sent under two IDs
 - code: SUB-008
   condition: Two in-flight versions of one Doc UUID (FR-C.2 breach)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Two versions of a document in progress
 - code: SUB-009
   condition: Batch contains mixed document types
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Batch mixes different document types
 - code: SUB-010
   condition: Past due date without acknowledgement
   severity: WARN, escalating — never holds the document
   disposition: MANUAL
   owner: Tax operations
+  headline: Acknowledgement overdue past the due date
 - code: SUB-011
   condition: Credit note held awaiting submission of its preceding document (FR-AA.9)
   severity: HOLD
   disposition: AUTO_RELEASE on the preceding document reaching ACKNOWLEDGED
   owner: Platform
+  headline: Waiting for the original invoice
 - code: SUB-012
   condition: Credit note's preceding document cannot be submitted before the credit note's own due date minus the safety margin;
     the credit note is released alone (FR-AA.10, VP-59)
   severity: WARN, escalating
   disposition: MANUAL
   owner: Tax operations
+  headline: Credit note released without its original
 - code: SUB-013
   condition: Scope verdicts of a credit note and its preceding document disagree (FR-AA.11)
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Credit note and original differ in scope
 - code: SUB-014
   condition: Type 1A document issued but no acknowledgement within the threshold of VP-48
   severity: WARN, escalating
   disposition: MANUAL
   owner: Platform
+  headline: Issued invoice not yet acknowledged
 - code: SUB-015
   condition: Monetary amendment to a transmitted document; a credit note is required
   severity: BLOCK
   disposition: OVERRIDABLE only as a recorded keying-error correction (FR-AE.18)
   owner: Tax operations
+  headline: Amount change needs a credit note
 - code: SUB-016
   condition: Counterparty identity changed on a transmitted document
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Customer changed after the document was sent
 - code: SUB-017
   condition: Correction to a document submitted by the prior solution before cutover; surfaced for manual handling (FR-R.11).
     Added 25 Sep 2026 (Keel INV-Q-2378)
@@ -504,159 +592,190 @@ error_codes:
   disposition: MANUAL
   owner: Tax operations
 # SUB-018, SUB-019: setConnectionEntities refusals (INV-Q-5405, INV-REQ-827 b1 and b2)
+  headline: Pre-cutover correction needs manual handling
 - code: SUB-018
   condition: 'Entity already assigned to another AP connection of the tenant: setConnectionEntities names an entity that is on the entityRefs of a different connection of the same tenant; nothing is recorded or published (HTTP 422)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Entity already linked to another connection
 - code: SUB-019
   condition: 'Removal refused: setConnectionEntities would remove from the connection an entity that is in Observe mode today, or an entity with no issuance-mode replica row (fail closed); nothing is recorded or published (HTTP 422)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Entity cannot be removed from the connection
 - code: SUB-020
   condition: "A newer MONETARY version supersedes a version that was never transmitted, after a Type 2 rendition of the document was already issued: the customer's rendition may differ from what IRAS receives (WARN; INV-REQ-580, INV-REQ-579, INV-Q-6421)"
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: Newer version replaced an unsent version
 - code: SUB-021
   condition: "Withdrawal refused: a version of the document was already sent to the Access Point (an issued Type 1A document and a version rejected by the Access Point or IRAS included), or its current version is terminal; nothing is changed (HTTP 409; INV-REQ-581, INV-REQ-568, INV-AC-1774)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Tax operations
+  headline: Withdrawal refused, already sent
 - code: SUB-022
   condition: "A document version is held in submission-svc because its submission type cannot be decided: the routing facts of the version contradict each other, the self-billing direction does not match the direction of the document, or the facts are missing (reason CONTRADICTORY_FACTS, SELF_BILLING_DIRECTION_MISMATCH or FACTS_MISSING in the detail); no SubmissionTypeDecided is published and nothing is routed until a new canonical version with corrected facts arrives (HOLD; INV-REQ-415, INV-Q-7001)"
   severity: HOLD
   disposition: AUTO_RELEASE on a new canonical version of the document whose routing facts are corrected
   owner: Platform
+  headline: Submission type cannot be decided
 - code: SUB-023
   condition: 'Clearing refused: clearAcknowledgementRoute names an AP connection on which an entity is in Observe mode today, or has no issuance-mode replica row (fail closed); nothing is recorded or published (HTTP 422)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Cannot clear the acknowledgement route
 - code: SUB-024
   condition: 'An Access Point notification of kind INBOUND_NETWORK_DOCUMENT is not accepted yet: inbound network documents are received in Wave 3; nothing is recorded and the Access Point retries (HTTP 503; INV-REQ-585, INV-Q-9676)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Inbound network documents not supported yet
 - code: SUB-025
   condition: 'Replay refused: the version is in a state other than DEAD_LETTERED or QUEUED, so it is not replayable; its state is unchanged and nothing is enqueued (HTTP 409; INV-REQ-575)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Document version cannot be replayed
 - code: SUB-026
   condition: 'Credential rotation refused, reference not usable: the replacement credential reference of the request names a reference that the secret store does not hold, so no rotation starts and the credential state is unchanged (UNKNOWN_REFERENCE; HTTP 422; INV-REQ-837, INV-REQ-957)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: New credential not available in the store
 - code: SUB-027
   condition: 'Credential rotation refused, no change: the replacement credential reference of the request equals the current credential reference of the connection, so nothing is rotated and the credential state is unchanged (SAME_AS_CURRENT; HTTP 422; INV-REQ-837, INV-REQ-957)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: New credential is the current credential
 - code: SUB-028
   condition: 'Credential rotation refused, overlap window open: the overlap window of an earlier rotation of the connection has not ended, so no second rotation starts and the credential state is unchanged; the caller retries after the window ends (ROTATION_IN_PROGRESS; HTTP 409; INV-REQ-837, INV-REQ-957)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform
+  headline: Previous credential rotation still overlapping
 - code: PER-001
   condition: Period contains unsubmitted in-scope documents at readiness check
   severity: BLOCK
   disposition: OVERRIDABLE
   owner: Tax operations
+  headline: Period has documents not yet submitted
 - code: PER-002
   condition: Completeness control failed for the period
   severity: BLOCK
   disposition: MANUAL
   owner: Integration
+  headline: Period completeness check failed
 - code: PER-003
   condition: Reconciliation variance unexplained by the taxonomy
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: Return difference not yet explained
 - code: PER-004
   condition: Filing frequency changed mid-period
   severity: WARN
   disposition: MANUAL
   owner: Onboarding
+  headline: Filing schedule changed during the period
 - code: PER-005
   condition: Filing frequency change produces a transitional period requiring confirmation (FR-AA.8)
   severity: WARN
   disposition: MANUAL
   owner: Onboarding
+  headline: Filing frequency change needs confirmation
 - code: PER-006
   condition: Transmitted document moved to another prescribed period
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: Sent document moved to another period
 - code: PER-007
   condition: Credit note submitted without its pre-obligation original (§33.7)
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: Credit note without its earlier original
 - code: PER-008
   condition: Reconciliation requested with no GST return uploaded for the period (§33.10)
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: No GST return uploaded for the period
 - code: PER-009
   condition: No period record covers the transaction date
   severity: HOLD
   disposition: AUTO_RELEASE when the period is generated
   owner: Onboarding
+  headline: No period covers the transaction date
 - code: PER-010
   condition: Two filing facts with different dates for the original return of one period (FR-AF.39)
   severity: WARN
   disposition: MANUAL
   owner: Tax operations
+  headline: Conflicting dates for the original return
 - code: PER-011
   condition: Purchase recorded before the entity has elected its purchase transaction date basis (VP-22, SRS FR-6.1). Added
     24 Sep 2026
   severity: HOLD
   disposition: AUTO_RELEASE when the election is recorded
   owner: Onboarding
+  headline: Purchase date basis not yet chosen
 - code: PER-012
   condition: Purchase recorded before the entity has elected its apportionment submission mode (VP-23, SRS FR-2.9, FR-T.8).
     Added 25 Sep 2026
   severity: HOLD
   disposition: AUTO_RELEASE when the election is recorded
   owner: Onboarding
+  headline: Apportionment mode not yet chosen
 - code: PER-013
   condition: Purchase whose mixed-use indicator contradicts the entity's elected apportionment mode (VP-23, SRS FR-2.9). Added
     25 Sep 2026
   severity: BLOCK
   disposition: MANUAL
   owner: Finance
+  headline: Mixed-use flag conflicts with apportionment mode
 - code: PER-014
   condition: 'Filed GST return uploaded without its filing acknowledgement: uploadGstReturn requires the acknowledgement of the filing, and nothing is recorded (HTTP 422; INV-REQ-653, INV-AC-1715, INV-Q-6015)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Filed return needs its acknowledgement
 - code: PER-015
   condition: 'Variance annotation refused: the variance class is not one a person may assign (TIMING_DIFFERENCE, NO_INVOICE_REQUIRED, INPUT_TAX_NOT_CLAIMED, ERROR_CORRECTED_VIA_F5, OUTSIDE_BY_RULE); nothing is recorded (HTTP 422; INV-REQ-633, INV-Q-7237)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Difference category cannot be set by a person
 - code: PER-016
   condition: 'The reconciliation of a period cannot be read yet: a return is recorded for the period and no run has completed, so nothing is compared and the same read is retried (HTTP 503 with a Retry-After header; INV-REQ-657)'
   severity: INFO
   disposition: AUTO_RETRY
   owner: Platform
+  headline: Reconciliation not ready to read
 - code: PER-017
   condition: 'Attestation refused by separation of duties: the approver is the preparer of the run and no single-attestation election of the entity is in force; nothing is attested (HTTP 403; INV-REQ-947, INV-REQ-994, INV-Q-9704)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Approver cannot be the preparer
 - code: PER-018
   condition: 'Attestation refused: an unexplained residual remains in the run, so a variance is neither classified nor annotated; nothing is attested (HTTP 409; INV-REQ-947)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Unexplained difference blocks attestation
 - code: PER-019
   condition: 'Variance annotation refused: the run is attested, so its work-paper is immutable and annotations are closed; nothing is recorded (HTTP 409; INV-REQ-633, INV-REQ-957)'
   severity: BLOCK
   disposition: MANUAL
   owner: Tax operations
+  headline: Attested run is closed to annotations
 - code: DEP-001
   condition: Newer regulatory pack published but not activated; or the control-plane feed unreachable, or no bundle imported,
     for longer than the installation's silence limit (VP-72; extended 25 Sep 2026, Keel INV-Q-2343). Tiers count days to the
@@ -664,31 +783,37 @@ error_codes:
   severity: WARN, escalating
   disposition: MANUAL
   owner: Customer (private) or operator
+  headline: New tax rules available
 - code: DEP-002
   condition: Pack signature verification failed
   severity: BLOCK
   disposition: TERMINAL
   owner: Customer
+  headline: Rule pack signature check failed
 - code: DEP-003
   condition: Pack requires a newer engine version
   severity: BLOCK
   disposition: MANUAL
   owner: Customer
+  headline: Rule pack needs a newer engine
 - code: DEP-004
   condition: Engine outside the supported version window
   severity: WARN
   disposition: MANUAL
   owner: Customer
+  headline: Engine version no longer supported
 - code: DEP-005
   condition: Licence expired
   severity: WARN only — never blocks submission (FR-H.4)
   disposition: MANUAL
   owner: Commercial
+  headline: Licence has expired
 - code: DEP-006
   condition: Certification stale after a new release train, pack or certification-relevant configuration change (§35.8)
   severity: WARN
   disposition: MANUAL
   owner: Customer
+  headline: Certification out of date
 - code: DEP-007
   condition: Evidence chain verification failed; retention deletion and the offboarding export — including an exportAuditPack
     call made as part of offboarding — are blocked for the range. Ordinary audit-pack exports and enquiry lookups stay available
@@ -696,6 +821,7 @@ error_codes:
   severity: BLOCK
   disposition: MANUAL
   owner: Platform and security.officer
+  headline: Evidence record integrity check failed
 - code: ACC-001
   condition: 'Entity has no active tax.approver; approval and arming impossible (FR-AF.17). A security-class alert: every
     recipient is alerted at once, with no escalation tiers (FR-AE.67; amended 25 Sep 2026, Keel INV-Q-2345; previously "WARN,
@@ -703,26 +829,31 @@ error_codes:
   severity: WARN
   disposition: MANUAL
   owner: tenant.admin
+  headline: No active tax approver
 - code: ACC-002
   condition: Break-glass access unlocked or used (FR-AF.19)
   severity: WARN
   disposition: MANUAL
   owner: security.officer
+  headline: Emergency access used
 - code: ACC-003
   condition: External grant expired (FR-AF.15)
   severity: INFO
   disposition: MANUAL
   owner: tenant.admin
+  headline: External access has expired
 - code: ACC-004
   condition: Signed link invalidated after the passcode attempt limit (FR-AG.70, VP-75); the sender may re-issue it
   severity: INFO
   disposition: MANUAL
   owner: The link's sender
+  headline: Signed link locked after too many attempts
 - code: JOB-001
   condition: 'Job unknown: no job of that name is registered in the owning service (HTTP 404; INV-API-3023, INV-API-3025)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Scheduled job not found
 - code: JOB-002
   condition: 'The caller''s role does not permit the job command at the requested scope: a job-wide pause, resume or run, or any
     run of a PLATFORM-scoped job, by a role other than the form''s platform operator role (platform.engineer in SaaS,
@@ -731,24 +862,28 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: tenant.admin or the form's platform operator role
+  headline: Not permitted to control this job
 - code: JOB-003
   condition: 'Pause refused: the until of a pause of a deadline-critical job passes the entity''s nearest due date minus its
     VP-18 safety margin; not overridable (HTTP 422; INV-REQ-1138 b3, INV-AC-1149, INV-Q-3037; INV-API-3023)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Pause too close to filing deadline
 - code: JOB-004
   condition: 'Pause end time invalid: an until not later than the request time; every pause carries a future end time (HTTP
     422; INV-Q-2985; INV-API-3023)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Pause end time must be in the future
 - code: EVL-001
   condition: 'Topic not consumed: the topic named in rebuildConsumer is not one this service consumes (HTTP 404; INV-Q-3667,
     INV-API-3656)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Event topic not handled by this service
 - code: EVL-002
   condition: 'The caller''s role may not rebuild a consumer: only the form''s platform operator role (platform.engineer in
     SaaS, deployment.operator in private) may call rebuildConsumer, for every mode and scope (HTTP 403; INV-Q-3663, INV-Q-3667,
@@ -756,425 +891,504 @@ error_codes:
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Not permitted to rebuild this consumer
 - code: EVL-003
   condition: 'Topic not in ''rebuild required'': this service''s consumer does not hold the topic in ''rebuild required''
     (HTTP 409; INV-REQ-1205 b6, INV-Q-3667, INV-API-3656)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Topic does not need a rebuild
 - code: EVL-004
   condition: 'A replay for the (consumer, producer) pair is pending with another mode or scope; the same mode and scope returns
     the pending replay instead (HTTP 409; INV-Q-3665, INV-Q-3667, INV-API-3656)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: A different replay is already pending
 - code: EVD-001
   condition: 'Maximum evidence retention cannot be determined: a VP-43 setting of the data region cannot be read, so no figure
     is given and none is partial; retryable (HTTP 503; INV-REQ-3767, INV-Q-3263, INV-Q-12582)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Maximum retention period unavailable
 - code: EVD-002
   condition: 'Export not finished: the tenant has no READY offboarding export, the job is not yet requested, REQUESTED or FAILED, so no manifest is given; the problem detail names the state; nothing is changed (HTTP 409; INV-REQ-877, INV-REQ-650)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Offboarding export not ready
 - code: EVD-003
   condition: 'Retention deletion refused, retention not ended: the retention end of the partition is later than now, so nothing is detached, archived or dropped and the partition is unchanged (RETENTION_NOT_ENDED; HTTP 409; INV-REQ-639, INV-REQ-1011)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform and security.officer
+  headline: Retention period has not ended
 - code: EVD-004
   condition: 'Retention deletion refused, legal hold in force: an active legal hold covers the entity and period of the partition, so nothing is detached, archived or dropped until the hold is released (HOLD_IN_FORCE; HTTP 409; INV-REQ-639, INV-REQ-1011)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform and security.officer
+  headline: Legal hold prevents deletion
 - code: EVD-005
   condition: 'Retention deletion refused, no notice: no retention notice was opened for the partition, so the notice window cannot have closed and nothing is detached, archived or dropped (NOTICE_MISSING; HTTP 409; INV-REQ-639, INV-REQ-1011)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform and security.officer
+  headline: No retention notice was opened
 - code: EVD-006
   condition: 'Retention deletion refused, notice window open: the notice window of the partition has not closed, so nothing is detached, archived or dropped; the caller retries after the window closes (WINDOW_OPEN; HTTP 409; INV-REQ-639, INV-REQ-1011)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform and security.officer
+  headline: Retention notice period still open
 - code: EVD-007
   condition: 'Retention deletion refused, approvals missing: the two required approvals of the deletion are not both recorded, so nothing is detached, archived or dropped (APPROVALS_MISSING; HTTP 409; INV-REQ-639, INV-REQ-1011)'
   severity: BLOCK
   disposition: MANUAL
   owner: Platform and security.officer
+  headline: Both deletion approvals not recorded
 - code: EVD-008
   condition: 'Retention deletion refused, already deleted: the partition was deleted by an earlier call, so the repeat fails loudly and deletes nothing (ALREADY_DELETED; HTTP 409; INV-REQ-1011)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform and security.officer
+  headline: Records already deleted
 - code: EVD-009
   condition: 'Retention deletion refused, deletion running: a deletion of the same partition is running, so this call starts nothing; the starter reads its status (RUNNING; HTTP 409; INV-REQ-1011)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform and security.officer
+  headline: Deletion already in progress
 - code: SRT-001
   condition: 'Request does not match the contract: shape, type or a missing required field (ContractViolation, ARC-19; HTTP
     400; INV-Q-3720, INV-REQ-827 b3)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Request does not match the expected format
 - code: SRT-002
   condition: Idempotency-Key missing or malformed on an operation that requires it (API-15; HTTP 400; INV-Q-3720, INV-REQ-827
     b3)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Idempotency key missing or invalid
 - code: SRT-003
   condition: 'Not authenticated: no token, or an invalid one (HTTP 401; INV-Q-3720, INV-REQ-827 b3)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Sign-in required
 - code: SRT-004
   condition: 'Access denied: authenticated, but outside the caller''s role or scope (AccessDenied, ARC-19, API-24; HTTP 403;
     INV-Q-3720, INV-REQ-827 b3)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Access not permitted
 - code: SRT-005
   condition: No such resource or operation, or one outside the caller's scope (API-24; HTTP 404; INV-Q-3720, INV-REQ-827 b3)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Item not found
 - code: SRT-006
   condition: Method not allowed on the resource (HTTP 405; INV-Q-3720, INV-REQ-827 b3)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Action not allowed on this item
 - code: SRT-007
   condition: A request with this Idempotency-Key is in flight; the caller may resend with the same key once the first request
     completes (IdempotencyConflict, ARC-19, API-15; HTTP 409; INV-Q-3720, INV-Q-3754, INV-REQ-827 b3)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Same request still being processed
 - code: SRT-008
   condition: 'Stale aggregate version: the aggregate changed since it was read; the caller re-reads and resends with the current
     version (StaleAggregate, ARC-19; HTTP 409; INV-Q-3720, INV-Q-3754, INV-REQ-827 b3)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Item changed since you opened it
 - code: SRT-009
   condition: 'Idempotency-Key reused with a different request: the method, path or body fingerprint differs from the original
     (IdempotencyConflict, ARC-19, API-15; HTTP 422; INV-Q-3720, INV-REQ-827 b3)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Idempotency key reused for another request
 - code: SRT-010
   condition: Internal error, with no detail in the response (ARC-19, API-22; HTTP 500; INV-Q-3720, INV-REQ-827 b3)
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Unexpected system error
 - code: SRT-011
   condition: 'The token issuer is unavailable, so the token cannot be verified now; retry later (cached issuer keys are
     used first; HTTP 503; INV-Q-3773, INV-REQ-827 b3)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Sign-in service unavailable
 - code: SRT-012
   condition: 'Protective rate limit exceeded; retry after Retry-After (HTTP 429; FR-AG.39, API-30; INV-REQ-825 b6; owner ruling
     INV-Q-4048 A)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Too many requests, try again later
 - code: SRT-013
   condition: 'The service is not ready to decide: a snapshot it needs, such as the replicated organisation structure, is not complete yet; nothing is decided or changed; the caller retries later (HTTP 503; INV-REQ-1199, INV-Q-9081, INV-Q-17134)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Service not ready yet
 - code: SRT-014
   condition: "Request over a size or count limit of its operation: a body or an array above the operation's cap (API-49) is refused and nothing is changed or recorded (HTTP 413; INV-REQ-830, INV-REQ-941 b8, INV-Q-17287)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Request exceeds the size limit
 - code: SRT-015
   condition: "The bulk action is refused as a whole: at least one document of the group has a version at SENT or beyond, nothing is applied, and the problem carries the submitted count in the extension member submittedCount (HTTP 409; INV-REQ-959, INV-REQ-941, coordinator ruling round zt)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Bulk action refused for sent documents
 - code: CPL-001
   condition: 'Audit purge cut-off younger than the floor (HTTP 422; INV-Q-3267 a, INV-Q-3097)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Audit purge date too recent
 - code: CPL-002
   condition: 'Audit purge floor cannot be determined; nothing deleted; retryable (HTTP 503; INV-Q-3267 a)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Audit purge limit cannot be determined
 - code: CPL-003
   condition: 'dataRegion is not on the platform''s region list (HTTP 422; INV-Q-3756 B, INV-REQ-1306)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Data region not supported
 - code: POL-001
   condition: 'Variation point unknown: the key is not registered in the gst-catalogue VariationPoint catalogue the owning
     service binds (HTTP 404; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Policy setting not recognised
 - code: POL-002
   condition: 'Variation point retired: the key is registered but retired and cannot be set (HTTP 422; INV-Q-5172,
     INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Policy setting retired
 - code: POL-003
   condition: 'Scope level not allowed: the variation point row does not allow a setting at the requested scope level (HTTP
     422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Setting not allowed at this level
 - code: POL-004
   condition: 'Role not allowed: the actor holds none of the setting roles the catalogue names for the variation point
     (also for a value that arrives with source PROFILE) (HTTP 403; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Your role cannot change this setting
 - code: POL-005
   condition: 'Reason missing: a policy change carries a reason and none was given (HTTP 400; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Reason for the change missing
 - code: POL-006
   condition: 'Variation point planned: a planned row cannot be set, it resolves to its default (HTTP 422; INV-Q-5172,
     INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Policy setting not yet available
 - code: POL-007
   condition: 'Not supported: a cross-scope rule or installation bound the resolver cannot evaluate in this release (HTTP
     422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Rule combination not supported yet
 - code: POL-008
   condition: 'Looser than a broader scope: a directed field is looser than the value of the same row at a broader scope
     (tighten-only) (HTTP 422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Value looser than a wider level allows
 - code: POL-009
   condition: 'Beyond the installation bound: the value exceeds the installation parameter row that bounds it (HTTP 422;
     INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Value exceeds the installation limit
 - code: POL-010
   condition: 'Bound unavailable: the broader value or installation bound could not be evaluated, so nothing is stored
     (fail closed) (HTTP 422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Limit could not be checked
 - code: POL-011
   condition: 'Unknown option: the row has no such option, or does not offer it (HTTP 422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Option not available for this setting
 - code: POL-012
   condition: 'Selection invalid: the selection is empty, names several keys on a single-select row, or an exclusive key
     with others (HTTP 400; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Selection not valid for this setting
 - code: POL-013
   condition: 'Out of bounds: the value is not of the option''s shape or lies outside its bounds (HTTP 422; INV-REQ-1239
     b3; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Value outside the allowed range
 - code: POL-014
   condition: 'Constraint refused: the owning service refused, or could not check, what only it can see (HTTP 422;
     INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Owning service refused the change
 - code: POL-015
   condition: 'Looser option not offered: the row offers no looser option, as a non-waivable control (HTTP 422;
     INV-REQ-1244 b4; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Looser option not offered
 - code: POL-016
   condition: 'Looser option at installation scope: not supported in this release (HTTP 422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Looser option not supported at installation level
 - code: POL-017
   condition: 'No accountable role: the looser option''s catalogue entry names no acknowledging role (HTTP 422; INV-Q-5172,
     INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: No role named to accept the risk
 - code: POL-018
   condition: 'Relaxation required: a looser option of a CONTROL was set without a complete, matching and unused relaxation
     (HTTP 409; INV-REQ-1244 b2, INV-AC-205; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The accountable role named for the control
+  headline: Relaxation approval required
 - code: POL-019
   condition: 'Acknowledger not allowed: the role is not one the option names, or the actor does not hold it (HTTP 403;
     INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The accountable role named for the control
+  headline: Approver role not allowed
 - code: POL-020
   condition: 'Acknowledger duplicate: the role has already acknowledged this relaxation, or the principal already
     acknowledged it in another role (HTTP 409; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The accountable role named for the control
+  headline: Relaxation already acknowledged
 - code: POL-021
   condition: 'Not looser: there is nothing to acknowledge, or a relaxation was given with a value that is not looser (HTTP
     422; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Nothing looser to acknowledge
 - code: POL-022
   condition: 'Back-dating refused: the effective date is before the business date and is not a scope''s first value (HTTP
     422; INV-REQ-1243 b6; INV-Q-5172, INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Back-dated change refused
 - code: POL-023
   condition: 'Profile incomplete: source PROFILE without its profile reference and version (HTTP 400; INV-Q-5172,
     INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Profile reference incomplete
 - code: POL-024
   condition: 'Profile at installation scope: profile values are tenant-and-below settings (HTTP 422; INV-Q-5172,
     INV-REQ-1243)'
   severity: BLOCK
   disposition: TERMINAL
   owner: The setting role of the variation point
+  headline: Profile not allowed at installation level
 - code: TNC-001
   condition: 'Tenant not created: the contractReference is already recorded for another tenantRef, or the tenantRef is already recorded under another contractReference; nothing is created or changed (HTTP 409; INV-Q-3573, INV-Q-7553)'
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Tenant not created, contract already in use
 - code: TNC-002
   condition: 'Short code already used: another entity or business unit of the tenant already uses the code; nothing is recorded or changed (HTTP 409; INV-REQ-850 b7, INV-Q-7553)'
   severity: BLOCK
   disposition: TERMINAL
   owner: tenant.admin
+  headline: Short code already in use
 - code: TNC-003
   condition: 'Short code fixed: the code of the business unit was already used in an aggregate number, so it cannot change; nothing is changed (HTTP 409; INV-REQ-850 b7, INV-REQ-436, INV-Q-7553)'
   severity: BLOCK
   disposition: TERMINAL
   owner: tenant.admin
+  headline: Short code can no longer change
 - code: TNC-004
   condition: 'Status record conflict: a setEntityStatus names the same entityRef, statusKind and effectiveFrom as a recorded status but carries different values; the first record stays and nothing is changed or published (HTTP 409; INV-Q-8735, INV-Q-8903)'
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+  headline: Conflicting status record for the entity
 - code: TNC-005
   condition: 'Credential refused: its environment tag differs from the environment of the tenant or workspace, or it has no tag; nothing is bound (HTTP 422; INV-REQ-1126, INV-REQ-502, INV-REQ-1377, INV-Q-11899)'
   severity: BLOCK
   disposition: TERMINAL
   owner: tenant.admin
+  headline: Credential does not match the environment
 - code: TNC-006
   condition: 'Sample copy refused: anonymised production samples are off for the tenant (variation point VP-44); nothing is copied (HTTP 422; INV-REQ-1305, INV-REQ-1130 b2, INV-Q-11899)'
   severity: BLOCK
   disposition: TERMINAL
   owner: tenant.admin
+  headline: Sample copy not enabled for this tenant
 - code: TNC-007
   condition: 'Sample copy refused: it has no unspent approval; nothing is copied (HTTP 422; INV-REQ-1130 b4, INV-Q-11899)'
   severity: BLOCK
   disposition: TERMINAL
   owner: security.officer
+  headline: Sample copy needs an unused approval
 - code: TNC-008
   condition: 'Offboarding or deregistration refused: an in-scope document is unsubmitted and no unsubmittedOverride is recorded; nothing is recorded or changed (HTTP 409; INV-REQ-956 b1, INV-Q-16387)'
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+  headline: Unsubmitted documents block offboarding
 - code: TNC-009
   condition: 'Offboarding refused: the retention custody holder has a blank name or contact email; nothing is recorded (HTTP 409; INV-REQ-956 b2, INV-Q-16387)'
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+  headline: Retention holder details incomplete
 - code: TNC-010
   condition: 'Offboarding refused: a record for the same tenant, scope and entity is REQUESTED or COMPLETED; nothing is created (HTTP 409; INV-REQ-956, INV-Q-16387)'
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+  headline: Offboarding already requested or completed
 - code: TNC-011
   condition: "Migration cutover refused: the entity already has a cutover recorded with a different cutoverDate; the first record stays and nothing is changed or published (HTTP 409; INV-REQ-1109)"
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+  headline: Cutover already recorded with another date
 - code: TNC-012
   condition: "Tenant open refused: the tenant is CLOSED, so openTenant cannot set it to OPEN; the tenant stays CLOSED and nothing is changed (HTTP 409; INV-REQ-8100, INV-Q-8097)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Closed tenant cannot be reopened
 - code: TNC-013
   condition: "Election change refused: the entity already has a PENDING election or rate-source change for the same variation point, so a new change is not stored; the pending change stays and nothing is changed (HTTP 409; INV-REQ-505)"
   severity: BLOCK
   disposition: TERMINAL
   owner: entity.admin
+  headline: Election change already pending
 - code: TNC-014
   condition: "Tenant close refused: the tenant is SCHEDULED or CLOSED, so closeTenant cannot start its offboarding; the tenant keeps its state and no offboarding record is created (HTTP 409; INV-REQ-8100, INV-Q-8137)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Tenant already scheduled or closed
 - code: ING-022
   condition: "Aggregate number cannot be built: the number would exceed 64 characters, or the entity or business unit has no registered short code of 1 to 10 characters A-Z 0-9 in the structure; nothing is stored (HTTP 422; INV-REQ-436, INV-REQ-850 b7, INV-Q-11264)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Integration
+  headline: Aggregate number cannot be built
 - code: ING-023
   condition: "Transaction cannot be recorded now: canonical-svc gave no answer within the edge policy (timeout, open circuit breaker, full bulkhead or no connection) or answered HTTP 503; nothing is recorded; retryable with the same sourceSystem, sourceKey and sourceRevision (HTTP 503; INV-REQ-1193, INV-Q-14086)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Temporarily unable to record transaction
 - code: CPL-004
   condition: "Train already published: a gate result cannot be recorded for a release train that is already published; nothing is recorded (HTTP 409; INV-REQ-909, INV-REQ-2657, INV-Q-14041)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Release already published
 - code: CPL-005
   condition: "Gate result conflicts with the recorded one: the key (trainVersion, gate, environment) already holds a record that differs from the one sent in its results, finding sets or evidence reference; the recorded one stays unchanged and nothing is added (HTTP 409; INV-REQ-2657, INV-Q-14041)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Gate result differs from the recorded one
 - code: CPL-006
   condition: "Gate result not valid for its gate: the gate is not one of SCENARIOS, REGENERATION, SECURITY or CERTIFICATION, or the environment is missing for SCENARIOS or CERTIFICATION or present for REGENERATION or SECURITY, or a baseline result or baseline findings are sent with a PASSED candidate result; nothing is recorded (HTTP 422; INV-REQ-2657, INV-Q-14041)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Gate result not valid for this gate
 - code: CPL-007
   condition: "A re-accreditation assessment task is already CONCLUDED with another conclusion; the recorded conclusion is unchanged and the caller reads the task (HTTP 409; INV-REQ-1365, INV-Q-15428, INV-Q-15478)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Assessment already concluded differently
 - code: ING-024
   condition: "Debit note held for review: the entity elected HOLD_FOR_REVIEW for the variation point VP-54, so the debit note waits in HELD until a person releases it; nothing is submitted meanwhile (INV-REQ-1315, INV-Q-16151)"
   severity: HOLD
   disposition: MANUAL
   owner: Finance
+  headline: Debit note held for review
 - code: CPL-008
   condition: "The first administrator invitation cannot be reissued: the provisioning request does not read CREATED, or access-svc refused the reissue because the tenant's tenant.admin grant is not a PENDING one whose invitation has expired; nothing is sent (HTTP 409; INV-REQ-906, INV-Q-8232, INV-Q-16202)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Administrator invitation cannot be reissued
 - code: CPL-009
   condition: "The first administrator invitation cannot be reissued now: access-svc gave no answer within the edge policy (timeout, open circuit breaker, full bulkhead or no connection) or answered HTTP 503; nothing is sent; retryable with the same Idempotency-Key (HTTP 503; INV-REQ-906, INV-Q-8232, INV-Q-16204)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Invitation reissue timed out
 - code: CPL-010
   condition: "Tenant schedule conflict: the request does not fit the state of the schedule of the tenant: another schedule is set while one is live, a change or a cancellation is requested while one of that kind is pending, a time that was already carried out is changed, or an approval names a request that is neither awaiting approval nor already approved (an approval that repeats a finished approval is a no-op that changes nothing and is not refused, as the repeatKey of approveTenantSchedule says); nothing is changed (HTTP 409; INV-REQ-8100)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Tenant schedule conflicts with current state
 - code: CPL-011
   condition: "Tenant schedule not valid: the contract reference is blank, the offboarding time is not after the go-live time, or the go-live time is not after the moment of setting (for a change, the new times); nothing is stored (HTTP 422; INV-REQ-8100 behavior 1)"
   severity: BLOCK
   disposition: TERMINAL
   owner: Platform
+  headline: Tenant schedule dates not valid
