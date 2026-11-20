@@ -111,6 +111,36 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
+    fun `INV-AC-25637 VP-63 offers exactly PACK_DEFAULT_30D then SHORTER, available, two records of responseDays and noticeLeadDays in calendar days`() {
+        val vp63 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-63" }
+        assertEquals("INV-REQ-1401", vp63.requirement)
+        assertEquals(VpStatus.AVAILABLE, vp63.status)
+        assertEquals("vp-63.set", vp63.setPermission)
+        val fields = vp63.fields!!
+        assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
+        assertEquals(listOf("PACK_DEFAULT_30D", "SHORTER"), fields.options.map { it.key })
+        assertEquals(listOf(Strictness.DEFAULT, Strictness.STRICTER), fields.options.map { it.strictness })
+        assertTrue(fields.options.all { it.acknowledgedBy.isEmpty() })
+        val wantResponse = mapOf("PACK_DEFAULT_30D" to Triple(30, 30, 30), "SHORTER" to Triple(1, 30, 30))
+        fields.options.forEach { option ->
+            val record = option.typedValue!!
+            assertEquals(ValueType.RECORD, record.type, option.key)
+            assertEquals(listOf("responseDays", "noticeLeadDays"), record.fields.keys.toList(), option.key)
+            record.fields.forEach { (name, f) ->
+                assertEquals(ValueType.DURATION, f.type, "${option.key} $name")
+                assertEquals("calendar days", f.unit, "${option.key} $name")
+            }
+            val response = record.fields.getValue("responseDays")
+            val want = wantResponse.getValue(option.key)
+            assertEquals(Direction.DOWN_STRICTER, response.direction, option.key)
+            assertEquals(listOf(want.first, want.second, want.third), listOf(response.min, response.max, response.default).map { it!!.number!!.toInt() }, option.key)
+            val lead = record.fields.getValue("noticeLeadDays")
+            assertEquals(Direction.UP_STRICTER, lead.direction, option.key)
+            assertEquals(listOf(7, 29, 7), listOf(lead.min, lead.max, lead.default).map { it!!.number!!.toInt() }, option.key)
+        }
+    }
+
+    @Test
     fun `INV-AC-8290 VP-81 offers exactly the three ruled options, available, set and acknowledged by tenant admin`() {
         val vp81 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-81" }
         assertEquals("INV-REQ-8287", vp81.requirement)

@@ -51,6 +51,7 @@
 # Re-extracted 2026-11-19 (INV-T-25258; coordinator ruling, owner delegation 2026-10-18): re-vendors the file in one check-drift.py --write run: the revision key of the 82 existing rows is refreshed and the new rows VP-83 (INV-REQ-24775) and VP-84 (INV-REQ-25100) are added, no other row changes; 84 rows.
 # Re-extracted 2026-11-20 (INV-T-25460; Keel INV-CS-25458): VP-83 becomes available (INV-REQ-24775 io_contract.status, coordinator ruling on the status of VP-83, option A); re-vendored with check-drift.py --write, only the status and revision keys of VP-83 moved; 84 rows.
 # Re-extracted 2026-11-20 (INV-T-25626; Keel INV-CS-25624): VP-84 becomes available (INV-REQ-25100 io_contract.status, coordinator ruling on the status of VP-84, option A); re-vendored with check-drift.py --write, only the status and revision keys of VP-84 moved; 84 rows.
+# Re-extracted 2026-11-20 (INV-T-25638; Keel INV-CS-25636): VP-63 becomes available (INV-REQ-1401 io_contract.status, coordinator ruling on the status of VP-63, option A); re-vendored with check-drift.py --write, only the status and revision keys of VP-63 moved; 84 rows.
 #
 # Keel has no single repository-wide commit the way invoice-docs does, so each row
 # below pins to its own published entity_revision id (`revision`), not a shared SHA.
@@ -2558,7 +2559,7 @@ variation_points:
     basis: "Coordinator ruling (high confidence, delegated by owner 2026-10-11): INV-REQ-1323: \"the second option is the looser one\"; conventions G1-G6 option A; INV-Q-2934, INV-Q-2936; for INV-T-3000; acknowledged_by: VP-62 tax.approver, plus client.signatory under delegation: INV-Q-181, INV-Q-2349, INV-Q-3134; for INV-T-3148"
 - id: VP-63
   requirement: INV-REQ-1401
-  revision: fc4d89f7-c618-4c97-9501-efd4e1fc901b
+  revision: d53fd7d4-893b-42dc-854f-75daddc98c27
   title: "An individual's access or correction request is answered within the pack default of 30 days from receipt, or a shorter tenant period"
   class: PARAMETER
   class_modifiers:
@@ -2573,7 +2574,7 @@ variation_points:
     - "Pack default: 30 days from receipt"
     - "a shorter period"
   bounds: "Never longer than the pack default; where it cannot be met, the individual is told when (INV-REQ-1403). Provisional pending INV-NOTE-4#row:Q-30"
-  status: planned
+  status: available
   status_note: null
   governs:
     - "INV-REQ-1403"
