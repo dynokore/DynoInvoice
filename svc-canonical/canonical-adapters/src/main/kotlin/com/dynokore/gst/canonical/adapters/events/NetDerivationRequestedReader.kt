@@ -21,7 +21,8 @@ data class NetDerivationRequest(
  * a UUID text; `expectedBaseVersion` an integer of at least 1; `creditNotes` an array of 1 to 50 distinct objects, each
  * with a UUID text `docUuid` and an integer `version` of at least 1; members the schema does not name are ignored
  * (additionalProperties true). The service has no JSON Schema library at run time, so the rules are written here and
- * `NetDerivationRequestedReaderTest` proves they agree with the pinned schema on valid, invalid and look-alike payloads.
+ * `NetDerivationRequestedReaderTest` proves they agree with the pinned schema on valid, invalid and look-alike
+ * payloads.
  *
  * One rule goes beyond the schema: a credit note `docUuid` that repeats with another version is refused, because the
  * application cannot net one document twice and would fail on every retry. A UUID text is checked in the 8-4-4-4-12
@@ -33,15 +34,22 @@ class NetDerivationRequestedReader {
 
     fun read(dataJson: String): NetDerivationRequest {
         val data = parse(dataJson)
-        val notes = data.get(CREDIT_NOTES)
-        if (notes == null || !notes.isArray || notes.size() !in 1..MAX_NOTES) {
-            throw ContractViolation("$CREDIT_NOTES is not an array of 1 to $MAX_NOTES items")
-        }
-        val items = notes.toList()
-        if (items.toSet().size != items.size) throw ContractViolation("$CREDIT_NOTES repeats an item")
+        return NetDerivationRequest(uuid(data, ORIGINAL), version(data, BASE_VERSION), creditNotes(data))
+    }
+
+    private fun creditNotes(data: JsonNode): List<NetCreditNoteRef> {
+        val items =
+            data
+                .get(CREDIT_NOTES)
+                ?.takeIf { it.isArray && it.size() in 1..MAX_NOTES }
+                ?.toList()
+                ?: throw ContractViolation("$CREDIT_NOTES is not an array of 1 to $MAX_NOTES items")
         val refs = items.map { note(it) }
-        if (refs.map { it.docUuid }.toSet().size != refs.size) throw ContractViolation("$CREDIT_NOTES repeats a docUuid")
-        return NetDerivationRequest(uuid(data, ORIGINAL), version(data, BASE_VERSION), refs)
+        // identical items (uniqueItems) and a document named twice both end here: the same docUuid repeats
+        if (refs.map { it.docUuid }.toSet().size != refs.size) {
+            throw ContractViolation("$CREDIT_NOTES repeats a docUuid")
+        }
+        return refs
     }
 
     private fun note(node: JsonNode): NetCreditNoteRef {

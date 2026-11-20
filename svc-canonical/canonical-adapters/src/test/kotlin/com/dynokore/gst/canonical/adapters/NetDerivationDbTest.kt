@@ -52,13 +52,14 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The net derivation adapters against a real database (INV-REQ-558 behavior 6): the application handler over the jOOQ
- * records, the single version writer and the outbox publishers, as the `canonical_runtime` login bound to a tenant.
+ * The wiring and the data of the net derivation database tests (INV-REQ-558 behavior 6): the application handler over
+ * the jOOQ records, the single version writer and the outbox publishers, as the `canonical_runtime` login bound to a
+ * tenant.
  */
-class NetDerivationDbTest {
-    private val actor = SignedBindings.ACTOR
-    private val tenants = TenantContextImpl()
-    private val transaction =
+abstract class NetDerivationHarness {
+    val actor = SignedBindings.ACTOR
+    val tenants = TenantContextImpl()
+    val transaction =
         TransactionRunnerImpl(
             PGSimpleDataSource().apply {
                 setUrl(CanonicalDb.jdbcUrl)
@@ -73,39 +74,54 @@ class NetDerivationDbTest {
                 override fun previousKey(): ByteArray? = null
             },
         )
-    private val declared =
+    val declared =
         listOf(
-            "document", "document_version", "document_line", "document_subtotal", "document_party", "inbound_event",
-            "period_span", "document_version_net_derivation", "processed_net_derivation_request", "outbox",
+            "document",
+            "document_version",
+            "document_line",
+            "document_subtotal",
+            "document_party",
+            "inbound_event",
+            "period_span",
+            "document_version_net_derivation",
+            "processed_net_derivation_request",
+            "outbox",
             "outbox_sequence",
         ).associate { DSL.name("canonical", it) to TableClass.TENANT }
-    private val dsl =
+    val dsl =
         TenancyJooq
-            .configure(DefaultConfiguration().set(SQLDialect.POSTGRES), TenancyTables.declared(declared), tenants, transaction)
-            .dsl()
-    private val catalogue =
+            .configure(
+                DefaultConfiguration().set(SQLDialect.POSTGRES),
+                TenancyTables.declared(declared),
+                tenants,
+                transaction,
+            ).dsl()
+    val catalogue =
         EventCatalogue(
             listOf(
                 CatalogueEntry(CREATED, "gst.canonical.canonical-version-created.v1", setOf(SERVICE), false, false),
                 CatalogueEntry(REFUSED, "gst.canonical.net-derivation-refused.v1", setOf(SERVICE), false, false),
             ),
         )
-    private val outbox = JdbcOutboxWriter(dsl, "canonical", SERVICE, "canonical-svc-0", catalogue, Clock.systemUTC())
-    private val store = JooqDocumentStore(dsl)
-    private val documents = JooqNetDerivationDocuments(dsl, tenants)
-    private val records = JooqNetDerivationRecords(dsl, tenants)
-    private val versions =
+    val corr = { CorrelationId("corr-1") }
+    val cause = { CausationId("cause-1") }
+    val outbox = JdbcOutboxWriter(dsl, "canonical", SERVICE, "canonical-svc-0", catalogue, Clock.systemUTC())
+    val store = JooqDocumentStore(dsl)
+    val documents = JooqNetDerivationDocuments(dsl, tenants)
+    val records = JooqNetDerivationRecords(dsl, tenants)
+    val versions =
         CapturingNetDerivedVersions(
             JacksonNetDerivedVersions { doc, version ->
-                checkNotNull(documents.versionAsBase(doc, version, checkNotNull(tenants.currentActor()))) { "unknown $doc" }
+                val identity = checkNotNull(tenants.currentActor())
+                checkNotNull(documents.versionAsBase(doc, version, identity)) { "unknown $doc" }
             },
         )
 
-    private fun handler(entity: String = ENTITY_REF): NetDerivationRequestHandler {
+    fun handler(entity: String = ENTITY_REF): NetDerivationRequestHandler {
         val writer =
             CanonicalVersionWriter(
                 store,
-                OutboxCanonicalVersionCreatedPublisher(outbox, tenants, { CorrelationId("corr-1") }, { CausationId("cause-1") }),
+                OutboxCanonicalVersionCreatedPublisher(outbox, tenants, corr, cause),
                 JooqDocumentAggregateRefs(dsl, tenants),
             )
         return NetDerivationRequestHandler(
@@ -115,14 +131,12 @@ class NetDerivationDbTest {
             writer = writer,
             records = records,
             refusals =
-                OutboxNetDerivationRefusedPublisher(
-                    outbox, tenants, { EntityRef(entity) }, { CorrelationId("corr-1") }, { CausationId("cause-1") },
-                ),
+                OutboxNetDerivationRefusedPublisher(outbox, tenants, { EntityRef(entity) }, corr, cause),
             factsFor = { doc, net -> facts(doc, net) },
         )
     }
 
-    private fun facts(
+    fun facts(
         doc: UUID,
         net: NetDerivationFact,
     ): CanonicalVersionCreatedFacts {
@@ -138,34 +152,46 @@ class NetDerivationDbTest {
             traceReference = "trace/$doc/v${net.baseVersion + 1}",
             canonicalDocument = versions.takeCanonical(),
             aggregateId = null,
-            routingFacts = RoutingFactsData(RoutingDirection.valueOf(basis.direction), RoutingNetworkPath.NOT_ON_NETWORK),
+            routingFacts =
+                RoutingFactsData(RoutingDirection.valueOf(basis.direction), RoutingNetworkPath.NOT_ON_NETWORK),
             netDerivation = net,
         )
     }
 
     // ---- data ----
 
-    private fun canonical(
+    fun canonical(
         number: String,
         amount: String,
         tax: String,
         gross: String,
         preceding: String? = null,
-    ) = """{"documentTypeCode":{"value":"380","classification":"NONE"},"currency":{"value":"SGD","classification":"NONE"},""" +
+    ) = """{"documentTypeCode":{"value":"380","classification":"NONE"},""" +
+        """"currency":{"value":"SGD","classification":"NONE"},""" +
         """"documentNumber":{"value":"$number","classification":"NONE"},""" +
         (preceding?.let { """"precedingDocumentNumber":{"value":"$it","classification":"NONE"},""" } ?: "") +
         """"parties":{"value":{"supplier":{"identifierScheme":"UEN","identifierValue":"201912345A"},""" +
         """"buyer":{"identifierScheme":"UEN","identifierValue":"201912345B"}},"classification":"IDENTIFYING"},""" +
         """"lines":{"value":[{"lineNumber":1,"description":"Consulting","quantity":1,"unitPrice":"$amount",""" +
         """"lineAmount":"$amount","taxCode":"SR","taxAmount":"$tax"}],"classification":"NONE"},""" +
-        """"taxSubtotals":{"value":[{"taxCode":"SR","taxableAmount":"$amount","taxAmount":"$tax"}],"classification":"NONE"},""" +
+        """"taxSubtotals":{"value":[{"taxCode":"SR","taxableAmount":"$amount","taxAmount":"$tax"}],""" +
+        """"classification":"NONE"},""" +
         """"totals":{"value":{"totalExcludingTax":"$amount","totalTax":"$tax","totalIncludingTax":"$gross"},""" +
         """"classification":"NONE"}}"""
 
-    private fun version(canonical: String) =
-        NewVersion(canonical, ScopeVerdict.IN_SCOPE, "scope-1", "map-1", null, SpecificationVersion.PINT_SG, DAY, "svc:seed")
+    fun version(canonical: String) =
+        NewVersion(
+            canonical,
+            ScopeVerdict.IN_SCOPE,
+            "scope-1",
+            "map-1",
+            null,
+            SpecificationVersion.PINT_SG,
+            DAY,
+            "svc:seed",
+        )
 
-    private inner class Seed(
+    inner class Seed(
         val tenant: UUID = UUID.randomUUID(),
         val entity: UUID = UUID.randomUUID(),
         val invoice: UUID = UUID.randomUUID(),
@@ -177,7 +203,7 @@ class NetDerivationDbTest {
     }
 
     /** A purchase invoice of [versions] versions (9000.00) and a purchase credit note (1000.00) that names it. */
-    private fun seed(versions: Int = 1): Seed =
+    fun seed(versions: Int = 1): Seed =
         Seed().also { s ->
             inTenant(s.tenant) {
                 dsl
@@ -197,23 +223,34 @@ class NetDerivationDbTest {
                 (1..versions).forEach { v -> inbound(s, s.invoice, v, "INVOICE") }
                 val noteNumber = "CN-" + s.note
                 store.insert(
-                    document(s, s.note, noteNumber, canonical(noteNumber, "1000.00", "90.00", "1090.00", preceding = number)),
+                    document(s, s.note, noteNumber, canonical(noteNumber, "1000.00", "90.00", "1090.00", number)),
                 )
                 inbound(s, s.note, 1, "CREDIT_NOTE")
             }
         }
 
-    private fun document(
+    fun document(
         s: Seed,
         doc: UUID,
         number: String,
         canonical: String,
     ) = NewDocument(
-        doc, s.tenant, s.entity, null, Direction.PURCHASE, 380, number, "issuer-1", 2026, null, DocumentState.READY,
-        s.periodId, version(canonical),
+        doc,
+        s.tenant,
+        s.entity,
+        null,
+        Direction.PURCHASE,
+        380,
+        number,
+        "issuer-1",
+        2026,
+        null,
+        DocumentState.READY,
+        s.periodId,
+        version(canonical),
     )
 
-    private fun inbound(
+    fun inbound(
         s: Seed,
         doc: UUID,
         version: Int,
@@ -230,12 +267,12 @@ class NetDerivationDbTest {
             .execute()
     }
 
-    private fun <T> inTenant(
+    fun <T> inTenant(
         tenant: UUID,
         block: () -> T,
     ): T = tenants.bind(TenantId(tenant), actor) { transaction.inTransaction { block() } }
 
-    private fun handle(
+    fun handle(
         s: Seed,
         eventId: UUID,
         base: Int,
@@ -244,7 +281,7 @@ class NetDerivationDbTest {
 
     // ---- reads as the runtime login bound to a tenant (row security applies) ----
 
-    private fun read(
+    fun read(
         tenant: UUID,
         sql: String,
         vararg args: Any,
@@ -254,7 +291,7 @@ class NetDerivationDbTest {
             SignedBindings.bind(connection, tenant)
             try {
                 connection.prepareStatement(sql).use { statement ->
-                    args.forEachIndexed { index, arg -> statement.setObject(index + 1, arg) }
+                    args.forEachIndexed { index, arg -> statement.setObject(index + 1, arg.toString()) }
                     statement.executeQuery().use { rows ->
                         val width = rows.metaData.columnCount
                         buildList { while (rows.next()) add((1..width).map { rows.getString(it) }) }
@@ -265,34 +302,55 @@ class NetDerivationDbTest {
             }
         }
 
-    private fun versionCount(s: Seed) =
+    fun versionCount(s: Seed) =
         read(s.tenant, "select count(*) from canonical.document_version where doc_uuid = ?::uuid", s.invoice.toString())
             .single()
             .single()!!
             .toInt()
 
-    private fun recordRows(s: Seed) =
-        read(s.tenant, "select count(*) from canonical.document_version_net_derivation where doc_uuid = ?::uuid", s.invoice.toString())
-            .single()
+    fun recordRows(s: Seed) =
+        read(
+            s.tenant,
+            "select count(*) from canonical.document_version_net_derivation where doc_uuid = ?::uuid",
+            s.invoice,
+        ).single()
             .single()!!
             .toInt()
 
-    private fun outboxData(
+    fun outboxData(
         s: Seed,
         type: String,
     ): List<String> =
-        read(s.tenant, "select data::text from canonical.outbox where type = ? and doc_uuid = ?::uuid order by seq", type, s.invoice.toString())
-            .map { it[0]!! }
+        read(
+            s.tenant,
+            "select data::text from canonical.outbox where type = ? and doc_uuid = ?::uuid order by seq",
+            type,
+            s.invoice,
+        ).map { it[0]!! }
 
-    private fun payload(text: String): JsonNode = NetContractSchemas.mapper.readTree(text)
+    fun payload(text: String): JsonNode = NetContractSchemas.mapper.readTree(text)
 
-    private val createdSchema get() = NetContractSchemas.canonicalSchemaText("canonical-version-created-payload.schema.json")
-    private val refusedSchema get() = NetContractSchemas.canonicalSchemaText("net-derivation-refused-payload.schema.json")
+    val createdSchema get() = NetContractSchemas.canonicalSchemaText(CREATED_SCHEMA)
+    val refusedSchema get() = NetContractSchemas.canonicalSchemaText(REFUSED_SCHEMA)
 
-    // ---- cases ----
+    companion object {
+        const val SERVICE = "canonical-svc"
+        const val CREATED_SCHEMA = "canonical-version-created-payload.schema.json"
+        const val REFUSED_SCHEMA = "net-derivation-refused-payload.schema.json"
+        const val ENTITY_REF = "E-001"
+        const val CREATED = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
+        const val REFUSED = "com.dynokore.gst.canonical.NetDerivationRefused.v1"
+        val DAY: LocalDate = LocalDate.of(2026, 3, 20)
+    }
+}
 
+/**
+ * INV-REQ-558 behavior 6: the net derivation adapters against a real database, as the `canonical_runtime` login bound
+ * to a tenant (wiring and data: [NetDerivationHarness]).
+ */
+class NetDerivationDbTest : NetDerivationHarness() {
     @Test
-    fun `INV-AC-25342 the first handling stores one version, one record and one CanonicalVersionCreated row that carries netDerivation`() {
+    fun `INV-AC-25342 the first handling stores one version, one record and one event row with netDerivation`() {
         val s = seed(versions = 2)
         val event = UUID.randomUUID()
         handle(s, event, base = 2)
@@ -313,9 +371,7 @@ class NetDerivationDbTest {
             stored.creditNotes.map { it.docUuid to it.version } shouldBe listOf(s.note to 1)
         }
         payload(rows.single()).get("version").asInt() shouldBe 3
-        read(s.tenant, "select count(*) from canonical.outbox where type = ? and doc_uuid = ?::uuid", REFUSED, s.invoice.toString())
-            .single()
-            .single() shouldBe "0"
+        outboxData(s, REFUSED).shouldBeEmpty()
     }
 
     @Test
@@ -365,7 +421,7 @@ class NetDerivationDbTest {
     }
 
     @Test
-    fun `INV-AC-25342 recordOf returns the stored base version and credit notes of the derived version and null for the base`() {
+    fun `INV-AC-25342 recordOf returns the stored base version and credit notes, null for the base version`() {
         val s = seed()
         handle(s, UUID.randomUUID(), base = 1)
         inTenant(s.tenant) {
@@ -398,21 +454,26 @@ class NetDerivationDbTest {
         val base = handler()
         val broken =
             NetDerivationRequestHandler(
-                JooqProcessedNetDerivationRequests(dsl, tenants), documents, versions,
+                JooqProcessedNetDerivationRequests(dsl, tenants),
+                documents,
+                versions,
                 CanonicalVersionWriter(
                     store,
-                    OutboxCanonicalVersionCreatedPublisher(outbox, tenants, { CorrelationId("c") }, { CausationId("c") }),
+                    OutboxCanonicalVersionCreatedPublisher(outbox, tenants, corr, cause),
                     JooqDocumentAggregateRefs(dsl, tenants),
                 ),
                 failing,
-                OutboxNetDerivationRefusedPublisher(outbox, tenants, { EntityRef(ENTITY_REF) }, { CorrelationId("c") }, { CausationId("c") }),
+                OutboxNetDerivationRefusedPublisher(outbox, tenants, { EntityRef(ENTITY_REF) }, corr, cause),
             ) { doc, net -> facts(doc, net) }
         shouldThrow<IllegalStateException> { handle(s, event, base = 1, h = broken) }
         versionCount(s) shouldBe 1
         recordRows(s) shouldBe 0
         outboxData(s, CREATED).shouldBeEmpty()
-        read(s.tenant, "select count(*) from canonical.processed_net_derivation_request where request_event_id = ?::uuid", event.toString())
-            .single()
+        read(
+            s.tenant,
+            "select count(*) from canonical.processed_net_derivation_request where request_event_id = ?::uuid",
+            event,
+        ).single()
             .single() shouldBe "0"
         // the same request is handled once the failure is gone: the mark was rolled back with the rest
         handle(s, event, base = 1, h = base)
@@ -429,27 +490,37 @@ class NetDerivationDbTest {
             SignedBindings.bind(connection, s.tenant)
             shouldThrow<java.sql.SQLException> {
                 connection.createStatement().use {
-                    it.executeUpdate("update canonical.document_version_net_derivation set base_version = 1 where version = 2")
+                    it.executeUpdate("update canonical.document_version_net_derivation set base_version = 1")
                 }
             }
             connection.rollback()
         }
     }
 
+    private fun JsonNode.excludingTax(): String = get("totals").get("value").get("totalExcludingTax").asString()
+
     @Test
-    fun `INV-AC-2786 a 1000 credit note against an unsubmitted 9000 purchase is netted into version 2 of 8000`() {
+    fun `INV-AC-2786 the request stores version 2 of 8000 with its netDerivation and exactly 2 versions exist`() {
         val s = seed()
         handle(s, UUID.randomUUID(), base = 1)
         versionCount(s) shouldBe 2
-        val canonical =
-            payload(
-                read(
-                    s.tenant,
-                    "select canonical::text from canonical.document_version where doc_uuid = ?::uuid and version = 2",
-                    s.invoice.toString(),
-                ).single().single()!!,
-            )
-        canonical.get("totals").get("value").get("totalExcludingTax").asString() shouldBe "8000.00"
+        val sql = "select canonical::text from canonical.document_version where doc_uuid = ?::uuid and version = 2"
+        payload(read(s.tenant, sql, s.invoice).single().single()!!).excludingTax() shouldBe "8000.00"
+        inTenant(s.tenant) {
+            val stored = records.recordOf(s.invoice, 2)!!
+            stored.kind.name shouldBe "SYSTEM_DERIVED"
+            stored.baseVersion shouldBe 1
+            stored.nettedCreditNoteDocUuids shouldBe listOf(s.note)
+        }
+        // the acting identity of the written version is the service identity the consumer is bound to
+        val by = "select created_by from canonical.document_version where doc_uuid = ?::uuid and version = 2"
+        read(s.tenant, by, s.invoice).single().single() shouldBe actor
+    }
+
+    @Test
+    fun `INV-AC-2786 exactly one CanonicalVersionCreated for version 2 validates and carries the netDerivation`() {
+        val s = seed()
+        handle(s, UUID.randomUUID(), base = 1)
         val rows = outboxData(s, CREATED)
         rows.size shouldBe 1
         NetContractSchemas.errors(createdSchema, rows.single()).shouldBeEmpty()
@@ -459,24 +530,6 @@ class NetDerivationDbTest {
         event.get("nettedCreditNoteDocUuids").toString() shouldBe """["${s.note}"]"""
         event.get("netDerivation").toString() shouldBe
             """{"kind":"SYSTEM_DERIVED","baseVersion":1,"creditNotes":[{"docUuid":"${s.note}","version":1}]}"""
-        event.get("canonicalDocument").get("totals").get("value").get("totalExcludingTax").asString() shouldBe "8000.00"
-        inTenant(s.tenant) {
-            val stored = records.recordOf(s.invoice, 2)!!
-            stored.kind.name shouldBe "SYSTEM_DERIVED"
-            stored.baseVersion shouldBe 1
-            stored.nettedCreditNoteDocUuids shouldBe listOf(s.note)
-        }
-        // the acting identity of the written version is the service identity the consumer is bound to
-        read(s.tenant, "select created_by from canonical.document_version where doc_uuid = ?::uuid and version = 2", s.invoice.toString())
-            .single()
-            .single() shouldBe actor
-    }
-
-    private companion object {
-        const val SERVICE = "canonical-svc"
-        const val ENTITY_REF = "E-001"
-        const val CREATED = "com.dynokore.gst.canonical.CanonicalVersionCreated.v1"
-        const val REFUSED = "com.dynokore.gst.canonical.NetDerivationRefused.v1"
-        val DAY: LocalDate = LocalDate.of(2026, 3, 20)
+        event.get("canonicalDocument").excludingTax() shouldBe "8000.00"
     }
 }

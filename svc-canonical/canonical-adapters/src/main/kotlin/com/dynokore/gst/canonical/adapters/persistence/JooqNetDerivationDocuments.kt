@@ -6,9 +6,9 @@ import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.IN
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.PERIOD_SPAN
 import com.dynokore.gst.canonical.application.document.PrecedingReference
 import com.dynokore.gst.canonical.application.netting.NetDerivationDocuments
-import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.DerivedLine
 import com.dynokore.gst.canonical.domain.document.DerivedSubtotal
+import com.dynokore.gst.canonical.domain.document.Direction
 import com.dynokore.gst.canonical.domain.document.NewVersion
 import com.dynokore.gst.canonical.domain.document.PrecedingDocumentSelector
 import com.dynokore.gst.canonical.domain.document.PrecedingResolution
@@ -53,7 +53,7 @@ class JooqNetDerivationDocuments(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
 ) : NetDerivationDocuments {
-    private val mapper = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build()
+    private val rows = NetVersionRows(dsl, tenants)
     private val lookup = JooqPrecedingDocumentLookup(dsl)
 
     override fun currentVersion(docUuid: UUID): Int? =
@@ -77,18 +77,19 @@ class JooqNetDerivationDocuments(
         docUuid: UUID,
         version: Int,
     ): NetBase? {
-        val row = versionRow(docUuid, version) ?: return null
-        val function = functionOf(docUuid, version) ?: return null
-        val rows = CanonicalDerivation.derive(row.canonical)
+        val row = rows.fetch(docUuid, version)
+        val function = functionOf(docUuid, version)
+        if (row == null || function == null) return null
+        val derived = CanonicalDerivation.derive(row.canonical)
         return NetBase(
             entityId = row.entityId,
             direction = row.direction,
             documentFunction = function,
-            currency = currency(row.document),
-            exchangeRate = exchangeRate(row.document),
-            lines = rows.lines.map(::lineOf),
-            subtotals = rows.subtotals.map(::subtotalOf),
-            totals = totals(row.document),
+            currency = NetCanonicalReading.currency(row.document),
+            exchangeRate = NetCanonicalReading.exchangeRate(row.document),
+            lines = derived.lines.map(NetCanonicalReading::lineOf),
+            subtotals = derived.subtotals.map(NetCanonicalReading::subtotalOf),
+            totals = NetCanonicalReading.totals(row.document),
         )
     }
 
@@ -96,9 +97,10 @@ class JooqNetDerivationDocuments(
         docUuid: UUID,
         version: Int,
     ): NetCreditNote? {
-        val row = versionRow(docUuid, version) ?: return null
-        val function = functionOf(docUuid, version) ?: return null
-        val rows = CanonicalDerivation.derive(row.canonical)
+        val row = rows.fetch(docUuid, version)
+        val function = functionOf(docUuid, version)
+        if (row == null || function == null) return null
+        val derived = CanonicalDerivation.derive(row.canonical)
         return NetCreditNote(
             docUuid = docUuid,
             version = version,
@@ -106,11 +108,11 @@ class JooqNetDerivationDocuments(
             entityId = row.entityId,
             direction = row.direction,
             documentFunction = function,
-            currency = currency(row.document),
-            exchangeRate = exchangeRate(row.document),
-            lines = rows.lines.map(::lineOf),
-            subtotals = rows.subtotals.map(::subtotalOf),
-            totals = totals(row.document),
+            currency = NetCanonicalReading.currency(row.document),
+            exchangeRate = NetCanonicalReading.exchangeRate(row.document),
+            lines = derived.lines.map(NetCanonicalReading::lineOf),
+            subtotals = derived.subtotals.map(NetCanonicalReading::subtotalOf),
+            totals = NetCanonicalReading.totals(row.document),
         )
     }
 
@@ -122,19 +124,20 @@ class JooqNetDerivationDocuments(
         docUuid: UUID,
         version: Int,
         createdBy: String,
-    ): NewVersion? {
-        val row = versionRow(docUuid, version) ?: return null
-        return NewVersion(
-            canonical = row.canonical,
-            scopeVerdict = row.record.get(DOCUMENT_VERSION.SCOPE_VERDICT)?.let { ScopeVerdict.valueOf(it) },
-            scopePackVersion = row.record.get(DOCUMENT_VERSION.SCOPE_PACK_VERSION),
-            mappingPackVersion = row.record.get(DOCUMENT_VERSION.MAPPING_PACK_VERSION),
-            mdePackVersion = row.record.get(DOCUMENT_VERSION.MDE_PACK_VERSION),
-            specificationVersion = row.record.get(DOCUMENT_VERSION.SPECIFICATION_VERSION)?.let { SpecificationVersion.valueOf(it) },
-            transactionDate = checkNotNull(row.record.get(DOCUMENT.TRANSACTION_DATE)),
-            createdBy = createdBy,
-        )
-    }
+    ): NewVersion? =
+        rows.fetch(docUuid, version)?.let { row ->
+            NewVersion(
+                canonical = row.canonical,
+                scopeVerdict = row.record.get(DOCUMENT_VERSION.SCOPE_VERDICT)?.let { ScopeVerdict.valueOf(it) },
+                scopePackVersion = row.record.get(DOCUMENT_VERSION.SCOPE_PACK_VERSION),
+                mappingPackVersion = row.record.get(DOCUMENT_VERSION.MAPPING_PACK_VERSION),
+                mdePackVersion = row.record.get(DOCUMENT_VERSION.MDE_PACK_VERSION),
+                specificationVersion =
+                    row.record.get(DOCUMENT_VERSION.SPECIFICATION_VERSION)?.let { SpecificationVersion.valueOf(it) },
+                transactionDate = checkNotNull(row.record.get(DOCUMENT.TRANSACTION_DATE)),
+                createdBy = createdBy,
+            )
+        }
 
     /**
      * The event basis of a version, or null when a fact is not stored: the document has no prescribed period (or the
@@ -144,48 +147,78 @@ class JooqNetDerivationDocuments(
     fun eventBasisOf(
         docUuid: UUID,
         version: Int,
-    ): NetEventBasis? {
-        val row = versionRow(docUuid, version) ?: return null
-        val periodId = row.record.get(DOCUMENT.PRESCRIBED_PERIOD_ID) ?: return null
-        val period =
-            dsl
-                .select(PERIOD_SPAN.ENTITY_REF, PERIOD_SPAN.PERIOD_REF)
-                .from(PERIOD_SPAN)
-                .where(PERIOD_SPAN.TENANT_ID.eq(tenants.current().value))
-                .and(PERIOD_SPAN.PERIOD_ID.eq(periodId))
-                .fetchOne() ?: return null
-        val kind =
-            dsl
-                .select(INBOUND_EVENT.EVENT_KIND)
-                .from(INBOUND_EVENT)
-                .where(INBOUND_EVENT.TENANT_ID.eq(tenants.current().value))
-                .and(INBOUND_EVENT.DOC_UUID.eq(docUuid))
-                .and(INBOUND_EVENT.VERSION.le(version))
-                .orderBy(INBOUND_EVENT.VERSION.desc())
-                .limit(1)
-                .fetchOne(INBOUND_EVENT.EVENT_KIND) ?: return null
-        return NetEventBasis(
-            entityRef = checkNotNull(period.get(PERIOD_SPAN.ENTITY_REF)),
-            prescribedPeriodRef = checkNotNull(period.get(PERIOD_SPAN.PERIOD_REF)),
-            scopeVerdict = row.record.get(DOCUMENT_VERSION.SCOPE_VERDICT) ?: return null,
-            direction = row.direction.name,
-            receivedViaNetwork = kind == "RECEIPT",
-        )
-    }
+    ): NetEventBasis? = rows.basisOf(docUuid, version)
 
-    private class VersionRow(
-        val record: Record,
-        val document: JsonNode,
-        val canonical: String,
-    ) {
-        val entityId: UUID get() = checkNotNull(record.get(DOCUMENT.ENTITY_ID))
-        val direction: Direction get() = Direction.valueOf(checkNotNull(record.get(DOCUMENT.DIRECTION)))
-    }
-
-    private fun versionRow(
+    private fun functionOf(
         docUuid: UUID,
         version: Int,
-    ): VersionRow? {
+    ): DocumentFunction? =
+        dsl
+            .select(INBOUND_EVENT.DOCUMENT_FUNCTION)
+            .from(INBOUND_EVENT)
+            .where(INBOUND_EVENT.TENANT_ID.eq(tenants.current().value))
+            .and(INBOUND_EVENT.DOC_UUID.eq(docUuid))
+            .and(INBOUND_EVENT.VERSION.le(version))
+            .orderBy(INBOUND_EVENT.VERSION.desc())
+            .limit(1)
+            .fetchOne(INBOUND_EVENT.DOCUMENT_FUNCTION)
+            ?.let { DocumentFunction.valueOf(it) }
+
+    private fun precedingOf(
+        docUuid: UUID,
+        row: NetVersionRow,
+    ): UUID? {
+        val number =
+            row.document
+                .path("precedingDocumentNumber")
+                .path("value")
+                .asString(null)
+        val date =
+            row.document
+                .path("precedingDocumentDate")
+                .path("value")
+                .asString(null)
+                ?.let { LocalDate.parse(it) }
+        if (number == null || number.length !in 1..MAX_PRECEDING_NUMBER) return null
+        val reference =
+            PrecedingReference(
+                docUuid,
+                row.entityId,
+                row.direction,
+                checkNotNull(row.record.get(DOCUMENT.ISSUER_PARTY_KEY)),
+                number,
+                date,
+            )
+        return (PrecedingDocumentSelector.select(lookup.candidates(reference), date) as? PrecedingResolution.Resolved)
+            ?.docUuid
+    }
+
+    private companion object {
+        const val MAX_PRECEDING_NUMBER = 64
+    }
+}
+
+/** One stored version joined with its document row: the record, the parsed canonical document and its text. */
+internal class NetVersionRow(
+    val record: Record,
+    val document: JsonNode,
+    val canonical: String,
+) {
+    val entityId: UUID get() = checkNotNull(record.get(DOCUMENT.ENTITY_ID))
+    val direction: Direction get() = Direction.valueOf(checkNotNull(record.get(DOCUMENT.DIRECTION)))
+}
+
+/** The tenant-bound reads of the version row and of the ingestion and period facts around it. */
+internal class NetVersionRows(
+    private val dsl: DSLContext,
+    private val tenants: TenantContext,
+) {
+    private val mapper = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build()
+
+    fun fetch(
+        docUuid: UUID,
+        version: Int,
+    ): NetVersionRow? {
         val record =
             dsl
                 .select(
@@ -209,52 +242,73 @@ class JooqNetDerivationDocuments(
                 .where(DOCUMENT.TENANT_ID.eq(tenants.current().value))
                 .and(DOCUMENT.DOC_UUID.eq(docUuid))
                 .and(DOCUMENT_VERSION.VERSION.eq(version))
-                .fetchOne() ?: return null
-        val canonical = checkNotNull(record.get(DOCUMENT_VERSION.CANONICAL)).data()
-        return VersionRow(record, mapper.readTree(canonical), canonical)
+                .fetchOne()
+        val canonical = record?.get(DOCUMENT_VERSION.CANONICAL)?.data()
+        if (record == null || canonical == null) return null
+        return NetVersionRow(record, mapper.readTree(canonical), canonical)
     }
 
-    private fun functionOf(
+    /** The event basis of a version; null when a fact is not stored (see [JooqNetDerivationDocuments.eventBasisOf]). */
+    fun basisOf(
         docUuid: UUID,
         version: Int,
-    ): DocumentFunction? =
+    ): NetEventBasis? {
+        val row = fetch(docUuid, version) ?: return null
+        val period = periodOf(row)
+        val kind = kindOf(docUuid, version)
+        val verdict = row.record.get(DOCUMENT_VERSION.SCOPE_VERDICT)
+        return if (period == null || kind == null || verdict == null) {
+            null
+        } else {
+            NetEventBasis(
+                entityRef = checkNotNull(period.get(PERIOD_SPAN.ENTITY_REF)),
+                prescribedPeriodRef = checkNotNull(period.get(PERIOD_SPAN.PERIOD_REF)),
+                scopeVerdict = verdict,
+                direction = row.direction.name,
+                receivedViaNetwork = kind == "RECEIPT",
+            )
+        }
+    }
+
+    /** The span (entity reference and period reference) of the prescribed period of the document, if it has one. */
+    private fun periodOf(row: NetVersionRow): Record? =
+        row.record.get(DOCUMENT.PRESCRIBED_PERIOD_ID)?.let { periodId ->
+            dsl
+                .select(PERIOD_SPAN.ENTITY_REF, PERIOD_SPAN.PERIOD_REF)
+                .from(PERIOD_SPAN)
+                .where(PERIOD_SPAN.TENANT_ID.eq(tenants.current().value))
+                .and(PERIOD_SPAN.PERIOD_ID.eq(periodId))
+                .fetchOne()
+        }
+
+    /** The kind of the latest ingestion row of the document at or below [version]. */
+    private fun kindOf(
+        docUuid: UUID,
+        version: Int,
+    ): String? =
         dsl
-            .select(INBOUND_EVENT.DOCUMENT_FUNCTION)
+            .select(INBOUND_EVENT.EVENT_KIND)
             .from(INBOUND_EVENT)
             .where(INBOUND_EVENT.TENANT_ID.eq(tenants.current().value))
             .and(INBOUND_EVENT.DOC_UUID.eq(docUuid))
             .and(INBOUND_EVENT.VERSION.le(version))
             .orderBy(INBOUND_EVENT.VERSION.desc())
             .limit(1)
-            .fetchOne(INBOUND_EVENT.DOCUMENT_FUNCTION)
-            ?.let { DocumentFunction.valueOf(it) }
+            .fetchOne(INBOUND_EVENT.EVENT_KIND)
+}
 
-    private fun precedingOf(
-        docUuid: UUID,
-        row: VersionRow,
-    ): UUID? {
-        val number = row.document.path("precedingDocumentNumber").path("value").asString(null)
-        if (number == null || number.length !in 1..MAX_PRECEDING_NUMBER) return null
-        val date = row.document.path("precedingDocumentDate").path("value").asString(null)?.let { LocalDate.parse(it) }
-        val reference =
-            PrecedingReference(
-                docUuid,
-                row.entityId,
-                row.direction,
-                checkNotNull(row.record.get(DOCUMENT.ISSUER_PARTY_KEY)),
-                number,
-                date,
-            )
-        val resolution = PrecedingDocumentSelector.select(lookup.candidates(reference), date)
-        return (resolution as? PrecedingResolution.Resolved)?.docUuid
-    }
+/** Reads the header facts and the stated totals of a canonical document; money is a decimal string (API-12). */
+private object NetCanonicalReading {
+    fun currency(document: JsonNode): String = document.path("currency").path("value").asString("")
 
-    private fun currency(document: JsonNode): String = document.path("currency").path("value").asString("")
+    fun exchangeRate(document: JsonNode): BigDecimal? =
+        document
+            .path("exchangeRate")
+            .path("value")
+            .asString(null)
+            ?.let { BigDecimal(it) }
 
-    private fun exchangeRate(document: JsonNode): BigDecimal? =
-        document.path("exchangeRate").path("value").asString(null)?.let { BigDecimal(it) }
-
-    private fun totals(document: JsonNode): NetTotals {
+    fun totals(document: JsonNode): NetTotals {
         val value = document.path("totals").path("value")
         return NetTotals(
             excludingTax = money(value, "totalExcludingTax") ?: error("totals.value.totalExcludingTax is missing"),
@@ -266,18 +320,14 @@ class JooqNetDerivationDocuments(
         )
     }
 
+    fun lineOf(line: DerivedLine) =
+        NetLine(line.lineNumber, line.quantity, line.unitPrice, line.lineAmount, line.taxCode, line.taxAmount)
+
+    fun subtotalOf(subtotal: DerivedSubtotal) =
+        NetSubtotal(subtotal.taxCode, subtotal.taxableAmount, subtotal.taxAmount)
+
     private fun money(
         node: JsonNode,
         member: String,
     ): BigDecimal? = node.path(member).asString(null)?.let { BigDecimal(it) }
-
-    private fun lineOf(line: DerivedLine) =
-        NetLine(line.lineNumber, line.quantity, line.unitPrice, line.lineAmount, line.taxCode, line.taxAmount)
-
-    private fun subtotalOf(subtotal: DerivedSubtotal) =
-        NetSubtotal(subtotal.taxCode, subtotal.taxableAmount, subtotal.taxAmount)
-
-    private companion object {
-        const val MAX_PRECEDING_NUMBER = 64
-    }
 }

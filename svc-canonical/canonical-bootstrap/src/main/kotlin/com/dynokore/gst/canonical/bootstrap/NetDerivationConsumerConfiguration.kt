@@ -16,8 +16,8 @@ import com.dynokore.gst.canonical.application.document.RoutingNetworkPath
 import com.dynokore.gst.canonical.application.netting.NetDerivationRequestHandler
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.ContractViolation
-import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventCatalogue
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventLogReader
@@ -95,7 +95,10 @@ class NetDerivationConsumerConfiguration {
         trace: InboundEventTrace,
         request: NetDerivationRequestScope,
     ): EventHandler =
-        InboundTraceHandler(NetDerivationRequestedEventHandler(NetDerivationRequestedReader(), handler, transaction, request), trace)
+        InboundTraceHandler(
+            NetDerivationRequestedEventHandler(NetDerivationRequestedReader(), handler, transaction, request),
+            trace,
+        )
 
     @Bean
     @Suppress("LongParameterList")

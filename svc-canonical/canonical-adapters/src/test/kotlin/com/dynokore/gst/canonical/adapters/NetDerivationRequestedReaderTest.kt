@@ -46,7 +46,7 @@ class NetDerivationRequestedReaderTest {
         try {
             reader.read(data)
             true
-        } catch (e: ContractViolation) {
+        } catch (_: ContractViolation) {
             false
         }
 
@@ -68,7 +68,8 @@ class NetDerivationRequestedReaderTest {
 
     @Test
     fun `INV-AC-25342 a valid request is read into the original, the base version and the credit note list`() {
-        val request = reader.read(payload(notes = "[{\"docUuid\":\"$noteA\",\"version\":2},{\"docUuid\":\"$noteB\",\"version\":1}]"))
+        val two = "[{\"docUuid\":\"$noteA\",\"version\":2},{\"docUuid\":\"$noteB\",\"version\":1}]"
+        val request = reader.read(payload(notes = two))
         request.originalDocUuid shouldBe UUID.fromString(original)
         request.expectedBaseVersion shouldBe 1
         request.creditNotes.map { it.docUuid to it.version } shouldBe
@@ -110,9 +111,10 @@ class NetDerivationRequestedReaderTest {
 
     @Test
     fun `INV-AC-25342 look-alike members and values are refused, never matched loosely`() {
-        agree("{\"originalDocUuid\":\"$original\",\"expectedBaseversion\":1,\"creditNotes\":[{\"docUuid\":\"$noteA\",\"version\":1}]}", false)
-        agree("{\"originalDocUuid\":\"$original\",\"expectedBaseVersion\":1,\"creditnotes\":[{\"docUuid\":\"$noteA\",\"version\":1}]}", false)
-        agree("{\"originaldocuuid\":\"$original\",\"expectedBaseVersion\":1,\"creditNotes\":[{\"docUuid\":\"$noteA\",\"version\":1}]}", false)
+        val note = "[{\"docUuid\":\"$noteA\",\"version\":1}]"
+        agree("{\"originalDocUuid\":\"$original\",\"expectedBaseversion\":1,\"creditNotes\":$note}", false)
+        agree("{\"originalDocUuid\":\"$original\",\"expectedBaseVersion\":1,\"creditnotes\":$note}", false)
+        agree("{\"originaldocuuid\":\"$original\",\"expectedBaseVersion\":1,\"creditNotes\":$note}", false)
         agree(payload(original = "\"$original \""), false)
         agree(payload(original = "\"{$original}\""), false)
         agree(payload(original = "\"urn:uuid:$original\""), false)
@@ -132,28 +134,43 @@ class NetDerivationRequestedReaderTest {
     // ---- the version builder ----
 
     private val invoiceCanonical =
-        """{"documentTypeCode":{"value":"380","classification":"NONE"},"currency":{"value":"SGD","classification":"NONE"},""" +
+        """{"documentTypeCode":{"value":"380","classification":"NONE"},""" +
+            """"currency":{"value":"SGD","classification":"NONE"},""" +
             """"documentNumber":{"value":"INV-1","classification":"NONE"},""" +
             """"parties":{"value":{"supplier":{"identifierScheme":"UEN","identifierValue":"201912345A"},""" +
             """"buyer":{"identifierScheme":"UEN","identifierValue":"201912345B"}},"classification":"IDENTIFYING"},""" +
             """"lines":{"value":[{"lineNumber":1,"description":"Consulting","quantity":1,"unitPrice":"9000.00",""" +
-            """"lineAmount":"9000.00","taxCode":"SR","taxAmount":"810.00","unitCode":"EA"}],"classification":"NONE"},""" +
-            """"taxSubtotals":{"value":[{"taxCode":"SR","taxableAmount":"9000.00","taxAmount":"810.00"}],"classification":"NONE"},""" +
+            """"lineAmount":"9000.00","taxCode":"SR","taxAmount":"810.00","unitCode":"EA"}],""" +
+            """"classification":"NONE"},""" +
+            """"taxSubtotals":{"value":[{"taxCode":"SR","taxableAmount":"9000.00","taxAmount":"810.00"}],""" +
+            """"classification":"NONE"},""" +
             """"totals":{"value":{"totalExcludingTax":"9000.00","totalTax":"810.00","totalIncludingTax":"9810.00"},""" +
             """"classification":"NONE"},"invoiceNote":{"value":"keep me","classification":"NONE"}}"""
 
-    private val line = NetLine(1, BigDecimal.ONE, BigDecimal("9000.00"), BigDecimal("9000.00"), "SR", BigDecimal("810.00"))
+    private val line =
+        NetLine(1, BigDecimal.ONE, BigDecimal("9000.00"), BigDecimal("9000.00"), "SR", BigDecimal("810.00"))
     private val entity = UUID.randomUUID()
     private val base =
         NetBase(
-            entity, Direction.PURCHASE, DocumentFunction.INVOICE, "SGD", null, listOf(line),
+            entity,
+            Direction.PURCHASE,
+            DocumentFunction.INVOICE,
+            "SGD",
+            null,
+            listOf(line),
             listOf(NetSubtotal("SR", BigDecimal("9000.00"), BigDecimal("810.00"))),
             NetTotals(BigDecimal("9000.00"), BigDecimal("810.00"), BigDecimal("9810.00")),
         )
     private val note =
         NetCreditNote(
-            UUID.fromString(noteA), 1, UUID.fromString(original), entity, Direction.PURCHASE, DocumentFunction.CREDIT_NOTE,
-            "SGD", null,
+            UUID.fromString(noteA),
+            1,
+            UUID.fromString(original),
+            entity,
+            Direction.PURCHASE,
+            DocumentFunction.CREDIT_NOTE,
+            "SGD",
+            null,
             listOf(NetLine(1, BigDecimal.ONE, BigDecimal("1000.00"), BigDecimal("1000.00"), "SR", BigDecimal("90.00"))),
             listOf(NetSubtotal("SR", BigDecimal("1000.00"), BigDecimal("90.00"))),
             NetTotals(BigDecimal("1000.00"), BigDecimal("90.00"), BigDecimal("1090.00")),
@@ -163,8 +180,14 @@ class NetDerivationRequestedReaderTest {
         val derived = NetDerivation.derive(UUID.fromString(original), base, listOf(note)) as Derived
         val stored =
             NewVersion(
-                canonical, ScopeVerdict.IN_SCOPE, "scope-1", "map-1", null, SpecificationVersion.PINT_SG,
-                LocalDate.of(2026, 3, 20), "svc:old",
+                canonical,
+                ScopeVerdict.IN_SCOPE,
+                "scope-1",
+                "map-1",
+                null,
+                SpecificationVersion.PINT_SG,
+                LocalDate.of(2026, 3, 20),
+                "svc:old",
             )
         val built = JacksonNetDerivedVersions { _, _ -> stored }.build(UUID.fromString(original), 1, derived)
         return built to derived
@@ -174,7 +197,7 @@ class NetDerivationRequestedReaderTest {
     private val replaced = setOf("lines", "taxSubtotals", "totals")
 
     @Test
-    fun `INV-AC-25342 the version builder replaces exactly lines, taxSubtotals and totals and keeps every other member`() {
+    fun `INV-AC-25342 the version builder replaces exactly lines, taxSubtotals and totals, nothing else`() {
         val (built, _) = build()
         val before = tree.readTree(invoiceCanonical) as ObjectNode
         val after = tree.readTree(built.canonical) as ObjectNode
@@ -182,7 +205,9 @@ class NetDerivationRequestedReaderTest {
         before.propertyNames().asSequence().filter { it !in replaced }.forEach { name ->
             after.get(name).toString() shouldBe before.get(name).toString()
         }
-        replaced.forEach { after.get(it).get("classification").toString() shouldBe before.get(it).get("classification").toString() }
+        replaced.forEach {
+            after.get(it).get("classification").toString() shouldBe before.get(it).get("classification").toString()
+        }
         (after.get("lines").get("value").toString() != before.get("lines").get("value").toString()) shouldBe true
         // the metadata of the base version is carried, not rebuilt
         built.scopeVerdict shouldBe ScopeVerdict.IN_SCOPE
@@ -196,12 +221,23 @@ class NetDerivationRequestedReaderTest {
         val after = tree.readTree(built.canonical)
         val lines = after.get("lines").get("value")
         lines.size() shouldBe 2
-        lines.get(0).toString() shouldBe tree.readTree(invoiceCanonical).get("lines").get("value").get(0).toString()
+        lines.get(0).toString() shouldBe
+            tree
+                .readTree(invoiceCanonical)
+                .get("lines")
+                .get("value")
+                .get(0)
+                .toString()
         lines.get(1).get("lineAmount").asString() shouldBe "-1000.00"
         lines.get(1).get("taxAmount").asString() shouldBe "-90.00"
         lines.get(1).get("unitPrice").asString() shouldBe "-1000.00"
         lines.get(1).get("taxCode").asString() shouldBe "SR"
-        after.get("taxSubtotals").get("value").get(0).get("taxableAmount").asString() shouldBe "8000.00"
+        after
+            .get("taxSubtotals")
+            .get("value")
+            .get(0)
+            .get("taxableAmount")
+            .asString() shouldBe "8000.00"
         val totals = after.get("totals").get("value")
         totals.get("totalExcludingTax").asString() shouldBe "8000.00"
         totals.get("totalTax").asString() shouldBe "720.00"

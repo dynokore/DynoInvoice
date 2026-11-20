@@ -55,8 +55,7 @@ class JacksonNetDerivedVersions(
     private fun member(
         root: ObjectNode,
         name: String,
-    ): ObjectNode =
-        checkNotNull(root.get(name) as? ObjectNode) { "the base canonical document has no $name member" }
+    ): ObjectNode = checkNotNull(root.get(name) as? ObjectNode) { "the base canonical document has no $name member" }
 
     private fun adjustment(line: NetLine): JsonNode =
         mapper

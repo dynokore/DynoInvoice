@@ -12,7 +12,7 @@ import tools.jackson.databind.node.ObjectNode
 import java.io.File
 import com.networknt.schema.SpecificationVersion as SchemaDialect
 
-/** The pinned contract documents of the net derivation tests, read the way the other contract-schema tests read them. */
+/** The pinned contract documents of the net derivation tests, read as the other contract-schema tests read them. */
 internal object NetContractSchemas {
     val mapper = ObjectMapper()
 
@@ -39,7 +39,10 @@ internal object NetContractSchemas {
 
     /** The `canonicalDocument` definition of the CanonicalVersionCreated schema, as a schema of its own. */
     fun canonicalDocumentSchema(): String =
-        mapper.readTree(canonicalSchemaText("canonical-version-created-payload.schema.json"))["properties"]["canonicalDocument"]
+        mapper
+            .readTree(
+                canonicalSchemaText("canonical-version-created-payload.schema.json"),
+            )["properties"]["canonicalDocument"]
             .toString()
 }
 
