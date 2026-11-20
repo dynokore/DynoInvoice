@@ -4,7 +4,7 @@ operation	getAcknowledgementChain	INV-T-20577
 operation	reverseLookup	INV-T-20725
 operation	getEvidenceExport	INV-T-22957
 operation	getIntegrityReport	UNASSIGNED
-operation	getCase	UNASSIGNED
+operation	getCase	INV-T-11694
 operation	placeLegalHold	UNASSIGNED
 operation	releaseLegalHold	UNASSIGNED
 operation	getIntegrityStatus	UNASSIGNED
@@ -13,7 +13,7 @@ operation	createAuditPackExport	UNASSIGNED
 operation	getAuditPackExport	UNASSIGNED
 operation	deleteAtRetentionEnd	INV-T-22971
 operation	getPartitionDeletion	INV-T-22971
-operation	recordSecurityCase	UNASSIGNED
+operation	recordSecurityCase	INV-T-11694
 operation	importPriorEvidence	UNASSIGNED
 operation	openPrivacyCase	UNASSIGNED
 operation	closePrivacyCase	UNASSIGNED
