@@ -34,7 +34,9 @@ import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean
 import org.springframework.context.ApplicationContext
+import org.springframework.core.io.ClassPathResource
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.io.File
@@ -43,6 +45,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
+import java.util.zip.ZipFile
 import com.networknt.schema.SpecificationVersion as SchemaDialect
 
 /** The fixtures and the plumbing the two exchange test classes share (P109: the real context, real handler bean). */
@@ -75,8 +78,18 @@ internal object SampleExchangeKit {
     fun schemaErrors(payload: JsonNode): List<String> =
         registry.getSchema(schemaFile().readText()).validate(payload).map { it.toString() }
 
+    /** The context carries the property of the production application.yaml, with no override. */
     fun context(dir: Path) =
-        CanonicalContext.online(dir).withPropertyValues("gst.sample.recorded-schema-file=${schemaFile().path}")
+        CanonicalContext
+            .online(dir)
+            .withPropertyValues("${SampleConfiguration.SCHEMA_FILE_PROPERTY}=${productionSchemaLocation()}")
+
+    fun productionSchemaLocation(): String {
+        val yaml = YamlPropertiesFactoryBean().apply { setResources(ClassPathResource("application.yaml")) }.getObject()
+        return checkNotNull(
+            yaml?.getProperty(SampleConfiguration.SCHEMA_FILE_PROPERTY),
+        ) { "application.yaml has no property" }
+    }
 
     fun owner(sql: String) {
         CanonicalDb.superuser().use { it.createStatement().use { s -> s.execute(sql) } }
@@ -602,9 +615,47 @@ class SampleExchangeIT {
     }
 
     @Test
-    fun `INV-AC-19914 the page limit is the maxItems of the schema file`() {
-        SampleConfiguration.maxItems(SampleExchangeKit.schemaFile().path) shouldBe SampleExchangeKit.maxItems
+    fun `INV-AC-19914 the boot jar holds exactly one staged schema entry with the bundle maxItems`() {
+        val entry =
+            "BOOT-INF/classes/gst/contracts/service-runtime/schemas/" +
+                "pack-dry-run-sample-recorded-payload.schema.json"
+        ZipFile(checkNotNull(System.getProperty("gst.boot.jar")) { "gst.boot.jar is not set" }).use { jar ->
+            val names =
+                jar
+                    .entries()
+                    .asSequence()
+                    .map { it.name }
+                    .filter { it.endsWith(".schema.json") }
+                    .toList()
+            names shouldBe listOf(entry)
+            val text = jar.getInputStream(jar.getEntry(entry)).use { it.readBytes().decodeToString() }
+            val staged = SampleExchangeKit.mapper.readTree(text)
+            staged
+                .path("properties")
+                .path("documents")
+                .path("maxItems")
+                .asInt() shouldBe SampleExchangeKit.maxItems
+        }
+    }
+
+    @Test
+    fun `INV-AC-19914 the bean wiring with no override reads the staged maxItems`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val location = checkNotNull(context.environment.getProperty(SampleConfiguration.SCHEMA_FILE_PROPERTY))
+        location shouldBe SampleExchangeKit.productionSchemaLocation()
+        SampleConfiguration.maxItems(location, context) shouldBe SampleExchangeKit.maxItems
+    }
+
+    @Test
+    fun `INV-AC-19914 a missing resource, a blank location and a schema with no maxItems all fail`(
+        @TempDir dir: Path,
+    ) {
         runCatching { SampleConfiguration.maxItems("") }.isFailure shouldBe true
-        runCatching { SampleConfiguration.maxItems("/nonexistent/schema.json") }.isFailure shouldBe true
+        runCatching { SampleConfiguration.maxItems("classpath:gst/contracts/none.json") }.isFailure shouldBe true
+        runCatching { SampleConfiguration.maxItems("file:/nonexistent/schema.json") }.isFailure shouldBe true
+        val noMax = dir.resolve("no-max.json").toFile().apply { writeText("""{"properties":{"documents":{}}}""") }
+        runCatching { SampleConfiguration.maxItems("file:${noMax.path}") }.isFailure shouldBe true
+        SampleConfiguration.maxItems("file:${SampleExchangeKit.schemaFile().path}") shouldBe SampleExchangeKit.maxItems
     }
 }

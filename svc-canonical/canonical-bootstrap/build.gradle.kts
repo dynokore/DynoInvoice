@@ -5,7 +5,14 @@ plugins {
     id("org.springframework.boot")
 }
 
+// The pinned platform-contracts bundle, resolved on its own (non-transitive, the coordinates of canonical-contract).
+val contractsBundle by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+
 dependencies {
+    contractsBundle(variantOf(libs.platformContracts.bundle) { artifactType("zip") })
     implementation(platform(libs.platform.bom))
     implementation(platform(libs.springBoot.dependencies))
     implementation(project(":canonical-adapters"))
@@ -44,4 +51,27 @@ tasks.withType<Test>().configureEach {
             "contracts-repo/platform-contracts/canonical/${libs.versions.platformContractsBundle.get()}",
         )
     systemProperty("gst.contract.dir", contractDir.get().asFile.path)
+}
+
+// The page limit of the dry-run sample is read from the one contract file at run time: exactly this entry of the
+// pinned bundle is staged into the classpath resources (contract-first, no committed copy, no literal number).
+val sampleSchemaEntry = "service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json"
+val stageSampleSchema by tasks.registering(Sync::class) {
+    from(zipTree(contractsBundle.singleFile)) { include(sampleSchemaEntry) }
+    into(layout.buildDirectory.dir("generated/sample-schema/resources"))
+    eachFile { path = "gst/contracts/$path" }
+    includeEmptyDirs = false
+}
+sourceSets.main { resources.srcDir(stageSampleSchema.map { it.destinationDir }) }
+tasks.processResources { dependsOn(stageSampleSchema) }
+tasks.withType<Test>().configureEach {
+    dependsOn(tasks.bootJar)
+    systemProperty(
+        "gst.boot.jar",
+        tasks.bootJar
+            .get()
+            .archiveFile
+            .get()
+            .asFile.path,
+    )
 }

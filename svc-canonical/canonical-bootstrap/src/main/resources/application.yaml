@@ -35,6 +35,7 @@ logging.structured.format.console: ecs # STK-35
 gst:
   service: canonical-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
+  sample.recorded-schema-file: classpath:gst/contracts/service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json
 canonical:
   # required, no default (twelve-factor config): RulesEdge.baseUrl and MasterDataEdge.baseUrl refuse a missing value
   rules-svc-url: ${CANONICAL_RULES_SVC_URL}

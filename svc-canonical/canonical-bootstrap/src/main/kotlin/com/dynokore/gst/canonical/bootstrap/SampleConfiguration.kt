@@ -28,8 +28,9 @@ import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
+import org.springframework.core.io.DefaultResourceLoader
+import org.springframework.core.io.ResourceLoader
 import tools.jackson.databind.json.JsonMapper
-import java.io.File
 import java.time.Clock
 
 /**
@@ -72,12 +73,13 @@ class SampleConfiguration {
         functions: SampleDocumentFunctions,
         calendar: SamplePeriodCalendar,
         environment: Environment,
+        loader: ResourceLoader,
     ): EventHandler {
         val identities = JooqEntityIdentities(dsl)
         val markers = JooqSampleRequestMarkers(dsl, clock)
         val answer by lazy {
             val schemaFile = environment.getProperty(SCHEMA_FILE_PROPERTY).orEmpty()
-            AnswerSampleRequest(reader, publisher, functions, calendar, maxItems(schemaFile))
+            AnswerSampleRequest(reader, publisher, functions, calendar, maxItems(schemaFile, loader))
         }
         return InboundTraceHandler(
             SampleRequestInbox(
@@ -117,14 +119,22 @@ class SampleConfiguration {
         const val SCHEMA = "canonical"
         const val SCHEMA_FILE_PROPERTY = "gst.sample.recorded-schema-file"
 
-        /** `properties.documents.maxItems` of the schema file; a blank path, a missing file or member is an error. */
-        fun maxItems(schemaFile: String): Int {
+        /**
+         * `properties.documents.maxItems` of the schema at the Spring resource location (a boot jar entry is read
+         * through the resource, never a File); a blank location, a missing resource or member is an error.
+         */
+        fun maxItems(
+            schemaFile: String,
+            loader: ResourceLoader = DefaultResourceLoader(),
+        ): Int {
             check(schemaFile.isNotBlank()) { "gst.sample.recorded-schema-file is not set" }
+            val resource = loader.getResource(schemaFile)
+            check(resource.exists()) { "the schema resource $schemaFile does not exist" }
             val node =
                 JsonMapper
                     .builder()
                     .build()
-                    .readTree(File(schemaFile).readText())
+                    .readTree(resource.inputStream.use { it.readBytes().decodeToString() })
                     .path("properties")
                     .path("documents")
                     .path("maxItems")

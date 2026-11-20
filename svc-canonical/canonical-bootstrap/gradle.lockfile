@@ -254,6 +254,7 @@ org.testcontainers:jdbc:1.21.4=testRuntimeClasspath
 org.testcontainers:postgresql:1.21.4=testRuntimeClasspath
 org.testcontainers:testcontainers:2.0.5=testRuntimeClasspath
 org.yaml:snakeyaml:2.6=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
+platform-contracts-bundle:platform-contracts:0.0.0-dev+959c1cac=contractsBundle
 tools.jackson.core:jackson-core:3.2.3=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 tools.jackson.core:jackson-databind:3.2.3=compileClasspath,productionRuntimeClasspath,runtimeClasspath,testCompileClasspath,testRuntimeClasspath
 tools.jackson.dataformat:jackson-dataformat-yaml:3.2.3=testCompileClasspath,testRuntimeClasspath
