@@ -4,6 +4,7 @@ import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DO
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.DOCUMENT_VERSION
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.INBOUND_EVENT
 import com.dynokore.gst.canonical.adapters.persistence.jooq.tables.references.PERIOD_SPAN
+import com.dynokore.gst.canonical.application.document.AppliedPackVersion
 import com.dynokore.gst.canonical.application.document.PrecedingReference
 import com.dynokore.gst.canonical.application.netting.NetDerivationDocuments
 import com.dynokore.gst.canonical.domain.document.DerivedLine
@@ -136,6 +137,31 @@ class JooqNetDerivationDocuments(
                     row.record.get(DOCUMENT_VERSION.SPECIFICATION_VERSION)?.let { SpecificationVersion.valueOf(it) },
                 transactionDate = checkNotNull(row.record.get(DOCUMENT.TRANSACTION_DATE)),
                 createdBy = createdBy,
+            )
+        }
+
+    /**
+     * The packs applied to a stored version, read from its own row: SCOPE, then MAPPING, then MDE only when its column
+     * is not null (the order of the record path). A null scope or mapping column throws (the version was not derived),
+     * so the caller's transaction rolls back; null when the version is unknown.
+     */
+    fun appliedPacksOf(
+        docUuid: UUID,
+        version: Int,
+    ): List<AppliedPackVersion>? =
+        rows.fetch(docUuid, version)?.let { row ->
+            val scope =
+                checkNotNull(row.record.get(DOCUMENT_VERSION.SCOPE_PACK_VERSION)) {
+                    "$docUuid v$version has no scope pack"
+                }
+            val mapping =
+                checkNotNull(row.record.get(DOCUMENT_VERSION.MAPPING_PACK_VERSION)) {
+                    "$docUuid v$version has no mapping pack"
+                }
+            listOfNotNull(
+                AppliedPackVersion("SCOPE", scope),
+                AppliedPackVersion("MAPPING", mapping),
+                row.record.get(DOCUMENT_VERSION.MDE_PACK_VERSION)?.let { AppliedPackVersion("MDE", it) },
             )
         }
 

@@ -126,8 +126,8 @@ class NetDerivationConsumerConfiguration {
     /**
      * The facts of the CanonicalVersionCreated event of the derived version, as far as they are stored: the entity,
      * period, scope verdict, direction and network path of the base version, the derived canonical text, and a trace
-     * reference of the same shape as the record path. `appliedPackVersions` is empty: the pack identifiers are not
-     * stored with a version (gap reported in the merge request).
+     * reference of the same shape as the record path. `appliedPackVersions` are the base version's stored SCOPE,
+     * MAPPING and (when present) MDE pack versions.
      */
     private fun factsOf(
         documents: JooqNetDerivationDocuments,
@@ -147,7 +147,10 @@ class NetDerivationConsumerConfiguration {
             transactionDate = transactionDate,
             prescribedPeriodRef = basis.prescribedPeriodRef,
             scopeVerdict = basis.scopeVerdict,
-            appliedPackVersions = emptyList(),
+            appliedPackVersions =
+                checkNotNull(documents.appliedPacksOf(docUuid, net.baseVersion)) {
+                    "$docUuid v${net.baseVersion} is not stored"
+                },
             traceReference = "trace/$docUuid/v${net.baseVersion + 1}",
             canonicalDocument = versions.takeCanonical(),
             aggregateId = null,

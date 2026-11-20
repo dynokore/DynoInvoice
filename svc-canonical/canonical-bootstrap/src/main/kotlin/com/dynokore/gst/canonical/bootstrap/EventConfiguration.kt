@@ -6,8 +6,9 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events canonical-svc may emit (INV-REQ-815 behaviour 2): the six of model/architecture/events.yaml it produces,
- * each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type.
+ * The events canonical-svc may emit (INV-REQ-815 behaviour 2): the six of model/architecture/events.yaml it produces
+ * and NetDerivationRefused (seven in all), each on the topic its AsyncAPI channel names. The emission guard of the
+ * outbox refuses any other type.
  */
 @Configuration(proxyBeanMethods = false)
 class EventConfiguration {
@@ -28,6 +29,7 @@ object CanonicalEvents {
             "DocumentHeld" to "gst.canonical.document-held.v1",
             "DocumentReleased" to "gst.canonical.document-released.v1",
             "PeriodReassigned" to "gst.canonical.period-reassigned.v1",
+            "NetDerivationRefused" to "gst.canonical.net-derivation-refused.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
     val entries: List<CatalogueEntry> =

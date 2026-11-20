@@ -148,7 +148,7 @@ open class NetDerivationHarness {
             transactionDate = checkNotNull(documents.transactionDateOf(doc)),
             prescribedPeriodRef = basis.prescribedPeriodRef,
             scopeVerdict = basis.scopeVerdict,
-            appliedPackVersions = emptyList(),
+            appliedPackVersions = checkNotNull(documents.appliedPacksOf(doc, net.baseVersion)),
             traceReference = "trace/$doc/v${net.baseVersion + 1}",
             canonicalDocument = versions.takeCanonical(),
             aggregateId = null,
@@ -179,13 +179,16 @@ open class NetDerivationHarness {
         """"totals":{"value":{"totalExcludingTax":"$amount","totalTax":"$tax","totalIncludingTax":"$gross"},""" +
         """"classification":"NONE"}}"""
 
+    /** The scope, mapping and MDE pack versions the seeded rows store; a test sets them before it seeds. */
+    var packs: Triple<String?, String?, String?> = Triple("scope-1", "map-1", null)
+
     fun version(canonical: String) =
         NewVersion(
             canonical,
             ScopeVerdict.IN_SCOPE,
-            "scope-1",
-            "map-1",
-            null,
+            packs.first,
+            packs.second,
+            packs.third,
             SpecificationVersion.PINT_SG,
             DAY,
             "svc:seed",
@@ -531,5 +534,72 @@ class NetDerivationDbTest : NetDerivationHarness() {
         event.get("netDerivation").toString() shouldBe
             """{"kind":"SYSTEM_DERIVED","baseVersion":1,"creditNotes":[{"docUuid":"${s.note}","version":1}]}"""
         event.get("canonicalDocument").excludingTax() shouldBe "8000.00"
+    }
+
+    private fun packsOfEvent(s: Seed): String =
+        payload(outboxData(s, CREATED).single())
+            .get("appliedPackVersions")
+            .joinToString(",") { it.get("packIdentifier").asString() + "=" + it.get("version").asString() }
+
+    private fun packColumns(
+        s: Seed,
+        version: Int,
+    ): List<String?> =
+        read(
+            s.tenant,
+            "select scope_pack_version, mapping_pack_version, mde_pack_version from canonical.document_version " +
+                "where doc_uuid = ?::uuid and version = $version",
+            s.invoice,
+        ).single()
+
+    @Test
+    fun `INV-AC-25342 appliedPackVersions equals the base columns for a base with an MDE version`() {
+        packs = Triple("1.0.0", "2.0.0", "3.0.0")
+        val s = seed()
+        handle(s, UUID.randomUUID(), base = 1)
+        packsOfEvent(s) shouldBe "SCOPE=1.0.0,MAPPING=2.0.0,MDE=3.0.0"
+        NetContractSchemas.errors(createdSchema, outboxData(s, CREATED).single()).shouldBeEmpty()
+        packColumns(s, 2) shouldBe listOf("1.0.0", "2.0.0", "3.0.0")
+    }
+
+    @Test
+    fun `INV-AC-25342 appliedPackVersions has two members and no MDE for a base without an MDE version`() {
+        packs = Triple("1.0.0", "2.0.0", null)
+        val s = seed()
+        handle(s, UUID.randomUUID(), base = 1)
+        packsOfEvent(s) shouldBe "SCOPE=1.0.0,MAPPING=2.0.0"
+        packColumns(s, 2) shouldBe packColumns(s, 1)
+        packColumns(s, 2) shouldBe listOf("1.0.0", "2.0.0", null)
+    }
+
+    @Test
+    fun `INV-AC-25342 scope 1_0_0 and mapping 2_0_0 are not swapped in the event or the derived row`() {
+        packs = Triple("1.0.0", "2.0.0", null)
+        val s = seed()
+        handle(s, UUID.randomUUID(), base = 1)
+        val members = payload(outboxData(s, CREATED).single()).get("appliedPackVersions")
+        members.get(0).get("packIdentifier").asString() shouldBe "SCOPE"
+        members.get(0).get("version").asString() shouldBe "1.0.0"
+        members.get(1).get("packIdentifier").asString() shouldBe "MAPPING"
+        members.get(1).get("version").asString() shouldBe "2.0.0"
+        packColumns(s, 2)[0] shouldBe "1.0.0"
+        packColumns(s, 2)[1] shouldBe "2.0.0"
+    }
+
+    @Test
+    fun `INV-AC-25342 a base with a null mapping pack stores nothing, stages nothing and leaves the mark unset`() {
+        packs = Triple("1.0.0", null, null)
+        val s = seed()
+        val event = UUID.randomUUID()
+        shouldThrow<IllegalStateException> { handle(s, event, base = 1) }
+        versionCount(s) shouldBe 1
+        recordRows(s) shouldBe 0
+        outboxData(s, CREATED).shouldBeEmpty()
+        read(
+            s.tenant,
+            "select count(*) from canonical.processed_net_derivation_request where request_event_id = ?::uuid",
+            event,
+        ).single()
+            .single() shouldBe "0"
     }
 }
