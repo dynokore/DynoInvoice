@@ -34,6 +34,11 @@ class CodeCatalogue(
     fun contains(code: String): Boolean = code in byCode
 
     fun entryOf(code: String): CatalogueEntry? = byCode[code]
+
+    /** Value equality: two reads of one pack version are equal, so a coded document holding one compares by content. */
+    override fun equals(other: Any?): Boolean = other is CodeCatalogue && complete == other.complete && entries == other.entries
+
+    override fun hashCode(): Int = 31 * complete.hashCode() + entries.hashCode()
 }
 
 /** A mapping entry as the coding reads it: the tenant's internal code, the IRAS code and the optional scheme tag. */
