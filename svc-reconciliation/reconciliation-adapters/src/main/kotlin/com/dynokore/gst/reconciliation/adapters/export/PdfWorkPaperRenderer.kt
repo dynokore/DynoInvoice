@@ -25,7 +25,8 @@ class UnsupportedExportTextException(
 
 /**
  * PDF writer of the work-paper export (INV-REQ-982). A4 landscape, embedded subset fonts Noto Sans and Noto Sans
- * Tamil (a code point goes to the first font that maps it); the items are read only through [ExportRows.of]. Every text is checked against the font before any page is drawn (fail closed: nothing is
+ * Tamil (a code point goes to the first font that maps it); the items are read only through
+ * [ExportRows.of]. Every text is checked against the fonts before any page is drawn (fail closed: nothing is
  * replaced). The document uses a temporary-file-backed stream cache (bounded memory) and is
  * closed in a `finally`. No clock is read and no date is stored, so the content depends on the export only.
  */

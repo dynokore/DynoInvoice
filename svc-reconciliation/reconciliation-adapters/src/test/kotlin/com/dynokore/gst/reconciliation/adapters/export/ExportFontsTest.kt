@@ -55,9 +55,7 @@ class ExportFontsTest {
     }
 
     private fun sha(bytes: ByteArray) =
-        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") {
-            "%02x".format(it)
-        }
+        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes))
 
     private fun flipByte(file: Path) {
         val b = Files.readAllBytes(file)
