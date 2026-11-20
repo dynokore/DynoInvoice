@@ -50,6 +50,8 @@ class EventPayloadContractTest {
                 """{"docUuid":"$DOC","docsequence":1,"oldPrescribedPeriodRef":"2026-Q1",
                 |"newPrescribedPeriodRef":"2026-Q2","cause":"frequency change"}
                 """.trimMargin(),
+            "NetDerivationRefused" to
+                """{"originalDocUuid":"$DOC","requestEventId":"req-0001","reason":"BASE_CHANGED"}""",
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
 
@@ -104,6 +106,20 @@ class EventPayloadContractTest {
                 }
             }
         }
+
+    @Test
+    fun `INV-AC-25557 the NetDerivationRefused sample validates and each required member is needed`() {
+        val sample = checkNotNull(samples["NetDerivationRefused"])
+        errors("NetDerivationRefused", sample).shouldBeEmpty()
+        listOf("originalDocUuid", "requestEventId", "reason").forEach { property ->
+            val without =
+                mapper
+                    .readTree(sample)
+                    .also { (it as tools.jackson.databind.node.ObjectNode).remove(property) }
+            errors("NetDerivationRefused", without.toString()).shouldNotBeEmpty()
+        }
+        channels()["gst.canonical.net-derivation-refused.v1"] shouldBe "NetDerivationRefused"
+    }
 
     @Test
     fun `every sample belongs to a channel of the contract`() {
