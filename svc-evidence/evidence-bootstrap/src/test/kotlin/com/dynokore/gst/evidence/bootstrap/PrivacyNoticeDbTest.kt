@@ -7,6 +7,7 @@ import com.dynokore.gst.evidence.application.cases.OpenResult
 import com.dynokore.gst.evidence.application.cases.PrivacyCaseService
 import com.dynokore.gst.evidence.domain.cases.RequestKind
 import com.dynokore.gst.evidence.retention.RetentionService
+import com.dynokore.gst.evidence.retention.TestIdentity
 import com.dynokore.gst.evidence.retention.WorkloadTokensOnly
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.serviceruntime.replica.GrantScope
@@ -21,6 +22,10 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.nio.file.Files
 import java.nio.file.Path
 import java.time.LocalDate
@@ -28,11 +33,13 @@ import java.util.UUID
 
 /**
  * The notice step and the deadline of a case on PostgreSQL, in the service as TPL-18 composes it (INV-T-6842;
- * INV-REQ-1403 behavior 3, INV-REQ-1401). The step runs for one tenant per call.
+ * INV-REQ-1403 behavior 3, INV-REQ-1401). The step runs for one tenant per call. The dates of the tenant-lead case are
+ * counted from today, since a policy value is effective from the day it is written and never backdated.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PrivacyNoticeDbTest {
     private val mapper = ObjectMapper()
+    private val client = HttpClient.newHttpClient()
     private lateinit var dir: Path
     private lateinit var service: RetentionService
     private lateinit var cases: PrivacyCaseService
@@ -97,6 +104,11 @@ class PrivacyNoticeDbTest {
         on: String,
     ): Int = bound(tenant) { prompter.promptNotices(TenantId(tenant), LocalDate.parse(on)) }
 
+    private fun prompt(
+        tenant: UUID,
+        on: LocalDate,
+    ): Int = prompt(tenant, on.toString())
+
     private fun scalar(
         sql: String,
         vararg args: Any,
@@ -129,6 +141,30 @@ class PrivacyNoticeDbTest {
                     }
                 }
         }
+
+    private fun setLead(
+        tenant: UUID,
+        days: Int,
+    ): Int {
+        val node = mapper.createObjectNode()
+        node.put("scopeLevel", "TENANT")
+        node.put("scopeRef", tenant.toString())
+        val selected = node.putArray("selected").addObject()
+        selected.put("option", "PACK_DEFAULT_30D")
+        selected.putObject("value").put("noticeLeadDays", days)
+        node.put("effectiveDate", RetentionService.today().toString())
+        val port = service.bean(org.springframework.core.env.Environment::class.java).getProperty("local.server.port")
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port/internal/v1/policies/VP-63"))
+                .header("Authorization", "Bearer ${TestIdentity.token(POLICY, tenant)}")
+                .header("X-Workload-Token", "token-console-bff")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(node)))
+                .build()
+        return client.send(request, HttpResponse.BodyHandlers.ofString()).statusCode()
+    }
 
     @Test
     fun `INV-AC-10588 the notice is prompted once from 2026-03-24 with one PrivacyNoticeDue row`() {
@@ -177,9 +213,35 @@ class PrivacyNoticeDbTest {
         promptedAt(id) shouldBe null
     }
 
+    @Test
+    fun `INV-AC-10587 a tenant lead of 14 prompts from fourteen days before the deadline and not a day earlier`() {
+        val t = tenant()
+        setLead(t, LEAD_LONGER) shouldBe 200
+        val received = RetentionService.today()
+        val id = open(t, received)
+        val deadline = received.plusDays(PACK_DAYS.toLong())
+        prompt(t, deadline.minusDays(LEAD_LONGER + 1L)) shouldBe 0
+        promptedAt(id) shouldBe null
+        prompt(t, deadline.minusDays(LEAD_LONGER.toLong())) shouldBe 1
+        events(id).single().get("data").get("noticeLeadDays").asInt() shouldBe LEAD_LONGER
+    }
+
+    @Test
+    fun `INV-AC-10587 a tenant lead of 5 is refused at setPolicy and the lead stays 7`() {
+        val t = tenant()
+        setLead(t, LEAD_BELOW_MIN) shouldBe 422
+        val id = open(t, LocalDate.parse("2026-03-01"))
+        prompt(t, "2026-03-23") shouldBe 0
+        prompt(t, "2026-03-24") shouldBe 1
+        events(id).single().get("data").get("noticeLeadDays").asInt() shouldBe NOTICE_LEAD
+    }
+
     private companion object {
         const val HANDLER = "u-handler"
         const val POLICY = "u-policy"
         const val NOTICE_LEAD = 7
+        const val PACK_DAYS = 30
+        const val LEAD_LONGER = 14
+        const val LEAD_BELOW_MIN = 5
     }
 }

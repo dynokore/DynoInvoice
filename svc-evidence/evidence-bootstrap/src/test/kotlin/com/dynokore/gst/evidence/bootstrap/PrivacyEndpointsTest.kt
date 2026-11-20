@@ -178,6 +178,23 @@ class PrivacyEndpointsTest {
     private fun handlerTenant(): UUID =
         tenant(HANDLER to "privacy.handler", READER to "privacy.reader", POLICY to "privacy.policy")
 
+    /** A VP-63 `setPolicy` of [tenant] by the policy principal: option [option] with the given value members. */
+    private fun setPolicy(
+        tenant: UUID,
+        option: String,
+        value: Map<String, Int>,
+    ): Reply {
+        val node = mapper.createObjectNode()
+        node.put("scopeLevel", "TENANT")
+        node.put("scopeRef", tenant.toString())
+        val selected = node.putArray("selected").addObject()
+        selected.put("option", option)
+        val values = selected.putObject("value")
+        value.forEach { (name, days) -> values.put(name, days) }
+        node.put("effectiveDate", RetentionService.today().toString())
+        return send("POST", "/internal/v1/policies/VP-63", POLICY, tenant, mapper.writeValueAsString(node), uuid())
+    }
+
     private fun uuid() = UUID.randomUUID().toString()
 
     private fun rows(tenant: UUID): Int =
@@ -233,6 +250,46 @@ class PrivacyEndpointsTest {
         answer.body.has("noticePromptedAt") shouldBe false
         stored(t, "response_deadline") shouldBe "2026-03-31"
         stored(t, "deadline_period_days") shouldBe "30"
+    }
+
+    @Test
+    fun `INV-AC-10587 a tenant period of 14 gives 2026-03-15 and 45 is refused POL-013 and never reaches the case`() {
+        val t = handlerTenant()
+        val refused = setPolicy(t, "SHORTER", mapOf("responseDays" to LONGER_THAN_PACK))
+        refused.status shouldBe 422
+        refused.code shouldBe "POL-013"
+        open(HANDLER, t, openBody("REQ-A")).body.get("responseDeadline").asString() shouldBe "2026-03-31"
+        setPolicy(t, "SHORTER", mapOf("responseDays" to SHORTER)).status shouldBe 200
+        val answer = open(HANDLER, t, openBody("REQ-B"))
+        answer.status shouldBe 201
+        answer.body.get("responseDeadline").asString() shouldBe "2026-03-15"
+        answer.body.get("deadlinePeriodDays").asInt() shouldBe SHORTER
+        scalar(
+            "select response_deadline::text from evidence.case_register where tenant_id = ? and request_reference = ?",
+            t,
+            "REQ-B",
+        ) shouldBe "2026-03-15"
+    }
+
+    @Test
+    fun `INV-AC-10587 a lead of 5 is refused POL-013 and a lead of 14 is stored`() {
+        val t = handlerTenant()
+        val refused = setPolicy(t, "PACK_DEFAULT_30D", mapOf("noticeLeadDays" to LEAD_BELOW_MIN))
+        refused.status shouldBe 422
+        refused.code shouldBe "POL-013"
+        setPolicy(t, "PACK_DEFAULT_30D", mapOf("noticeLeadDays" to LEAD_LONGER)).status shouldBe 200
+    }
+
+    @Test
+    fun `INV-AC-10587 the stored deadline of an existing case does not change when the tenant period is changed later`() {
+        val t = handlerTenant()
+        val opened = open(HANDLER, t)
+        setPolicy(t, "SHORTER", mapOf("responseDays" to SHORTER)).status shouldBe 200
+        stored(t, "response_deadline") shouldBe "2026-03-31"
+        val read = get(READER, t, opened.body.get("caseId").asString())
+        read.status shouldBe 200
+        read.body.get("responseDeadline").asString() shouldBe "2026-03-31"
+        read.body.get("deadlinePeriodDays").asInt() shouldBe PACK_DAYS
     }
 
     @Test
@@ -418,5 +475,9 @@ class PrivacyEndpointsTest {
         const val SCOPED = "u-scoped"
         const val NOBODY = "u-nobody"
         const val PACK_DAYS = 30
+        const val SHORTER = 14
+        const val LONGER_THAN_PACK = 45
+        const val LEAD_BELOW_MIN = 5
+        const val LEAD_LONGER = 14
     }
 }
