@@ -4,6 +4,7 @@ import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
 import com.dynokore.gst.consoleBff.application.session.PrincipalStanding
 import com.dynokore.gst.consoleBff.application.session.SessionResolver
 import com.dynokore.gst.consoleBff.application.session.SessionStore
+import com.dynokore.gst.consoleBff.application.session.TenantSessionPolicy
 import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
 import javax.sql.DataSource
 
 /**
@@ -71,8 +73,9 @@ class Tpl16ServiceCompositionTest {
             val resolver = context.getBean(SessionResolver::class.java)
             val field = SessionResolver::class.java.getDeclaredField("clock").apply { isAccessible = true }
             field.get(resolver) shouldBe clock
-            val policyField = SessionResolver::class.java.getDeclaredField("policy").apply { isAccessible = true }
-            policyField.get(resolver) shouldBe policy
+            val policiesField = SessionResolver::class.java.getDeclaredField("policies").apply { isAccessible = true }
+            val port = policiesField.get(resolver) as TenantSessionPolicy
+            port.of("T1", LocalDate.of(2026, 1, 1)) shouldBe policy
         }
     }
 
