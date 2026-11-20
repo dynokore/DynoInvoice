@@ -36,8 +36,7 @@ class CodeCatalogue(
     fun entryOf(code: String): CatalogueEntry? = byCode[code]
 
     /** Value equality: two reads of one pack version are equal, so a coded document holding one compares by content. */
-    override fun equals(other: Any?): Boolean =
-        other is CodeCatalogue && complete == other.complete && entries == other.entries
+    override fun equals(other: Any?): Boolean = other is CodeCatalogue && complete == other.complete && entries == other.entries
 
     override fun hashCode(): Int = 31 * complete.hashCode() + entries.hashCode()
 }
