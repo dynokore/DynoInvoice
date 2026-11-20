@@ -67,6 +67,7 @@ class CreditNoteCorrectionWiringTest {
                     (field.get(consumer) as ConsumerSubscription).topic
                 }
             topics.count { it == "gst.canonical.net-derivation-refused.v1" } shouldBe 1
+            CreditNoteCorrectionConfiguration.subscription().consumer shouldBe "submission-svc-net-derivation-refused"
             topics.count { it == "gst.canonical.net-derivation-refused.v2" } shouldBe 0
         }
     }

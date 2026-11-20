@@ -132,7 +132,7 @@ class CreditNoteCorrectionConfiguration {
     ): EventHandler = NetDerivationRefusedReader(handler, awaiting)
 
     companion object {
-        private const val CONSUMER = "submission-svc"
+        private const val CONSUMER = "submission-svc-net-derivation-refused"
         private const val SCHEMA = "submission"
 
         /** Not a bean (see [PeriodRecordsConsumer.subscription]). */
