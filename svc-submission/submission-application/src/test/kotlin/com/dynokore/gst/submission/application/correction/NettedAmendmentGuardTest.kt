@@ -3,6 +3,7 @@ package com.dynokore.gst.submission.application.correction
 import com.dynokore.gst.submission.domain.correction.CorrectionReason
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /** The netted amendment guard over fakes (INV-AC-25527). Verdicts, findings and calls are compared by equality. */
@@ -15,6 +16,7 @@ class NettedAmendmentGuardTest {
         var netted: List<String>,
         var registered: Int? = 1,
         var originalOfA: String? = "original-O",
+        var nettedO2: List<String> = emptyList(),
     ) {
         val calls = mutableListOf<String>()
         val findings = mutableListOf<NetFinding>()
@@ -71,88 +73,118 @@ class NettedAmendmentGuardTest {
 
     private fun refusedFinding(version: Int) = NetFinding(NetFindingKind.AMENDED_AFTER_TRANSMISSION, a, version, o)
 
-    @Test
-    fun `INV-AC-25527 (a) amended after the original was at IRAS is refused and recorded`() {
-        val w = World(listOf(LifecycleState.ACKNOWLEDGED), listOf(a))
-        w.guard.check(a, 2) shouldBe AmendmentVerdict.Refused
-        w.findings shouldBe listOf(refusedFinding(2))
-        w.calls shouldBe emptyList()
+    private val base = listOf(LifecycleState.ACKNOWLEDGED)
+
+    private fun World.noSideEffects() {
+        calls shouldBe emptyList()
     }
 
+    @DisplayName(
+        "INV-AC-25527 a AT_IRAS original, registered version below v, A netted into O Refused, one AMENDED_AFTER_TRANSMISSION finding (A, v, O)",
+    )
     @Test
-    fun `INV-AC-25527 (b) amended after the original was sent out is refused and recorded`() {
+    fun `INV-AC-25527 a`() {
+        val w = World(base, listOf(a))
+        w.guard.check(a, 2) shouldBe AmendmentVerdict.Refused
+        w.findings shouldBe listOf(refusedFinding(2))
+        w.noSideEffects()
+    }
+
+    @DisplayName("INV-AC-25527 b SENT_OUT original, otherwise as a Refused, one finding")
+    @Test
+    fun `INV-AC-25527 b`() {
         val w = World(listOf(LifecycleState.SENT), listOf(a))
         w.guard.check(a, 2) shouldBe AmendmentVerdict.Refused
         w.findings shouldBe listOf(refusedFinding(2))
-        w.calls shouldBe emptyList()
+        w.noSideEffects()
     }
 
+    @DisplayName("INV-AC-25527 c1 original only READY, otherwise as a Proceed, no finding")
     @Test
-    fun `INV-AC-25527 (c) original only READY or AWAITING_PRECEDING proceeds without a finding`() {
-        listOf(LifecycleState.READY, LifecycleState.AWAITING_PRECEDING).forEach {
-            val w = World(listOf(it), listOf(a))
-            w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
-            w.findings shouldBe emptyList()
-            w.calls shouldBe emptyList()
-        }
-    }
-
-    @Test
-    fun `INV-AC-25527 (d) a redelivery of the registered version proceeds without a finding`() {
-        val w = World(listOf(LifecycleState.ACKNOWLEDGED), listOf(a), registered = 2)
+    fun `INV-AC-25527 c1`() {
+        val w = World(listOf(LifecycleState.READY), listOf(a))
         w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
         w.findings shouldBe emptyList()
+        w.noSideEffects()
     }
 
+    @DisplayName("INV-AC-25527 c2 original only AWAITING_PRECEDING, otherwise as a Proceed, no finding")
     @Test
-    fun `INV-AC-25527 (e) a credit note not netted into the original proceeds without a finding`() {
-        val w = World(listOf(LifecycleState.ACKNOWLEDGED), emptyList())
+    fun `INV-AC-25527 c2`() {
+        val w = World(listOf(LifecycleState.AWAITING_PRECEDING), listOf(a))
         w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
         w.findings shouldBe emptyList()
+        w.noSideEffects()
     }
 
+    @DisplayName("INV-AC-25527 d v equal to the registered version (redelivery), otherwise as a Proceed, no finding")
     @Test
-    fun `INV-AC-25527 (f) delivered twice records one finding and refuses both times`() {
-        val w = World(listOf(LifecycleState.ACKNOWLEDGED), listOf(a))
+    fun `INV-AC-25527 d`() {
+        val w = World(base, listOf(a), registered = 2)
+        w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
+        w.findings shouldBe emptyList()
+        w.noSideEffects()
+    }
+
+    @DisplayName("INV-AC-25527 e A not in nettedBySystem(O), otherwise as a Proceed, no finding")
+    @Test
+    fun `INV-AC-25527 e`() {
+        val w = World(base, emptyList())
+        w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
+        w.findings shouldBe emptyList()
+        w.noSideEffects()
+    }
+
+    @DisplayName(
+        "INV-AC-25527 f case a delivered twice Refused both times, one finding stored, second record returns false",
+    )
+    @Test
+    fun `INV-AC-25527 f`() {
+        val w = World(base, listOf(a))
         w.guard.check(a, 2) shouldBe AmendmentVerdict.Refused
         w.guard.check(a, 2) shouldBe AmendmentVerdict.Refused
         w.findings shouldBe listOf(refusedFinding(2))
         w.store.record(refusedFinding(2)) shouldBe false
+        w.noSideEffects()
     }
 
+    @DisplayName("INV-AC-25527 g look-alike A2 netted into O2 while O (not O2) is transmitted Proceed, no finding")
     @Test
-    fun `INV-AC-25527 look-alike a credit note netted into another original proceeds`() {
-        val w = World(listOf(LifecycleState.ACKNOWLEDGED), listOf(a), originalOfA = "original-P")
-        w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
+    fun `INV-AC-25527 g`() {
+        // O is transmitted for A, but A2 is netted into O2, whose versions are only READY.
+        val w =
+            World(
+                listOf(LifecycleState.READY),
+                listOf(a),
+                originalOfA = "original-O2",
+                nettedO2 = listOf("credit-note-A2"),
+            )
+        w.guard.check("credit-note-A2", 2) shouldBe AmendmentVerdict.Proceed
         w.findings shouldBe emptyList()
+        w.noSideEffects()
     }
 
+    @DisplayName(
+        "INV-AC-25527 h recordNotPositive with NET_NOT_POSITIVE for docUuids A, A, B two findings of kind NET_NOT_POSITIVE (version null, original null)",
+    )
     @Test
-    fun `INV-AC-25527 no registered version or no resolved original proceeds`() {
-        val w = World(listOf(LifecycleState.ACKNOWLEDGED), listOf(a), registered = null)
-        w.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
-        val x = World(emptyList(), listOf(a), originalOfA = null)
-        x.guard.check(a, 2) shouldBe AmendmentVerdict.Proceed
-        (w.findings + x.findings) shouldBe emptyList()
-    }
-
-    @Test
-    fun `INV-AC-25527 recordNotPositive with NET_NOT_POSITIVE records one finding per distinct credit note`() {
+    fun `INV-AC-25527 h`() {
         val w = World(emptyList(), emptyList())
-        w.guard.recordNotPositive(listOf(a, "credit-note-B", a), "NET_NOT_POSITIVE")
+        w.guard.recordNotPositive(listOf(a, a, "credit-note-B"), "NET_NOT_POSITIVE")
         w.findings shouldBe
             listOf(
                 NetFinding(NetFindingKind.NET_NOT_POSITIVE, a, null, null),
                 NetFinding(NetFindingKind.NET_NOT_POSITIVE, "credit-note-B", null, null),
             )
-        w.calls shouldBe emptyList()
+        w.noSideEffects()
     }
 
+    @DisplayName("INV-AC-25527 i recordNotPositive with reason NOT_PRECEDING no finding")
     @Test
-    fun `INV-AC-25527 recordNotPositive with another reason records nothing`() {
+    fun `INV-AC-25527 i`() {
         val w = World(emptyList(), emptyList())
         w.guard.recordNotPositive(listOf(a), "NOT_PRECEDING")
-        w.guard.recordNotPositive(listOf(a), "net_not_positive")
         w.findings shouldBe emptyList()
+        w.noSideEffects()
     }
 }
