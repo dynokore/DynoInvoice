@@ -124,7 +124,8 @@ class AcknowledgementReplicaIT {
                                     "select doc_uuid, version, acknowledgement_id, " +
                                         "to_char(acknowledged_at at time zone 'UTC', " +
                                         "'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), " +
-                                        "tenant_id from canonical.submission_acknowledgement order by doc_uuid, version",
+                                        "tenant_id from canonical.submission_acknowledgement " +
+                                        "order by doc_uuid, version",
                                 ).use { r ->
                                     buildList { while (r.next()) add((1..5).map { i -> r.getString(i) }) }
                                 }

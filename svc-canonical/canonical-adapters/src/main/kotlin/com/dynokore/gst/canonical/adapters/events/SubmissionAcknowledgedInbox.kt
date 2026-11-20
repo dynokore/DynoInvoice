@@ -57,11 +57,12 @@ class SubmissionAcknowledgedInbox(
 
     private fun version(data: JsonNode): Int {
         val value = data.get("version")
-        val number = if (value != null && value.isNumber) value.decimalValue() else null
-        if (number == null || number.stripTrailingZeros().scale() > 0 ||
-            number.signum() < 1 || number > Int.MAX_VALUE.toBigDecimal()
-        ) {
-            throw ContractViolation("version is missing or not an integer of at least 1")
+        val number =
+            (if (value != null && value.isNumber) value.decimalValue() else null)
+                ?: throw ContractViolation("version is missing or not an integer of at least 1")
+        val integer = number.stripTrailingZeros().scale() <= 0
+        if (!integer || number.signum() < 1 || number > Int.MAX_VALUE.toBigDecimal()) {
+            throw ContractViolation("version is not an integer of at least 1")
         }
         return number.intValueExact()
     }
