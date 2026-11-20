@@ -1,5 +1,7 @@
 package com.dynokore.gst.evidence.bootstrap
 
+import com.dynokore.gst.catalogue.VariationPoint
+import com.dynokore.gst.catalogue.VpStatus
 import com.dynokore.gst.evidence.adapters.EvidenceDb
 import com.dynokore.gst.evidence.application.cases.NoticePrompter
 import com.dynokore.gst.evidence.application.cases.OpenPrivacyCaseCommand
@@ -234,6 +236,11 @@ class PrivacyNoticeDbTest {
         prompt(t, "2026-03-23") shouldBe 0
         prompt(t, "2026-03-24") shouldBe 1
         events(id).single().get("data").get("noticeLeadDays").asInt() shouldBe NOTICE_LEAD
+    }
+
+    @Test
+    fun `INV-AC-10587 the pinned catalogue row VP-63 is available`() {
+        VariationPoint.VP_63.status shouldBe VpStatus.AVAILABLE
     }
 
     private companion object {
