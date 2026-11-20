@@ -57,9 +57,8 @@ tasks.withType<Test>().configureEach {
 // pinned bundle is staged into the classpath resources (contract-first, no committed copy, no literal number).
 val sampleSchemaEntry = "service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json"
 val stageSampleSchema by tasks.registering(Sync::class) {
-    from(zipTree(contractsBundle.singleFile)) { include(sampleSchemaEntry) }
     into(layout.buildDirectory.dir("generated/sample-schema/resources"))
-    eachFile { path = "gst/contracts/$path" }
+    into("gst/contracts") { from(zipTree(contractsBundle.singleFile)) { include(sampleSchemaEntry) } }
     includeEmptyDirs = false
 }
 sourceSets.main { resources.srcDir(stageSampleSchema.map { it.destinationDir }) }
