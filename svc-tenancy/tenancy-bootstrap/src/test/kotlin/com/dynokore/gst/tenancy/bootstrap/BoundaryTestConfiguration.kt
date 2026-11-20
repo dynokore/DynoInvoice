@@ -29,6 +29,7 @@ import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
+import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.StagedOutboxRow
 import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
@@ -42,7 +43,9 @@ import com.dynokore.platform.serviceruntime.replica.RoleGrant
 import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
-import org.springframework.beans.factory.config.BeanPostProcessor
+import org.springframework.beans.factory.config.BeanFactoryPostProcessor
+import org.springframework.beans.factory.support.BeanDefinitionRegistry
+import org.springframework.beans.factory.support.GenericBeanDefinition
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -367,21 +370,29 @@ class BoundaryTestConfiguration {
     @ConditionalOnProperty(name = ["test.backdating-stub"], havingValue = "true", matchIfMissing = true)
     fun testBackdatingFloor(): BackdatingFloor = BackdatingFloor { _, _ -> LocalDate.of(2026, 1, 1) }
 
-    @Bean
-    fun capturingOutbox(captured: CapturedEvents): BeanPostProcessor =
-        object : BeanPostProcessor {
-            override fun postProcessAfterInitialization(
-                bean: Any,
-                beanName: String,
-            ): Any =
-                if (bean is OutboxWriter &&
-                    bean !is CapturingOutboxWriter
-                ) {
-                    CapturingOutboxWriter(bean, captured)
-                } else {
-                    bean
+    /**
+     * Puts the capturing writer in front of the service's shared outbox writer as the primary [OutboxWriter], without
+     * replacing the shared [JdbcOutboxWriter] bean itself: the replay responder (INV-AC-25010) takes that bean by its
+     * own class, which a wrapped instance would break. Registered after every definition is known, so the runtime's
+     * `ConditionalOnMissingBean(OutboxWriter)` still creates the shared bean.
+     */
+    companion object {
+        @Bean
+        @JvmStatic
+        fun capturingOutbox(): BeanFactoryPostProcessor =
+            BeanFactoryPostProcessor { factory ->
+                val definition = GenericBeanDefinition()
+                definition.setBeanClass(CapturingOutboxWriter::class.java)
+                definition.isPrimary = true
+                definition.setInstanceSupplier {
+                    CapturingOutboxWriter(
+                        factory.getBean("outboxWriter", JdbcOutboxWriter::class.java),
+                        factory.getBean(CapturedEvents::class.java),
+                    )
                 }
-        }
+                (factory as BeanDefinitionRegistry).registerBeanDefinition("capturingOutboxWriter", definition)
+            }
+    }
 }
 
 /** The operation-role matrix of the replicas of the tests: read from the generated catalogue, never written by hand. */

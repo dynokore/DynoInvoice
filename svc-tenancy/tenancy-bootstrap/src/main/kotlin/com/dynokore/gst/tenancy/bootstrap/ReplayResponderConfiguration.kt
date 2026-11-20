@@ -8,7 +8,6 @@ import com.dynokore.platform.outboxandqueue.JdbcReplayResponder
 import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.ReplayStateSource
 import com.dynokore.platform.outboxandqueue.TenantScope
-import com.dynokore.platform.serviceruntime.binding.GstProperties
 import org.jooq.DSLContext
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -16,10 +15,9 @@ import java.time.Clock
 
 /**
  * The producer side of the replay protocol of tenancy-svc (INV-AC-25010, INV-Q-9081 A): the platform responder over the
- * request topics the catalogue lists for tenancy-svc, every [ReplayStateSource] bean (INV-T-9096) and the service's own
- * outbox writer (a dedicated [JdbcOutboxWriter], because the boundary tests wrap the shared [OutboxWriter] bean,
- * a final-class conflict for an injected [JdbcOutboxWriter]), with [ReplayResponderDriver] as the loop `EventLoops`
- * runs.
+ * request topics the catalogue lists for tenancy-svc, every [ReplayStateSource] bean (INV-T-9096) and the service's
+ * shared outbox writer bean (Transactional Outbox: one writer per service), with [ReplayResponderDriver] as the loop
+ * `EventLoops` runs.
  */
 @Configuration(proxyBeanMethods = false)
 class ReplayResponderConfiguration {
@@ -30,7 +28,7 @@ class ReplayResponderConfiguration {
         reader: EventLogReader,
         scope: TenantScope,
         dsl: DSLContext,
-        gst: GstProperties,
+        writer: JdbcOutboxWriter,
         sources: List<ReplayStateSource>,
         rebuildRequired: RebuildRequiredSink,
         clock: Clock,
@@ -42,7 +40,7 @@ class ReplayResponderConfiguration {
             reader,
             scope,
             dsl,
-            JdbcOutboxWriter(dsl, SCHEMA, gst.requireService(), gst.requireInstanceId(), catalogue, clock),
+            writer,
             sources,
             rebuildRequired,
             clock,
