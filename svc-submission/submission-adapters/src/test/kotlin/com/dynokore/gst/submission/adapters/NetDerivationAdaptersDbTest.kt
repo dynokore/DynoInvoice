@@ -79,10 +79,9 @@ class NetDerivationAdaptersDbTest {
     private val handler =
         CreditNoteCorrectionHandler(
             ports,
-            ports,
+            { false },
             ports,
             OutboxNetDerivationRequestPublisher(outbox, tenants, dsl),
-            ports,
             ports,
         )
     private val original = UUID.randomUUID().toString()
@@ -203,7 +202,7 @@ class NetDerivationAdaptersDbTest {
         schemaErrors("canonical", "net-derivation-refused-payload.schema.json", data).shouldBeEmpty()
         bind()
         ports.isRefused(creditNote) shouldBe false
-        NetDerivationRefusedReader(handler, ports).handle(refused(data)) shouldBe HandleOutcome.APPLIED
+        NetDerivationRefusedReader(handler).handle(refused(data)) shouldBe HandleOutcome.APPLIED
         ports.isRefused(creditNote) shouldBe true
         staged.shouldBeEmpty()
     }
@@ -212,7 +211,7 @@ class NetDerivationAdaptersDbTest {
     fun `INV-AC-25344 a refusal that does not validate is a ContractViolation and changes nothing`() {
         seed()
         bind()
-        val reader = NetDerivationRefusedReader(handler, ports)
+        val reader = NetDerivationRefusedReader(handler)
         val bad =
             listOf(
                 "not json {",

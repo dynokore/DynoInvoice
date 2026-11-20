@@ -1,6 +1,5 @@
 package com.dynokore.gst.submission.adapters.events
 
-import com.dynokore.gst.submission.adapters.persistence.RefusedCreditNotes
 import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
 import com.dynokore.gst.submission.application.register.NetDerivedCreditNote
 import com.dynokore.platform.outboxandqueue.ContractViolation
@@ -26,27 +25,17 @@ data class NetDerivationRefusedData(
  * `reason` (non-empty strings; the enum is extensible, so an unknown reason is kept) are required; `creditNotes` is
  * optional, each item needs a canonical `docUuid` and a `version` of at least 1, and at most 50 distinct items. A
  * missing or malformed member is a [ContractViolation] (dead letter at once) that names the member, never its value.
- * An event that names no credit note resolves them from the register ([RefusedCreditNotes]); when none is awaiting it
- * is a [ContractViolation] (dead-letter triage) and nothing is stored. It runs in the caller's transaction and tenant.
+ * An event that names no credit note changes nothing: IGNORED. It runs in the caller's transaction and tenant.
  */
 class NetDerivationRefusedReader(
     private val handler: CreditNoteCorrectionHandler,
-    private val awaiting: RefusedCreditNotes,
 ) : EventHandler {
     private val mapper = ObjectMapper()
 
     override fun handle(event: Envelope): HandleOutcome {
         val data = read(event.dataJson)
-        val notes = data.creditNoteDocUuids.ifEmpty { awaiting.awaiting(data.originalDocUuid) }
-        if (notes.isEmpty()) {
-            LOG.log(
-                System.Logger.Level.WARNING,
-                "NetDerivationRefused without creditNotes matches no awaiting credit note: " +
-                    "original=${data.originalDocUuid} request=${data.requestEventId}",
-            )
-            throw ContractViolation("NetDerivationRefused names no credit note and none of the original is awaiting")
-        }
-        handler.onRefused(notes, data.reason)
+        if (data.creditNoteDocUuids.isEmpty()) return HandleOutcome.IGNORED
+        handler.onRefused(data.creditNoteDocUuids, data.reason)
         return HandleOutcome.APPLIED
     }
 
@@ -65,10 +54,6 @@ class NetDerivationRefusedReader(
             reason = text(data, "reason"),
             creditNoteDocUuids = creditNotes(data),
         )
-    }
-
-    private companion object {
-        private val LOG = System.getLogger(NetDerivationRefusedReader::class.java.name)
     }
 
     private fun text(
