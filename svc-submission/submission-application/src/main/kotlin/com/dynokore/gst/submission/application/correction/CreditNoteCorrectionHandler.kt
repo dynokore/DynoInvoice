@@ -19,6 +19,7 @@ class CreditNoteCorrectionHandler(
     private val transitions: CreditNoteTransitions,
     private val requests: NetDerivationRequestPort,
     private val refusals: NetRefusedMarks,
+    private val recorder: NettingDeclarationRecorder,
 ) {
     /** Decides the credit note and applies the result once. */
     fun decide(creditNoteDocUuid: String) {
@@ -30,10 +31,14 @@ class CreditNoteCorrectionHandler(
                 refusals.isRefused(creditNoteDocUuid),
             )
         when (decision) {
-            is CorrectionDecision.SubmitSeparately -> transitions.submitSeparately(creditNoteDocUuid)
-            CorrectionDecision.SubmitAsPosted -> transitions.submitAsPosted(creditNoteDocUuid)
-            CorrectionDecision.Wait -> transitions.wait(creditNoteDocUuid)
+            // The entry stays SUBMITTABLE; the submission path holds or releases it (INV-REQ-559).
+            is CorrectionDecision.SubmitSeparately,
+            CorrectionDecision.SubmitAsPosted,
+            CorrectionDecision.Wait,
+            -> Unit
+
             is CorrectionDecision.NotSubmittable -> transitions.notSubmittable(creditNoteDocUuid, decision.reason)
+
             CorrectionDecision.NetIntoOriginal -> requestNet(creditNoteDocUuid)
         }
     }
@@ -79,7 +84,8 @@ class CreditNoteCorrectionHandler(
     /**
      * A version of [originalDocUuid] arrived. One with a [netDerivation] is a derived version. One without it, that
      * does not declare a credit note currently NETTED_BY_SYSTEM (an ERP revision whose re-derivation was refused),
-     * stores `netRefused` for that credit note, lifts it and decides again.
+     * stores `netRefused` for that credit note, lifts it and decides again. An ERP revision first records its declared
+     * netting set ([recorder]).
      */
     @Suppress("UnusedParameter") // the version is part of the event key; the decision reads the register
     fun onOriginalVersion(
@@ -92,6 +98,7 @@ class CreditNoteCorrectionHandler(
             onDerivedVersion(originalDocUuid, netDerivation)
             return
         }
+        recorder.replaceDeclared(originalDocUuid, declaredKeys)
         transitions.nettedBySystem(originalDocUuid).filter { it !in declaredKeys }.forEach {
             refusals.store(it)
             transitions.lift(it)

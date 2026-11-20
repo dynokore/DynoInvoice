@@ -23,14 +23,19 @@ fun interface NettingDeclarations {
     fun declared(creditNoteDocUuid: String): Boolean
 }
 
+/**
+ * Records the netting set an ERP revision declares. It runs in the caller's transaction and replaces the declared set
+ * of the revised document.
+ */
+fun interface NettingDeclarationRecorder {
+    fun replaceDeclared(
+        revisedDocUuid: String,
+        creditNoteDocUuids: Set<String>,
+    )
+}
+
 /** The transitions of a credit note the correction path applies. Every call runs in the caller's transaction. */
 interface CreditNoteTransitions {
-    fun submitSeparately(creditNoteDocUuid: String)
-
-    fun submitAsPosted(creditNoteDocUuid: String)
-
-    fun wait(creditNoteDocUuid: String)
-
     fun notSubmittable(
         creditNoteDocUuid: String,
         reason: CorrectionReason,

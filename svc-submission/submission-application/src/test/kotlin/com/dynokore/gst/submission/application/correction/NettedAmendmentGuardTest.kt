@@ -29,18 +29,6 @@ class NettedAmendmentGuardTest {
             }
         val transitions =
             object : CreditNoteTransitions {
-                override fun submitSeparately(creditNoteDocUuid: String) {
-                    calls += "submitSeparately $creditNoteDocUuid"
-                }
-
-                override fun submitAsPosted(creditNoteDocUuid: String) {
-                    calls += "submitAsPosted $creditNoteDocUuid"
-                }
-
-                override fun wait(creditNoteDocUuid: String) {
-                    calls += "wait $creditNoteDocUuid"
-                }
-
                 override fun notSubmittable(
                     creditNoteDocUuid: String,
                     reason: CorrectionReason,
