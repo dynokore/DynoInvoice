@@ -54,15 +54,14 @@
           },
           "supplyType": {
             "type": "string",
-            "enum": [
+            "x-extensible-enum": [
               "STANDARD_RATED",
               "ZERO_RATED",
               "EXEMPT",
               "OUT_OF_SCOPE",
               "IMPORTS"
             ],
-            "x-extensible-enum": true,
-            "description": "The GST supply type of the document (INV-Q-10703 option B'). Equals the value of canonicalDocument.supplyType of the document's current canonical version. A consumer treats an item without it as having no stated supply type."
+            "description": "The GST supply type of the document (INV-Q-10703 option B'). Equals the value of canonicalDocument.supplyType of the document's current canonical version. A consumer treats an item without it as having no stated supply type. The known members are listed in x-extensible-enum; a consumer carries any other member unchanged."
           },
           "precedingDocumentDate": {
             "type": "string",

@@ -24,3 +24,6 @@ openapi.yaml	/components/schemas/ReplayState/properties/mode/$ref	equals	"#/comp
 openapi.yaml	/components/schemas/ReplayScopeResponse/properties/kind/x-extensible-enum	equals	true	INV-REQ-1205
 openapi.yaml	/components/schemas/RebuildConsumerRequest/properties/scope/$ref	equals	"#/components/schemas/ReplayScope"	INV-REQ-1205
 openapi.yaml	/components/schemas/ReplayState/properties/scope/$ref	equals	"#/components/schemas/ReplayScopeResponse"	INV-REQ-1205
+schemas/pack-dry-run-sample-recorded-payload.schema.json	/properties/documents/items/properties/supplyType/type	equals	"string"	INV-REQ-772
+schemas/pack-dry-run-sample-recorded-payload.schema.json	/properties/documents/items/properties/supplyType/x-extensible-enum	equals	["STANDARD_RATED","ZERO_RATED","EXEMPT","OUT_OF_SCOPE","IMPORTS"]	INV-REQ-772
+schemas/pack-dry-run-sample-recorded-payload.schema.json	/properties/documents/items/properties/supplyType/enum	absent	-	INV-REQ-772
