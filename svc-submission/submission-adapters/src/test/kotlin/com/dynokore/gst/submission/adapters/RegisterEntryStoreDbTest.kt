@@ -57,6 +57,7 @@ class RegisterEntryStoreDbTest {
             "scope_verdict",
             "not_submittable_reason",
             "preceding_doc_uuid",
+            "net_refused",
         )
 
     @AfterEach
@@ -166,7 +167,7 @@ class RegisterEntryStoreDbTest {
         val text = row(a, doc)!!
         text.contains("INV-3") shouldBe true
         text.contains("2026-12-31") shouldBe true
-        text.endsWith(",3,,,,,)") shouldBe true
+        text.endsWith(",3,,,,,,f)") shouldBe true
         allOrNone(a, doc)
     }
 

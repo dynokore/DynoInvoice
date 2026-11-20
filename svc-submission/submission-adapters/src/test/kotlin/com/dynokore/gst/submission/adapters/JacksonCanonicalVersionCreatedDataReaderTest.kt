@@ -145,6 +145,44 @@ class JacksonCanonicalVersionCreatedDataReaderTest {
         shouldThrow<ContractViolation> { reader.read("not json {") }
         shouldThrow<ContractViolation> { reader.read("[]") }
     }
+
+    private fun withNet(net: String): String =
+        (mapper.readTree(sample) as ObjectNode)
+            .also { it.set("netDerivation", mapper.readTree(net)) }
+            .toString()
+
+    private val cnA = "7c9e6679-7425-40de-944b-e07fc1f90ae7"
+
+    @Test
+    fun `INV-AC-25344 netDerivation is read with the base version and the credit notes`() {
+        val json = """{"kind":"SYSTEM_DERIVED","baseVersion":2,"creditNotes":[{"docUuid":"$cnA","version":3}]}"""
+        val net = reader.read(withNet(json)).netDerivation
+        net?.baseVersion shouldBe 2
+        net?.creditNotes?.map { it.docUuid to it.version } shouldBe listOf(cnA to 3)
+    }
+
+    @Test
+    fun `INV-AC-25344 an absent netDerivation member reads as null`() {
+        reader.read(sample).netDerivation shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-25344 a malformed netDerivation is a ContractViolation naming the member`() {
+        val bad =
+            listOf(
+                "[]",
+                """{"baseVersion":2,"creditNotes":[{"docUuid":"$cnA","version":3}]}""",
+                """{"kind":"SYSTEM_DERIVED","baseVersion":0,"creditNotes":[{"docUuid":"$cnA","version":3}]}""",
+                """{"kind":"SYSTEM_DERIVED","baseVersion":2,"creditNotes":[]}""",
+                """{"kind":"SYSTEM_DERIVED","baseVersion":2,"creditNotes":[{"docUuid":"X","version":3}]}""",
+                """{"kind":"SYSTEM_DERIVED","baseVersion":2,"creditNotes":[{"docUuid":"$cnA","version":0}]}""",
+                """{"kind":"SYSTEM_DERIVED","baseVersion":2,"creditNotes":""" +
+                    """[{"docUuid":"$cnA","version":3},{"docUuid":"$cnA","version":3}]}""",
+            )
+        bad.forEach {
+            shouldThrow<ContractViolation> { reader.read(withNet(it)) }.message shouldContain "netDerivation"
+        }
+    }
 }
 
 /** canonical-version-created-with-party-details.json of platform-contracts commit 9d25628, verbatim. */

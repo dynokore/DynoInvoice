@@ -2,6 +2,8 @@ package com.dynokore.gst.submission.adapters.events
 
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedData
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedDataReader
+import com.dynokore.gst.submission.application.register.NetDerivationData
+import com.dynokore.gst.submission.application.register.NetDerivedCreditNote
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import tools.jackson.core.JacksonException
 import tools.jackson.databind.JsonNode
@@ -42,6 +44,7 @@ class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataRead
             payload = payloadOf(data),
             notSubmittableReason = reasonOf(data, scopeVerdict),
             precedingDocUuid = precedingOf(data),
+            netDerivation = netDerivationOf(data),
         )
     }
 
@@ -70,6 +73,24 @@ class JacksonCanonicalVersionCreatedDataReader : CanonicalVersionCreatedDataRead
             throw ContractViolation("CanonicalVersionCreated data member precedingDocUuid is not a canonical UUID")
         }
         return text
+    }
+
+    /**
+     * The optional `netDerivation` (canonical-version-created-payload.schema.json): `kind` (non-empty string, the enum
+     * is extensible), `baseVersion` (integer of at least 1) and `creditNotes` (see [NetCreditNotes]). Absent reads as
+     * null; any other shape is a [ContractViolation].
+     */
+    private fun netDerivationOf(data: JsonNode): NetDerivationData? {
+        val node = data.get("netDerivation") ?: return null
+        val member = "CanonicalVersionCreated data member netDerivation"
+        if (!node.isObject) NetCreditNotes.violation("$member is not an object")
+        val kind = node.get("kind")
+        if (kind == null || !kind.isString || kind.asString().isEmpty()) {
+            NetCreditNotes.violation("$member kind is missing or not a non-empty string")
+        }
+        val base = NetCreditNotes.versionOf(node.get("baseVersion"), "$member base")
+        val notes = node.get("creditNotes") ?: NetCreditNotes.violation("$member creditNotes is missing")
+        return NetDerivationData(base, NetCreditNotes.parse(notes, "$member creditNotes"))
     }
 
     private fun canonicalUuid(text: String): Boolean =
