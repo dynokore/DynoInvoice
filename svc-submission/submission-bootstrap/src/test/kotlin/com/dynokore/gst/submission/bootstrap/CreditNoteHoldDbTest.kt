@@ -271,8 +271,10 @@ class CreditNoteHoldDbTest {
         val (_, cn1) = pair()
         arrive(cn1, 1)
         arrive(cn1, 2)
-        stateOf(cn1, 1) shouldBe "AWAITING_PRECEDING"
+        // INV-REQ-573: the newer version cancels the held, unclaimed version 1
+        stateOf(cn1, 1) shouldBe "CANCELLED"
         (stateOf(cn1, 2) != "AWAITING_PRECEDING") shouldBe true
+        stateOf(cn1, 2) shouldBe "QUEUED"
         codes(cn1).count { it == "SUB-011" } shouldBe 1
     }
 

@@ -10,7 +10,8 @@ data class DespatchedVersion(
 
 /**
  * One turn of the polling loop (INV-Q-7266 A steps (2) to (5)): take an item, send it, apply the outcome. An item
- * whose row is `SENT` or `SENT_UNCONFIRMED` goes through [SentRecovery]; a `CANCELLED` row is a stale item, completed and skipped (INV-REQ-573); any other state is a stop (the item stays
+ * whose row is `SENT` or `SENT_UNCONFIRMED` goes through [SentRecovery]; a `CANCELLED` row is a stale item, completed
+ * and skipped (INV-REQ-573); any other state is a stop (the item stays
  * `CLAIMED`, never dropped silently). The thread that calls it at an interval is a later slice.
  */
 class DespatchCycle(
