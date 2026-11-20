@@ -1,8 +1,17 @@
 package com.dynokore.gst.submission.application.register
 
+import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
+import com.dynokore.gst.submission.application.correction.CreditNoteTransitions
+import com.dynokore.gst.submission.application.correction.NetDerivationRequestPort
+import com.dynokore.gst.submission.application.correction.NetRefusedMarks
+import com.dynokore.gst.submission.application.correction.NettingDeclarationRecorder
+import com.dynokore.gst.submission.application.correction.OriginalRef
+import com.dynokore.gst.submission.application.correction.OriginalVersionSource
+import com.dynokore.gst.submission.domain.correction.CorrectionReason
 import com.dynokore.gst.submission.domain.deadline.SubmissionDeadline
 import com.dynokore.gst.submission.domain.listing.Direction
 import com.dynokore.gst.submission.domain.metrics.RowKind
+import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.gst.submission.domain.register.ListFactsPolicy
 import com.dynokore.gst.submission.domain.register.ListFactsResult
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -103,7 +112,48 @@ class CanonicalVersionCreatedHandlerTest {
     private class Fixture(
         val handler: CanonicalVersionCreatedHandler,
         val store: Store,
+        val calls: MutableList<String>,
     )
+
+    /** A correction handler over recording fake ports: every port call is appended to [calls]. */
+    private fun recordingCorrections(calls: MutableList<String>) =
+        CreditNoteCorrectionHandler(
+            object : OriginalVersionSource {
+                override fun versionsOf(creditNoteDocUuid: String): List<LifecycleState> {
+                    calls += "versionsOf $creditNoteDocUuid"
+                    return emptyList()
+                }
+
+                override fun originalOf(creditNoteDocUuid: String): OriginalRef? = null
+            },
+            { false },
+            object : CreditNoteTransitions {
+                override fun notSubmittable(
+                    creditNoteDocUuid: String,
+                    reason: CorrectionReason,
+                ) {
+                    calls += "notSubmittable $creditNoteDocUuid $reason"
+                }
+
+                override fun nettedBySystem(originalDocUuid: String): List<String> {
+                    calls += "nettedBySystem $originalDocUuid"
+                    return emptyList()
+                }
+
+                override fun lift(creditNoteDocUuid: String) {
+                    calls += "lift $creditNoteDocUuid"
+                }
+            },
+            NetDerivationRequestPort { o, b, n -> calls += "request $o $b $n" },
+            object : NetRefusedMarks {
+                override fun store(creditNoteDocUuid: String) {
+                    calls += "mark $creditNoteDocUuid"
+                }
+
+                override fun isRefused(creditNoteDocUuid: String): Boolean = false
+            },
+            NettingDeclarationRecorder { d, set -> calls += "replaceDeclared $d ${set.sorted()}" },
+        )
 
     private fun fixture(
         data: CanonicalVersionCreatedData = data(),
@@ -112,6 +162,7 @@ class CanonicalVersionCreatedHandlerTest {
         answers: List<UpsertResult> = listOf(UpsertResult.INSERTED),
     ): Fixture {
         val store = Store(ArrayDeque(answers))
+        val calls = mutableListOf<String>()
         val handler =
             CanonicalVersionCreatedHandler(
                 tenants,
@@ -119,8 +170,9 @@ class CanonicalVersionCreatedHandlerTest {
                 { _, _, _ -> inputs },
                 { kind },
                 store,
+                recordingCorrections(calls),
             )
-        return Fixture(handler, store)
+        return Fixture(handler, store, calls)
     }
 
     @Test
@@ -283,5 +335,137 @@ class CanonicalVersionCreatedHandlerTest {
     @Test
     fun `INV-AC-16339 UPDATED gives APPLIED`() {
         fixture(answers = listOf(UpsertResult.UPDATED)).handler.handle(envelope()) shouldBe HandleOutcome.APPLIED
+    }
+
+    private fun payloadOf(
+        direction: String,
+        netted: Any? = null,
+    ): Map<String, Any?> =
+        buildMap {
+            putAll(payload())
+            put("routingFacts", mapOf("direction" to direction))
+            if (netted != null) put("nettedCreditNoteDocUuids", netted)
+        }
+
+    private fun dataOf(
+        payload: Map<String, Any?>,
+        netDerivation: NetDerivationData? = null,
+    ) = CanonicalVersionCreatedData(
+        doc,
+        2,
+        LocalDate.of(2026, 3, 20),
+        "2026-Q1",
+        "SUBMITTABLE",
+        payload,
+        netDerivation = netDerivation,
+    )
+
+    private val derivation = NetDerivationData(1, listOf(NetDerivedCreditNote("cn-1", 1)))
+
+    private fun route(
+        kind: RowKind?,
+        payload: Map<String, Any?>,
+        netDerivation: NetDerivationData? = null,
+        answer: UpsertResult = UpsertResult.INSERTED,
+    ): Pair<Fixture, HandleOutcome> {
+        val f = fixture(data = dataOf(payload, netDerivation), kind = kind, answers = listOf(answer))
+        return f to f.handler.handle(envelope())
+    }
+
+    @Test
+    fun `INV-AC-25468 a purchase credit note calls decide once with its docUuid`() {
+        val (f, outcome) = route(RowKind.CREDIT_NOTE, payloadOf("PURCHASE"))
+        f.calls shouldBe listOf("versionsOf $doc")
+        outcome shouldBe HandleOutcome.APPLIED
+    }
+
+    @Test
+    fun `INV-AC-25468 a sales credit note reaches no method of the correction handler`() {
+        val (f, outcome) = route(RowKind.CREDIT_NOTE, payloadOf("SALE"))
+        f.calls shouldBe emptyList()
+        outcome shouldBe HandleOutcome.APPLIED
+    }
+
+    @Test
+    fun `INV-AC-25468 an invoice with netDerivation calls onOriginalVersion with it and an empty declared set`() {
+        val (f, outcome) = route(RowKind.INVOICE, payloadOf("PURCHASE"), derivation)
+        f.calls shouldBe listOf("nettedBySystem $doc", "versionsOf cn-1", "notSubmittable cn-1 NETTED_BY_SYSTEM")
+        outcome shouldBe HandleOutcome.APPLIED
+    }
+
+    @Test
+    fun `INV-AC-25468 an invoice without netDerivation hands the listed credit note docUuids as declared keys`() {
+        val (f, outcome) = route(RowKind.INVOICE, payloadOf("PURCHASE", listOf("cn-b", "cn-a", 7)))
+        f.calls shouldBe listOf("replaceDeclared $doc [cn-a, cn-b]", "nettedBySystem $doc")
+        outcome shouldBe HandleOutcome.APPLIED
+    }
+
+    @Test
+    fun `INV-AC-25468 an invoice whose nettedCreditNoteDocUuids is absent or not a list declares an empty set`() {
+        route(RowKind.INVOICE, payloadOf("PURCHASE")).first.calls shouldBe
+            listOf("replaceDeclared $doc []", "nettedBySystem $doc")
+        route(RowKind.INVOICE, payloadOf("PURCHASE", "cn-a")).first.calls shouldBe
+            listOf("replaceDeclared $doc []", "nettedBySystem $doc")
+    }
+
+    @Test
+    fun `INV-AC-25468 a null kind throws ContractViolation before any upsert and reaches no correction call`() {
+        val f = fixture(data = dataOf(payloadOf("PURCHASE")), kind = null)
+        shouldThrow<ContractViolation> { f.handler.handle(envelope()) }
+        f.store.entries.size shouldBe 0
+        f.calls shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-25468 an UNCHANGED upsert gives IGNORED and reaches no correction call for each routed document`() {
+        listOf(
+            Triple(RowKind.CREDIT_NOTE, payloadOf("PURCHASE"), null),
+            Triple(RowKind.CREDIT_NOTE, payloadOf("SALE"), null),
+            Triple(RowKind.INVOICE, payloadOf("PURCHASE"), derivation),
+            Triple(RowKind.INVOICE, payloadOf("PURCHASE", listOf("cn-a")), null),
+        ).forEach { (kind, payload, net) ->
+            val (f, outcome) = route(kind, payload, net, UpsertResult.UNCHANGED)
+            f.calls shouldBe emptyList()
+            outcome shouldBe HandleOutcome.IGNORED
+        }
+    }
+
+    @Test
+    fun `INV-AC-25468 an exception of the correction handler propagates`() {
+        val f = fixture(data = dataOf(payloadOf("PURCHASE")), kind = RowKind.CREDIT_NOTE)
+        val failing =
+            CanonicalVersionCreatedHandler(
+                tenants,
+                { dataOf(payloadOf("PURCHASE")) },
+                { _, _, _ -> FilingDeadlineInputs(LocalDate.of(2026, 4, 30), emptyList()) },
+                { RowKind.CREDIT_NOTE },
+                f.store,
+                CreditNoteCorrectionHandler(
+                    object : OriginalVersionSource {
+                        override fun versionsOf(creditNoteDocUuid: String): List<LifecycleState> = error("boom")
+
+                        override fun originalOf(creditNoteDocUuid: String): OriginalRef? = null
+                    },
+                    { false },
+                    object : CreditNoteTransitions {
+                        override fun notSubmittable(
+                            creditNoteDocUuid: String,
+                            reason: CorrectionReason,
+                        ) = Unit
+
+                        override fun nettedBySystem(originalDocUuid: String): List<String> = emptyList()
+
+                        override fun lift(creditNoteDocUuid: String) = Unit
+                    },
+                    NetDerivationRequestPort { _, _, _ -> },
+                    object : NetRefusedMarks {
+                        override fun store(creditNoteDocUuid: String) = Unit
+
+                        override fun isRefused(creditNoteDocUuid: String): Boolean = false
+                    },
+                    NettingDeclarationRecorder { _, _ -> },
+                ),
+            )
+        shouldThrow<IllegalStateException> { failing.handle(envelope()) }.message shouldBe "boom"
     }
 }
