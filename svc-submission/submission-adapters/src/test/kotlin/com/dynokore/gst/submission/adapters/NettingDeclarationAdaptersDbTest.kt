@@ -68,6 +68,7 @@ class NettingDeclarationAdaptersDbTest {
             OutboxNetDerivationRequestPublisher(noOutbox, tenants, dsl),
             ports,
             ports,
+            { true },
         )
     private val reader = NetDerivationRefusedReader(handler, ports)
     private val revised = UUID.randomUUID().toString()

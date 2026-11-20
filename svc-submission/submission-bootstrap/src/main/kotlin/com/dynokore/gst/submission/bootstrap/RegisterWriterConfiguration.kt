@@ -7,6 +7,7 @@ import com.dynokore.gst.submission.adapters.persistence.EntityConnections
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
 import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
+import com.dynokore.gst.submission.application.correction.NettedAmendmentGuard
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedDataReader
 import com.dynokore.gst.submission.application.register.CanonicalVersionCreatedHandler
 import com.dynokore.gst.submission.application.register.DocumentKindResolver
@@ -83,9 +84,10 @@ class RegisterWriterConfiguration {
         outbox: OutboxWriter,
         connections: EntityConnections,
         corrections: CreditNoteCorrectionHandler,
+        guard: NettedAmendmentGuard,
     ): EventHandler =
         TypeDecidingHandler(
-            CanonicalVersionCreatedHandler(tenants, reader, deadlines, kinds, store, corrections),
+            CanonicalVersionCreatedHandler(tenants, reader, deadlines, kinds, store, corrections, guard),
             reader,
             DecideSubmissionType(OutboxSubmissionTypeDecidedPublisher(outbox, tenants, connections)),
         )

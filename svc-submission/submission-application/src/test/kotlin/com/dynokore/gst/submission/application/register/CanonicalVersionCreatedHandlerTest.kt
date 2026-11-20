@@ -3,7 +3,9 @@ package com.dynokore.gst.submission.application.register
 import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
 import com.dynokore.gst.submission.application.correction.CreditNoteTransitions
 import com.dynokore.gst.submission.application.correction.NetDerivationRequestPort
+import com.dynokore.gst.submission.application.correction.NetFindings
 import com.dynokore.gst.submission.application.correction.NetRefusedMarks
+import com.dynokore.gst.submission.application.correction.NettedAmendmentGuard
 import com.dynokore.gst.submission.application.correction.NettingDeclarationRecorder
 import com.dynokore.gst.submission.application.correction.OriginalRef
 import com.dynokore.gst.submission.application.correction.OriginalVersionSource
@@ -51,6 +53,28 @@ class CanonicalVersionCreatedHandlerTest {
                 block: () -> T,
             ): T = block()
         }
+
+    /** A guard that always proceeds: no original is resolved, so no netted amendment exists. */
+    private val proceedGuard =
+        NettedAmendmentGuard(
+            object : OriginalVersionSource {
+                override fun versionsOf(creditNoteDocUuid: String): List<LifecycleState> = emptyList()
+
+                override fun originalOf(creditNoteDocUuid: String): OriginalRef? = null
+            },
+            object : CreditNoteTransitions {
+                override fun notSubmittable(
+                    creditNoteDocUuid: String,
+                    reason: CorrectionReason,
+                ) = Unit
+
+                override fun nettedBySystem(originalDocUuid: String): List<String> = emptyList()
+
+                override fun lift(creditNoteDocUuid: String) = Unit
+            },
+            { null },
+            { true },
+        )
 
     private class Store(
         private val answers: ArrayDeque<UpsertResult>,
@@ -153,6 +177,7 @@ class CanonicalVersionCreatedHandlerTest {
                 override fun isRefused(creditNoteDocUuid: String): Boolean = false
             },
             NettingDeclarationRecorder { d, set -> calls += "replaceDeclared $d ${set.sorted()}" },
+            NetFindings { true },
         )
 
     private fun fixture(
@@ -171,6 +196,7 @@ class CanonicalVersionCreatedHandlerTest {
                 { kind },
                 store,
                 recordingCorrections(calls),
+                proceedGuard,
             )
         return Fixture(handler, store, calls)
     }
@@ -464,7 +490,9 @@ class CanonicalVersionCreatedHandlerTest {
                         override fun isRefused(creditNoteDocUuid: String): Boolean = false
                     },
                     NettingDeclarationRecorder { _, _ -> },
+                    NetFindings { true },
                 ),
+                proceedGuard,
             )
         shouldThrow<IllegalStateException> { failing.handle(envelope()) }.message shouldBe "boom"
     }

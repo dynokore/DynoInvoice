@@ -1,6 +1,8 @@
 package com.dynokore.gst.submission.application.register
 
+import com.dynokore.gst.submission.application.correction.AmendmentVerdict
 import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
+import com.dynokore.gst.submission.application.correction.NettedAmendmentGuard
 import com.dynokore.gst.submission.domain.deadline.SubmissionDeadline
 import com.dynokore.gst.submission.domain.listing.Direction
 import com.dynokore.gst.submission.domain.metrics.RowKind
@@ -23,6 +25,10 @@ import com.dynokore.platform.tenancykernel.TenantContext
  *
  * After an upsert that inserts or updates, a purchase credit note is decided and an invoice version is handed to the
  * correction handler (INV-REQ-558 behavior 6, INV-REQ-559). Its exceptions propagate: the event is retried.
+ *
+ * A credit note version is first checked by the [NettedAmendmentGuard]: when it is `Refused` nothing is upserted and
+ * the outcome is IGNORED (owner option A of 2026-11-20; the finding is recorded by the guard). Any other kind never
+ * reaches the guard.
  */
 class CanonicalVersionCreatedHandler(
     private val tenants: TenantContext,
@@ -31,6 +37,7 @@ class CanonicalVersionCreatedHandler(
     private val kinds: DocumentKindResolver,
     private val store: RegisterEntryStore,
     private val corrections: CreditNoteCorrectionHandler,
+    private val guard: NettedAmendmentGuard,
 ) : EventHandler {
     override fun handle(event: Envelope): HandleOutcome {
         val data = reader.read(event.dataJson)
@@ -58,6 +65,9 @@ class CanonicalVersionCreatedHandler(
                 notSubmittableReason = data.notSubmittableReason,
                 precedingDocUuid = data.precedingDocUuid,
             )
+        if (kind == CREDIT_NOTE_KIND && guard.check(data.docUuid, data.version) == AmendmentVerdict.Refused) {
+            return HandleOutcome.IGNORED
+        }
         return when (store.upsert(tenant, entry)) {
             UpsertResult.INSERTED, UpsertResult.UPDATED -> {
                 correct(data, kind, facts)
@@ -117,4 +127,9 @@ class CanonicalVersionCreatedHandler(
             is ScopeRoute.NotSubmittable -> false
             is ScopeRoute.Unrecognised -> throw ContractViolation("$where: unrecognised scope verdict")
         }
+
+    private companion object {
+        /** The register kind of a credit note. */
+        val CREDIT_NOTE_KIND = RowKind.CREDIT_NOTE
+    }
 }

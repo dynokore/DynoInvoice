@@ -21,6 +21,8 @@ class CreditNoteCorrectionHandlerTest {
         val refused = mutableSetOf<String>()
         val netted = mutableSetOf<String>()
         val recorded = mutableListOf<String>()
+        val findingList = mutableListOf<NetFinding>()
+        val findings = NetFindings { findingList.add(it) }
 
         val originals =
             object : OriginalVersionSource {
@@ -59,7 +61,8 @@ class CreditNoteCorrectionHandlerTest {
                 override fun isRefused(creditNoteDocUuid: String) = creditNoteDocUuid in refused
             }
         val recorder = NettingDeclarationRecorder { doc, set -> recorded += "replaceDeclared $doc ${set.sorted()}" }
-        val handler = CreditNoteCorrectionHandler(originals, declarations, transitions, requests, marks, recorder)
+        val handler =
+            CreditNoteCorrectionHandler(originals, declarations, transitions, requests, marks, recorder, findings)
     }
 
     private fun decideWith(
@@ -195,7 +198,9 @@ class CreditNoteCorrectionHandlerTest {
                 w.transitions,
                 w.requests,
                 w.marks,
-            ) { doc, set -> order += "replaceDeclared $doc ${set.sorted()}; calls so far ${w.calls}" }
+                { doc, set -> order += "replaceDeclared $doc ${set.sorted()}; calls so far ${w.calls}" },
+                w.findings,
+            )
         ordered.onOriginalVersion(o, 4, null, emptySet())
         order shouldBe listOf("replaceDeclared $o []; calls so far []")
         w.calls shouldBe listOf("mark $a", "lift $a")
@@ -215,5 +220,21 @@ class CreditNoteCorrectionHandlerTest {
             .map { it.name }
             .toSet() shouldBe
             setOf("notSubmittable", "nettedBySystem", "lift")
+    }
+
+    @Test
+    fun `INV-AC-25529 onRefused NET_NOT_POSITIVE records one finding per distinct credit note`() {
+        val w = World(listOf(LifecycleState.READY))
+        w.handler.onRefused(listOf(a, a), "NET_NOT_POSITIVE")
+        w.findingList shouldBe listOf(NetFinding(NetFindingKind.NET_NOT_POSITIVE, a, null, null))
+        w.calls shouldBe listOf("mark $a")
+    }
+
+    @Test
+    fun `INV-AC-25529 onRefused NOT_PRECEDING records no finding and still marks`() {
+        val w = World(listOf(LifecycleState.READY))
+        w.handler.onRefused(listOf(a), "NOT_PRECEDING")
+        w.findingList shouldBe emptyList()
+        w.calls shouldBe listOf("mark $a")
     }
 }

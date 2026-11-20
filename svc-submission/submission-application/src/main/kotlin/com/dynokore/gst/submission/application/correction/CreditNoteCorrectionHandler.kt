@@ -20,6 +20,7 @@ class CreditNoteCorrectionHandler(
     private val requests: NetDerivationRequestPort,
     private val refusals: NetRefusedMarks,
     private val recorder: NettingDeclarationRecorder,
+    private val findings: NetFindings,
 ) {
     /** Decides the credit note and applies the result once. */
     fun decide(creditNoteDocUuid: String) {
@@ -69,13 +70,18 @@ class CreditNoteCorrectionHandler(
         }
     }
 
-    /** The derivation of [creditNoteDocUuids] was refused: store `netRefused` and decide again. */
-    @Suppress("UnusedParameter") // the reason is carried by the event; the decision depends on the mark only
+    /**
+     * The derivation of [creditNoteDocUuids] was refused: with reason `NET_NOT_POSITIVE` record one finding per
+     * distinct credit note (owner option A of 2026-11-20), then store `netRefused` and decide again.
+     */
     fun onRefused(
         creditNoteDocUuids: List<String>,
         reason: String,
     ) {
         creditNoteDocUuids.distinct().forEach {
+            if (reason == NET_NOT_POSITIVE) {
+                findings.record(NetFinding(NetFindingKind.NET_NOT_POSITIVE, it, null, null))
+            }
             refusals.store(it)
             decide(it)
         }
@@ -108,4 +114,8 @@ class CreditNoteCorrectionHandler(
 
     private fun originalWasSent(versions: List<LifecycleState>): Boolean =
         versions.map(OriginalStanding::classOf).any { it == StateClass.AT_IRAS || it == StateClass.SENT_OUT }
+
+    private companion object {
+        const val NET_NOT_POSITIVE = "NET_NOT_POSITIVE"
+    }
 }

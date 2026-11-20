@@ -4,6 +4,7 @@ import com.dynokore.gst.submission.adapters.persistence.EntityConnections
 import com.dynokore.gst.submission.adapters.persistence.JooqPeriodDueDateStore
 import com.dynokore.gst.submission.adapters.persistence.JooqRegisterEntryStore
 import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
+import com.dynokore.gst.submission.application.correction.NettedAmendmentGuard
 import com.dynokore.gst.submission.application.register.DocumentKindResolver
 import com.dynokore.gst.submission.application.register.DocumentTypeKindResolver
 import com.dynokore.gst.submission.application.register.FilingDeadlineSource
@@ -176,6 +177,7 @@ class RegisterWriterWiringTest {
                 context.getBean(OutboxWriter::class.java),
                 context.getBean(EntityConnections::class.java),
                 context.getBean(CreditNoteCorrectionHandler::class.java),
+                context.getBean(NettedAmendmentGuard::class.java),
             )
         handler.shouldBeInstanceOf<TypeDecidingHandler>()
         context.getBean(RegisterEntryStore::class.java).shouldBeInstanceOf<JooqRegisterEntryStore>()

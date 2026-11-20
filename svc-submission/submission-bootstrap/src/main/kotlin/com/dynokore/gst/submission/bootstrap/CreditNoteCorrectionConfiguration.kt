@@ -7,6 +7,7 @@ import com.dynokore.gst.submission.adapters.persistence.RefusedCreditNotes
 import com.dynokore.gst.submission.application.correction.CreditNoteCorrectionHandler
 import com.dynokore.gst.submission.application.correction.CreditNoteTransitions
 import com.dynokore.gst.submission.application.correction.NetDerivationRequestPort
+import com.dynokore.gst.submission.application.correction.NetFindings
 import com.dynokore.gst.submission.application.correction.NetRefusedMarks
 import com.dynokore.gst.submission.application.correction.NettingDeclarationRecorder
 import com.dynokore.gst.submission.application.correction.NettingDeclarations
@@ -86,7 +87,7 @@ class CreditNoteCorrectionConfiguration {
     ): NetDerivationRequestPort = OutboxNetDerivationRequestPublisher(outbox, tenants, dsl)
 
     @Bean
-    @Suppress("LongParameterList") // composition root: the handler takes six ports
+    @Suppress("LongParameterList") // composition root: the handler takes seven ports
     fun creditNoteCorrectionHandler(
         originals: OriginalVersionSource,
         declarations: NettingDeclarations,
@@ -94,8 +95,9 @@ class CreditNoteCorrectionConfiguration {
         requests: NetDerivationRequestPort,
         refusals: NetRefusedMarks,
         recorder: NettingDeclarationRecorder,
+        findings: NetFindings,
     ): CreditNoteCorrectionHandler =
-        CreditNoteCorrectionHandler(originals, declarations, transitions, requests, refusals, recorder)
+        CreditNoteCorrectionHandler(originals, declarations, transitions, requests, refusals, recorder, findings)
 
     @Bean
     @Suppress("LongParameterList")

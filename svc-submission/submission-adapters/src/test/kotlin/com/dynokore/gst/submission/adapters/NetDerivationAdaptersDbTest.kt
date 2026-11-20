@@ -84,6 +84,7 @@ class NetDerivationAdaptersDbTest {
             OutboxNetDerivationRequestPublisher(outbox, tenants, dsl),
             ports,
             ports,
+            { true },
         )
     private val original = UUID.randomUUID().toString()
     private val creditNote = UUID.randomUUID().toString()
