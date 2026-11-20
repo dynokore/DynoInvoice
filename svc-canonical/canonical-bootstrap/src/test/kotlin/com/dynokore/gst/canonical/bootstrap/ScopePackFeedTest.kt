@@ -5,8 +5,13 @@ import com.dynokore.gst.canonical.adapters.persistence.ScopePackActivation
 import com.dynokore.gst.canonical.adapters.persistence.ScopePackRow
 import com.dynokore.gst.canonical.adapters.persistence.StagedScopePack
 import com.dynokore.gst.canonical.domain.derivation.UpstreamFunction
+import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
 import com.dynokore.platform.outboxandqueue.ContractViolation
+import com.dynokore.platform.outboxandqueue.CorrelationId
+import com.dynokore.platform.outboxandqueue.EntityRef
+import com.dynokore.platform.outboxandqueue.Envelope
+import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.HandleOutcome
 import com.dynokore.platform.outboxandqueue.JdbcInboxConsumer
 import com.dynokore.platform.tenancykernel.TenantId
@@ -15,13 +20,13 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Path
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 
 /**
  * INV-AC-25429: the RulePackStaged and RulePackActivated consumers over fake sinks, and their wiring (P109). The
- * handlers are driven by `apply(dataJson, tenant)`: an `Envelope` of these two types under the platform tenant cannot
- * be built with the platform-libs-bom this repository pins (outbox-and-queue lacks them in the closed platform set).
+ * handlers are driven by `apply(dataJson, tenant)`, and by a real platform-tenant `Envelope` through `handle(event)`.
  */
 class ScopePackFeedTest {
     private class FakeSinks :
@@ -135,6 +140,52 @@ class ScopePackFeedTest {
                 )
             ScopePackFeed.STAGED_EVENT_TYPE shouldBe "com.dynokore.gst.platform.RulePackStaged.v1"
             ScopePackFeed.ACTIVATED_EVENT_TYPE shouldBe "com.dynokore.gst.platform.RulePackActivated.v1"
+        }
+    }
+
+    private fun platformEnvelope(
+        type: String,
+        dataJson: String,
+    ) = Envelope(
+        id = EventId("ev-1"),
+        source = "/gst/rules-svc",
+        type = type,
+        subject = "gst-scope",
+        time = Instant.parse("2026-11-20T10:00:00Z"),
+        tenant = TenantId.PLATFORM,
+        entity = EntityRef.PLATFORM,
+        docUuid = null,
+        transactionDate = null,
+        docSequence = null,
+        instanceId = "rules-svc-0",
+        correlation = CorrelationId("corr-1"),
+        causation = CausationId("cause-1"),
+        dataJson = dataJson,
+    )
+
+    @Test
+    fun `INV-AC-25429 F6 a real platform-tenant staged envelope is applied by the staged handler`() {
+        val sinks = FakeSinks()
+        val event = platformEnvelope(ScopePackFeed.STAGED_EVENT_TYPE, stagedData())
+        ScopePackStagedHandler(ScopePackReader(), sinks).handle(event) shouldBe HandleOutcome.APPLIED
+        sinks.staged.map { it.packIdentifier to it.version } shouldBe listOf("gst-scope" to "2026.1.0")
+    }
+
+    @Test
+    fun `INV-AC-25429 F7 a real platform-tenant activated envelope is applied by the activated handler`() {
+        val sinks = FakeSinks()
+        val event = platformEnvelope(ScopePackFeed.ACTIVATED_EVENT_TYPE, activatedData)
+        ScopePackActivatedHandler(ScopePackReader(), sinks).handle(event) shouldBe HandleOutcome.APPLIED
+        sinks.activations shouldBe listOf(ScopePackActivation("gst-scope", "2026.1.0", LocalDate.parse("2026-12-01")))
+    }
+
+    @Test
+    fun `INV-AC-25429 F8 the look-alike rules-namespace types cannot be built as platform envelopes`() {
+        assertThrows<IllegalArgumentException> {
+            platformEnvelope("com.dynokore.gst.rules.RulePackStaged.v1", stagedData())
+        }
+        assertThrows<IllegalArgumentException> {
+            platformEnvelope("com.dynokore.gst.rules.RulePackActivated.v1", activatedData)
         }
     }
 }
