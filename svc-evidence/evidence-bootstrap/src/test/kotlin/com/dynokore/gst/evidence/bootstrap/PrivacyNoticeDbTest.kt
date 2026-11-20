@@ -152,9 +152,10 @@ class PrivacyNoticeDbTest {
         node.put("scopeLevel", "TENANT")
         node.put("scopeRef", tenant.toString())
         val selected = node.putArray("selected").addObject()
-        selected.put("option", "PACK_DEFAULT_30D")
-        selected.putObject("value").put("noticeLeadDays", days)
+        selected.put("option", "SHORTER")
+        selected.putObject("value").put("responseDays", PACK_DAYS).put("noticeLeadDays", days)
         node.put("effectiveDate", RetentionService.today().toString())
+        node.put("reason", "Tenant notice lead for privacy request cases")
         val port = service.bean(org.springframework.core.env.Environment::class.java).getProperty("local.server.port")
         val request =
             HttpRequest

@@ -190,8 +190,12 @@ class PrivacyEndpointsTest {
         val selected = node.putArray("selected").addObject()
         selected.put("option", option)
         val values = selected.putObject("value")
+        // The row VP-63 holds a record of both members; the member a case does not set keeps its default.
+        values.put("responseDays", PACK_DAYS)
+        values.put("noticeLeadDays", NOTICE_LEAD_DEFAULT)
         value.forEach { (name, days) -> values.put(name, days) }
         node.put("effectiveDate", RetentionService.today().toString())
+        node.put("reason", "Tenant privacy request period or notice lead")
         return send("POST", "/internal/v1/policies/VP-63", POLICY, tenant, mapper.writeValueAsString(node), uuid())
     }
 
@@ -274,14 +278,14 @@ class PrivacyEndpointsTest {
     @Test
     fun `INV-AC-10587 a lead of 5 is refused POL-013 and a lead of 14 is stored`() {
         val t = handlerTenant()
-        val refused = setPolicy(t, "PACK_DEFAULT_30D", mapOf("noticeLeadDays" to LEAD_BELOW_MIN))
+        val refused = setPolicy(t, "SHORTER", mapOf("noticeLeadDays" to LEAD_BELOW_MIN))
         refused.status shouldBe 422
         refused.code shouldBe "POL-013"
-        setPolicy(t, "PACK_DEFAULT_30D", mapOf("noticeLeadDays" to LEAD_LONGER)).status shouldBe 200
+        setPolicy(t, "SHORTER", mapOf("noticeLeadDays" to LEAD_LONGER)).status shouldBe 200
     }
 
     @Test
-    fun `INV-AC-10587 the stored deadline of an existing case does not change when the tenant period is changed later`() {
+    fun `INV-AC-10587 the stored deadline of an existing case does not change when the period is changed later`() {
         val t = handlerTenant()
         val opened = open(HANDLER, t)
         setPolicy(t, "SHORTER", mapOf("responseDays" to SHORTER)).status shouldBe 200
@@ -475,6 +479,7 @@ class PrivacyEndpointsTest {
         const val SCOPED = "u-scoped"
         const val NOBODY = "u-nobody"
         const val PACK_DAYS = 30
+        const val NOTICE_LEAD_DEFAULT = 7
         const val SHORTER = 14
         const val LONGER_THAN_PACK = 45
         const val LEAD_BELOW_MIN = 5
