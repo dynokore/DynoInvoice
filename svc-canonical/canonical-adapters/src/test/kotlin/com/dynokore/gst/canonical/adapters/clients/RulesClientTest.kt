@@ -186,17 +186,21 @@ class RulesClientTest {
     }
 
     @Test
-    fun `INV-AC-24847 the supplyType of the answer is carries the five members and no unknown one`() {
+    fun `INV-AC-24847 the supplyType of the answer is carries the five members and the look-alike unchanged`() {
         val client = client(FakeRegistry(fixedClock))
         stub.reply = Reply(200, """{"scopeVerdict":"IN_SCOPE","supplyType":"ZERO_RATED"}""")
         (client.evaluate(facts) as Verdict).supplyType shouldBe "ZERO_RATED"
-        // the generated enum drops a value outside the five members (it decodes to UNKNOWN): no supply type is carried
         stub.reply = Reply(200, """{"scopeVerdict":"IN_SCOPE","supplyType":"zero_rated"}""")
-        (client.evaluate(facts) as Verdict).supplyType shouldBe null
-        stub.reply = Reply(200, """{"scopeVerdict":"IN_SCOPE","supplyType":"FUTURE_TYPE"}""")
-        (client.evaluate(facts) as Verdict).supplyType shouldBe null
+        (client.evaluate(facts) as Verdict).supplyType shouldBe "zero_rated"
         stub.reply = Reply(200, """{"scopeVerdict":"IN_SCOPE"}""")
         (client.evaluate(facts) as Verdict).supplyType shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-24847 out-of-set supplyType reaches the verdict as the wire string`() {
+        val client = client(FakeRegistry(fixedClock))
+        stub.reply = Reply(200, """{"scopeVerdict":"IN_SCOPE","supplyType":"FUTURE_SUPPLY_TYPE"}""")
+        (client.evaluate(facts) as Verdict).supplyType shouldBe "FUTURE_SUPPLY_TYPE"
     }
 
     @Test

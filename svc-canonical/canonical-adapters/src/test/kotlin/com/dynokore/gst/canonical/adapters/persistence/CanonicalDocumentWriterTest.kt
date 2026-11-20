@@ -153,6 +153,12 @@ class CanonicalDocumentWriterTest {
     }
 
     @Test
+    fun `INV-AC-24847 out-of-set supplyType is stored verbatim`() {
+        winner(listOf("100.00", "40.00"), listOf("FUTURE_SUPPLY_TYPE", "FUTURE_SUPPLY_TYPE")) shouldBe
+            "FUTURE_SUPPLY_TYPE"
+    }
+
+    @Test
     fun `INV-AC-24847 the look-alike zero_rated is carried unchanged`() {
         winner(listOf("100.00"), listOf("zero_rated")) shouldBe "zero_rated"
     }

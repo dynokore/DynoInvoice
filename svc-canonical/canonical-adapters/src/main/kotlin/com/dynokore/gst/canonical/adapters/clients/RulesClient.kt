@@ -24,12 +24,6 @@ private const val MAPPING = "MAPPING"
 private const val MDE = "MDE"
 private val PACK_TYPES = listOf(SCOPE, MAPPING, MDE)
 private const val HTTP_FORBIDDEN = 403
-
-/**
- * The generated enum maps every value outside the five members to this sentinel and drops the wire string; it is
- * not a supply type, so it is not carried (fail closed: no member downstream). Gap reported to the owner.
- */
-private const val GENERATED_UNKNOWN = "UNKNOWN"
 private const val FLOW_CONTEXT_REFUSED = "SRT-004"
 
 private const val UNUSED_FLOW_CONTEXT = ""
@@ -183,7 +177,7 @@ class RulesClient(
                 documentTypeCode = body.documentTypeCode,
                 categoryCode = body.categoryCode,
                 rate = body.rate?.toPlainString(),
-                supplyType = body.supplyType?.value?.takeIf { it != GENERATED_UNKNOWN },
+                supplyType = body.supplyType,
                 scopePackVersion = versions.getValue(SCOPE).singleOrNull(),
                 mappingPackVersion = versions.getValue(MAPPING).singleOrNull(),
                 mdePackVersion = versions.getValue(MDE).singleOrNull(),

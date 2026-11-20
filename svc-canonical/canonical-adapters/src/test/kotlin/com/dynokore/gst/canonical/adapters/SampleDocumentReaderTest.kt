@@ -410,6 +410,13 @@ class SampleDocumentReaderTest {
     }
 
     @Test
+    fun `INV-AC-24847 out-of-set supplyType reaches the item and the page validates`() {
+        val doc = insert(LocalDate.of(2026, 3, 10), SampleKit.canonical(two, supplyType = "FUTURE_SUPPLY_TYPE"))
+        items().getValue(doc.docUuid.toString()).path("supplyType").asString() shouldBe "FUTURE_SUPPLY_TYPE"
+        answer().forEach { SampleKit.errors(it) shouldBe emptyList() }
+    }
+
+    @Test
     fun `INV-AC-24847 the supplyType of another document or tenant is not read and currency is not mistaken for it`() {
         val own = insert(LocalDate.of(2026, 3, 10), SampleKit.canonical(two))
         insert(LocalDate.of(2026, 3, 10), SampleKit.canonical(two, supplyType = "EXEMPT"), within = UUID.randomUUID())
