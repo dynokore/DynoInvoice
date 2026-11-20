@@ -97,7 +97,18 @@ class ConfigResolverMigrationTest {
     fun `INV-AC-25570 the runtime role holds least privilege and the sys role writes installation settings`() {
         privilege(ConsoleDb.RUNTIME, "config_setting", "SELECT") shouldBe true
         privilege(ConsoleDb.RUNTIME, "config_setting", "INSERT") shouldBe true
+        privilege(ConsoleDb.RUNTIME, "config_setting", "DELETE") shouldBe false
         privilege(ConsoleDb.RUNTIME, "config_installation_setting", "SELECT") shouldBe true
+        privilege(ConsoleDb.RUNTIME, "config_installation_setting", "INSERT") shouldBe false
+        listOf(
+            "config_setting",
+            "config_installation_setting",
+            "config_resolved_value",
+            "config_relaxation_acknowledgement",
+        ).forEach { t ->
+            privilege(ConsoleDb.RUNTIME, t, "UPDATE") shouldBe false
+            privilege(ConsoleDb.RUNTIME, t, "DELETE") shouldBe false
+        }
         privilege(ConsoleDb.SYS, "config_installation_setting", "INSERT") shouldBe true
     }
 
@@ -137,6 +148,40 @@ class ConfigResolverMigrationTest {
                     it.executeUpdate()
                 }
             }
+        }
+    }
+
+    @Test
+    fun `INV-AC-25607 provision_sql grants no default table privilege`() {
+        val provision = checkNotNull(javaClass.getResource("/db/provision.sql")).readText()
+        val form = Regex("alter\\s+default\\s+privileges[^;]*\\son\\s+tables", RegexOption.IGNORE_CASE)
+        form.containsMatchIn(provision) shouldBe false
+        form.containsMatchIn(
+            "alter default privileges for role console_bff_migrate in schema console_bff grant select, insert, " +
+                "update, delete on tables to console_bff_runtime;",
+        ) shouldBe true
+        query(
+            "select count(*) from pg_default_acl d join pg_namespace n on n.oid = d.defaclnamespace " +
+                "where n.nspname = 'console_bff' and d.defaclobjtype = 'r' " +
+                "and d.defaclacl::text like '%${ConsoleDb.RUNTIME}=%'",
+        ) { it.getInt(1) } shouldBe listOf(0)
+    }
+
+    @Test
+    fun `INV-AC-25607 console_session runtime privileges`() {
+        val file = "/db/migration/V202611201110__console_session_runtime_grants.sql"
+        checkNotNull(javaClass.getResource(file))
+            .readText()
+            .lines()
+            .dropWhile { it.startsWith("--") || it.isBlank() }
+            .joinToString("\n")
+            .trim() shouldBe
+            "grant select, insert, update, delete on console_bff.console_session to console_bff_runtime;"
+        listOf("SELECT", "INSERT", "UPDATE", "DELETE").forEach {
+            privilege(ConsoleDb.RUNTIME, "console_session", it) shouldBe true
+        }
+        listOf("TRUNCATE", "REFERENCES", "TRIGGER").forEach {
+            privilege(ConsoleDb.RUNTIME, "console_session", it) shouldBe false
         }
     }
 
