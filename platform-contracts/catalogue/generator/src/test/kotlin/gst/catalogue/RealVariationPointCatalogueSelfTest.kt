@@ -87,10 +87,10 @@ class RealVariationPointCatalogueSelfTest {
     }
 
     @Test
-    fun `INV-AC-25102 VP-84 offers exactly DEFAULT_30M_12H then SHORTER, planned, SHORTER a record of idle 1-30 minutes and absolute 1-12 hours, DOWN_STRICTER`() {
+    fun `INV-AC-25102 VP-84 offers exactly DEFAULT_30M_12H then SHORTER, available, SHORTER a record of idle 1-30 minutes and absolute 1-12 hours, DOWN_STRICTER`() {
         val vp84 = VariationPointYamlParser.parse(vendoredFile, pendingFile).single { it.id == "VP-84" }
         assertEquals("INV-REQ-25100", vp84.requirement)
-        assertEquals(VpStatus.PLANNED, vp84.status)
+        assertEquals(VpStatus.AVAILABLE, vp84.status)
         assertEquals("vp-84.set", vp84.setPermission)
         val fields = vp84.fields!!
         assertEquals(listOf(ScopeLevel.TENANT), fields.scopeLevels)
