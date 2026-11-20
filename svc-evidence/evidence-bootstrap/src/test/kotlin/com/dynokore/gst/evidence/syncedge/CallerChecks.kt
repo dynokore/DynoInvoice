@@ -151,6 +151,9 @@ class CallerChecks(
                 // INV-T-22971: the partition of the path does not exist, so both handlers answer 404 SRT-005
                 "POST /internal/v1/evidence/partitions/{partitionId}/deletions" to NOT_FOUND,
                 "GET /internal/v1/evidence/partitions/{partitionId}/deletion" to NOT_FOUND,
+                // INV-T-11694: the end-user token of this test holds neither case key, so the handler refuses it
+                "GET /internal/v1/evidence/cases/{caseId}" to FORBIDDEN,
+                "POST /internal/v1/evidence/security-cases" to FORBIDDEN,
             )
         private const val FORBIDDEN = 403
         private const val NOT_FOUND = 404
