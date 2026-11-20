@@ -36,7 +36,7 @@ class PintSgInitialContentTest {
         fun resource(path: String): ByteArray =
             PintSgInitialContentTest::class.java.getResourceAsStream(path)!!.use { it.readBytes() }
 
-        /** The name of an entry `<dir>/<name>` with a lower-case `.sch` or `.xslt` suffix; else null. */
+        /** The name of an entry that is exactly `<dir>/<name>` with a lower-case `.sch` or `.xslt` suffix; else null. */
         fun schematronName(path: String): String? {
             val dir = DIRECTORIES.firstOrNull { path.startsWith(it) } ?: return null
             val name = path.removePrefix(dir)
