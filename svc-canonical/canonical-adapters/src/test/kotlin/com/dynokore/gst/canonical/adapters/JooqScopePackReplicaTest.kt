@@ -136,6 +136,17 @@ class JooqScopePackReplicaTest {
         }
 
     @Test
+    fun `INV-AC-25429 6 activations of two versions of one pack identifier on the same greatest date answer null`() =
+        replica { r ->
+            r.stage(pack(version = "1.0.0", rows = arrayOf(invoice to BILL_FOR_PAYMENT)))
+            r.stage(pack(version = "1.1.0", rows = arrayOf(invoice to ADJUSTMENT)))
+            r.activated("gst-scope", "1.0.0", today)
+            r.functionOf(invoice) shouldBe BILL_FOR_PAYMENT
+            r.activated("gst-scope", "1.1.0", today)
+            r.functionOf(invoice) shouldBe null
+        }
+
+    @Test
     fun `INV-AC-25429 7 a pack of another type leaves the tables empty and a redelivered version changes nothing`() =
         replica { r ->
             val reader = ScopePackReader()
