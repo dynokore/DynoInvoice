@@ -80,7 +80,8 @@ class NettedAmendmentGuardTest {
     }
 
     @DisplayName(
-        "INV-AC-25527 a AT_IRAS original, registered version below v, A netted into O Refused, one AMENDED_AFTER_TRANSMISSION finding (A, v, O)",
+        "INV-AC-25527 a AT_IRAS original, registered version below v, A netted into O " +
+            "Refused, one AMENDED_AFTER_TRANSMISSION finding (A, v, O)",
     )
     @Test
     fun `INV-AC-25527 a`() {
@@ -165,7 +166,8 @@ class NettedAmendmentGuardTest {
     }
 
     @DisplayName(
-        "INV-AC-25527 h recordNotPositive with NET_NOT_POSITIVE for docUuids A, A, B two findings of kind NET_NOT_POSITIVE (version null, original null)",
+        "INV-AC-25527 h recordNotPositive with NET_NOT_POSITIVE for docUuids A, A, B " +
+            "two findings of kind NET_NOT_POSITIVE (version null, original null)",
     )
     @Test
     fun `INV-AC-25527 h`() {
