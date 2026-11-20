@@ -4,7 +4,7 @@ package com.dynokore.gst.submission.domain.scope
 enum class ScopeVerdict { SUBMITTABLE, NOT_SUBMITTABLE, PRE_OBLIGATION }
 
 /** The `notSubmittableReason` members of canonical/openapi.yaml `RecordDocumentResponse`. */
-enum class NotSubmittableReason { BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION }
+enum class NotSubmittableReason { BUYER_REJECTED, ISSUANCE_REFUSED, NETTED_INTO_REVISION, NETTED_BY_SYSTEM }
 
 /** One document's scope verdict as canonical-svc reports it; a reason is only valid on NOT_SUBMITTABLE. */
 data class Verdict(
