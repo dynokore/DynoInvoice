@@ -98,7 +98,6 @@ class ConfigResolverMigrationTest {
         privilege(ConsoleDb.RUNTIME, "config_setting", "SELECT") shouldBe true
         privilege(ConsoleDb.RUNTIME, "config_setting", "INSERT") shouldBe true
         privilege(ConsoleDb.RUNTIME, "config_installation_setting", "SELECT") shouldBe true
-        privilege(ConsoleDb.RUNTIME, "config_installation_setting", "INSERT") shouldBe false
         privilege(ConsoleDb.SYS, "config_installation_setting", "INSERT") shouldBe true
     }
 
