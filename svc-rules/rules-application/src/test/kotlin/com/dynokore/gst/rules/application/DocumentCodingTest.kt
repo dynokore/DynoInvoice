@@ -116,6 +116,14 @@ class DocumentCodingTest {
     private fun coded(result: DocumentCodingResult) = result.shouldBeInstanceOf<DocumentCodingResult.Coded>().document
 
     @Test
+    fun `INV-AC-24844 the coded document carries the catalogue of the version in force at its date`() {
+        val older = coded(coder().code(command(LocalDate.of(2026, 3, 1), line("1", "100.00", "STD"))))
+        val newer = coded(coder().code(command(changeDate, line("1", "100.00", "STD"))))
+        older.catalogue?.entryOf("SR")?.annexERate shouldBe "9"
+        newer.catalogue?.entryOf("SR")?.annexERate shouldBe "10"
+    }
+
+    @Test
     fun `a back-dated line takes the older rate`() {
         val doc = coded(coder().code(command(LocalDate.of(2026, 3, 1), line("1", "100.00", "STD", tax = "9.00"))))
         doc.subtotals
@@ -276,7 +284,7 @@ class DocumentCodingTest {
                 java.lang.reflect.Modifier
                     .isStatic(it.modifiers)
             }.map { it.name }
-            .toSet() shouldBe setOf("lines", "subtotals")
+            .toSet() shouldBe setOf("lines", "subtotals", "catalogue")
     }
 
     @Test
