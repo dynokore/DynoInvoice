@@ -225,7 +225,11 @@ class PrivacyNoticeDbTest {
         prompt(t, deadline.minusDays(LEAD_LONGER + 1L)) shouldBe 0
         promptedAt(id) shouldBe null
         prompt(t, deadline.minusDays(LEAD_LONGER.toLong())) shouldBe 1
-        events(id).single().get("data").get("noticeLeadDays").asInt() shouldBe LEAD_LONGER
+        events(id)
+            .single()
+            .get("data")
+            .get("noticeLeadDays")
+            .asInt() shouldBe LEAD_LONGER
     }
 
     @Test
@@ -235,7 +239,11 @@ class PrivacyNoticeDbTest {
         val id = open(t, LocalDate.parse("2026-03-01"))
         prompt(t, "2026-03-23") shouldBe 0
         prompt(t, "2026-03-24") shouldBe 1
-        events(id).single().get("data").get("noticeLeadDays").asInt() shouldBe NOTICE_LEAD
+        events(id)
+            .single()
+            .get("data")
+            .get("noticeLeadDays")
+            .asInt() shouldBe NOTICE_LEAD
     }
 
     @Test
