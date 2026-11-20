@@ -189,14 +189,14 @@ class EventPayloadContractTest {
         listOf("originalDocUuid", "expectedBaseVersion", "creditNotes").forEach { property ->
             val without = mapper.readTree(sample).also { (it as ObjectNode).remove(property) }
             errors(message, without.toString()) shouldBe
-                listOf("\$: required property '$property' not found")
+                listOf(": required property '$property' not found")
         }
         val zeroVersion = mapper.readTree(sample).also { (it as ObjectNode).put("expectedBaseVersion", 0) }
         errors(message, zeroVersion.toString()) shouldBe
-            listOf("\$.expectedBaseVersion: must have a minimum value of 1")
+            listOf("/expectedBaseVersion: must have a minimum value of 1")
         val noCreditNotes = mapper.readTree(sample).also { (it as ObjectNode).putArray("creditNotes") }
         errors(message, noCreditNotes.toString()) shouldBe
-            listOf("\$.creditNotes: must have at least 1 items but found 0")
+            listOf("/creditNotes: must have at least 1 items but found 0")
     }
 
     @Test

@@ -32,7 +32,7 @@ class OperationsGateTest {
         OperationsGate.contractOperations(openapi).size shouldBe 21
         OperationsGate.contractOperations(openapi) shouldContain "approveFilingGateOverride"
         OperationsGate.contractOperations(openapi) shouldContain "getFilingGateOverrides"
-        OperationsGate.contractChannels(asyncapi).size shouldBe 11
+        OperationsGate.contractChannels(asyncapi).size shouldBe 12
         run(done = doneText).shouldBeEmpty()
         val doneLines = checkNotNull(doneText).lines()
         listOf(
