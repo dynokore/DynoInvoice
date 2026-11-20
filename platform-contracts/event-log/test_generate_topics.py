@@ -485,7 +485,7 @@ class RetainedWhileResolvableTest(unittest.TestCase):
         expected = {"gst.rules.rule-pack-staged.v1", "gst.platform.rule-pack-staged.v1", "gst.rules.replay-notification.v1",
                     "gst.rules.replay-payload.v1", "gst.rules.replay-reconciliation.v1",
                     "gst.rules.replay-tenancy.v1", "gst.rules.replay-masterdata.v1",
-                    "gst.rules.replay-submission.v1"}
+                    "gst.rules.replay-submission.v1", "gst.rules.replay-canonical.v1"}
         got = {t["topic"] for t in topics if t["retained_while_resolvable"]} | \
               {d["topic"] for ds in derived.values() for d in ds if d["retained_while_resolvable"]}
         self.assertEqual(got, expected)
