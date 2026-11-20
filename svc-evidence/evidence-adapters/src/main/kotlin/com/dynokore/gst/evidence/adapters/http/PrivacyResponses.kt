@@ -13,15 +13,14 @@ import org.springframework.core.Ordered
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpInputMessage
-import org.springframework.http.converter.HttpMessageConverter
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.http.converter.HttpMessageConverter
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.servlet.mvc.method.annotation.RequestBodyAdviceAdapter
 import tools.jackson.databind.ObjectMapper
 import java.io.ByteArrayInputStream
-import java.lang.reflect.Modifier
 import java.lang.reflect.Type
 import java.util.UUID
 
@@ -77,7 +76,8 @@ class PrivacyRefusalAdvice(
  * `additionalProperties: false` of `OpenPrivacyCaseRequest` and `ClosePrivacyCaseRequest` (the caller supplies no
  * `responseDeadline`, no period and no status; INV-REQ-1403). The generated model ignores a member it does not know,
  * so the body is read once here and any member that is not a field of the model is refused as 400 SRT-001 before the
- * use case runs. The allowed names are the declared fields of the generated class, not a list kept here.
+ * use case runs. The known names are those the model serialises back, not a list kept here; every member of both
+ * models is required.
  */
 @RestControllerAdvice(assignableTypes = [PrivacyController::class])
 class PrivacyBodyMembersAdvice(
@@ -96,15 +96,13 @@ class PrivacyBodyMembersAdvice(
         converterType: Class<out HttpMessageConverter<*>>,
     ): HttpInputMessage {
         val bytes = inputMessage.body.readAllBytes()
-        val allowed =
-            (targetType as Class<*>)
-                .declaredFields
-                .filter { !Modifier.isStatic(it.modifiers) }
-                .map { it.name }
-                .toSet()
-        val tree = runCatching { mapper.readTree(bytes) }.getOrNull()
-        if (tree != null && tree.isObject && tree.propertyNames().any { it !in allowed }) {
-            throw CaseRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "the request body holds a member the contract does not name")
+        val sent = runCatching { mapper.readTree(bytes) }.getOrNull()
+        val model = runCatching { mapper.readValue(bytes, targetType as Class<*>) }.getOrNull()
+        if (sent != null && sent.isObject && model != null) {
+            val known = mapper.valueToTree<tools.jackson.databind.JsonNode>(model).propertyNames().toSet()
+            if (sent.propertyNames().any { it !in known }) {
+                throw CaseRefusal(ClosedErrorCode.CONTRACT_VIOLATION, "the request body holds an unknown member")
+            }
         }
         return object : HttpInputMessage {
             override fun getBody() = ByteArrayInputStream(bytes)

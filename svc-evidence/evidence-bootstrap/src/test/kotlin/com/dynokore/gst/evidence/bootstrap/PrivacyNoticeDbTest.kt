@@ -28,7 +28,7 @@ import java.util.UUID
 
 /**
  * The notice step and the deadline of a case on PostgreSQL, in the service as TPL-18 composes it (INV-T-6842;
- * INV-REQ-1403 behavior 3, INV-REQ-1401). The step runs for one tenant per call. 
+ * INV-REQ-1403 behavior 3, INV-REQ-1401). The step runs for one tenant per call.
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class PrivacyNoticeDbTest {
@@ -131,7 +131,7 @@ class PrivacyNoticeDbTest {
         }
 
     @Test
-    fun `INV-AC-10588 the notice is prompted once from 2026-03-24 with one PrivacyNoticeDue row of the five properties`() {
+    fun `INV-AC-10588 the notice is prompted once from 2026-03-24 with one PrivacyNoticeDue row`() {
         val t = tenant()
         val id = open(t, LocalDate.parse("2026-03-01"))
         scalar("select response_deadline::text from evidence.case_register where case_id = ?", id) shouldBe "2026-03-31"
@@ -145,7 +145,8 @@ class PrivacyNoticeDbTest {
         rows.size shouldBe 1
         rows[0].get("type").asString() shouldBe "com.dynokore.gst.platform.PrivacyNoticeDue.v1"
         val data = rows[0].get("data")
-        data.propertyNames().toSet() shouldBe setOf("caseId", "requestKind", "receivedOn", "responseDeadline", "noticeLeadDays")
+        val five = setOf("caseId", "requestKind", "receivedOn", "responseDeadline", "noticeLeadDays")
+        data.propertyNames().toSet() shouldBe five
         data.get("caseId").asString() shouldBe id.toString()
         data.get("requestKind").asString() shouldBe "ACCESS"
         LocalDate.parse(data.get("receivedOn").asString()) shouldBe LocalDate.parse("2026-03-01")

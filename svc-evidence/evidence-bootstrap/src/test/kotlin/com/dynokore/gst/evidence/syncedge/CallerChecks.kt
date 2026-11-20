@@ -154,6 +154,9 @@ class CallerChecks(
                 // INV-T-11694: the end-user token of this test holds neither case key, so the handler refuses it
                 "GET /internal/v1/evidence/cases/{caseId}" to FORBIDDEN,
                 "POST /internal/v1/evidence/security-cases" to FORBIDDEN,
+                // INV-T-6842: the same token holds neither handle key, so both privacy operations are refused too
+                "POST /internal/v1/evidence/cases" to FORBIDDEN,
+                "POST /internal/v1/evidence/cases/{caseId}/closure" to FORBIDDEN,
             )
         private const val FORBIDDEN = 403
         private const val NOT_FOUND = 404

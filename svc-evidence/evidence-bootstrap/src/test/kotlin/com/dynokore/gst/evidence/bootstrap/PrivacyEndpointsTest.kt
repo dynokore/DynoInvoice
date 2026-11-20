@@ -64,9 +64,9 @@ class PrivacyRoleMapBeans {
 }
 
 /**
- * `openPrivacyCase`, `closePrivacyCase` and the response period of VP-63 over HTTP in the service as TPL-18 composes it,
- * on PostgreSQL (INV-T-6842; INV-REQ-1403, INV-REQ-1401). The permission of each principal is the TENANT-scope grant fed
- * to the service's one `AuthorityReplica`; the period is written through the mounted `setPolicy`.
+ * `openPrivacyCase` and `closePrivacyCase` over HTTP in the service as TPL-18 composes it, on PostgreSQL (INV-T-6842;
+ * INV-REQ-1403). The permission of each principal is the TENANT-scope grant fed to the service's one
+ * `AuthorityReplica`. The tenant-period cases of INV-AC-10587 wait for VP-63 to be available (see the MR).
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Suppress("LargeClass", "TooManyFunctions") // one HTTP test class for the two operations of one task

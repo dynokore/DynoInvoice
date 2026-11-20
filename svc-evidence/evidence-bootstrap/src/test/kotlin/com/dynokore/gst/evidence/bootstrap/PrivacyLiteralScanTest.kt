@@ -31,14 +31,12 @@ class PrivacyLiteralScanTest {
             val match = token.find(text, at) ?: break
             out.append(text, at, match.range.first)
             at = match.range.last + 1
-            when {
-                match.value == "/*" -> {
-                    val end = endOfBlockComment(text, at)
-                    out.append("\n".repeat(text.substring(at, end).count { it == '\n' })) // keep the line numbers
-                    at = end
-                }
-                match.value.startsWith("//") -> Unit
-                else -> out.append(if (keepStrings) match.value else "\"\"")
+            if (match.value == "/*") {
+                val end = endOfBlockComment(text, at)
+                out.append("\n".repeat(text.substring(at, end).count { it == '\n' })) // keep the line numbers
+                at = end
+            } else if (!match.value.startsWith("//")) {
+                out.append(if (keepStrings) match.value else "\"\"")
             }
         }
         return out.append(text, at, text.length).toString()
@@ -81,12 +79,12 @@ class PrivacyLiteralScanTest {
         }
 
     @Test
-    fun `INV-AC-10587 no main source of the four modules holds the literal 30 on a line with responseDays or packDays`() {
+    fun `INV-AC-10587 no main source of the four modules holds a literal 30 beside responseDays or packDays`() {
         scan(root).shouldBeEmpty()
     }
 
     @Test
-    fun `INV-AC-10587 a scratch file with val packDays = 30 in any of the four main directories fails and in src test does not`(
+    fun `INV-AC-10587 a scratch packDays 30 in any of the four main directories fails and in src test does not`(
         @TempDir tmp: Path,
     ) {
         modules.forEach { module ->

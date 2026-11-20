@@ -50,7 +50,8 @@ import java.util.UUID
  * the key and body answers 200 with the stored body, the key with another body 422 SRT-009, a key in flight 409
  * SRT-007. `openPrivacyCase` and `closePrivacyCase` (INV-T-6842; INV-REQ-1403) check `privacy-request.handle` first,
  * then run the same transaction and replay shape; the refusals of the use cases are 409 and 422 envelopes
- * ([PrivacyRefusalAdvice]). `getCase` answers 404 SRT-005 for an unknown case and for a case of another tenant alike (API-24).
+ * ([PrivacyRefusalAdvice]). `getCase` answers 404 SRT-005 for an unknown case and for a case of another tenant alike
+ * (API-24).
  */
 @RestController
 @Suppress("LongParameterList") // the use case, its ports and the request context; one controller per tag
@@ -180,7 +181,10 @@ open class PrivacyController(
         status: HttpStatus,
         stored: StoredResponse,
     ): ResponseEntity<PrivacyCase> =
-        ResponseEntity.status(status).body(mapper.readValue(stored.body, Map::class.java)) as ResponseEntity<PrivacyCase>
+        ResponseEntity
+            .status(
+                status,
+            ).body(mapper.readValue(stored.body, Map::class.java)) as ResponseEntity<PrivacyCase>
 
     override fun getCase(caseId: UUID): ResponseEntity<PrivacyCase> {
         val caller = caller()
