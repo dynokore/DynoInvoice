@@ -277,15 +277,19 @@ class PayloadReadyDbTest {
     ) = run(dir) {
         val doc = UUID.randomUUID().toString()
         deliver(envelope(doc, 2, sequence = 1))
+        val consumer = consumer(handler)
+        consumer.pollOnce().applied shouldBe 1
+        // version 2 is SENT (claimed and despatched) before version 3 arrives, so INV-REQ-573 does not cancel it
+        val dispatched = dispatches()
         deliver(envelope(doc, 3, sequence = 2))
 
-        consumer(handler).pollOnce().applied shouldBe 2
+        consumer.pollOnce().applied shouldBe 1
 
         submissionRows(doc, 2) shouldBe 1
         submissionRows(doc, 3) shouldBe 1
         // INV-REQ-571: version 3 is READY and has no item while version 2 is in flight
         queueRows(doc) shouldBe 1
-        dispatches() shouldBe listOf(doc to 2)
+        dispatched shouldBe listOf(doc to 2)
     }
 
     @Test

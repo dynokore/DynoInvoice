@@ -38,6 +38,14 @@ sealed interface SentResult {
         val state: LifecycleState,
         val item: ClaimedItem,
     ) : SentResult
+
+    /**
+     * The row is `CANCELLED` (INV-REQ-573): the stale [item] was completed in the same transaction, with no attempt
+     * row and no event.
+     */
+    data class Discarded(
+        val item: ClaimedItem,
+    ) : SentResult
 }
 
 /**
@@ -79,6 +87,10 @@ class SentTransaction(
                 checkNotNull(store.lockForUpdate(tenant, docUuid, version)) {
                     "item ${item.seq} names a submission that does not exist: $docUuid version $version"
                 }
+            if (row.state == LifecycleState.CANCELLED) {
+                queue.complete(item)
+                return@inTransaction SentResult.Discarded(item)
+            }
             if (row.state !in eligible) return@inTransaction SentResult.NotEligible(row.state, item)
             val attemptNumber = row.attemptCount + 1
             val correlation = UUID.randomUUID()

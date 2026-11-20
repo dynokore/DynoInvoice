@@ -6,6 +6,7 @@ import com.dynokore.gst.submission.application.arrival.ScopeCheck
 import com.dynokore.gst.submission.application.arrival.ScopeOutcome
 import com.dynokore.gst.submission.application.ordering.CreditNoteHold
 import com.dynokore.gst.submission.application.ordering.HoldOutcome
+import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
@@ -79,8 +80,26 @@ class PayloadReadyHandler(
             return HandleOutcome.IGNORED
         }
         if (scopeCheck.check(tenant, docUuid, version) == ScopeOutcome.Blocked) return HandleOutcome.APPLIED
+        cancelSuperseded(tenant, docUuid, version)
         plan(tenant, docUuid, version)
         return HandleOutcome.APPLIED
+    }
+
+    /**
+     * INV-REQ-573 (INV-AC-609): a newer version that reached `READY` cancels every older version of the Doc UUID that
+     * is `READY`, `AWAITING_PRECEDING` or `QUEUED`. The rows are read under the `lockVersions` row lock, which the
+     * despatch transaction also takes, so a version is either still unclaimed here (cancelled) or already `SENT`
+     * (untouched; INV-REQ-571 makes the newer version wait). The stale queue item is dropped by [SentTransaction].
+     */
+    private fun cancelSuperseded(
+        tenant: TenantId,
+        docUuid: String,
+        version: Int,
+    ) {
+        inFlight
+            .lockVersions(tenant, docUuid)
+            .filter { it.version < version && it.state in CANCELLABLE }
+            .forEach { store.setState(tenant, docUuid, it.version, LifecycleState.CANCELLED) }
     }
 
     /**
@@ -104,5 +123,10 @@ class PayloadReadyHandler(
             HoldOutcome.Held -> Unit
             is HoldOutcome.Proceed -> queue.enqueue(docUuid, version, outcome.lane ?: plan.lane)
         }
+    }
+
+    private companion object {
+        val CANCELLABLE =
+            setOf(LifecycleState.READY, LifecycleState.AWAITING_PRECEDING, LifecycleState.QUEUED)
     }
 }
