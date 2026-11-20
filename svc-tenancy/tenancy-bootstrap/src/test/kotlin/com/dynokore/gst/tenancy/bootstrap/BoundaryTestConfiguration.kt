@@ -28,8 +28,8 @@ import com.dynokore.platform.configresolver.SetPolicyCommand
 import com.dynokore.platform.configresolver.SetterPermission
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
-import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.JdbcOutboxWriter
+import com.dynokore.platform.outboxandqueue.OutboundEvent
 import com.dynokore.platform.outboxandqueue.OutboxWriter
 import com.dynokore.platform.outboxandqueue.StagedOutboxRow
 import com.dynokore.platform.serviceruntime.policy.RequestBoundSetterPermission
