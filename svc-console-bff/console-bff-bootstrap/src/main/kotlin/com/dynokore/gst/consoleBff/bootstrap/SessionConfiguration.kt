@@ -2,13 +2,16 @@ package com.dynokore.gst.consoleBff.bootstrap
 
 import com.dynokore.gst.consoleBff.adapters.session.ConsoleSessionFilter
 import com.dynokore.gst.consoleBff.adapters.session.JooqSessionStore
+import com.dynokore.gst.consoleBff.adapters.session.PolicyTenantSessionPolicy
 import com.dynokore.gst.consoleBff.adapters.session.ReplicaPrincipalStanding
 import com.dynokore.gst.consoleBff.adapters.session.SessionSweeper
 import com.dynokore.gst.consoleBff.adapters.session.sessionSweeperOf
 import com.dynokore.gst.consoleBff.application.session.PrincipalStanding
 import com.dynokore.gst.consoleBff.application.session.SessionResolver
 import com.dynokore.gst.consoleBff.application.session.SessionStore
+import com.dynokore.gst.consoleBff.application.session.TenantSessionPolicy
 import com.dynokore.gst.consoleBff.domain.session.SessionPolicy
+import com.dynokore.platform.configresolver.PolicyReader
 import com.dynokore.platform.serviceruntime.replica.AuthorityReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -46,13 +49,22 @@ class SessionConfiguration {
     fun principalStanding(authorityReplica: AuthorityReplica): PrincipalStanding =
         ReplicaPrincipalStanding(authorityReplica)
 
+    /** The per-tenant timeouts (VP-84): the shorter of the tenant's value and the installation [policy]. */
+    @Bean
+    fun tenantSessionPolicy(
+        reader: PolicyReader,
+        tenants: TenantContext,
+        transactions: TransactionRunner,
+        policy: SessionPolicy,
+    ): TenantSessionPolicy = PolicyTenantSessionPolicy(reader, tenants, transactions, policy)
+
     @Bean
     fun sessionResolver(
-        policy: SessionPolicy,
+        policies: TenantSessionPolicy,
         store: SessionStore,
         standing: PrincipalStanding,
         clock: Clock,
-    ) = SessionResolver(policy, store, standing, clock)
+    ) = SessionResolver(policies, store, standing, clock)
 
     @Bean
     fun consoleSessionFilter(resolver: SessionResolver) = ConsoleSessionFilter(resolver)

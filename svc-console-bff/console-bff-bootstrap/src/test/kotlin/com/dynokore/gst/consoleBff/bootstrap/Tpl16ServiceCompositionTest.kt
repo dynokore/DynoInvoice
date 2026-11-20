@@ -74,8 +74,12 @@ class Tpl16ServiceCompositionTest {
             val field = SessionResolver::class.java.getDeclaredField("clock").apply { isAccessible = true }
             field.get(resolver) shouldBe clock
             val policiesField = SessionResolver::class.java.getDeclaredField("policies").apply { isAccessible = true }
+<<<<<<< HEAD
             val port = policiesField.get(resolver) as TenantSessionPolicy
             port.of("T1", LocalDate.of(2026, 1, 1)) shouldBe policy
+=======
+            policiesField.get(resolver) shouldBe context.getBean(TenantSessionPolicy::class.java)
+>>>>>>> 7f321c3 (INV-T-25106 per-tenant console session timeouts via PolicyReader (VP-84), WIP: two gaps open)
         }
     }
 
