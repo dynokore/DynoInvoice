@@ -98,7 +98,8 @@ class SessionTenantTimeoutsTest {
                 "insert into console_bff.config_setting (id, tenant_id, vp_key, scope_level, scope_id, option_keys, " +
                     "option_values, source, effective_from, set_by, reason, recorded_at) values " +
                     "(gen_random_uuid(), '$tenant', 'VP-84', 'TENANT', '$tenant', array['SHORTER'], " +
-                    "'{\"SHORTER\":{\"idle\":10,\"absolute\":2}}'::jsonb, 'OVERRIDE', date '2026-01-01', 'u1', 'test', now())",
+                    "'{\"SHORTER\":{\"idle\":10,\"absolute\":2}}'::jsonb, 'OVERRIDE', " +
+                    "date '2026-01-01', 'u1', 'test', now())",
             )
         }
     }
