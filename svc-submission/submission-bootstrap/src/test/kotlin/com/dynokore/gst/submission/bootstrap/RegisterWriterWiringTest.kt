@@ -113,10 +113,11 @@ class RegisterWriterWiringTest {
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to SubmissionEvents.RULE_PACK_ACTIVATED_TOPIC,
                 SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TYPE to SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TOPIC,
                 SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TYPE to SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TOPIC,
+                "com.dynokore.gst.canonical.NetDerivationRefused.v1" to "gst.canonical.net-derivation-refused.v1",
             )
         SubmissionEvents.entries.map { it.eventType }.contains(canonicalType) shouldBe false
         SubmissionEvents.entries.map { it.eventType }.contains(dueDateType) shouldBe false
-        SubmissionEvents.topicByType.size shouldBe 8
+        SubmissionEvents.topicByType.size shouldBe 9
         SubmissionEvents.PAYLOAD_READY_TOPIC shouldBe "gst.payload.payload-ready.v1"
         BreakGlassFeed.TOPIC shouldBe "gst.platform.break-glass-session-changed.v1"
     }
@@ -154,6 +155,7 @@ class RegisterWriterWiringTest {
                 "rulePackActivatedConsumer",
                 "accessPointRouteChangedConsumer",
                 "acknowledgementReceivedConsumer",
+                "netDerivationRefusedConsumer",
             )
     }
 

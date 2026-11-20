@@ -47,7 +47,14 @@ class RegisterListFactsStoreDbTest {
         setOf("tenant_id", "doc_uuid", "entity_ref", "period_ref", "due_date", "in_scope", "kind", "source_version")
 
     private val readinessColumns =
-        setOf("transaction_date", "reason_code", "scope_verdict", "not_submittable_reason", "preceding_doc_uuid")
+        setOf(
+            "transaction_date",
+            "reason_code",
+            "scope_verdict",
+            "not_submittable_reason",
+            "preceding_doc_uuid",
+            "net_refused",
+        )
 
     @AfterEach
     fun close() = connection.close()

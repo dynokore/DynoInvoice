@@ -106,6 +106,7 @@ class CompletenessConsumersWiringTest {
                 SubmissionEvents.RULE_PACK_ACTIVATED_TYPE to "gst.platform.rule-pack-activated.v1",
                 SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TYPE to SubmissionEvents.ACCESS_POINT_ROUTE_CHANGED_TOPIC,
                 SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TYPE to SubmissionEvents.ACKNOWLEDGEMENT_RECEIVED_TOPIC,
+                "com.dynokore.gst.canonical.NetDerivationRefused.v1" to "gst.canonical.net-derivation-refused.v1",
             )
     }
 

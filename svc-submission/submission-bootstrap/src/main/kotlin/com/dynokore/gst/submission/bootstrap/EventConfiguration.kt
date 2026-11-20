@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 /**
- * The events submission-svc may emit (INV-REQ-815 behaviour 2): the eight of model/architecture/events.yaml it
+ * The events submission-svc may emit (INV-REQ-815 behaviour 2): the nine of model/architecture/events.yaml it
  * produces, each on the topic its AsyncAPI channel names. The emission guard of the outbox refuses any other type.
  * The catalogue also lists the one event it consumes, produced by payload-svc, so the consumer can read its topic.
  */
@@ -36,6 +36,7 @@ object SubmissionEvents {
             "DocumentCodeRaised" to "gst.submission.document-code-raised.v1",
             "SubmissionTypeDecided" to "gst.submission.submission-type-decided.v1",
             "UnsubmittedDocumentCountMeasured" to "gst.submission.unsubmitted-document-count-measured.v1",
+            "NetDerivationRequested" to "gst.submission.net-derivation-requested.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
     val entries: List<CatalogueEntry> =
@@ -97,6 +98,9 @@ object SubmissionEvents {
 
     const val ACKNOWLEDGEMENT_RECEIVED_TOPIC = "gst.transport.acknowledgement-received.v1"
     const val ACKNOWLEDGEMENT_RECEIVED_TYPE = "com.dynokore.gst.transport.AcknowledgementReceived.v1"
+
+    const val NET_DERIVATION_REFUSED_TOPIC = "gst.canonical.net-derivation-refused.v1"
+    const val NET_DERIVATION_REFUSED_TYPE = "com.dynokore.gst.canonical.NetDerivationRefused.v1"
 
     const val RULE_PACK_STAGED_TOPIC = "gst.platform.rule-pack-staged.v1"
     const val RULE_PACK_STAGED_TYPE = "com.dynokore.gst.platform.RulePackStaged.v1"
@@ -209,6 +213,13 @@ object SubmissionEvents {
                 ACKNOWLEDGEMENT_RECEIVED_TYPE,
                 ACKNOWLEDGEMENT_RECEIVED_TOPIC,
                 setOf("transport-svc"),
+                contentTopic = false,
+                retainedWhileResolvable = false,
+            ),
+            CatalogueEntry(
+                NET_DERIVATION_REFUSED_TYPE,
+                NET_DERIVATION_REFUSED_TOPIC,
+                setOf("canonical-svc"),
                 contentTopic = false,
                 retainedWhileResolvable = false,
             ),

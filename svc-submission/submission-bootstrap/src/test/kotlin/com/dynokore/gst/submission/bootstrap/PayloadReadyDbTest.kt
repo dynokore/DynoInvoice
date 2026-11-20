@@ -380,6 +380,7 @@ class PayloadReadyDbTest {
                 "rulePackActivatedConsumer",
                 "accessPointRouteChangedConsumer",
                 "acknowledgementReceivedConsumer",
+                "netDerivationRefusedConsumer",
             )
         val factory = (context as ConfigurableApplicationContext).beanFactory
         consumers.keys.filter { factory.getBeanDefinition(it).isPrimary } shouldBe emptyList()

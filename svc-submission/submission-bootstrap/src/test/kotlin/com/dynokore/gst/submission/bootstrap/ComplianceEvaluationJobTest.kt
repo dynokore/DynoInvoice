@@ -10,7 +10,10 @@ import com.dynokore.gst.submission.application.compliance.ObligationRowSource
 import com.dynokore.gst.submission.application.queue.TenantTransactions
 import com.dynokore.gst.submission.domain.metrics.ObligationRow
 import com.dynokore.gst.submission.domain.metrics.Ratio
+import com.dynokore.platform.outboxandqueue.CausationId
+import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.EmissionNotPermitted
+import com.dynokore.platform.outboxandqueue.EntityRef
 import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventContext
 import com.dynokore.platform.outboxandqueue.OutboundEvent
@@ -274,7 +277,7 @@ class ComplianceEvaluationJobTest {
     }
 
     @Test
-    fun `INV-AC-12837 the catalogue holds exactly the eight pairs and refuses look-alike types`(
+    fun `INV-AC-12837 the catalogue holds exactly the nine pairs and refuses look-alike types`(
         @TempDir dir: Path,
     ) = fixture(dir) { f ->
         SubmissionEvents.topicByType shouldBe
@@ -288,6 +291,7 @@ class ComplianceEvaluationJobTest {
                 "com.dynokore.gst.submission.SubmissionTypeDecided.v1" to "gst.submission.submission-type-decided.v1",
                 "com.dynokore.gst.submission.UnsubmittedDocumentCountMeasured.v1" to
                     "gst.submission.unsubmitted-document-count-measured.v1",
+                "com.dynokore.gst.submission.NetDerivationRequested.v1" to "gst.submission.net-derivation-requested.v1",
             )
         val writer = f.context.getBean(OutboxWriter::class.java)
         listOf(
@@ -300,16 +304,13 @@ class ComplianceEvaluationJobTest {
                         listOf(OutboundEvent(type, "{}")),
                         EventContext(
                             TenantId(f.tenant),
-                            com.dynokore.platform.outboxandqueue
-                                .EntityRef("E-001"),
+                            EntityRef("E-001"),
                             null,
                             null,
                             "k",
                             null,
-                            com.dynokore.platform.outboxandqueue
-                                .CorrelationId("c"),
-                            com.dynokore.platform.outboxandqueue
-                                .CausationId("d"),
+                            CorrelationId("c"),
+                            CausationId("d"),
                         ),
                     )
                 }
