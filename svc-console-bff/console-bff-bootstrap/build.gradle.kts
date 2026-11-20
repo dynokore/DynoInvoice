@@ -14,6 +14,7 @@ dependencies {
     implementation(libs.platform.serviceRuntime.impl)
     implementation(libs.platform.productRuntime.impl)
     implementation(libs.platform.configResolver.impl)
+    implementation(libs.gstCatalogue)
     implementation(libs.platform.tenancyKernel.impl)
     implementation(libs.platform.tenancyJooq.impl)
     implementation(libs.platform.outboxAndQueue.impl)
