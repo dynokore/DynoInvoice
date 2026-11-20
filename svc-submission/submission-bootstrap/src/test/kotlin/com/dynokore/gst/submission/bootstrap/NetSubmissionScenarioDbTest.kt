@@ -318,7 +318,7 @@ class NetSubmissionScenarioDbTest {
         reason(creditNote) shouldBe "NETTED_BY_SYSTEM"
         workRows(creditNote) shouldBe 0
         states(original)[1] shouldBe "CANCELLED"
-        states(original) shouldBe mapOf(1 to "CANCELLED", 2 to "READY")
+        states(original) shouldBe mapOf(1 to "CANCELLED", 2 to "QUEUED")
         storedTotal(original) shouldBe BigDecimal("8000.00")
         workRows(original) shouldBe 1
         // (4) a second delivery changes none of it
