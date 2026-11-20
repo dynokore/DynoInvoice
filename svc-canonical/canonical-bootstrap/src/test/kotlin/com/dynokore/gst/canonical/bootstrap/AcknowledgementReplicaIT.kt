@@ -112,7 +112,7 @@ class AcknowledgementReplicaIT {
 
         fun poll(): PollResult = consumer.pollOnce()
 
-        /** The rows (version, acknowledgement_id, acknowledged_at) of the table read as [tenant] through the runtime login. */
+        /** The rows (doc, version, acknowledgement id, acknowledged_at, tenant) of the table read as [tenant]. */
         fun readAs(tenant: TenantId): List<List<String?>> =
             scope.bind(tenant, actor) {
                 runner.inTransaction {
@@ -122,7 +122,8 @@ class AcknowledgementReplicaIT {
                             st
                                 .executeQuery(
                                     "select doc_uuid, version, acknowledgement_id, " +
-                                        "to_char(acknowledged_at at time zone 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), " +
+                                        "to_char(acknowledged_at at time zone 'UTC', " +
+                                        "'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"'), " +
                                         "tenant_id from canonical.submission_acknowledgement order by doc_uuid, version",
                                 ).use { r ->
                                     buildList { while (r.next()) add((1..5).map { i -> r.getString(i) }) }
