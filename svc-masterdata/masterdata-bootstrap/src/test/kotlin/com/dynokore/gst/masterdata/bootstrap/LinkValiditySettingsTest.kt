@@ -277,23 +277,30 @@ class LinkValiditySettingsTest {
         }
 
     @Test
-    fun `INV-AC-24782 a bad stored value (no number, 31, 0, unknown option) refuses the send, nothing written`() =
+    fun `INV-AC-24782 a stored 0 or 31 answers 503 SRT-013 without throwing, nothing written`() =
         run { env ->
             val before = env.state()
-            listOf(
-                SelectedOption("CUSTOM", null),
-                SelectedOption("CUSTOM", "31"),
-                SelectedOption("CUSTOM", "0"),
-                SelectedOption("DAYS_07", null),
-            ).forEach { bad ->
+            listOf(SelectedOption("CUSTOM", "31"), SelectedOption("CUSTOM", "0")).forEach { bad ->
                 PinnedInstant.stored = bad
-                // A value the use case refuses (0, 31) answers 503 SRT-013; a reader error (no number, unknown
-                // option) is thrown through the request, so the send is refused either way and nothing is written.
-                val outcome = runCatching { env.send("A-OP", unique("CTP-BAD")) }
-                outcome.onSuccess { (status, answer) ->
-                    assertThat(status).describedAs("$bad: $answer").isEqualTo(503)
-                    assertThat(answer).contains("\"code\":\"SRT-013\"")
-                }
+                val (status, answer) = env.send("A-OP", unique("CTP-BAD"))
+                assertThat(status).describedAs("$bad: $answer").isEqualTo(503)
+                assertThat(answer).describedAs("$bad").contains("\"code\":\"SRT-013\"")
+                assertThat(env.state()).describedAs("$bad").isEqualTo(before)
+            }
+        }
+
+    @Test
+    fun `INV-AC-24782 a stored CUSTOM without a number or an unknown option throws naming VP-83, nothing written`() =
+        run { env ->
+            val before = env.state()
+            listOf(SelectedOption("CUSTOM", null), SelectedOption("DAYS_07", null)).forEach { bad ->
+                PinnedInstant.stored = bad
+                val thrown = runCatching { env.send("A-OP", unique("CTP-BAD")) }
+                assertThat(thrown.isFailure).describedAs("$bad must throw, got ${thrown.getOrNull()}").isTrue()
+                val causes = generateSequence(thrown.exceptionOrNull()) { it.cause }.toList()
+                assertThat(causes.any { it is IllegalStateException && it.message.orEmpty().contains("VP-83") })
+                    .describedAs("$bad: $causes")
+                    .isTrue()
                 assertThat(env.state()).describedAs("$bad").isEqualTo(before)
             }
         }
