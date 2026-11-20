@@ -3,6 +3,7 @@ package com.dynokore.gst.canonical.bootstrap
 import com.dynokore.gst.canonical.adapters.SignedBindings
 import com.dynokore.platform.outboxandqueue.CausationId
 import com.dynokore.platform.outboxandqueue.ConsumerSubscription
+import com.dynokore.platform.outboxandqueue.ContractViolation
 import com.dynokore.platform.outboxandqueue.CorrelationId
 import com.dynokore.platform.outboxandqueue.DocUuid
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -19,7 +20,6 @@ import com.dynokore.platform.outboxandqueue.RebuildRequiredSink
 import com.dynokore.platform.outboxandqueue.TenantScope
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
-import com.dynokore.platform.outboxandqueue.ContractViolation
 import io.kotest.matchers.shouldBe
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
@@ -145,10 +145,10 @@ class AcknowledgementReplicaIT {
 
         fun total(): Int =
             SampleExchangeKit
-            .rows("select count(*) from canonical.submission_acknowledgement where doc_uuid = '$d1'")
-            .single()
-            .single()!!
-            .toInt()
+                .rows("select count(*) from canonical.submission_acknowledgement where doc_uuid = '$d1'")
+                .single()
+                .single()!!
+                .toInt()
 
         fun deadLetters(): List<String> =
             SampleExchangeKit
