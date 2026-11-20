@@ -318,7 +318,7 @@ class NetSubmissionScenarioDbTest {
         reason(creditNote) shouldBe "NETTED_BY_SYSTEM"
         workRows(creditNote) shouldBe 0
         states(original)[1] shouldBe "CANCELLED"
-        states(original).filterKeys { it != 1 }.values.none { it == "CANCELLED" } shouldBe true
+        states(original) shouldBe mapOf(1 to "CANCELLED", 2 to "READY")
         storedTotal(original) shouldBe BigDecimal("8000.00")
         workRows(original) shouldBe 1
         // (4) a second delivery changes none of it
@@ -337,6 +337,8 @@ class NetSubmissionScenarioDbTest {
         deliver(canonical, created(creditNote, 1, "1000.00", "381"))
         requests().size shouldBe 0
         reason(creditNote) shouldBe null
+        storedTotal(creditNote) shouldBe BigDecimal("1000.00")
+        states(original) shouldBe mapOf(1 to "READY")
     }
 
     @Test
@@ -349,6 +351,8 @@ class NetSubmissionScenarioDbTest {
         deliver(canonical, created(creditNote, 1, "1000.00", "381", members = listOf(preceding(original))))
         requests().size shouldBe 0
         reason(creditNote) shouldBe null
+        storedTotal(creditNote) shouldBe BigDecimal("1000.00")
+        states(original) shouldBe mapOf(1 to "SENT")
     }
 
     @Test
@@ -356,8 +360,11 @@ class NetSubmissionScenarioDbTest {
         @TempDir dir: Path,
     ) = run(dir) {
         arriveOriginalAndCreditNote()
-        deliver(canonical, created(original, 2, "9000.00", "380"))
+        deliver(canonical, created(original, 2, "9000.00", "380")) shouldBe HandleOutcome.APPLIED
         reason(creditNote) shouldBe null
+        storedTotal(creditNote) shouldBe BigDecimal("1000.00")
+        storedTotal(original) shouldBe BigDecimal("9000.00")
+        requests().size shouldBe 1
     }
 
     private companion object {
