@@ -77,6 +77,10 @@ class EventPayloadContractTest {
                 |"entities":[{"entityRef":"E1","unsubmittedDocumentCount":3},
                 |{"entityRef":"E2","unsubmittedDocumentCount":2}]}
                 """.trimMargin(),
+            "NetDerivationRequested" to
+                """{"originalDocUuid":"0b0e9a43-6d3c-4f6e-9f0a-3f2a6a1c9d11","expectedBaseVersion":3,
+                |"creditNotes":[{"docUuid":"7d0c1c55-2b1a-4c47-9d40-5f5f1b7f3c01","version":1}]}
+                """.trimMargin(),
             "ExampleHappened" to """{"entityRef":"E-001"}""",
         )
 
@@ -171,6 +175,28 @@ class EventPayloadContractTest {
             "UnsubmittedDocumentCountMeasured",
             UnsubmittedCountMeasurementJob.data(measurement.copy(entities = emptyList(), total = 0)),
         ).shouldBeEmpty()
+    }
+
+    @Test
+    @DisplayName(
+        "INV-AC-25662 the NetDerivationRequested sample validates and fails without each required member, " +
+            "with expectedBaseVersion 0 or with an empty creditNotes list",
+    )
+    fun netDerivationRequestedSample() {
+        val message = "NetDerivationRequested"
+        val sample = samples.getValue(message)
+        errors(message, sample) shouldBe emptyList()
+        listOf("originalDocUuid", "expectedBaseVersion", "creditNotes").forEach { property ->
+            val without = mapper.readTree(sample).also { (it as ObjectNode).remove(property) }
+            errors(message, without.toString()) shouldBe
+                listOf("\$: required property '$property' not found")
+        }
+        val zeroVersion = mapper.readTree(sample).also { (it as ObjectNode).put("expectedBaseVersion", 0) }
+        errors(message, zeroVersion.toString()) shouldBe
+            listOf("\$.expectedBaseVersion: must have a minimum value of 1")
+        val noCreditNotes = mapper.readTree(sample).also { (it as ObjectNode).putArray("creditNotes") }
+        errors(message, noCreditNotes.toString()) shouldBe
+            listOf("\$.creditNotes: must have at least 1 items but found 0")
     }
 
     @Test
