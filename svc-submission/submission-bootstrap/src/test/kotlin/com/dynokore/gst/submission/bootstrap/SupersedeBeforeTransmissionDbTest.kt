@@ -151,7 +151,6 @@ class SupersedeBeforeTransmissionDbTest {
     }
 
     @Test
-    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // the ruled case name is one line
     fun `INV-AC-609 version 2 arriving while version 1 is QUEUED and unclaimed cancels version 1 and only version 2 is despatched`(
         @TempDir dir: Path,
     ) = run(dir) {
