@@ -19,11 +19,14 @@ class AnswerSampleRequestTest {
 
     private class Recording : SamplePagePublisher {
         val pages = mutableListOf<SamplePage>()
+        val entityRefs = mutableListOf<String>()
 
         override fun publish(
             tenantId: UUID,
+            entityRef: String,
             page: SamplePage,
         ) {
+            entityRefs += entityRef
             pages += page
         }
     }
@@ -177,6 +180,31 @@ class AnswerSampleRequestTest {
             shouldThrow<SampleFunctionUnmappedException> { use(FakeReader(documents), publisher).answer(request) }
         failure.documentTypeCode shouldBe 999
         publisher.pages.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-25438 every page of a several-page window gets the entityRef of the request`() {
+        val reader = FakeReader((1..7).map { document(march.start) })
+        val publisher = Recording()
+        use(reader, publisher).answer(request)
+        publisher.pages.size shouldBe 3
+        publisher.entityRefs shouldBe List(3) { request.entityRef }
+        publisher.pages.map { it.dryRunId } shouldBe List(3) { request.dryRunId }
+    }
+
+    @Test
+    fun `INV-AC-25438 the one page of a window with no document gets the entityRef of the request`() {
+        val publisher = Recording()
+        use(FakeReader(emptyList()), publisher).answer(request)
+        publisher.entityRefs shouldBe listOf(request.entityRef)
+        publisher.pages shouldBe listOf(SamplePage("dry-1", 1, true, emptyList()))
+    }
+
+    @Test
+    fun `INV-AC-25438 a window of exactly one page gets the entityRef of the request`() {
+        val publisher = Recording()
+        use(FakeReader(listOf(document(march.start))), publisher).answer(request)
+        publisher.entityRefs shouldBe listOf(request.entityRef)
     }
 
     @Test

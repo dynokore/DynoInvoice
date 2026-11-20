@@ -35,7 +35,11 @@ class AnswerSampleRequest(
             val last = read.size <= maxItems
             val documents = read.take(maxItems)
             val items = documents.map { itemOf(request, it, spans, functionOf) }
-            publisher.publish(request.tenantId, SamplePage(request.dryRunId, pageNumber, last, items))
+            publisher.publish(
+                request.tenantId,
+                request.entityRef,
+                SamplePage(request.dryRunId, pageNumber, last, items),
+            )
             after = documents.lastOrNull()?.docUuid
             pageNumber++
         } while (!last)

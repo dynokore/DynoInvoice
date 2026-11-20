@@ -117,6 +117,7 @@ internal class RecordingPublisher : SamplePagePublisher {
 
     override fun publish(
         tenantId: UUID,
+        entityRef: String,
         page: SamplePage,
     ) {
         pages += page

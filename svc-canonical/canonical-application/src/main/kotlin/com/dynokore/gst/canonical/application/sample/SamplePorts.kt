@@ -134,6 +134,7 @@ data class SamplePage(
 fun interface SamplePagePublisher {
     fun publish(
         tenantId: UUID,
+        entityRef: String,
         page: SamplePage,
     )
 }
