@@ -107,11 +107,11 @@ class OperationsGateTest {
 
     @Test
     fun `a listed operation marked done with a 501 stub fails`() {
-        val table = tsv.replaceFirst("getCase\tUNASSIGNED", "getCase\tINV-T-9999")
+        val table = tsv.replaceFirst("getIntegrityReport\tUNASSIGNED", "getIntegrityReport\tINV-T-9999")
         run(table = table).shouldBeEmpty()
         run(table = table, done = "INV-T-9999\n") shouldContain
-            "operation getCase: task INV-T-9999 is done but the operation still answers 501"
-        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getCase").shouldBeEmpty()
+            "operation getIntegrityReport: task INV-T-9999 is done but the operation still answers 501"
+        run(table = table, done = "INV-T-9999\n", stubSet = stubs - "getIntegrityReport").shouldBeEmpty()
     }
 
     @Test
@@ -127,7 +127,7 @@ class OperationsGateTest {
         run(done = null) shouldContain "done-tasks.txt: the file is missing"
         run(done = "TBD\n") shouldContain "done-tasks.txt: 'TBD' is not exactly an INV-T key"
         run(done = "inv-t-5547\n") shouldContain "done-tasks.txt: 'inv-t-5547' is not exactly an INV-T key"
-        val table = tsv.replaceFirst("getCase\tUNASSIGNED", "getCase\tINV-T-5547")
+        val table = tsv.replaceFirst("getIntegrityReport\tUNASSIGNED", "getIntegrityReport\tINV-T-5547")
         run(table = table, done = "INV-T-55470\n") shouldContain
             "done-tasks.txt: INV-T-55470 names no row of operations.tsv"
         run(table = table, done = "INV-T-5547 \n").shouldNotBeEmpty()
@@ -135,7 +135,7 @@ class OperationsGateTest {
 
     @Test
     fun `a listed key whose operation is implemented passes`() {
-        val table = tsv.replaceFirst("getCase\tUNASSIGNED", "getCase\tINV-T-5547")
-        run(table = table, done = "INV-T-5547\n", stubSet = stubs - "getCase").shouldBeEmpty()
+        val table = tsv.replaceFirst("getIntegrityReport\tUNASSIGNED", "getIntegrityReport\tINV-T-5547")
+        run(table = table, done = "INV-T-5547\n", stubSet = stubs - "getIntegrityReport").shouldBeEmpty()
     }
 }

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.config.YamlMapFactoryBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -36,9 +37,10 @@ import java.util.UUID
 
 /**
  * One role per permission key, so that a principal can hold one key and not another (the production matrix gives
- * `security.officer` both). Only [CaseEndpointsTest] adds it.
+ * `security.officer` both). Active only while [CaseEndpointsTest] sets [PROPERTY]: the scan of other tests skips it.
  */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(CaseRoleMapBeans.PROPERTY, havingValue = "true")
 class CaseRoleMapBeans {
     @Bean
     @Primary
@@ -53,6 +55,7 @@ class CaseRoleMapBeans {
         }
 
     companion object {
+        const val PROPERTY = "evidence.test.case-role-map"
         const val RECORD = "security-case.record"
         const val READ = "privacy-case.read"
         const val HANDLE = "privacy-request.handle"
@@ -74,6 +77,7 @@ class CaseEndpointsTest {
 
     @BeforeAll
     fun start() {
+        System.setProperty(CaseRoleMapBeans.PROPERTY, "true")
         dir = Files.createTempDirectory("cet")
         service = RetentionService.start(dir, listOf(WorkloadTokensOnly::class.java, CaseRoleMapBeans::class.java))
     }
@@ -81,6 +85,7 @@ class CaseEndpointsTest {
     @AfterAll
     fun stop() {
         service.close()
+        System.clearProperty(CaseRoleMapBeans.PROPERTY)
         dir.toFile().deleteRecursively()
     }
 
@@ -94,6 +99,7 @@ class CaseEndpointsTest {
         val code: String? get() = body.get("code")?.asString()
     }
 
+    @Suppress("LongParameterList") // one request helper: method, path, caller, tenant, body and key
     private fun send(
         method: String,
         path: String,
