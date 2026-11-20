@@ -17,3 +17,6 @@ openapi.yaml	/components/schemas/MapTaxCodeRequest/properties/schemeTag/x-extens
 openapi.yaml	/components/schemas/MapTaxCodeRequest/properties/schemeTag/enum	equals	["SELF_BILLING","CUSTOMER_ACCOUNTING","GROSS_MARGIN","DISCOUNTED_SALE_PRICE","APPROVED_MARINE_FUEL_TRADER","ACMT","A3PL","AISS","AMCS","ARCS","SWS","MES","IGDS","CASH_ACCOUNTING","ACMT_RECIPIENT_ACCOUNTING","ACMT_OVERSEAS_CLIENT_PURCHASE","AMCS_SELF_ACCOUNTING"]	INV-REQ-957
 openapi.yaml	/components/schemas/MappingSpreadsheetRow/properties/sourceClass/x-extensible-enum	absent	-	INV-REQ-957
 openapi.yaml	/components/schemas/MappingSpreadsheetRow/properties/sourceClass/enum	equals	["PRIMARY","SECONDARY","INFERRED"]	INV-REQ-957
+openapi.yaml	/components/schemas/EvaluationResult/properties/supplyType/type	equals	"string"	INV-REQ-772
+openapi.yaml	/components/schemas/EvaluationResult/properties/supplyType/x-extensible-enum	equals	["STANDARD_RATED","ZERO_RATED","EXEMPT","OUT_OF_SCOPE","IMPORTS"]	INV-REQ-772
+openapi.yaml	/components/schemas/EvaluationResult/properties/supplyType/enum	absent	-	INV-REQ-772

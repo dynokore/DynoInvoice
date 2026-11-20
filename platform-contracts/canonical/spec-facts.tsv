@@ -18,3 +18,6 @@ schemas/canonical-version-created-payload.schema.json	/properties/netDerivation/
 schemas/canonical-version-created-payload.schema.json	/properties/netDerivation/properties/creditNotes/items/required	equals	["docUuid","version"]	INV-REQ-558
 schemas/net-derivation-refused-payload.schema.json	/required	equals	["originalDocUuid","requestEventId","reason"]	INV-REQ-558
 schemas/net-derivation-refused-payload.schema.json	/properties/reason/enum	equals	["NOT_A_CREDIT_NOTE","OTHER_ENTITY","CURRENCY_MISMATCH","NOT_PRECEDING","BASE_CHANGED","DOCUMENT_NOT_FOUND","NET_NOT_POSITIVE"]	INV-REQ-558
+schemas/canonical-version-created-payload.schema.json	/properties/canonicalDocument/properties/supplyType/properties/value/type	equals	"string"	INV-REQ-772
+schemas/canonical-version-created-payload.schema.json	/properties/canonicalDocument/properties/supplyType/properties/value/x-extensible-enum	equals	["STANDARD_RATED","ZERO_RATED","EXEMPT","OUT_OF_SCOPE","IMPORTS"]	INV-REQ-772
+schemas/canonical-version-created-payload.schema.json	/properties/canonicalDocument/properties/supplyType/properties/value/enum	absent	-	INV-REQ-772

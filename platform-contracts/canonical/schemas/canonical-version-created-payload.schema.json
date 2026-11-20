@@ -189,14 +189,13 @@
           "properties": {
             "value": {
               "type": "string",
-              "enum": [
+              "x-extensible-enum": [
                 "STANDARD_RATED",
                 "ZERO_RATED",
                 "EXEMPT",
                 "OUT_OF_SCOPE",
                 "IMPORTS"
               ],
-              "x-extensible-enum": true,
               "description": "The GST supply type. The enumeration is extensible: a consumer tolerates a member it does not know."
             },
             "classification": {

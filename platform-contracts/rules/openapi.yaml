@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 2.6.0
+  version: 2.7.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1697,11 +1697,11 @@ components:
           maxLength: 10
         supplyType:
           type: string
-          enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
-          x-extensible-enum: true
+          x-extensible-enum: [STANDARD_RATED, ZERO_RATED, EXEMPT, OUT_OF_SCOPE, IMPORTS]
           description: >-
             The return category the code catalogue entry of `categoryCode` names; absent when the
-            entry names none.
+            entry names none. The known members are listed in `x-extensible-enum`; a consumer
+            carries any other member unchanged.
         rate:
           type: string
           format: decimal
