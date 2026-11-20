@@ -56,3 +56,7 @@ inv:
       - console_bff.console_session
       # The sys-owned claim function of the queue (QueueSchema.CLAIM_DUE): TableClasses.verify cannot see it as library-declared.
       - console_bff.claim_due
+      # The sys-owned SECURITY DEFINER functions of ConfigSchema (INV-T-25571): they have no tenant_id column, hold no tenant
+      # data and refuse an unbound actor themselves.
+      - console_bff.config_purge_tenant
+      - console_bff.write_installation_setting

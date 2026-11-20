@@ -128,6 +128,11 @@ class Tpl16ServiceCompositionTest {
         val EXPECTED_TABLES =
             setOf(
                 "claim_due",
+                "config_installation_setting",
+                "config_purge_tenant",
+                "config_relaxation_acknowledgement",
+                "config_resolved_value",
+                "config_setting",
                 "console_session",
                 "deferral",
                 "consumer_offset",
@@ -147,6 +152,7 @@ class Tpl16ServiceCompositionTest {
                 "outbox_sequence",
                 "period_due_date",
                 "work_queue",
+                "write_installation_setting",
             )
     }
 }
