@@ -53,6 +53,7 @@ class NetDerivationConsumerConfiguration {
     fun netDerivationRequest(): NetDerivationRequestScope = NetDerivationRequestScope()
 
     @Bean
+    @Suppress("LongParameterList")
     fun netDerivationRequestHandler(
         dsl: DSLContext,
         tenants: TenantContext,

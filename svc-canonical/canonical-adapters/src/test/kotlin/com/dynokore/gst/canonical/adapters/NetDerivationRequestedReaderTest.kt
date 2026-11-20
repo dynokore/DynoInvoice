@@ -23,6 +23,7 @@ import tools.jackson.databind.json.JsonMapper
 import tools.jackson.databind.node.ObjectNode
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.util.Locale
 import java.util.UUID
 
 class NetDerivationRequestedReaderTest {
@@ -63,7 +64,7 @@ class NetDerivationRequestedReaderTest {
 
     private fun notes(count: Int) =
         (1..count).joinToString(",", "[", "]") {
-            "{\"docUuid\":\"00000000-0000-4000-8000-%012d\",\"version\":1}".format(it)
+            "{\"docUuid\":\"00000000-0000-4000-8000-%012d\",\"version\":1}".format(Locale.ROOT, it)
         }
 
     @Test

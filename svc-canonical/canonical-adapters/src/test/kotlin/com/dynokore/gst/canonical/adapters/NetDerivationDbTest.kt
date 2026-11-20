@@ -56,7 +56,7 @@ import java.util.UUID
  * the jOOQ records, the single version writer and the outbox publishers, as the `canonical_runtime` login bound to a
  * tenant.
  */
-abstract class NetDerivationHarness {
+open class NetDerivationHarness {
     val actor = SignedBindings.ACTOR
     val tenants = TenantContextImpl()
     val transaction =
@@ -169,7 +169,7 @@ abstract class NetDerivationHarness {
     ) = """{"documentTypeCode":{"value":"380","classification":"NONE"},""" +
         """"currency":{"value":"SGD","classification":"NONE"},""" +
         """"documentNumber":{"value":"$number","classification":"NONE"},""" +
-        (preceding?.let { """"precedingDocumentNumber":{"value":"$it","classification":"NONE"},""" } ?: "") +
+        preceding?.let { """"precedingDocumentNumber":{"value":"$it","classification":"NONE"},""" }.orEmpty() +
         """"parties":{"value":{"supplier":{"identifierScheme":"UEN","identifierValue":"201912345A"},""" +
         """"buyer":{"identifierScheme":"UEN","identifierValue":"201912345B"}},"classification":"IDENTIFYING"},""" +
         """"lines":{"value":[{"lineNumber":1,"description":"Consulting","quantity":1,"unitPrice":"$amount",""" +
