@@ -3,11 +3,19 @@ package com.dynokore.gst.evidence.adapters.http
 import com.dynokore.gst.evidence.application.cases.CaseAuthorizer
 import com.dynokore.gst.evidence.application.cases.CasePermissions
 import com.dynokore.gst.evidence.application.cases.CaseService
+import com.dynokore.gst.evidence.application.cases.CloseResult
+import com.dynokore.gst.evidence.application.cases.OpenPrivacyCaseCommand
+import com.dynokore.gst.evidence.application.cases.OpenResult
+import com.dynokore.gst.evidence.application.cases.PrivacyCaseService
 import com.dynokore.gst.evidence.application.cases.RecordSecurityCaseCommand
 import com.dynokore.gst.evidence.contract.api.PrivacyApi
+import com.dynokore.gst.evidence.contract.model.ClosePrivacyCaseRequest
+import com.dynokore.gst.evidence.contract.model.OpenPrivacyCaseRequest
 import com.dynokore.gst.evidence.contract.model.PrivacyCase
 import com.dynokore.gst.evidence.contract.model.RecordSecurityCaseRequest
 import com.dynokore.gst.evidence.contract.model.SecurityCase
+import com.dynokore.gst.evidence.domain.cases.CaseOutcome
+import com.dynokore.gst.evidence.domain.cases.RequestKind
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
 import com.dynokore.platform.serviceruntime.http.IdempotencyOutcome
 import com.dynokore.platform.serviceruntime.http.IdempotencyStore
@@ -26,6 +34,9 @@ import org.springframework.web.bind.annotation.RestController
 import tools.jackson.databind.ObjectMapper
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.Locale
 import java.util.UUID
 
@@ -37,12 +48,16 @@ import java.util.UUID
  * [CaseAuthorizer] over `AuthorityReplica.decideTenant` (403 SRT-004, nothing stored or read). `recordSecurityCase`
  * runs as `tx.inTransaction { idempotency.once(...) { CaseService.recordSecurityCase } }` (API-15, TPL-04): a repeat of
  * the key and body answers 200 with the stored body, the key with another body 422 SRT-009, a key in flight 409
- * SRT-007. `getCase` answers 404 SRT-005 for an unknown case and for a case of another tenant alike (API-24).
+ * SRT-007. `openPrivacyCase` and `closePrivacyCase` (INV-T-6842; INV-REQ-1403) check `privacy-request.handle` first,
+ * then run the same transaction and replay shape; the refusals of the use cases are 409 and 422 envelopes
+ * ([PrivacyRefusalAdvice]). `getCase` answers 404 SRT-005 for an unknown case and for a case of another tenant alike (API-24).
  */
 @RestController
 @Suppress("LongParameterList") // the use case, its ports and the request context; one controller per tag
 open class PrivacyController(
     private val cases: CaseService,
+    private val privacy: PrivacyCaseService,
+    private val clock: Clock,
     private val authorizer: CaseAuthorizer,
     private val idempotency: IdempotencyStore,
     private val transactions: TransactionRunner,
@@ -84,6 +99,89 @@ open class PrivacyController(
         }
     }
 
+    override fun openPrivacyCase(
+        idempotencyKey: UUID,
+        openPrivacyCaseRequest: OpenPrivacyCaseRequest,
+    ): ResponseEntity<PrivacyCase> {
+        val caller = caller()
+        val tenant = checkNotNull(caller.tenant)
+        val principal = Principal(caller.actor, PrincipalKind.HUMAN)
+        authorizer.require(tenant, principal, CasePermissions.PRIVACY_REQUEST_HANDLE)
+        val command =
+            OpenPrivacyCaseCommand(
+                openPrivacyCaseRequest.subjectRef,
+                RequestKind.valueOf(openPrivacyCaseRequest.requestKind.name),
+                openPrivacyCaseRequest.receivedOn,
+                openPrivacyCaseRequest.requestReference,
+            )
+        val today = LocalDate.now(clock.withZone(ZoneOffset.UTC))
+        val outcome =
+            transactions.inTransaction {
+                idempotency.once(tenant, caller.actor, idempotencyKey, fingerprint(OPEN_PATH, openPrivacyCaseRequest)) {
+                    when (val result = privacy.open(tenant, principal, command, today)) {
+                        is OpenResult.Opened -> stored(HttpStatus.CREATED, result.record)
+                        is OpenResult.Replayed -> stored(HttpStatus.OK, result.record)
+                    }
+                }
+            }
+        return answer(outcome, HttpStatus.OK)
+    }
+
+    override fun closePrivacyCase(
+        caseId: UUID,
+        idempotencyKey: UUID,
+        closePrivacyCaseRequest: ClosePrivacyCaseRequest,
+    ): ResponseEntity<PrivacyCase> {
+        val caller = caller()
+        val tenant = checkNotNull(caller.tenant)
+        val principal = Principal(caller.actor, PrincipalKind.HUMAN)
+        authorizer.require(tenant, principal, CasePermissions.PRIVACY_REQUEST_HANDLE)
+        val path = CLOSE_PATH.replace("{caseId}", caseId.toString())
+        val outcome =
+            transactions.inTransaction {
+                idempotency.once(tenant, caller.actor, idempotencyKey, fingerprint(path, closePrivacyCaseRequest)) {
+                    val result =
+                        privacy.close(
+                            tenant,
+                            principal,
+                            caseId,
+                            CaseOutcome.valueOf(closePrivacyCaseRequest.outcome.name),
+                            closePrivacyCaseRequest.basis,
+                        )
+                    when (result) {
+                        is CloseResult.Closed -> stored(HttpStatus.OK, result.record)
+                        is CloseResult.Replayed -> stored(HttpStatus.OK, result.record)
+                        CloseResult.NotFound -> throw CaseRefusal(ClosedErrorCode.NOT_FOUND)
+                    }
+                }
+            }
+        return answer(outcome, HttpStatus.OK)
+    }
+
+    private fun stored(
+        status: HttpStatus,
+        record: com.dynokore.gst.evidence.domain.cases.CaseRecord,
+    ): StoredResponse = StoredResponse(status.value(), mapper.writeValueAsString(CaseResponses.privacyCase(record)))
+
+    /** A fresh answer keeps the status it was stored with; a replay of the key answers [replayStatus]. */
+    private fun answer(
+        outcome: IdempotencyOutcome,
+        replayStatus: HttpStatus,
+    ): ResponseEntity<PrivacyCase> =
+        when (outcome) {
+            is IdempotencyOutcome.Fresh -> privacyReply(HttpStatus.valueOf(outcome.response.status), outcome.response)
+            is IdempotencyOutcome.Replay -> privacyReply(replayStatus, outcome.response)
+            IdempotencyOutcome.InFlight -> throw CaseRefusal(ClosedErrorCode.IN_FLIGHT)
+            IdempotencyOutcome.DifferentRequest -> throw CaseRefusal(ClosedErrorCode.DIFFERENT_REQUEST)
+        }
+
+    @Suppress("UNCHECKED_CAST") // the contract types the body as PrivacyCase; it holds only the members the case has
+    private fun privacyReply(
+        status: HttpStatus,
+        stored: StoredResponse,
+    ): ResponseEntity<PrivacyCase> =
+        ResponseEntity.status(status).body(mapper.readValue(stored.body, Map::class.java)) as ResponseEntity<PrivacyCase>
+
     override fun getCase(caseId: UUID): ResponseEntity<PrivacyCase> {
         val caller = caller()
         val tenant: TenantId = checkNotNull(caller.tenant)
@@ -106,9 +204,14 @@ open class PrivacyController(
         ResponseEntity.status(status).body(mapper.readValue(stored.body, SecurityCase::class.java))
 
     /** API-15: the fingerprint of the method, path and body; the body is the request as the contract names it. */
-    private fun fingerprint(request: RecordSecurityCaseRequest): String {
+    private fun fingerprint(request: RecordSecurityCaseRequest): String = fingerprint(RECORD_PATH, request)
+
+    private fun fingerprint(
+        path: String,
+        request: Any,
+    ): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("POST $RECORD_PATH\n".toByteArray(StandardCharsets.UTF_8))
+        digest.update("POST $path\n".toByteArray(StandardCharsets.UTF_8))
         digest.update(mapper.writeValueAsBytes(request))
         return digest.digest().joinToString("") { "%02x".format(Locale.ROOT, it) }
     }
@@ -121,5 +224,7 @@ open class PrivacyController(
 
     private companion object {
         const val RECORD_PATH = "/internal/v1/evidence/security-cases"
+        const val OPEN_PATH = "/internal/v1/evidence/cases"
+        const val CLOSE_PATH = "/internal/v1/evidence/cases/{caseId}/closure"
     }
 }

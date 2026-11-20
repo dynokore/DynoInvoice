@@ -15,8 +15,8 @@ operation	deleteAtRetentionEnd	INV-T-22971
 operation	getPartitionDeletion	INV-T-22971
 operation	recordSecurityCase	INV-T-11694
 operation	importPriorEvidence	UNASSIGNED
-operation	openPrivacyCase	UNASSIGNED
-operation	closePrivacyCase	UNASSIGNED
+operation	openPrivacyCase	INV-T-6842
+operation	closePrivacyCase	INV-T-6842
 operation	appendEvidenceAnnotation	UNASSIGNED
 operation	getEvidenceAnnotation	UNASSIGNED
 operation	getMaxEvidenceRetention	INV-T-6540
