@@ -80,4 +80,5 @@ dependencies {
     testImplementation(libs.platform.tenancyKernel.api)
     testImplementation(libs.platform.tenancyKernel.impl)
     testImplementation(libs.platform.outboxAndQueue.impl)
+    testImplementation(libs.platform.configResolver.impl)
 }
