@@ -6,11 +6,19 @@ import com.dynokore.gst.reconciliation.application.workpaper.export.ExportRows
 import com.dynokore.gst.reconciliation.application.workpaper.export.RenderedExport
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperExport
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperRenderer
+import org.apache.pdfbox.contentstream.operator.Operator
+import org.apache.pdfbox.contentstream.operator.OperatorName
+import org.apache.pdfbox.cos.COSDictionary
+import org.apache.pdfbox.cos.COSFloat
+import org.apache.pdfbox.cos.COSName
+import org.apache.pdfbox.cos.COSString
 import org.apache.pdfbox.io.IOUtils
+import org.apache.pdfbox.pdfwriter.ContentStreamWriter
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
-import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.apache.pdfbox.pdmodel.PDResources
 import org.apache.pdfbox.pdmodel.common.PDRectangle
+import org.apache.pdfbox.pdmodel.common.PDStream
 import org.apache.pdfbox.pdmodel.font.PDType0Font
 import java.io.ByteArrayOutputStream
 
@@ -26,8 +34,12 @@ class UnsupportedExportTextException(
 /**
  * PDF writer of the work-paper export (INV-REQ-982). A4 landscape, embedded subset fonts Noto Sans and Noto Sans
  * Tamil (a code point goes to the first font that maps it); the items are read only through
- * [ExportRows.of]. Every text is checked against the fonts before any page is drawn (fail closed: nothing is
- * replaced). The document uses a temporary-file-backed stream cache (bounded memory) and is
+ * [ExportRows.of]. Every run of the Tamil font is shaped by [TextShaper] (HarfBuzz) and drawn as the shaped glyph ids,
+ * so pre-base vowel signs and two-part vowels stand in their shaped order; the run is wrapped in marked content with
+ * its input text as ActualText (ISO 32000-1 14.9.4), so the text still extracts exactly. Latin runs are not shaped:
+ * Latin needs no reordering, and kerning or ligatures would change the earlier Latin output. Every text is checked
+ * against the fonts before any page is drawn (fail closed: nothing is replaced, and a Tamil run that shapes to
+ * glyph 0 is refused). The document uses a temporary-file-backed stream cache (bounded memory) and is
  * closed in a `finally`. No clock is read and no date is stored, so the content depends on the export only.
  */
 @Suppress("MagicNumber") // the column widths of the four tables, in points on an A4 landscape page
@@ -40,9 +52,11 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
         val layout = layout(export)
         val document = PDDocument(IOUtils.createTempFileOnlyStreamCache())
         try {
-            val fonts = Fonts(ExportFonts().load(document))
+            val exportFonts = ExportFonts()
+            val fonts = Fonts(exportFonts.load(document), TextShaper(exportFonts))
             check(layout, fonts)
             PageWriter(document, fonts).use { writer -> layout.forEach { writer.draw(it) } }
+            fonts.subsetAll() // the page contents are written by this class, so PDFBox has not queued the fonts
             val out = ByteArrayOutputStream()
             document.save(out)
             return RenderedExport(ExportContentTypes.PDF, out.toByteArray())
@@ -201,18 +215,22 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
         where: String,
     ) {
         val control = text.codePoints().anyMatch { Character.isISOControl(it) }
-        if (control || !fonts.covers(text)) throw UnsupportedExportTextException(where)
+        if (control || !fonts.covers(text) || !fonts.shapesCleanly(text)) throw UnsupportedExportTextException(where)
     }
 
     /**
-     * The embedded fonts of one render, in the fixed order. A code point goes to the first font whose Unicode cmap
-     * gives a glyph other than 0 for it ([PDType0Font.encode] refuses a code point without one), so nothing is drawn
-     * through `.notdef`. Nothing here outlives the render.
+     * The embedded fonts of one render, in the fixed order of [ExportFonts.FILES]. A code point goes to the first font
+     * whose Unicode cmap gives a glyph other than 0 for it ([PDType0Font.encode] refuses a code point without one), so
+     * nothing is drawn through `.notdef`. The runs of the Tamil font are shaped; the shaped runs are remembered for
+     * this render only. Nothing here outlives the render.
      */
     private class Fonts(
         private val list: List<PDType0Font>,
+        private val shaper: TextShaper,
     ) {
         private val chosen = HashMap<Int, PDType0Font?>()
+        private val shapedRuns = HashMap<String, ShapedRun>()
+        private val tamil = list[TAMIL]
 
         private fun fontOf(cp: Int): PDType0Font? =
             chosen.getOrPut(cp) {
@@ -229,7 +247,29 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
 
         fun covers(text: String): Boolean = text.codePoints().allMatch { fontOf(it) != null }
 
-        fun width(cp: Int): Float = checkNotNull(fontOf(cp)) { "no font" }.getStringWidth(String(Character.toChars(cp)))
+        /** Cuts every font to the glyphs that the pages use (ISO 32000-1 9.6.4); call once, after the last page. */
+        fun subsetAll() = list.forEach { it.subset() }
+
+        fun isShaped(font: PDType0Font): Boolean = font === tamil
+
+        /** The shaped glyphs of one run of the Tamil font. */
+        fun shaped(run: String): ShapedRun = shapedRuns.getOrPut(run) { shaper.shape(run, ExportFonts.FILES[TAMIL]) }
+
+        /** False when a Tamil run of [text] shapes to glyph 0 (`.notdef`), which is never drawn. */
+        fun shapesCleanly(text: String): Boolean =
+            runs(text).none { (font, run) -> isShaped(font) && shaped(run).glyphs.any { it.glyphId == 0 } }
+
+        /** The width of [text] in thousandths of the font size: the sum of shaped advances for the Tamil font. */
+        fun width(text: String): Float =
+            runs(text)
+                .sumOf { (font, run) ->
+                    if (isShaped(font)) {
+                        val shaped = shaped(run)
+                        shaped.glyphs.sumOf { it.xAdvance } * THOUSAND.toDouble() / shaped.unitsPerEm
+                    } else {
+                        font.getStringWidth(run).toDouble()
+                    }
+                }.toFloat()
 
         /** The text cut into maximal runs drawn by one font. */
         fun runs(text: String): List<Pair<PDType0Font, String>> {
@@ -241,6 +281,83 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             }
             return runs.map { it.first to it.second.toString() }
         }
+
+        private companion object {
+            const val THOUSAND = 1000f
+            val TAMIL = ExportFonts.FILES.indexOf("fonts/NotoSansTamil-Regular.ttf")
+        }
+    }
+
+    /**
+     * The content stream of one page, written as PDF operators with [ContentStreamWriter] (PDFBox has no public way to
+     * write glyph ids that were not made by the font's own cmap). Text is shown with [showRun].
+     */
+    private class PageContent(
+        private val document: PDDocument,
+        private val page: PDPage,
+    ) {
+        private val tokens = mutableListOf<Any>()
+        private val resources = PDResources().also { page.resources = it }
+        private val fontNames = HashMap<PDType0Font, COSName>()
+
+        private fun op(name: String) = tokens.add(Operator.getOperator(name))
+
+        fun beginText(
+            x: Float,
+            y: Float,
+        ) {
+            op(OperatorName.BEGIN_TEXT)
+            tokens += COSFloat(x)
+            tokens += COSFloat(y)
+            op(OperatorName.MOVE_TEXT)
+        }
+
+        fun endText() {
+            op(OperatorName.END_TEXT)
+        }
+
+        fun setFont(
+            font: PDType0Font,
+            size: Float,
+        ) {
+            tokens += fontNames.getOrPut(font) { resources.add(font) }
+            tokens += COSFloat(size)
+            op(OperatorName.SET_FONT_AND_SIZE)
+        }
+
+        /** Shows [run] by its cmap glyphs (Latin); the code points are kept for the font subset. */
+        fun showRun(
+            font: PDType0Font,
+            run: String,
+        ) {
+            val bytes = font.encode(run)
+            run.codePoints().forEach { font.addToSubset(it) }
+            tokens += COSString(bytes)
+            op(OperatorName.SHOW_TEXT)
+        }
+
+        /** Shows the shaped glyph ids of [run] inside marked content whose ActualText is the input [run]. */
+        fun showShaped(
+            font: PDType0Font,
+            run: String,
+            glyphIds: List<Int>,
+        ) {
+            font.addGlyphsToSubset(glyphIds.toSet())
+            val bytes = glyphIds.flatMap { font.encodeGlyphId(it).toList() }.toByteArray()
+            tokens += COSName.getPDFName("Span")
+            tokens += COSDictionary().also { it.setItem(COSName.ACTUAL_TEXT, COSString(run)) }
+            op(OperatorName.BEGIN_MARKED_CONTENT_SEQ)
+            tokens += COSString(bytes)
+            op(OperatorName.SHOW_TEXT)
+            op(OperatorName.END_MARKED_CONTENT)
+        }
+
+        /** Writes the operators as the Flate-compressed content stream of the page. */
+        fun close() {
+            val stream = PDStream(document)
+            stream.createOutputStream(COSName.FLATE_DECODE).use { ContentStreamWriter(it).writeTokens(tokens) }
+            page.setContents(stream)
+        }
     }
 
     /** Draws the blocks onto A4 landscape pages; each page that holds table rows repeats the table header. */
@@ -248,7 +365,7 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
         private val document: PDDocument,
         private val fonts: Fonts,
     ) : AutoCloseable {
-        private var stream: PDPageContentStream? = null
+        private var stream: PageContent? = null
         private var y = 0f
 
         fun draw(block: Block) {
@@ -312,7 +429,30 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             }
         }
 
-        /** Breaks [text] into lines that fit [width]; a text with no break point is cut by character, never dropped. */
+        /**
+         * The text cut into clusters that stay whole across a line break: a code point that combines with the
+         * one before it (a vowel sign, a mark, a joiner) and a code point after a virama stay in the cluster of
+         * their base.
+         */
+        private fun clusters(text: String): List<String> {
+            val out = mutableListOf<StringBuilder>()
+            var afterVirama = false
+            text.codePoints().forEach { cp ->
+                val type = Character.getType(cp)
+                val joins =
+                    type == Character.NON_SPACING_MARK.toInt() ||
+                        type == Character.COMBINING_SPACING_MARK.toInt() ||
+                        type == Character.ENCLOSING_MARK.toInt() ||
+                        cp == ZWJ ||
+                        cp == ZWNJ
+                if (out.isEmpty() || !(joins || afterVirama)) out += StringBuilder()
+                out.last().appendCodePoint(cp)
+                afterVirama = cp == VIRAMA
+            }
+            return out.map { it.toString() }
+        }
+
+        /** Breaks [text] into lines that fit [width]; a text with no break point is cut by cluster, never dropped. */
         private fun wrap(
             text: String,
             width: Float,
@@ -321,15 +461,14 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             val lines = mutableListOf<String>()
             val line = StringBuilder()
             var used = 0f
-            text.codePoints().forEach { cp ->
-                val ch = String(Character.toChars(cp))
-                val w = fonts.width(cp) / THOUSAND * TABLE_SIZE
+            clusters(text).forEach { cluster ->
+                val w = fonts.width(cluster) / THOUSAND * TABLE_SIZE
                 if (used + w > width && line.isNotEmpty()) {
                     lines += line.toString()
                     line.setLength(0)
                     used = 0f
                 }
-                line.append(ch)
+                line.append(cluster)
                 used += w
             }
             lines += line.toString()
@@ -346,7 +485,7 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             stream?.close()
             val page = PDPage(PDRectangle(PDRectangle.A4.height, PDRectangle.A4.width))
             document.addPage(page)
-            stream = PDPageContentStream(document, page)
+            stream = PageContent(document, page)
             y = page.mediaBox.height - MARGIN
             if (table != null) header(table)
         }
@@ -358,11 +497,14 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             at: Float = y,
         ) {
             val s = stream ?: error("no page")
-            s.beginText()
-            s.newLineAtOffset(x, at)
+            s.beginText(x, at)
             fonts.runs(value).forEach { (font, run) ->
                 s.setFont(font, size)
-                s.showText(run)
+                if (fonts.isShaped(font)) {
+                    s.showShaped(font, run, fonts.shaped(run).glyphs.map { it.glyphId })
+                } else {
+                    s.showRun(font, run)
+                }
             }
             s.endText()
         }
@@ -382,6 +524,9 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             const val GUTTER = 4f
             const val THOUSAND = 1000f
             const val PAGE_LINES = 55
+            const val VIRAMA = 0x0BCD
+            const val ZWJ = 0x200D
+            const val ZWNJ = 0x200C
         }
     }
 }

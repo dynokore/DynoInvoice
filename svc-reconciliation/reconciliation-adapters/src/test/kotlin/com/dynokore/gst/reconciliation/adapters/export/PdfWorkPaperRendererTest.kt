@@ -11,6 +11,10 @@ import com.dynokore.gst.reconciliation.application.workpaper.export.ExportRows
 import com.dynokore.gst.reconciliation.application.workpaper.export.ExportUnmappedLine
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperExport
 import org.apache.pdfbox.Loader
+import org.apache.pdfbox.contentstream.operator.Operator
+import org.apache.pdfbox.cos.COSName
+import org.apache.pdfbox.cos.COSString
+import org.apache.pdfbox.pdfparser.PDFStreamParser
 import org.apache.pdfbox.text.PDFTextStripper
 import org.apache.pdfbox.text.TextPosition
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -254,7 +258,10 @@ class PdfWorkPaperRendererTest {
                     text: String,
                     textPositions: MutableList<TextPosition>,
                 ) {
-                    textPositions.forEach { seen += it.unicode to it.font.name }
+                    // a Tamil run carries its input as ActualText: PDFBox reports the whole text on its first
+                    // glyph
+                    // and an empty string on the glyphs that follow, so those have no character of their own
+                    textPositions.filter { it.unicode.isNotEmpty() }.forEach { seen += it.unicode to it.font.name }
                 }
             }.getText(doc)
         }
@@ -343,5 +350,98 @@ class PdfWorkPaperRendererTest {
         assertTrue(pages.size > 1)
         pages.filter { it.contains("EV-") }.forEach { assertTrue(it.contains("boxdocumentversionlineamountevidence")) }
         assertEquals(before, tmpListing())
+    }
+
+    // ---- INV-AC-24750: Tamil runs drawn as HarfBuzz-shaped glyph ids ----
+
+    /** Tamil fixtures: the text and the glyph ids that `hb-shape` 6.0.0 prints for Noto Sans Tamil 2.004. */
+    private val shapedFixtures =
+        listOf(
+            "\u0B95\u0BC6" to listOf(46, 18),
+            "\u0B95\u0BC7" to listOf(47, 18),
+            "\u0B95\u0BC8" to listOf(48, 18),
+            "\u0B95\u0BCA" to listOf(46, 18, 41),
+            "\u0B95\u0BCB" to listOf(47, 18, 41),
+            "\u0B95\u0BCC" to listOf(46, 18, 54),
+            "\u0B95\u0BCD\u0BB7" to listOf(76),
+        )
+
+    /** The 16-bit codes shown with the Tamil font in the content streams, in order (before subsetting maps them). */
+    private fun tamilCodes(bytes: ByteArray): List<Int> =
+        Loader.loadPDF(bytes).use { doc ->
+            val codes = mutableListOf<Int>()
+            doc.pages.forEach { page ->
+                var isTamil = false
+                val tokens = PDFStreamParser(page).parse()
+                tokens.forEachIndexed { i, token ->
+                    if (token is Operator && token.name == "Tf") {
+                        isTamil =
+                            page.resources
+                                .getFont(tokens[i - 2] as COSName)
+                                .name
+                                .endsWith("+NotoSansTamil-Regular")
+                    } else if (token is COSString && isTamil) {
+                        token.bytes.toList().chunked(2).forEach {
+                            codes +=
+                                (it[0].toInt() and 0xFF) * 256 + (it[1].toInt() and 0xFF)
+                        }
+                    }
+                }
+            }
+            codes
+        }
+
+    private fun containsRun(
+        codes: List<Int>,
+        run: List<Int>,
+    ) = (0..codes.size - run.size).any { codes.subList(it, it + run.size) == run }
+
+    @Test
+    fun `INV-AC-24750 the PDF made from each Tamil fixture has the shaped sequence in its content stream`() {
+        shapedFixtures.forEach { (text, ids) ->
+            val codes = tamilCodes(render(fixture(description = text)).bytes)
+            assertTrue(containsRun(codes, ids), "$ids in $codes")
+        }
+    }
+
+    @Test
+    fun `INV-AC-24750 the text that PDFBox extracts from each Tamil fixture equals the input without whitespace`() {
+        shapedFixtures.forEach { (text, _) ->
+            val placeholder = "zqQQ9"
+            val expected = pages(render(fixture(description = placeholder)).bytes).joinToString("")
+            assertEquals(
+                expected.replace(placeholder, text),
+                pages(render(fixture(description = text)).bytes).joinToString(""),
+                text,
+            )
+        }
+    }
+
+    @Test
+    fun `INV-AC-24750 every Tamil font is embedded as a subset that holds the shaped glyphs`() {
+        val bytes = render(fixture(description = shapedFixtures[3].first)).bytes
+        Loader.loadPDF(bytes).use { doc ->
+            val fonts = doc.pages.flatMap { p -> p.resources.fontNames.map { p.resources.getFont(it) } }
+            val tamil = fonts.filter { it.name.endsWith("+NotoSansTamil-Regular") }
+            assertTrue(tamil.isNotEmpty())
+            tamil.forEach { assertTrue(it.isEmbedded) }
+        }
+    }
+
+    @Test
+    fun `INV-AC-24750 Han is still refused and an uncovered code point throws before any page is drawn`() {
+        val han = assertThrows<UnsupportedExportTextException> { render(fixture(evidence = "ev-$HAN")) }
+        assertEquals("Items row 2 evidence", han.message)
+        val none = assertThrows<UnsupportedExportTextException> { render(fixture(description = "\u0B95\u0BCA\u0378")) }
+        assertEquals("Relaxed controls row 1 description", none.message)
+    }
+
+    @Test
+    fun `INV-AC-24750 the Latin fixtures give the same text and page count as before`() {
+        val first = render(fixture(entity = "E1\u00E9\u00F1"))
+        assertEquals(pages(first.bytes), pages(render(fixture(entity = "E1\u00E9\u00F1")).bytes))
+        assertTrue(pages(first.bytes).joinToString("").contains("E1\u00E9\u00F1"))
+        assertEquals(1, pages(first.bytes).size)
+        assertTrue(pages(render(big()).bytes).size > 1)
     }
 }
