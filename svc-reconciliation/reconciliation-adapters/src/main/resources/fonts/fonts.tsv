@@ -1,0 +1,3 @@
+file	family	version	upstream_url	sha256	licence	copyright
+fonts/NotoSans-Regular.ttf	Noto Sans	2.015	https://github.com/notofonts/latin-greek-cyrillic/releases/download/NotoSans-v2.015/NotoSans-v2.015.zip	f5f552c8c5edb61fe6efb824baf4d4de47b1a8689ab4925ff43f7bd6a4ebece5	OFL-1.1	Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)
+fonts/NotoSansTamil-Regular.ttf	Noto Sans Tamil	2.004	https://github.com/notofonts/tamil/releases/download/NotoSansTamil-v2.004/NotoSansTamil-v2.004.zip	0afbc221964b6048c6d771c525be474d21b288a621dce0fafedd695cc5c98e4e	OFL-1.1	Copyright 2022 The Noto Project Authors (https://github.com/notofonts/tamil)

@@ -12,6 +12,7 @@ import com.dynokore.gst.reconciliation.application.workpaper.export.ExportUnmapp
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperExport
 import org.apache.pdfbox.Loader
 import org.apache.pdfbox.text.PDFTextStripper
+import org.apache.pdfbox.text.TextPosition
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -227,6 +228,112 @@ class PdfWorkPaperRendererTest {
     fun `INV-AC-24540 no temporary file remains after a render`() {
         val before = tmpListing()
         render(big())
+        assertEquals(before, tmpListing())
+    }
+
+    private val tamilWord = "\u0BA4\u0BAE\u0BBF\u0BB4\u0BCD"
+
+    private fun latinFixtures() =
+        listOf(
+            fixture(entity = "E1\u00E9\u00F1") to "E1\u00E9\u00F1",
+            fixture(box = "B1\u00FC") to "B1\u00FC",
+            fixture(doc = "D1-\u00DF\u00E7") to "D1-\u00DF\u00E7",
+            fixture(evidence = "ev-$tamilWord") to "ev-$tamilWord",
+            fixture(description = "late filing $tamilWord") to "latefiling$tamilWord",
+            fixture(attester = "U7") to "U7",
+            fixture(description = "mix $tamilWord \u00E9 7") to "mix${tamilWord}\u00E97",
+        )
+
+    /** The font name of every extracted character, by character. */
+    private fun fontsPerChar(bytes: ByteArray): List<Pair<String, String>> {
+        val seen = mutableListOf<Pair<String, String>>()
+        Loader.loadPDF(bytes).use { doc ->
+            object : PDFTextStripper() {
+                override fun writeString(
+                    text: String,
+                    textPositions: MutableList<TextPosition>,
+                ) {
+                    textPositions.forEach { seen += it.unicode to it.font.name }
+                }
+            }.getText(doc)
+        }
+        return seen
+    }
+
+    @Test
+    fun `INV-AC-24552 Latin and Tamil texts extract back exactly in embedded subset fonts`() {
+        latinFixtures().forEach { (export, text) ->
+            val r = render(export)
+            assertEquals(ExportContentTypes.PDF, r.contentType)
+            assertEquals("%PDF-", String(r.bytes, 0, 5, Charsets.US_ASCII))
+            assertTrue(r.bytes.size < 1_048_576)
+            assertTrue(pages(r.bytes).joinToString("").contains(text), "text $text")
+            Loader.loadPDF(r.bytes).use { doc ->
+                val names = doc.pages.flatMap { p -> p.resources.fontNames.map { p.resources.getFont(it) } }
+                assertTrue(names.isNotEmpty())
+                names.forEach {
+                    assertTrue(it.isEmbedded)
+                    assertTrue(Regex("[A-Z]{6}\\+(NotoSans-Regular|NotoSansTamil-Regular)").matches(it.name), it.name)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `INV-AC-24552 each character is drawn in the font of its script`() {
+        val chars = fontsPerChar(render(fixture(evidence = "ev-${tamilWord}x1", entity = "E1\u00E9")).bytes)
+        assertTrue(chars.isNotEmpty())
+        chars.forEach { (c, font) ->
+            val cp = c.codePointAt(0)
+            if (cp in 0x0B80..0x0BFF) {
+                assertTrue(font.endsWith("+NotoSansTamil-Regular"), "$cp $font")
+            } else if (!Character.isWhitespace(cp)) {
+                assertTrue(font.endsWith("+NotoSans-Regular"), "$cp $font")
+            }
+        }
+        assertTrue(chars.any { it.second.endsWith("+NotoSansTamil-Regular") })
+    }
+
+    @Test
+    fun `INV-AC-24552 Han, U+0378 and U+0007 are refused naming the field and row only`() {
+        val e = assertThrows<UnsupportedExportTextException> { render(fixture(evidence = "ev-$HAN")) }
+        assertEquals("Items row 2 evidence", e.message)
+        val mixed = assertThrows<UnsupportedExportTextException> { render(fixture(description = "$HAN$tamilWord")) }
+        assertEquals("Relaxed controls row 1 description", mixed.message)
+        val unassigned = assertThrows<UnsupportedExportTextException> { render(fixture(evidence = "ev-\u0378")) }
+        assertEquals("Items row 2 evidence", unassigned.message)
+        refused(fixture(evidence = "ev\u0378"), "Items row 2 evidence", "\u0378")
+        refused(fixture(description = "zq\u0007"), "Relaxed controls row 1 description", "zq")
+    }
+
+    @Test
+    fun `INV-AC-24552 repeated renders and the 400 item variant with Tamil hold`() {
+        val export = fixture(evidence = "ev-$tamilWord")
+        assertEquals(pages(render(export).bytes), pages(render(export).bytes))
+        val before = tmpListing()
+        val big =
+            big().let { b ->
+                b.copy(
+                    boxes =
+                        b.boxes.map {
+                            it.copy(
+                                items =
+                                    it.items.mapIndexed { i, x ->
+                                        if (i ==
+                                            0
+                                        ) {
+                                            x.copy(evidenceRefs = listOf(tamilWord))
+                                        } else {
+                                            x
+                                        }
+                                    },
+                            )
+                        },
+                )
+            }
+        val pages = pages(render(big).bytes)
+        assertTrue(pages.size > 1)
+        pages.filter { it.contains("EV-") }.forEach { assertTrue(it.contains("boxdocumentversionlineamountevidence")) }
         assertEquals(before, tmpListing())
     }
 }

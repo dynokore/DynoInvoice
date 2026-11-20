@@ -11,12 +11,11 @@ import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.common.PDRectangle
-import org.apache.pdfbox.pdmodel.font.PDType1Font
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts
+import org.apache.pdfbox.pdmodel.font.PDType0Font
 import java.io.ByteArrayOutputStream
 
 /**
- * The export text holds a character the standard font cannot draw, or a control character. The message names the
+ * The export text holds a character none of the bundled fonts maps, or a control character. The message names the
  * field and the row only (for example `Items row 3 evidence`); it never holds a character or value of the export
  * (OWASP ASVS V7, NIST SP 800-53 SI-10).
  */
@@ -25,9 +24,9 @@ class UnsupportedExportTextException(
 ) : RuntimeException(message)
 
 /**
- * PDF writer of the work-paper export (INV-REQ-982). A4 landscape, standard font Helvetica; the items are read only
+ * PDF writer of the work-paper export (INV-REQ-982). A4 landscape, embedded subset fonts Noto Sans and Noto Sans Tamil (a code point goes to the first font that maps it); the items are read only
  * through [ExportRows.of]. Every text is checked against the font before any page is drawn (fail closed: nothing is
- * replaced, no font is embedded). The document uses a temporary-file-backed stream cache (bounded memory) and is
+ * replaced). The document uses a temporary-file-backed stream cache (bounded memory) and is
  * closed in a `finally`. No clock is read and no date is stored, so the content depends on the export only.
  */
 @Suppress("MagicNumber") // the column widths of the four tables, in points on an A4 landscape page
@@ -37,12 +36,12 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
         format: ExportFormat,
     ): RenderedExport {
         require(format == ExportFormat.PDF) { "PdfWorkPaperRenderer renders only PDF, not $format" }
-        val font = PDType1Font(Standard14Fonts.FontName.HELVETICA)
         val layout = layout(export)
-        check(layout, font)
         val document = PDDocument(IOUtils.createTempFileOnlyStreamCache())
         try {
-            PageWriter(document, font).use { writer -> layout.forEach { writer.draw(it) } }
+            val fonts = Fonts(ExportFonts().load(document))
+            check(layout, fonts)
+            PageWriter(document, fonts).use { writer -> layout.forEach { writer.draw(it) } }
             val out = ByteArrayOutputStream()
             document.save(out)
             return RenderedExport(ExportContentTypes.PDF, out.toByteArray())
@@ -169,21 +168,21 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
     /** Encodes every text with the font before any page is drawn; the first failure names the field and row only. */
     private fun check(
         layout: List<Block>,
-        font: PDType1Font,
+        fonts: Fonts,
     ) {
         layout.forEach { block ->
             when (block) {
                 is Block.Summary -> {
-                    block.lines.forEach { (label, value) -> checkText(font, value, "Summary $label") }
+                    block.lines.forEach { (label, value) -> checkText(fonts, value, "Summary $label") }
                 }
 
                 is Block.Grid -> {
-                    block.table.columns.forEach { checkText(font, it.name, "${block.table.name} header ${it.name}") }
+                    block.table.columns.forEach { checkText(fonts, it.name, "${block.table.name} header ${it.name}") }
                     block.table.rows.forEachIndexed { r, row ->
                         row.forEachIndexed { c, cell ->
                             cell.forEach {
                                 checkText(
-                                    font,
+                                    fonts,
                                     it,
                                     "${block.table.name} row ${r + 1} ${block.table.columns[c].name}",
                                 )
@@ -196,26 +195,57 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
     }
 
     private fun checkText(
-        font: PDType1Font,
+        fonts: Fonts,
         text: String,
         where: String,
     ) {
         val control = text.codePoints().anyMatch { Character.isISOControl(it) }
-        val encodable =
-            !control &&
-                try {
-                    font.encode(text)
-                    true
-                } catch (_: IllegalArgumentException) {
-                    false
+        if (control || !fonts.covers(text)) throw UnsupportedExportTextException(where)
+    }
+
+    /**
+     * The embedded fonts of one render, in the fixed order. A code point goes to the first font whose Unicode cmap gives
+     * a glyph other than 0 for it ([PDType0Font.encode] refuses a code point without one), so nothing is drawn through
+     * `.notdef`. Nothing here outlives the render.
+     */
+    private class Fonts(
+        private val list: List<PDType0Font>,
+    ) {
+        private val chosen = HashMap<Int, PDType0Font?>()
+
+        private fun fontOf(cp: Int): PDType0Font? =
+            chosen.getOrPut(cp) {
+                val text = String(Character.toChars(cp))
+                list.firstOrNull {
+                    try {
+                        it.encode(text)
+                        true
+                    } catch (_: IllegalArgumentException) {
+                        false
+                    }
                 }
-        if (!encodable) throw UnsupportedExportTextException(where)
+            }
+
+        fun covers(text: String): Boolean = text.codePoints().allMatch { fontOf(it) != null }
+
+        fun width(cp: Int): Float = checkNotNull(fontOf(cp)) { "no font" }.getStringWidth(String(Character.toChars(cp)))
+
+        /** The text cut into maximal runs drawn by one font. */
+        fun runs(text: String): List<Pair<PDType0Font, String>> {
+            val runs = mutableListOf<Pair<PDType0Font, StringBuilder>>()
+            text.codePoints().forEach { cp ->
+                val font = checkNotNull(fontOf(cp)) { "no font" }
+                if (runs.lastOrNull()?.first !== font) runs += font to StringBuilder()
+                runs.last().second.appendCodePoint(cp)
+            }
+            return runs.map { it.first to it.second.toString() }
+        }
     }
 
     /** Draws the blocks onto A4 landscape pages; each page that holds table rows repeats the table header. */
     private class PageWriter(
         private val document: PDDocument,
-        private val font: PDType1Font,
+        private val fonts: Fonts,
     ) : AutoCloseable {
         private var stream: PDPageContentStream? = null
         private var y = 0f
@@ -292,7 +322,7 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
             var used = 0f
             text.codePoints().forEach { cp ->
                 val ch = String(Character.toChars(cp))
-                val w = font.getStringWidth(ch) / THOUSAND * TABLE_SIZE
+                val w = fonts.width(cp) / THOUSAND * TABLE_SIZE
                 if (used + w > width && line.isNotEmpty()) {
                     lines += line.toString()
                     line.setLength(0)
@@ -328,9 +358,11 @@ class PdfWorkPaperRenderer : WorkPaperRenderer {
         ) {
             val s = stream ?: error("no page")
             s.beginText()
-            s.setFont(font, size)
             s.newLineAtOffset(x, at)
-            s.showText(value)
+            fonts.runs(value).forEach { (font, run) ->
+                s.setFont(font, size)
+                s.showText(run)
+            }
             s.endText()
         }
 
