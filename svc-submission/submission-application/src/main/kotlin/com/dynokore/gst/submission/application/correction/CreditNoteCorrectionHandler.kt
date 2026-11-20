@@ -13,6 +13,7 @@ import com.dynokore.gst.submission.domain.ordering.LifecycleState
  * outcomes of the net derivation. It runs in the caller's transaction. Zero or negative net is refused upstream as
  * `NET_NOT_POSITIVE` and arrives here as a refusal (open owner question, fail-closed).
  */
+@Suppress("LongParameterList") // one required port each, no defaults
 class CreditNoteCorrectionHandler(
     private val originals: OriginalVersionSource,
     private val declarations: NettingDeclarations,

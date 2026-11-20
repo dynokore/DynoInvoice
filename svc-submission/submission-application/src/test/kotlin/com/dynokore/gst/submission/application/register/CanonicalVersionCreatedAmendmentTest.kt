@@ -96,20 +96,7 @@ class CanonicalVersionCreatedAmendmentTest {
                 override fun lift(creditNoteDocUuid: String) = Unit
             }
         val guard = NettedAmendmentGuard(originals, transitions, { 1 }, { findings.add(it) })
-        val corrections =
-            CreditNoteCorrectionHandler(
-                originals,
-                { false },
-                transitions,
-                NetDerivationRequestPort { _, _, _ -> },
-                object : NetRefusedMarks {
-                    override fun store(creditNoteDocUuid: String) = Unit
-
-                    override fun isRefused(creditNoteDocUuid: String) = false
-                },
-                NettingDeclarationRecorder { _, _ -> },
-                { true },
-            )
+        val corrections = corrections(originals, transitions)
         val store = Store()
         val data =
             CanonicalVersionCreatedData(
@@ -132,6 +119,36 @@ class CanonicalVersionCreatedAmendmentTest {
             )
         return Run(handler, store, lookups, findings)
     }
+
+    private fun transitions(amends: Boolean) =
+        object : CreditNoteTransitions {
+            override fun notSubmittable(
+                creditNoteDocUuid: String,
+                reason: CorrectionReason,
+            ) = Unit
+
+            override fun nettedBySystem(originalDocUuid: String): List<String> =
+                if (amends) listOf(doc) else emptyList()
+
+            override fun lift(creditNoteDocUuid: String) = Unit
+        }
+
+    private fun corrections(
+        originals: OriginalVersionSource,
+        transitions: CreditNoteTransitions,
+    ) = CreditNoteCorrectionHandler(
+        originals,
+        { false },
+        transitions,
+        NetDerivationRequestPort { _, _, _ -> },
+        object : NetRefusedMarks {
+            override fun store(creditNoteDocUuid: String) = Unit
+
+            override fun isRefused(creditNoteDocUuid: String) = false
+        },
+        NettingDeclarationRecorder { _, _ -> },
+        { true },
+    )
 
     private fun payload(): Map<String, Any?> {
         val party = { n: String ->

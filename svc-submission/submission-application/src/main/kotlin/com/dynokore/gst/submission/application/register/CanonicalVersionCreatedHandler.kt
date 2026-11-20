@@ -30,6 +30,7 @@ import com.dynokore.platform.tenancykernel.TenantContext
  * the outcome is IGNORED (owner option A of 2026-11-20; the finding is recorded by the guard). Any other kind never
  * reaches the guard.
  */
+@Suppress("LongParameterList") // composition root of the register writer: one required port each
 class CanonicalVersionCreatedHandler(
     private val tenants: TenantContext,
     private val reader: CanonicalVersionCreatedDataReader,
