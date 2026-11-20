@@ -425,6 +425,15 @@ class PdfWorkPaperRendererTest {
             val tamil = fonts.filter { it.name.endsWith("+NotoSansTamil-Regular") }
             assertTrue(tamil.isNotEmpty())
             tamil.forEach { assertTrue(it.isEmbedded) }
+            // the subset keeps the shaped glyphs: each shaped glyph id of the fixture maps (CIDToGIDMap) to a glyph
+            // of the embedded subset other than .notdef, and the subset is far smaller than the full font
+            val descendant = (tamil.single() as org.apache.pdfbox.pdmodel.font.PDType0Font).descendantFont
+            val cid2gid = descendant as org.apache.pdfbox.pdmodel.font.PDCIDFontType2
+            val mapped = listOf(46, 18, 41).map { cid2gid.codeToGID(it) }
+            assertTrue(mapped.all { it > 0 }, "$mapped")
+            assertEquals(3, mapped.toSet().size, "$mapped")
+            val subsetSize = descendant.fontDescriptor.fontFile2.toByteArray().size
+            assertTrue(subsetSize < ExportFonts().fontBytes("fonts/NotoSansTamil-Regular.ttf").size / 2, "$subsetSize")
         }
     }
 
