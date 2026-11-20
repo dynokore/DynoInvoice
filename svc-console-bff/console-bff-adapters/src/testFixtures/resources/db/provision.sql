@@ -7,7 +7,6 @@ create schema console_bff authorization console_bff_migrate;
 create extension if not exists pgcrypto schema public;
 grant usage on schema console_bff to console_bff_runtime;
 grant usage, create on schema console_bff to console_bff_sys;
-alter default privileges for role console_bff_migrate in schema console_bff grant select, insert, update, delete on tables to console_bff_runtime;
 set role console_bff_sys;
 -- BEGIN BindingKeyMigration.ddl
 DO $$

@@ -78,6 +78,7 @@ class ConsoleRuntimeGrantsTest {
     fun `INV-AC-1921 positive control a console table is writable and appears in the write list`() {
         ConsoleDb.connect(ConsoleDb.MIGRATE, ConsoleDb.MIGRATE_PASSWORD).use {
             exec(it, "create table if not exists console_bff.grants_probe (id int)")
+            exec(it, "grant insert on console_bff.grants_probe to console_bff_runtime")
         }
         try {
             sqlState { runtimeInsert("console_bff.grants_probe") } shouldBe null
