@@ -52,6 +52,10 @@ inv:
       - rules.pack_readiness_ack
       # rules.tenants_with_delta: a table-valued definer function, listed like the two above (INV-T-22942).
       - rules.tenants_with_delta
+      # rules.lane_rate_window and rules.claim_due: the work queue's lane limits and claim function, which hold no
+      # tenant data (QueueSchema, INV-T-4978).
+      - rules.lane_rate_window
+      - rules.claim_due
 gst:
   service: rules-svc
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}

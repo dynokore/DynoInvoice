@@ -144,8 +144,16 @@ class ReprocessingConfiguration {
         useCase: ReprocessPopulation,
     ): ReprocessingWorker = ReprocessingWorker(queue, scope, useCase)
 
-    /** The one worker loop: a short tick that drains what the lane limit lets through. */
+    /**
+     * The one worker loop: a short tick that drains what the lane limit lets through. `rules.reprocessing.worker=false`
+     * switches the tick off (the tests drive [ReprocessingWorker.drain] themselves); it is on when the property is absent.
+     */
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = ["rules.reprocessing.worker"],
+        havingValue = "true",
+        matchIfMissing = true,
+    )
     fun reprocessingWorkerScheduling(worker: ReprocessingWorker): ReprocessingWorkerScheduling =
         ReprocessingWorkerScheduling(worker)
 

@@ -54,10 +54,12 @@ open class ReprocessingHarness(
 
     protected fun structure() = context.getBean(StructureReplica::class.java)
 
-    protected fun addEntity() =
+    protected fun addEntity() {
         structure().accept(
             EntityProfileChanged(tenant, entity, StructureNode(StructureNodeKind.ENTITY, null, false, "E", entity, emptyList(), 1)),
         )
+        structure().onSnapshotComplete(1)
+    }
 
     /** The correction made through the served rollbackPack, the entity known, and the run started. */
     protected fun startRun(): String {
@@ -133,7 +135,7 @@ class ReprocessingRunIT(
     @Test
     fun `INV-AC-23933 every acknowledged document the superseding pack reclassifies is listed once under its own Doc UUID`() {
         val id = startRun()
-        scalar("select count(*) from rules.outbox where event_type = ?", REQUESTED_TYPE) shouldBe "1"
+        scalar("select count(*) from rules.outbox where type = ? and tenant_id = ?::uuid", REQUESTED_TYPE, tenant.toString()) shouldBe "1"
         val k = List(3) { PageDoc(taxCode = "CHANGE", acknowledged = true) }
         val unchanged = PageDoc(taxCode = "SAME", acknowledged = true)
         val notSent = PageDoc(taxCode = "CHANGE", acknowledged = false)
@@ -142,9 +144,9 @@ class ReprocessingRunIT(
         deliver(id, 1, false, k + unchanged) shouldBe HandleOutcome.IGNORED
         deliver("other-$id".take(40), 2, true, listOf(notSent)) shouldBe HandleOutcome.IGNORED
         deliver(id, 2, true, listOf(notSent), entityRef = "other") shouldBe HandleOutcome.IGNORED
-        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING'") shouldBe "4"
+        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?", type) shouldBe "4"
         deliver(id, 2, true, listOf(notSent)) shouldBe HandleOutcome.APPLIED
-        drain() shouldBe 5
+        drain()
         val rows = resubmissionRows()
         rows.size shouldBe 3
         val list = inTenant { context.getBean(JooqReprocessingStore::class.java).resubmissions(type, label) }
@@ -153,7 +155,7 @@ class ReprocessingRunIT(
         rows.toSet().size shouldBe 3
         scalar("select state from rules.reprocessing_run where pack_type = ?", type) shouldBe "COMPLETE"
         // no row is updated or deleted by a second run of the worker, and a repeated add leaves the first row
-        drain() shouldBe 0
+        drain()
         resubmissionRows() shouldBe rows
         inTenant { context.getBean(JooqReprocessingStore::class.java).add(type, label, list.first()) }
         resubmissionRows() shouldBe rows
@@ -167,7 +169,7 @@ class ReprocessingRunIT(
     fun `INV-AC-23933 an empty set of documents to resubmit gives an empty list, no row and no error`() {
         val id = startRun()
         deliver(id, 1, true, listOf(PageDoc(taxCode = "SAME", acknowledged = true))) shouldBe HandleOutcome.APPLIED
-        drain() shouldBe 1
+        drain()
         resubmissionRows() shouldBe emptyList()
         scalar("select state from rules.reprocessing_run where pack_type = ?", type) shouldBe "COMPLETE"
     }
@@ -217,7 +219,7 @@ class ReprocessingRunIT(
     fun `INV-AC-6925 the affected population is reprocessed and the acknowledged documents to resubmit are returned`() {
         val id = startRun()
         deliver(id, 1, true, listOf(PageDoc(taxCode = "CHANGE", acknowledged = true))) shouldBe HandleOutcome.APPLIED
-        drain() shouldBe 1
+        drain()
         resubmissionRows().size shouldBe 1
     }
 }

@@ -110,6 +110,9 @@ open class CorrectionHarness(
         fun registerCorrection(registry: DynamicPropertyRegistry) {
             register(registry)
             registry.add("gst.form") { "saas" }
+            registry.add("rules.reprocessing.worker") { "false" } // the tests drive the worker, and no tick moves a table
+            // the holder copy is a reference table, as in application.yaml: a tenant reads the platform artefact rows
+            registry.add("inv.tenancy.reference-tables") { "rules.pack_registry,rules.pack_entry_source,rules.pack_artefact" }
             registry.add("service-runtime.workload-identity.callers[1].service") { ALT }
             registry.add("service-runtime.workload-identity.callers[1].subject") { subjectOf(ALT) }
         }

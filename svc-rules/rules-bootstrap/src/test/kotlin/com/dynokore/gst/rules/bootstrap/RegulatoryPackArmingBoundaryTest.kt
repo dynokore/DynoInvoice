@@ -1209,6 +1209,8 @@ class RegulatoryPackFenceWindowContextTest {
                 "gst.service=rules-svc",
                 "rules.access-svc-url=http://127.0.0.1:1",
                 "rules.dry-run.parallelism=1",
+                "rules.reprocessing.rate-limit.permits=1000",
+                "rules.reprocessing.rate-limit.window=PT1S",
                 "rules.dry-run.sample-wait=PT1S",
                 "rules.dry-run.retry-after=PT2S",
                 "gst.instance-id=rules-svc-0",
@@ -1216,7 +1218,7 @@ class RegulatoryPackFenceWindowContextTest {
                 "service-runtime.modules.schema=rules",
                 "inv.tenancy.reference-tables=rules.pack_registry,rules.pack_entry_source",
                 "inv.tenancy.platform-scoped-tables=rules.write_installation_setting,rules.config_purge_tenant," +
-                    "rules.pack_readiness_ack,rules.tenants_with_delta",
+                    "rules.pack_readiness_ack,rules.tenants_with_delta,rules.lane_rate_window,rules.claim_due",
                 "spring.datasource.url=jdbc:postgresql://localhost:1/rules",
                 "spring.datasource.username=rules_runtime",
                 "service-runtime.pool.profile=minimal",
