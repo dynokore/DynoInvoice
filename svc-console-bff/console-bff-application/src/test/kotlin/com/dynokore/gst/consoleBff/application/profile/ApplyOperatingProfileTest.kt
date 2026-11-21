@@ -36,9 +36,7 @@ class ApplyOperatingProfileTest {
                 { _, _, _ -> currentValue },
                 {
                     applied += it
-                    ProfileApplyResult.Applied(
-                        listOf(ProfileValueChange("VP-01", "PLATFORM_IDENTITY", "CUSTOMER_OIDC")),
-                    )
+                    ProfileApplyResult.Applied(it.changes)
                 },
             )
 
