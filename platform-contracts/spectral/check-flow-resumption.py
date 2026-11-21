@@ -35,7 +35,6 @@ POINTS = (
     ("compensation", "affected-population-definition", "rules"),
 )
 UNREAD_PINNED = (
-    ("pack-authoring-to-activation", "acknowledgements"),
     ("onboarding-to-go-live", "coverage-map"),
     ("onboarding-to-go-live", "certification-results"),
     ("period-readiness-to-filing", "drain-progress"),

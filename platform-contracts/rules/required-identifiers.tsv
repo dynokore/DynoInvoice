@@ -86,6 +86,7 @@ periodRef	property	openapi.yaml	INV-REQ-686
 straddlingCreditNotes	property	openapi.yaml	INV-REQ-703
 sgdValuesAbsent	property	openapi.yaml	INV-REQ-772
 acknowledgePackDelta	operation	openapi.yaml	INV-REQ-2588
+getPackDeltaAcknowledgement	operation	openapi.yaml	INV-REQ-1008
 dryRun	operation	openapi.yaml	INV-REQ-772
 approvePack	operation	openapi.yaml	INV-REQ-772
 getMappingPack	operation	openapi.yaml	INV-REQ-730

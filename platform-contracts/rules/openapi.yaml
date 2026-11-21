@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: rules API
-  version: 2.7.0
+  version: 2.8.0
   description: >-
     Contract-first source of truth for rules (API-01, STK-44). The
     `rules-contract` module generates its server interfaces and DTOs
@@ -1026,6 +1026,45 @@ paths:
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/rules/regulatory-packs/{packType}/{version}/acknowledgement:
+    get:
+      operationId: getPackDeltaAcknowledgement
+      summary: Read the caller tenant's stored acknowledgement of a published regulatory pack
+      description: >-
+        The resumption read of the acknowledgements point of pack authoring
+        to activation (INV-REQ-1008, INV-Q-14102 A): the acknowledgement that
+        `acknowledgePackDelta` stored for this tenant, one per
+        (packType, version, tenant), so a resuming screen can tell
+        acknowledged from not acknowledged. A pack the tenant has not
+        acknowledged answers the Error response (404). `acknowledgedBy` is
+        the acting user ID, never a role.
+      tags: [regulatory-packs]
+      x-principal: filing-workflow
+      x-caller-auth: end-user
+      x-sync-edge: console-bff->rules-svc
+      x-timeout: 2000
+      x-error-codes: []
+      x-requirements: [INV-REQ-1008]
+      parameters:
+        - name: packType
+          in: path
+          required: true
+          schema: { type: string, maxLength: 40 }
+        - name: version
+          in: path
+          required: true
+          schema: { type: string, maxLength: 16 }
+      responses:
+        '200':
+          description: The tenant's stored acknowledgement of the pack.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PackDeltaAcknowledgement'
+              examples:
+                default:
+                  value: { packType: "SCOPE", version: "2026.4", acknowledgedBy: "usr-0192", acknowledgedAt: "2026-06-12T09:30:00Z", graceWindowEnd: "2026-06-20" }
+        default:
+          $ref: '#/components/responses/Error'
     post:
       operationId: acknowledgePackDelta
       summary: Acknowledge a published regulatory pack's dry-run delta within the grace window
@@ -2175,6 +2214,29 @@ components:
           type: string
           maxLength: 128
       required: [packType, version, bundleHash]
+    PackDeltaAcknowledgement:
+      type: object
+      description: >-
+        One tenant's stored acknowledgement of a published regulatory pack
+        (INV-REQ-1008), the read of `acknowledgePackDelta`.
+      required: [packType, version, acknowledgedBy, acknowledgedAt]
+      properties:
+        packType:
+          type: string
+          maxLength: 40
+        version:
+          type: string
+          maxLength: 16
+        acknowledgedBy:
+          type: string
+          maxLength: 64
+          description: The acting user ID, never a role.
+        acknowledgedAt:
+          type: string
+          format: date-time
+        graceWindowEnd:
+          type: string
+          format: date
     RegulatoryPack:
       type: object
       properties:
