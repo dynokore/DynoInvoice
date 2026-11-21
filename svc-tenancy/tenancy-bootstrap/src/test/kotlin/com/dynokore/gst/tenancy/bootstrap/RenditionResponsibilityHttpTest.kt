@@ -207,10 +207,10 @@ class RenditionResponsibilityHttpTest {
             val firstInvoice = env.row(entity, "TAX_INVOICE")!!
             val noteBefore = env.row(entity, "CREDIT_NOTE")!!
             assertThat(env.rowCount(entity)).isEqualTo(2)
-            val repeat = env.record(entity, "TAX_INVOICE", RenditionResponsibilityRequest.Renderer.AGENT)
+            val repeat = env.record(entity, "TAX_INVOICE", RenditionResponsibilityRequest.Renderer.AGGREGATOR)
             assertThat(repeat.status).isEqualTo(HttpStatus.CREATED.value())
             val invoiceAfter = env.row(entity, "TAX_INVOICE")!!
-            assertThat(invoiceAfter.renderer).isEqualTo("AGENT")
+            assertThat(invoiceAfter.renderer).isEqualTo("AGGREGATOR")
             assertThat(invoiceAfter.state).isEqualTo("CURRENT")
             assertThat(invoiceAfter.attestedBy).isEqualTo(ATTESTER)
             assertThat(invoiceAfter.attestedAt).isNotNull()
