@@ -3,6 +3,7 @@ package com.dynokore.gst.ingestion.application.recording
 import com.dynokore.gst.ingestion.domain.recording.CanonicalAnswer
 import com.dynokore.gst.ingestion.domain.recording.RecordingOutcome
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
@@ -93,7 +94,11 @@ class RecordTransactionTest {
     }
 
     @Test
-    fun `INV-AC-1849 a higher revision with a changed line amount is handed to canonical unchanged and answered as an amendment only`() {
+    @DisplayName(
+        "INV-AC-1849 a higher revision with a changed line amount is handed to canonical unchanged " +
+            "and answered as an amendment only",
+    )
+    fun `INV-AC-1849 amendment is handed to canonical unchanged and answered without a decision`() {
         val canonical = CanonicalStub()
         val service = RecordTransaction(canonical)
         val body1 = """{"invoiceNo":"INV-1","lines":[{"lineAmount":"100.00"}]}"""
