@@ -8,6 +8,7 @@ put	/v1/entities/{entityRef}/periods/{periodRef}/control-totals	ingest	certifica
 post	/v1/entities/{entityRef}/periods/{periodRef}/drain	filing-workflow	-
 post	/v1/entities/{entityRef}/periods/{periodRef}/filing	filing-workflow	-
 put	/v1/entities/{entityRef}/periods/{periodRef}/gst-return	filing-workflow	-
+get	/v1/entities/{entityRef}/periods/{periodRef}/intra-tenant-pairs	reporting	-
 get	/v1/entities/{entityRef}/periods/{periodRef}/readiness	filing-workflow	-
 get	/v1/entities/{entityRef}/periods/{periodRef}/readiness/checks	filing-workflow	-
 get	/v1/entities/{entityRef}/periods/{periodRef}/reconciliation	reporting	-
