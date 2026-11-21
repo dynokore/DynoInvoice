@@ -1406,7 +1406,7 @@ class MappingPackSchemaTest(
         value(tenantA, "select count(*) from rules.pack_entry_source where tenant_id = ?::uuid", tenantA.toString())
 
     @Test
-    fun `INV-AC-15993 an entry stored with no source class or with the lower-case class secondary is refused by the database check`() {
+    fun `INV-AC-15993 an entry with no source class or the lower-case class secondary is refused by the database`() {
         registry(tenantA, "sc-1", "DRAFT", "2026-01-01")
         val before = entryCount()
         shouldThrow<Exception> { classedEntry("sc-1", "NULLCLASS", "null") }
