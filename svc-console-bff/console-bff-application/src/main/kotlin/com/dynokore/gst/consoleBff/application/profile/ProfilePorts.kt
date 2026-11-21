@@ -62,7 +62,6 @@ data class ProfileApplyCommand(
     val entityRef: String,
     val scope: ProfileScope,
     val profile: ProfileDefinition,
-    val changes: List<ProfileValueChange>,
 )
 
 sealed interface ProfileApplyResult {

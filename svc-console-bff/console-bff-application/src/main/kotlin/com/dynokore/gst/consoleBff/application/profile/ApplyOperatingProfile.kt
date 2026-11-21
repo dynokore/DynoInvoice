@@ -122,6 +122,7 @@ class ApplyOperatingProfile(
             is Resolution.Changes -> previewed(profile, resolved.changes)
         }
 
+    /** The live task text (7): the result of the applier; the applier resolves the values itself. */
     private fun apply(
         tenantId: String,
         userId: String,
@@ -132,31 +133,16 @@ class ApplyOperatingProfile(
         if (profile.status != ProfileStatus.AVAILABLE) {
             ApplyOperatingProfileOutcome.NotAvailable(profile.status)
         } else {
-            when (val resolved = resolveChanges(tenantId, entityRef, profile)) {
-                is Resolution.Undecided -> {
-                    ApplyOperatingProfileOutcome.ConditionUndecided(resolved.variationPoint)
+            when (
+                val result = applier.apply(ProfileApplyCommand(tenantId, userId, entityRef, request.scope, profile))
+            ) {
+                is ProfileApplyResult.Applied -> {
+                    ApplyOperatingProfileOutcome.Applied(profile.profileRef, profile.version, result.changes)
                 }
 
-                is Resolution.Changes -> {
-                    applyResolved(
-                        profile,
-                        ProfileApplyCommand(tenantId, userId, entityRef, request.scope, profile, resolved.changes),
-                    )
+                is ProfileApplyResult.Failed -> {
+                    ApplyOperatingProfileOutcome.Unavailable(result.reason)
                 }
-            }
-        }
-
-    private fun applyResolved(
-        profile: ProfileDefinition,
-        command: ProfileApplyCommand,
-    ): ApplyOperatingProfileOutcome =
-        when (val result = applier.apply(command)) {
-            is ProfileApplyResult.Applied -> {
-                ApplyOperatingProfileOutcome.Applied(profile.profileRef, profile.version, result.changes)
-            }
-
-            is ProfileApplyResult.Failed -> {
-                ApplyOperatingProfileOutcome.Unavailable(result.reason)
             }
         }
 
