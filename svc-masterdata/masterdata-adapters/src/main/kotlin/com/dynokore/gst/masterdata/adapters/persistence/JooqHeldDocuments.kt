@@ -2,6 +2,7 @@ package com.dynokore.gst.masterdata.adapters.persistence
 
 import com.dynokore.gst.masterdata.adapters.persistence.jooq.tables.references.HELD_DOCUMENT
 import com.dynokore.gst.masterdata.application.held.HeldDocumentFact
+import com.dynokore.gst.masterdata.application.held.HeldDocumentRule
 import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.gst.masterdata.application.held.HeldKind
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
@@ -14,14 +15,46 @@ import java.util.UUID
  * TPL-11. The held-documents replica of the bound tenant; the tenancy-jooq listeners add the tenant to the insert and
  * the tenant predicate to every other part. [apply] is one INSERT ... ON CONFLICT DO UPDATE guarded by the sequence, so
  * it equals `HeldDocumentRule.next` for every order of the facts: a stale or repeated fact leaves the row, a hold
- * without party on no row inserts nothing, a release keeps entity and party (a tombstone), a hold sets both.
+ * without party on no row inserts nothing, a release keeps entity and party (a tombstone), a hold sets both. The
+ * RUL-011 mark follows the same guard: a hold sets it from its reasons, a release naming RUL-011 clears it, any other
+ * release leaves it.
  */
 class JooqHeldDocuments(
     private val dsl: DSLContext,
 ) : HeldDocuments {
     override fun apply(fact: HeldDocumentFact) {
         val held = fact.kind == HeldKind.HELD
-        val values =
+        val names = HeldDocumentRule.RUL_011 in fact.reasons
+        val update = upsert(fact, held, names)
+        val guard = HELD_DOCUMENT.DOCSEQUENCE.lt(DSL.excluded(HELD_DOCUMENT.DOCSEQUENCE))
+        if (held) {
+            update
+                .set(HELD_DOCUMENT.ENTITY, DSL.excluded(HELD_DOCUMENT.ENTITY))
+                .set(HELD_DOCUMENT.PARTY_REF, DSL.excluded(HELD_DOCUMENT.PARTY_REF))
+                .set(HELD_DOCUMENT.RUL011, DSL.excluded(HELD_DOCUMENT.RUL011))
+                .where(guard)
+                .execute()
+        } else if (names) {
+            update.set(HELD_DOCUMENT.RUL011, false).where(guard).execute()
+        } else {
+            update.where(guard).execute()
+        }
+    }
+
+    private fun upsert(
+        fact: HeldDocumentFact,
+        held: Boolean,
+        names: Boolean,
+    ) = dsl
+        .insertInto(
+            HELD_DOCUMENT,
+            HELD_DOCUMENT.DOC_UUID,
+            HELD_DOCUMENT.DOCSEQUENCE,
+            HELD_DOCUMENT.HELD,
+            HELD_DOCUMENT.ENTITY,
+            HELD_DOCUMENT.PARTY_REF,
+            HELD_DOCUMENT.RUL011,
+        ).select(
             dsl
                 .select(
                     DSL.value(fact.docUuid, HELD_DOCUMENT.DOC_UUID),
@@ -29,32 +62,12 @@ class JooqHeldDocuments(
                     DSL.value(held, HELD_DOCUMENT.HELD),
                     DSL.value(fact.entity, HELD_DOCUMENT.ENTITY),
                     DSL.value(fact.partyRef, HELD_DOCUMENT.PARTY_REF),
-                ).where(writes(fact))
-        val update =
-            dsl
-                .insertInto(
-                    HELD_DOCUMENT,
-                    HELD_DOCUMENT.DOC_UUID,
-                    HELD_DOCUMENT.DOCSEQUENCE,
-                    HELD_DOCUMENT.HELD,
-                    HELD_DOCUMENT.ENTITY,
-                    HELD_DOCUMENT.PARTY_REF,
-                ).select(values)
-                .onConflict(HELD_DOCUMENT.TENANT_ID, HELD_DOCUMENT.DOC_UUID)
-                .doUpdate()
-                .set(HELD_DOCUMENT.DOCSEQUENCE, DSL.excluded(HELD_DOCUMENT.DOCSEQUENCE))
-                .set(HELD_DOCUMENT.HELD, DSL.excluded(HELD_DOCUMENT.HELD))
-        val guard = HELD_DOCUMENT.DOCSEQUENCE.lt(DSL.excluded(HELD_DOCUMENT.DOCSEQUENCE))
-        if (held) {
-            update
-                .set(HELD_DOCUMENT.ENTITY, DSL.excluded(HELD_DOCUMENT.ENTITY))
-                .set(HELD_DOCUMENT.PARTY_REF, DSL.excluded(HELD_DOCUMENT.PARTY_REF))
-                .where(guard)
-                .execute()
-        } else {
-            update.where(guard).execute()
-        }
-    }
+                    DSL.value(held && names, HELD_DOCUMENT.RUL011),
+                ).where(writes(fact)),
+        ).onConflict(HELD_DOCUMENT.TENANT_ID, HELD_DOCUMENT.DOC_UUID)
+        .doUpdate()
+        .set(HELD_DOCUMENT.DOCSEQUENCE, DSL.excluded(HELD_DOCUMENT.DOCSEQUENCE))
+        .set(HELD_DOCUMENT.HELD, DSL.excluded(HELD_DOCUMENT.HELD))
 
     /** A release or a hold with a party always writes; a hold without a party writes only over an existing row. */
     private fun writes(fact: HeldDocumentFact): Condition =
@@ -83,4 +96,18 @@ class JooqHeldDocuments(
             ).orderBy(DSL.cast(HELD_DOCUMENT.DOC_UUID, String::class.java))
             .fetch(HELD_DOCUMENT.DOC_UUID)
             .filterNotNull()
+
+    override fun rul011Blocked(entity: String): Set<PartyRef> =
+        dsl
+            .selectDistinct(HELD_DOCUMENT.PARTY_REF)
+            .from(HELD_DOCUMENT)
+            .where(
+                HELD_DOCUMENT.HELD.isTrue,
+                HELD_DOCUMENT.RUL011.isTrue,
+                HELD_DOCUMENT.ENTITY.eq(entity),
+                HELD_DOCUMENT.PARTY_REF.isNotNull,
+            ).fetch(HELD_DOCUMENT.PARTY_REF)
+            .filterNotNull()
+            .map { PartyRef(it) }
+            .toSet()
 }

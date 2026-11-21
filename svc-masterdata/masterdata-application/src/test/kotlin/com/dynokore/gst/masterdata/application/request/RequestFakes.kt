@@ -3,6 +3,7 @@ package com.dynokore.gst.masterdata.application.request
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
 import com.dynokore.gst.masterdata.application.held.HeldDocumentFact
+import com.dynokore.gst.masterdata.application.held.HeldDocumentRule
 import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.gst.masterdata.application.held.HeldKind
 import com.dynokore.gst.masterdata.domain.counterparty.CounterpartyContent
@@ -143,6 +144,13 @@ internal class FakeHeld : HeldDocuments {
             .filter { it.kind == HeldKind.HELD && it.entity == entity && it.partyRef == party.value }
             .map { it.docUuid }
             .sortedBy { it.toString() }
+
+    override fun rul011Blocked(entity: String): Set<PartyRef> =
+        rows
+            .filter { it.kind == HeldKind.HELD && it.entity == entity && it.partyRef != null }
+            .filter { HeldDocumentRule.RUL_011 in it.reasons }
+            .map { PartyRef(it.partyRef!!) }
+            .toSet()
 }
 
 internal class Limits(

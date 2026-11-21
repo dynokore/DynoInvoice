@@ -55,10 +55,11 @@ private fun JsonNode.docsequence(): Long {
 
 private fun isErrorCode(node: JsonNode) = node.isString && REASON.matches(node.asString())
 
-private fun JsonNode.reasons(name: String) {
+private fun JsonNode.reasons(name: String): Set<String> {
     val node = this[name]
     val valid = node != null && node.isArray && !node.isEmpty && node.all(::isErrorCode)
     if (!valid) throw ContractViolation("payload member $name is a non-empty list of error codes")
+    return (0 until node.size()).map { node[it].asString() }.toSet()
 }
 
 private fun JsonNode.ref(name: String): String? {
@@ -93,10 +94,10 @@ class DocumentHeldHandler(
         data.checkTenant(event)
         val docUuid = data.docUuid()
         val sequence = data.docsequence()
-        data.reasons("holdReasons")
+        val reasons = data.reasons("holdReasons")
         val entity = data.ref("entityRef") ?: throw ContractViolation("payload member entityRef is required")
         val party = data.ref("partyRef")
-        val fact = HeldDocumentFact(HeldKind.HELD, docUuid, sequence, entity, party)
+        val fact = HeldDocumentFact(HeldKind.HELD, docUuid, sequence, entity, party, reasons)
         return tx.inTransaction {
             held.apply(fact)
             HandleOutcome.APPLIED
@@ -116,8 +117,8 @@ class DocumentReleasedHandler(
         data.checkTenant(event)
         val docUuid = data.docUuid()
         val sequence = data.docsequence()
-        data.reasons("releasedHoldReasons")
-        val fact = HeldDocumentFact(HeldKind.RELEASED, docUuid, sequence, null, null)
+        val reasons = data.reasons("releasedHoldReasons")
+        val fact = HeldDocumentFact(HeldKind.RELEASED, docUuid, sequence, null, null, reasons)
         return tx.inTransaction {
             held.apply(fact)
             HandleOutcome.APPLIED

@@ -14,16 +14,21 @@ class HeldDocumentRuleTest {
         seq: Long,
         entity: String = "E",
         party: String? = "P",
-    ) = HeldDocumentFact(HeldKind.HELD, d, seq, entity, party)
+        reasons: Set<String> = emptySet(),
+    ) = HeldDocumentFact(HeldKind.HELD, d, seq, entity, party, reasons)
 
-    private fun released(seq: Long) = HeldDocumentFact(HeldKind.RELEASED, d, seq, null, null)
+    private fun released(
+        seq: Long,
+        reasons: Set<String> = emptySet(),
+    ) = HeldDocumentFact(HeldKind.RELEASED, d, seq, null, null, reasons)
 
     private fun row(
         seq: Long,
         held: Boolean,
         entity: String? = "E",
         party: String? = "P",
-    ) = HeldDocumentRow(d, seq, held, entity, party)
+        rul011: Boolean = false,
+    ) = HeldDocumentRow(d, seq, held, entity, party, rul011)
 
     @Test
     fun `INV-AC-21330 first hold writes the row and the same fact again changes nothing`() {
@@ -102,6 +107,12 @@ class HeldDocumentRuleTest {
                     HeldDocumentRule.next(rows[fact.docUuid], fact)?.let { rows[fact.docUuid] = it }
                 }
 
+                override fun rul011Blocked(entity: String): Set<PartyRef> =
+                    rows.values
+                        .filter { it.held && it.rul011 && it.entity == entity && it.partyRef != null }
+                        .map { PartyRef(it.partyRef!!) }
+                        .toSet()
+
                 override fun heldFor(
                     entity: String,
                     party: PartyRef,
@@ -117,5 +128,88 @@ class HeldDocumentRuleTest {
         assertEquals(listOf(other, d), port.heldFor("E", PartyRef("P")))
         port.apply(released(4))
         assertEquals(listOf(other), port.heldFor("E", PartyRef("P")))
+    }
+
+    private fun fold(vararg facts: HeldDocumentFact): HeldDocumentRow? {
+        var current: HeldDocumentRow? = null
+        for (f in facts) current = HeldDocumentRule.next(current, f) ?: current
+        return current
+    }
+
+    private val rul = setOf("RUL-011")
+
+    @Test
+    fun `INV-AC-26219 a hold with RUL-011 and a party gives rul011 true`() {
+        assertEquals(row(1, true, rul011 = true), fold(held(1, reasons = rul)))
+    }
+
+    @Test
+    fun `INV-AC-26219 a hold with another reason gives rul011 false`() {
+        assertEquals(row(1, true, rul011 = false), fold(held(1, reasons = setOf("MDM-002"))))
+    }
+
+    @Test
+    fun `INV-AC-26219 a hold then a release naming RUL-011 gives rul011 false`() {
+        assertEquals(row(2, false, rul011 = false), fold(held(1, reasons = rul), released(2, rul)))
+    }
+
+    @Test
+    fun `INV-AC-26219 the release before the hold gives the same row as the other order`() {
+        val forward = fold(held(1, reasons = rul), released(2, rul))!!
+        val reverse = fold(released(2, rul), held(1, reasons = rul))!!
+        // the tombstone of a release that arrived first has no entity and party; the observable state is the same
+        assertEquals(Triple(2L, false, false), Triple(forward.docsequence, forward.held, forward.rul011))
+        assertEquals(Triple(2L, false, false), Triple(reverse.docsequence, reverse.held, reverse.rul011))
+    }
+
+    @Test
+    fun `INV-AC-26219 a repeated hold leaves the row equal`() {
+        val once = fold(held(1, reasons = rul))
+        assertEquals(once, fold(held(1, reasons = rul), held(1, reasons = rul)))
+        assertNull(HeldDocumentRule.next(once, held(1, reasons = rul)))
+    }
+
+    @Test
+    fun `INV-AC-26219 a release naming only other reasons leaves rul011 true`() {
+        val facts = listOf(held(1, reasons = rul), released(2, setOf("OTHER-001")))
+        assertEquals(row(2, false, rul011 = true), fold(facts[0], facts[1]))
+    }
+
+    @Test
+    fun `INV-AC-26219 look-alike reasons never set rul011`() {
+        for (reason in listOf("rul-011", "RUL-0110", "XRUL-011", "RUL-011 ", "RUL-01")) {
+            assertEquals(false, fold(held(1, reasons = setOf(reason)))!!.rul011, reason)
+        }
+        assertEquals(true, fold(held(1, reasons = setOf("A-001", "RUL-011")))!!.rul011)
+        val after = fold(held(1, reasons = rul), released(2, setOf("rul-011", "RUL-0110", "XRUL-011")))
+        assertEquals(true, after!!.rul011)
+    }
+
+    @Test
+    fun `INV-AC-26219 a hold without a party reference is never returned by rul011Blocked`() {
+        val rows = mutableMapOf<UUID, HeldDocumentRow>()
+        val port =
+            object : HeldDocuments {
+                override fun apply(fact: HeldDocumentFact) {
+                    HeldDocumentRule.next(rows[fact.docUuid], fact)?.let { rows[fact.docUuid] = it }
+                }
+
+                override fun heldFor(
+                    entity: String,
+                    party: PartyRef,
+                ): List<UUID> = emptyList()
+
+                override fun rul011Blocked(entity: String): Set<PartyRef> =
+                    rows.values
+                        .filter { it.held && it.rul011 && it.entity == entity && it.partyRef != null }
+                        .map { PartyRef(it.partyRef!!) }
+                        .toSet()
+            }
+        port.apply(held(1, party = null, reasons = rul))
+        assertEquals(emptySet<PartyRef>(), port.rul011Blocked("E"))
+        port.apply(held(2, party = "P", reasons = rul))
+        assertEquals(setOf(PartyRef("P")), port.rul011Blocked("E"))
+        port.apply(held(3, party = null, reasons = rul))
+        assertEquals(emptySet<PartyRef>(), port.rul011Blocked("E"))
     }
 }

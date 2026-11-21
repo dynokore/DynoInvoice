@@ -13,4 +13,10 @@ interface HeldDocuments {
         entity: String,
         party: PartyRef,
     ): List<UUID>
+
+    /**
+     * The party references of the held rows of [entity] with the RUL-011 mark. A row without a party reference is
+     * never listed (the contract makes partyRef optional); the result carries no duplicates.
+     */
+    fun rul011Blocked(entity: String): Set<PartyRef>
 }
