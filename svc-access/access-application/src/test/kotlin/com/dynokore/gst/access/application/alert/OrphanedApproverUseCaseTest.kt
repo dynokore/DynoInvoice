@@ -291,4 +291,22 @@ class OrphanedApproverUseCaseTest {
         )
         assertEquals(emptyList<Pair<String, String>>(), raised)
     }
+
+    @Test
+    fun `INV-AC-23348 the revoke of the only approver of E1 raises one alert, E2 with a second approver none, a new grant closes it`() {
+        seedStandard()
+        revoke("G1")
+        assertEquals(listOf(alertE1), raised)
+        assertEquals(setOf(e1), open)
+
+        revoke("G2")
+        assertEquals(1, raised.size)
+        assertEquals(setOf(e1), open)
+
+        grantRole.handle(
+            command("tax.approver"),
+        )
+        assertEquals(emptySet<EntityRef>(), open)
+        assertEquals(1, raised.size)
+    }
 }

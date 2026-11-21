@@ -151,6 +151,30 @@ class OrphanedApproverScanTest {
         }
     }
 
+    @Test
+    fun `INV-AC-23348 the window end of the only approver raises one alert for E1 only and a second approver closes it`() {
+        BoundaryFixture.runner().run { context ->
+            context.startupFailure?.let { throw it }
+            val tenant = TenantId(UUID.randomUUID())
+            listOf("E1", "E2").forEach { OrphanEnv.entity(context, tenant, it) }
+            grantTenant(context, tenant)
+            Seeds.grant(context, tenant, OrphanEnv.lapsed("user:old", Scope.Entity(EntityRef("E1"))))
+            Seeds.grant(context, tenant, SeedSpec("user:cur", Role.TAX_APPROVER, Scope.Entity(EntityRef("E2"))))
+            val scan = context.getBean(OrphanedApproverScan::class.java)
+
+            scan.runOnce()
+            val alerts = OrphanEnv.alerts(tenant)
+            assertThat(alerts).hasSize(1)
+            assertThat(alerts.single()).contains("entity:E1").doesNotContain("entity:E2")
+            assertThat(OrphanEnv.openRows(tenant)).isEqualTo(setOf("E1"))
+
+            Seeds.grant(context, tenant, SeedSpec("user:new", Role.TAX_APPROVER, Scope.Entity(EntityRef("E1"))))
+            scan.runOnce()
+            assertThat(OrphanEnv.openRows(tenant)).isEqualTo(emptySet<String>())
+            assertThat(OrphanEnv.alerts(tenant)).hasSize(1)
+        }
+    }
+
     private fun stateRowsSeenBy(
         context: AssertableWebApplicationContext,
         tenant: TenantId,
