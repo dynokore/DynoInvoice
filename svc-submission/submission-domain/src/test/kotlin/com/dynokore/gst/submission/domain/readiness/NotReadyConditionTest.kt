@@ -80,6 +80,23 @@ class NotReadyConditionTest {
     }
 
     @Test
+    fun `INV-AC-2262 a BLOCK item makes the period not ready and ADD_WARN_CODES is refused while planned`() {
+        val items = listOf(item("SUB-004", BLOCK), item("SUB-001", INFO))
+        NotReadyCondition.isNotReady(NotReadyCondition.DEFAULT, items) shouldBe true
+
+        val choice =
+            NotReadyCondition.choose(
+                option = ADD_WARN_CODES,
+                warnCodes = setOf("SUB-005"),
+                pointAvailable = false,
+                severityOf = warnMap,
+            )
+        choice shouldBe Refused(NotReadyRefusal.POINT_PLANNED)
+
+        NotReadyCondition.isNotReady(NotReadyCondition.DEFAULT, items) shouldBe true
+    }
+
+    @Test
     fun `INV-AC-16253 choose accepts BLOCK_ONLY with no codes whatever the point`() {
         for (available in listOf(true, false)) {
             NotReadyCondition.choose(BLOCK_ONLY, emptySet(), available, warnMap) shouldBe
