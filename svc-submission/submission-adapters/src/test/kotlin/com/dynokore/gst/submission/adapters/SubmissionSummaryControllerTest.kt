@@ -15,6 +15,7 @@ import com.dynokore.gst.submission.application.listing.ListingActions
 import com.dynokore.gst.submission.application.listing.SourceRead
 import com.dynokore.gst.submission.application.listing.SubmissionRowSource
 import com.dynokore.gst.submission.application.listing.SubmissionSummaryQuery
+import com.dynokore.gst.submission.application.replay.PreviewReplayScope
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.RequeueOutcome
@@ -157,6 +158,7 @@ class SubmissionSummaryControllerTest {
                 SubmissionExportController(
                     ExportSubmissions(replica, source, EntityGstns { _, _ -> "M90000002B" }, clock),
                 ),
+                PreviewReplayScope(replica, { _, _ -> emptyList() }, { _, _, _ -> false }, NO_FACTS),
             )
         return Fixture(controller, source)
     }

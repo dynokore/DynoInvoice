@@ -26,8 +26,8 @@ operation	resolveAmendmentHold	UNASSIGNED
 operation	approveFilingGateOverride	INV-T-10714
 operation	getFilingGateOverrides	INV-T-10714
 operation	getComplianceMetrics	INV-T-12844
-operation	previewDrainPeriod	UNASSIGNED
-operation	previewReplayScope	UNASSIGNED
+operation	previewDrainPeriod	INV-T-20853
+operation	previewReplayScope	INV-T-25824
 channel	gst.submission.period-filing-status-changed.v1	UNASSIGNED
 channel	gst.submission.unsubmitted-document-count-measured.v1	UNASSIGNED
 operation	getLatestReadinessCheck	INV-T-21141

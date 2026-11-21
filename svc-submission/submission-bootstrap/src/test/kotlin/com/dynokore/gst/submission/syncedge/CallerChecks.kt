@@ -150,6 +150,7 @@ class CallerChecks(
         private val IMPLEMENTED =
             setOf(
                 "POST /internal/v1/entities/{entityRef}/replay",
+                "GET /internal/v1/entities/{entityRef}/replay-preview",
                 "POST /internal/v1/transactions/{docUuid}/versions/{version}/replay",
                 "GET /internal/v1/entities/{entityRef}/periods/{periodRef}/readiness/latest-check",
                 "GET /internal/v1/entities/{entityRef}/periods/{periodRef}/drain-preview",

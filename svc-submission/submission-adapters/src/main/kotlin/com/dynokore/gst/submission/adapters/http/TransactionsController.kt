@@ -1,5 +1,8 @@
 package com.dynokore.gst.submission.adapters.http
 
+import com.dynokore.gst.submission.application.replay.PreviewReplayScope
+import com.dynokore.gst.submission.application.replay.PreviewReplayScopeRequest
+import com.dynokore.gst.submission.application.replay.PreviewReplayScopeResult
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionRequest
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionResult
@@ -8,6 +11,7 @@ import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersionRequest
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersionResult
 import com.dynokore.gst.submission.contract.api.TransactionsApi
+import com.dynokore.gst.submission.contract.model.IrreversibleImpact
 import com.dynokore.gst.submission.contract.model.ReplayResult
 import com.dynokore.gst.submission.contract.model.ReplayScopeRequest
 import com.dynokore.gst.submission.contract.model.ReplayScopeResult
@@ -107,6 +111,7 @@ open class TransactionsController(
     private val summary: SubmissionSummaryController,
     private val reconciliation: SubmissionReconciliationController,
     private val exporting: SubmissionExportController,
+    private val previewReplay: PreviewReplayScope,
 ) : TransactionsApi {
     override fun replaySubmissionsByScope(
         entityRef: String,
@@ -125,6 +130,37 @@ open class TransactionsController(
         return when (result) {
             is ReplayBySelectionResult.Forbidden -> throw ComplianceRefusal(ClosedErrorCode.ACCESS_DENIED)
             is ReplayBySelectionResult.Done -> ResponseEntity.ok(render(entityRef, result))
+        }
+    }
+
+    /** `previewReplayScope` (INV-REQ-1012): count and total `replaySubmissionsByScope` would re-enqueue; no state. */
+    override fun previewReplayScope(
+        entityRef: String,
+        periodRef: String?,
+        docUuid: UUID?,
+        failureClass: String?,
+    ): ResponseEntity<IrreversibleImpact> {
+        val caller = caller()
+        val tenant = caller.tenant ?: throw ComplianceRefusal(ClosedErrorCode.UNAUTHENTICATED)
+        val scope = validated(entityRef, ReplayScopeRequest(periodRef, docUuid, failureClass), MAX_LIMIT)
+        refuseOutsideScope(caller, entityRef)
+        val result =
+            previewReplay.run(
+                PreviewReplayScopeRequest(tenant, Principal(caller.actor, PrincipalKind.HUMAN), scope),
+                CurrentDeadline.current() ?: error("no call deadline is bound"),
+            )
+        return when (result) {
+            is PreviewReplayScopeResult.Previewed -> {
+                ResponseEntity.ok(IrreversibleImpact(result.documentCount, result.totalAmount))
+            }
+
+            is PreviewReplayScopeResult.Forbidden -> {
+                refuse(ClosedErrorCode.ACCESS_DENIED)
+            }
+
+            is PreviewReplayScopeResult.Unavailable -> {
+                refuse(ClosedErrorCode.SERVICE_NOT_READY)
+            }
         }
     }
 
@@ -337,6 +373,8 @@ open class TransactionsController(
 
     private fun ReplayCandidate.toReplayed(at: OffsetDateTime) =
         ReplayResult(UUID.fromString(docUuid), version, ReplayResult.State.QUEUED, at)
+
+    private fun refuse(code: ClosedErrorCode): Nothing = throw ComplianceRefusal(code)
 
     private fun caller(): EndUserPrincipal =
         requests.getObject().getAttribute(EndUserPrincipalBindingFilter.PRINCIPAL_ATTRIBUTE) as? EndUserPrincipal

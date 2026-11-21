@@ -54,6 +54,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import io.kotest.matchers.string.shouldNotContain
 import jakarta.servlet.http.HttpServletRequest
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.ObjectProvider
 import org.springframework.http.ResponseEntity
@@ -69,12 +70,16 @@ import java.time.ZoneOffset
 import java.util.UUID
 import com.dynokore.platform.outboxandqueue.EntityRef as QueueEntityRef
 
+private const val DOC_A3 = "00000000-0000-0000-0000-0000000000a3"
+private const val DOC_C1 = "00000000-0000-0000-0000-0000000000c2"
+
 internal val DRAIN_TENANT = TenantId(UUID.fromString("00000000-0000-0000-0000-00000000000a"))
 
 /** Fakes of the ports of the drain use cases (INV-REQ-554): one tier-1 and two tier-2 documents, one residual. */
 internal class DrainFixture(
     private val allow: Boolean = true,
     private val backlogReadable: Boolean = true,
+    private val fiveDocuments: Boolean = false,
 ) {
     val decided = mutableListOf<Pair<Principal, String>>()
     private val clock: Clock =
@@ -109,13 +114,29 @@ internal class DrainFixture(
                 "2026-Q2",
                 Instant.parse("2026-11-01T00:02:00Z"),
             ),
-        )
+        ).also { items ->
+            if (fiveDocuments) {
+                // a third tier 2 document of the period, and a tier 3 routine one of another period (due 2026-12-31)
+                items.add(2, QueuedVersion(DOC_A3, 1, "E1", "2026-Q1", Instant.parse("2026-11-01T00:01:30Z")))
+                items += QueuedVersion(DOC_C1, 1, "E2", "2026-Q3", Instant.parse("2026-11-01T00:03:00Z"))
+            }
+        }
     private val facts =
-        mapOf(
-            queue[0].docUuid to facts("100.00", "9.00"),
-            queue[1].docUuid to facts("250.50", "0.00"),
-            queue[2].docUuid to facts("5", "0.45"),
-        )
+        if (fiveDocuments) {
+            mapOf(
+                queue[0].docUuid to facts("100.00", "0.00"),
+                queue[1].docUuid to facts("250.50", "0.00"),
+                queue[2].docUuid to facts("0.50", "0.00"),
+                queue[3].docUuid to facts("10.00", "0.00"),
+                queue[4].docUuid to facts("5.00", "0.00"),
+            )
+        } else {
+            mapOf(
+                queue[0].docUuid to facts("100.00", "9.00"),
+                queue[1].docUuid to facts("250.50", "0.00"),
+                queue[2].docUuid to facts("5", "0.45"),
+            )
+        }
 
     private val authority =
         DrainAuthority { request, _ ->
@@ -221,6 +242,7 @@ internal class DrainFixture(
             assigner,
             NextDespatch { next.removeFirstOrNull()?.let { DespatchedVersion(it.docUuid, it.version) } },
             ResidualSource { _, _, _ ->
+                if (fiveDocuments) return@ResidualSource emptyList()
                 listOf(
                     ResidualCandidate(
                         "00000000-0000-0000-0000-0000000000c1",
@@ -422,6 +444,41 @@ class DrainControllerTest {
         val none =
             outcome { bound(DrainFixture()) { controller(DrainFixture(), null, null).drainPeriod("E1", "2026-Q1") } }
         none.first shouldBe 401
+    }
+
+    @Test
+    @DisplayName(
+        "INV-AC-14235 the drain preview answers 5 documents and 366.00 for the period, " +
+            "the same set that drainPeriod attempts",
+    )
+    fun `INV-AC-14235 the drain preview answers five documents and the total for the period as drainPeriod attempts`() {
+        val fixture = DrainFixture(fiveDocuments = true)
+        val (status, body) =
+            outcome { bound(fixture) { controller(fixture, endUser, null).previewDrainPeriod("E1", "2026-Q1") } }
+        status shouldBe 200
+        mapper.readTree(body).let {
+            it["documentCount"].asInt() shouldBe 5
+            it["totalAmount"].isString shouldBe true
+            it["totalAmount"].asString() shouldBe "366.00"
+        }
+        val drained = DrainFixture(fiveDocuments = true)
+        val (drainStatus, drainBody) =
+            outcome { bound(drained) { controller(drained, endUser, null).drainPeriod("E1", "2026-Q1") } }
+        drainStatus shouldBe 200
+        val json = mapper.readTree(drainBody)
+        val drainedCount = (0..2).sumOf { json["drainedByTier"][it]["drainedCount"].asInt() }
+        val attempted = drainedCount + json["residualItems"].size()
+        attempted shouldBe 5
+    }
+
+    @Test
+    fun `INV-AC-14235 a denied caller of the drain preview gets 403 and no count`() {
+        val fixture = DrainFixture(allow = false, fiveDocuments = true)
+        val (status, body) =
+            outcome { bound(fixture) { controller(fixture, endUser, null).previewDrainPeriod("E1", "2026-Q1") } }
+        status shouldBe 403
+        body shouldContain "SRT-004"
+        body shouldNotContain "documentCount"
     }
 
     @Test
