@@ -35,6 +35,16 @@ class GoverningFilingTest {
     }
 
     @Test
+    fun `INV-AC-2258 two disagreeing filing dates give the earlier date and a PER-010 conflict`() {
+        val agentFirst = GoverningFiling.of(listOf(f(20), f(18)))!!
+        agentFirst.governingFiledAt shouldBe d(18)
+        agentFirst.conflict!!.code shouldBe CONFLICT_CODE
+        agentFirst.conflict.code shouldBe "PER-010"
+        agentFirst.conflict.otherFiledAt shouldBe d(20)
+        GoverningFiling.of(listOf(f(18), f(20))) shouldBe agentFirst
+    }
+
+    @Test
     fun `INV-AC-20622 the other date is the earliest differing later date`() {
         GoverningFiling.of(listOf(f(18), f(25), f(21), f(18))) shouldBe Governing(d(18), FilingConflict(d(21)))
     }
