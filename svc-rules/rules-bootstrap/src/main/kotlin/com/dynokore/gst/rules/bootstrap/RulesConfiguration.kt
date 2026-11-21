@@ -661,7 +661,8 @@ class RulesConfiguration {
     fun packCorrectionPermissionPort(
         replica: ObjectProvider<AuthorityReplica>,
         tenants: TenantContext,
-    ): PackCorrectionPermissionPort = PackCorrectionPermissionPort { user, key -> decideTenantKey(replica, tenants, user, key) }
+    ): PackCorrectionPermissionPort =
+        PackCorrectionPermissionPort { user, key -> decideTenantKey(replica, tenants, user, key) }
 
     private fun decideTenantKey(
         replica: ObjectProvider<AuthorityReplica>,

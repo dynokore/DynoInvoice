@@ -91,7 +91,8 @@ class MigrationDdlTest {
         grantMatches("-- c\n$GRANT\n") shouldBe true
     }
 
-    private val queueFile = File("src/main/resources/db/migration/V202611171000__reprocessing_queue_and_resubmission.sql")
+    private val queueFile =
+        File("src/main/resources/db/migration/V202611171000__reprocessing_queue_and_resubmission.sql")
 
     private fun expectedQueue(): String {
         val ddl = QueueSchema.ddl(schema = "rules", runtimeRole = "rules_runtime", sysRole = "rules_sys")
@@ -106,8 +107,10 @@ class MigrationDdlTest {
 
     private companion object {
         const val QUEUE_HEADER =
-            "-- Generated: QueueSchema.ddl(\"rules\", \"rules_runtime\", \"rules_sys\") of outbox-and-queue (INV-T-4978, TPL-12),\n" +
-                "-- committed as text; MigrationDdlTest fails when it differs. The work queue and the lane rate window of the\n" +
+            "-- Generated: QueueSchema.ddl(\"rules\", \"rules_runtime\", \"rules_sys\") of outbox-and-queue " +
+                "(INV-T-4978, TPL-12),\n" +
+                "-- committed as text; MigrationDdlTest fails when it differs. The work queue and the lane rate window " +
+                "of the\n" +
                 "-- reprocessing lane (INV-REQ-1004); the run and the resubmission list follow the generated text.\n"
         val TESTMODE_COLUMN = Regex(",\\s*testmode boolean not null default false")
         const val FEFF_CODE = 0xFEFF

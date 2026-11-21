@@ -61,7 +61,14 @@ class ReprocessingConfiguration {
         limits: LaneLimits,
         clock: Clock,
     ): WorkQueue =
-        JdbcWorkQueue(scope, dsl, SCHEMA, LaneRateLimiter(scope, dsl, SCHEMA, limits), clock, QueueingReprocessingPort.CONSUMER)
+        JdbcWorkQueue(
+            scope,
+            dsl,
+            SCHEMA,
+            LaneRateLimiter(scope, dsl, SCHEMA, limits),
+            clock,
+            QueueingReprocessingPort.CONSUMER,
+        )
 
     @Bean
     fun jooqReprocessingStore(
@@ -144,8 +151,17 @@ class ReprocessingConfiguration {
         useCase: ReprocessPopulation,
     ): ReprocessingWorker = ReprocessingWorker(queue, scope, useCase)
 
-    /** The one worker loop: a short tick that drains what the lane limit lets through. */
+    /**
+     * The one worker loop: a short tick that drains what the lane limit lets through. `rules.reprocessing.worker=false`
+     * switches the tick off (the tests drive [ReprocessingWorker.drain] themselves); it is on when the property is
+     * absent.
+     */
     @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = ["rules.reprocessing.worker"],
+        havingValue = "true",
+        matchIfMissing = true,
+    )
     fun reprocessingWorkerScheduling(worker: ReprocessingWorker): ReprocessingWorkerScheduling =
         ReprocessingWorkerScheduling(worker)
 
@@ -154,7 +170,7 @@ class ReprocessingConfiguration {
         const val WINDOW = "rules.reprocessing.rate-limit.window"
         private const val SCHEMA = "rules"
 
-        /** The [LaneLimits] of the environment: the entry of lane REPROCESSING only; a bad or absent value is refused. */
+        /** The [LaneLimits] of the environment: lane REPROCESSING only; a bad or absent value is refused. */
         fun laneLimitsOf(environment: Environment): LaneLimits {
             val permits =
                 environment.getRequiredProperty(PERMITS, Int::class.java).also {
@@ -178,7 +194,9 @@ class ReprocessingWorkerScheduling(
 ) {
     @Scheduled(fixedDelay = TICK_MILLIS, initialDelay = TICK_MILLIS)
     fun tick() {
-        runCatching { worker.drain() }.onFailure { log.warn("reprocessing worker tick failed: {}", it.javaClass.simpleName) }
+        runCatching { worker.drain() }.onFailure {
+            log.warn("reprocessing worker tick failed: {}", it.javaClass.simpleName)
+        }
     }
 
     private companion object {
