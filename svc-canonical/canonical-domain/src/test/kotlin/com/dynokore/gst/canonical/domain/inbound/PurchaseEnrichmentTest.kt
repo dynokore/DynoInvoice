@@ -12,7 +12,7 @@ class PurchaseEnrichmentTest {
     private fun awaiting(vararg fields: PurchaseField) = PurchaseEnrichmentDecision.AwaitingPosting(fields.toList())
 
     @Test
-    fun `INV-AC-12923 case 1 purchase fields come from the posting only`() {
+    fun `INV-AC-12923 case 1 purchase fields come from the posting only INV-AC-1435`() {
         val result = PurchaseEnrichment.decide(receipt, complete)
         result shouldBe
             PurchaseEnrichmentDecision.Prepared("TX", BigDecimal("100.00"), BigDecimal("4.50"), "SR")
