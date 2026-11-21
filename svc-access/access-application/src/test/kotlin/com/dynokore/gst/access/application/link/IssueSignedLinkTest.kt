@@ -5,6 +5,7 @@ import com.dynokore.gst.access.domain.link.LinkSource
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -253,5 +254,54 @@ class IssueSignedLinkTest {
                 .public
                 as java.security.interfaces.RSAPublicKey
         assertThrows(IllegalArgumentException::class.java) { SealingKey(SealingKey.keyIdOf(small), small) }
+    }
+
+    @Test
+    fun `INV-AC-2763 a client signatory link goes by e-mail and its passcode by SMS in a separate message never in clear`() {
+        val logger =
+            java.util.logging.Logger
+                .getLogger("")
+        val captured = mutableListOf<String>()
+        val handler =
+            object : java.util.logging.Handler() {
+                override fun publish(record: java.util.logging.LogRecord) {
+                    captured += textOf(record)
+                }
+
+                override fun flush() = Unit
+
+                override fun close() = Unit
+            }
+        logger.addHandler(handler)
+        try {
+            val (link, passcode) = kit.issued()
+            java.util.logging.Logger
+                .getLogger("probe")
+                .info("run done")
+            assertTrue(captured.isNotEmpty(), "the capture works: the probe line was seen")
+            assertEquals(2, kit.messages.size)
+            assertEquals(MessageChannel.EMAIL, kit.messages[0].channel)
+            assertEquals(link.ref.value, kit.messages[0].linkReference)
+            assertEquals(MessageChannel.SMS, kit.messages[1].channel)
+            assertNull(kit.messages[1].linkReference)
+            assertNotNull(kit.messages[1].sealedPasscode)
+            val seen = kit.messages.toString() + kit.audits.toString() + kit.alerts.toString()
+            assertFalse(seen.contains(passcode))
+            assertTrue(captured.none { it.contains(passcode) })
+            // look-alike: without a mobile number the passcode goes by a second e-mail instead of SMS
+            val other = LinkKit()
+            other.issued(other.command(mobile = null))
+            assertEquals(2, other.messages.size)
+            assertEquals(MessageChannel.EMAIL, other.messages[0].channel)
+            assertEquals(MessageChannel.EMAIL, other.messages[1].channel)
+            assertNotEquals(kit.messages[1].channel, other.messages[1].channel)
+            // probe: a deliberate line holding the passcode is caught by the same predicate
+            java.util.logging.Logger
+                .getLogger("probe")
+                .info("passcode $passcode")
+            assertTrue(captured.any { it.contains(passcode) })
+        } finally {
+            logger.removeHandler(handler)
+        }
     }
 }
