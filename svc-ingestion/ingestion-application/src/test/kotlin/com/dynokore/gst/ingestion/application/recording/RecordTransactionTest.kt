@@ -60,7 +60,7 @@ class RecordTransactionTest {
     ) = RecordDocumentCommand(tenant, "erp-acme", key, revision, body)
 
     @Test
-    fun `INV-AC-1861 replay answers 200 with the original Doc UUID, higher amends, lower is 409`() {
+    fun `INV-AC-1861 INV-AC-1846 replay answers 200 with the original Doc UUID, higher amends, lower is 409`() {
         val canonical = CanonicalStub()
         val service = RecordTransaction(canonical)
         val first = service.execute(command("K", 2)) as RecordingOutcome.New
@@ -79,7 +79,7 @@ class RecordTransactionTest {
     }
 
     @Test
-    fun `INV-AC-10334 same pair replays, higher revision amends the same Doc UUID, lower is ING-002`() {
+    fun `INV-AC-10334 INV-AC-1846 same pair replays, higher revision amends the same Doc UUID, lower is ING-002`() {
         val canonical = CanonicalStub()
         val service = RecordTransaction(canonical)
         val first = service.execute(command("K", 1)) as RecordingOutcome.New
@@ -91,6 +91,28 @@ class RecordTransactionTest {
         val other = service.execute(command("K2", 1)) as RecordingOutcome.New
         (other.docUuid != first.docUuid) shouldBe true
         canonical.calls.size shouldBe 5
+    }
+
+    @Test
+    @DisplayName(
+        "INV-AC-1846 a replay answers the first Doc UUID and a reversal and a repost with their own source keys " +
+            "are two further documents",
+    )
+    fun `INV-AC-1846 replay answers the first Doc UUID and reversal and repost are two further documents`() {
+        val canonical = CanonicalStub()
+        val service = RecordTransaction(canonical)
+        val first = service.execute(command("K", 1)) as RecordingOutcome.New
+        first.httpStatus shouldBe 201
+        val replay = service.execute(command("K", 1))
+        replay shouldBe RecordingOutcome.Replay(first.docUuid)
+        replay.httpStatus shouldBe 200
+        val reversal = service.execute(command("K-reversal", 1)) as RecordingOutcome.New
+        val repost = service.execute(command("K-repost", 1)) as RecordingOutcome.New
+        reversal.httpStatus shouldBe 201
+        repost.httpStatus shouldBe 201
+        setOf(first.docUuid, reversal.docUuid, repost.docUuid).size shouldBe 3
+        // Look-alike: a replay of the reversal answers the reversal's own Doc UUID, not the first or the repost's.
+        service.execute(command("K-reversal", 1)) shouldBe RecordingOutcome.Replay(reversal.docUuid)
     }
 
     @Test
