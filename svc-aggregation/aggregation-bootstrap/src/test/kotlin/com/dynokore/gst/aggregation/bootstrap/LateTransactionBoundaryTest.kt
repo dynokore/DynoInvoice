@@ -217,6 +217,7 @@ class LateTransactionBoundaryTest {
     ).single()
 
     @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // CS-50: the INV-AC token makes this case name exceed 120 chars; a backticked name cannot wrap
     fun `INV-AC-24211 INV-AC-11337 a late transaction after SubmissionDespatched is in a supplementary aggregate and A is unchanged`(
         @TempDir dir: Path,
     ): Unit =

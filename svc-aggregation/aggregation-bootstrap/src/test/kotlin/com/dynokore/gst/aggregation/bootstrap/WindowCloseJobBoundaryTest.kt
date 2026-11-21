@@ -222,6 +222,7 @@ class WindowCloseJobBoundaryTest {
     }
 
     @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // CS-50: the INV-AC token makes this case name exceed 120 chars; a backticked name cannot wrap
     fun `INV-AC-1574 INV-AC-15972 the part up to 31 Mar closes on its tick, the part from 1 Apr on the tick of 3 Apr, once per tick`(
         @TempDir dir: Path,
     ): Unit =

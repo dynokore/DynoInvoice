@@ -282,6 +282,7 @@ class PeriodSpansBoundaryTest {
         }
 
     @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // CS-50: the INV-AC token makes this case name exceed 120 chars; a backticked name cannot wrap
     fun `INV-AC-11338 a weekly window crossing 31 Mar with the codes S and Z gives two aggregates, each with one line per distinct code of its own transactions`(
         @TempDir dir: Path,
     ): Unit =
