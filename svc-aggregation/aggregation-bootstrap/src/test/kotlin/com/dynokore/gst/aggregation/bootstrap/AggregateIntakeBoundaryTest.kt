@@ -174,7 +174,7 @@ class AggregateIntakeBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-453 an exact replay answers the original, creates nothing and keeps the sequence`(
+    fun `INV-AC-453 INV-AC-11335 an exact replay answers the original, creates nothing and keeps the sequence`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->
@@ -202,7 +202,7 @@ class AggregateIntakeBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-453 a lower sourceRevision is refused with 409 ING-002 and nothing is stored`(
+    fun `INV-AC-453 INV-AC-11336 a lower sourceRevision is refused with 409 ING-002 and nothing is stored`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->

@@ -71,7 +71,8 @@ class IntakeTypeCheckBoundaryTest {
     private val ing006 = Problems.renderIngestion(IngestionErrorCode.AGGREGATE_TYPE_NOT_PERMITTED, CORRELATION)
 
     @Test
-    fun `INV-AC-447 ordinary B2B invoices offered to the aggregate intake are refused with ING-006 and no override`() {
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
+    fun `INV-AC-447 INV-AC-8640 ordinary B2B invoices offered to the aggregate intake are refused with ING-006 and no override`() {
         listOf("B2B", "INVOICE", "pos", "POS ", "").forEach { offered ->
             val response = call(offered)
             response.status shouldBe 422
@@ -120,7 +121,7 @@ class IntakeTypeCheckBoundaryTest {
     }
 
     @Test
-    fun `POS, STI and PCP pass the type check and reach the operation`() {
+    fun `INV-AC-8640 POS, STI and PCP pass the type check and reach the operation`() {
         // the intake rules are tested at the service boundary (AggregateIntakeBoundaryTest); here only that the type
         // check lets the three through to the use case, which reads the replay key first
         listOf("POS", "STI", "PCP").forEach { type ->
@@ -129,8 +130,9 @@ class IntakeTypeCheckBoundaryTest {
         }
     }
 
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     @Test
-    fun `INV-AC-1572 an aggregate whose underlying detail holds a B2B invoice is blocked with ING-006, terminal`() {
+    fun `INV-AC-1572 INV-AC-8641 an aggregate whose underlying detail holds a B2B invoice is blocked with ING-006, terminal`() {
         val verdict = AggregateIntakeCheck.checkDetail(listOf("POS", "B2B", "POS"))
         val refusal = verdict.shouldBeInstanceOf<IntakeVerdict.Refused>().refusal
         refusal.code shouldBe "ING-006"
