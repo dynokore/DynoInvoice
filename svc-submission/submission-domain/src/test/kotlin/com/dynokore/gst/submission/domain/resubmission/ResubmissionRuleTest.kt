@@ -130,4 +130,16 @@ class ResubmissionRuleTest {
     fun `INV-AC-13099 the rule source holds no field name or category code`() {
         mainSource.contains("taxCategoryCode") shouldBe false
     }
+
+    @Test
+    fun `INV-AC-26544 a transmitted invoice with unchanged recorded fields gives NoResubmission NO_RECORDED_CHANGE`() {
+        ResubmissionRule.decide(ResubmissionFacts(transmitted = true, lastAcknowledged = tx, projected = tx)) shouldBe
+            NoResubmission(NoResubmissionReason.NO_RECORDED_CHANGE)
+    }
+
+    @Test
+    fun `INV-AC-26544 a changed recorded field still resubmits`() {
+        val d = ResubmissionRule.decide(ResubmissionFacts(transmitted = true, lastAcknowledged = tx, projected = zp))
+        (d as Resubmit).changedFields.isNotEmpty() shouldBe true
+    }
 }

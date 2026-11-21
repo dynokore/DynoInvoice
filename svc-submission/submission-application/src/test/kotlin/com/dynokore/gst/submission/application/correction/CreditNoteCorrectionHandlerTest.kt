@@ -5,6 +5,7 @@ import com.dynokore.gst.submission.application.register.NetDerivedCreditNote
 import com.dynokore.gst.submission.domain.correction.CorrectionReason
 import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import io.kotest.matchers.shouldBe
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 /** The correction handler over fakes (INV-AC-25343). Calls are recorded and compared by equality. */
@@ -77,7 +78,7 @@ class CreditNoteCorrectionHandlerTest {
     private val derivation = NetDerivationData(3, listOf(NetDerivedCreditNote(a, 1)))
 
     @Test
-    fun `INV-AC-25343 READY requests one derivation and leaves the credit note unsubmitted`() {
+    fun `INV-AC-25343 INV-AC-600 READY requests one derivation and leaves the credit note unsubmitted`() {
         decideWith(listOf(LifecycleState.READY)) shouldBe listOf("request $o 3 [$a]")
     }
 
@@ -236,5 +237,31 @@ class CreditNoteCorrectionHandlerTest {
         w.handler.onRefused(listOf(a), "NOT_PRECEDING")
         w.findingList shouldBe emptyList()
         w.calls shouldBe listOf("mark $a")
+    }
+
+    @Test
+    fun `INV-AC-26544 a credit note for an ACKNOWLEDGED invoice makes no call`() {
+        decideWith(listOf(LifecycleState.ACKNOWLEDGED)) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-26544 a credit note for a SENT invoice makes no call`() {
+        decideWith(listOf(LifecycleState.SENT)) shouldBe emptyList()
+    }
+
+    @Test
+    fun `INV-AC-26544 a credit note for a QUEUED invoice makes no call`() {
+        decideWith(listOf(LifecycleState.QUEUED)) shouldBe emptyList()
+    }
+
+    @Test
+    @DisplayName(
+        "INV-AC-26544 a credit note for an ACKNOWLEDGED invoice names the invoice in no call " +
+            "after a derived version of another credit note",
+    )
+    fun `INV-AC-26544 acknowledged invoice named in no call after derived version of another credit note`() {
+        val w = World(listOf(LifecycleState.ACKNOWLEDGED))
+        w.handler.onDerivedVersion(o, NetDerivationData(3, listOf(NetDerivedCreditNote("credit-note-B", 1))))
+        w.calls.none { it.startsWith("request") && it.contains(o) } shouldBe true
     }
 }

@@ -26,7 +26,6 @@ import com.dynokore.platform.outboxandqueue.Envelope
 import com.dynokore.platform.outboxandqueue.EventHandler
 import com.dynokore.platform.outboxandqueue.EventId
 import com.dynokore.platform.outboxandqueue.HandleOutcome
-import com.dynokore.platform.outboxandqueue.WorkQueue as WorkQueuePort
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -46,6 +45,7 @@ import java.time.ZoneOffset
 import java.util.Base64
 import java.util.HexFormat
 import java.util.UUID
+import com.dynokore.platform.outboxandqueue.WorkQueue as WorkQueuePort
 
 /** The arrival hold of a credit note through the real handler over PostgreSQL (INV-AC-24521). */
 class CreditNoteHoldDbTest {
