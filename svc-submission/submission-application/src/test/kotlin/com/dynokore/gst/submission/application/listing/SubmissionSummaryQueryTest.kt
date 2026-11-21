@@ -111,6 +111,8 @@ class SubmissionSummaryQueryTest {
         submittedAt = null,
         acknowledgedAt = if (state == LifecycleState.ACKNOWLEDGED) Instant.parse("2026-11-03T00:00:00Z") else null,
         acknowledgementId = if (state == LifecycleState.ACKNOWLEDGED) "ACK-$doc-$version" else null,
+        originalDueDate = null,
+        extendedDueDate = null,
     )
 
     /** One document per class, a superseded plus acknowledged pair, and two documents that are in no served class. */

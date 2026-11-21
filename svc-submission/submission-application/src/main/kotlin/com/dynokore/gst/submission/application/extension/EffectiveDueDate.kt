@@ -18,6 +18,10 @@ data class ExtensionInput(
 data class EffectiveDueDateResult(
     val dueDate: LocalDate,
     val unorderable: List<ExtensionInput>,
+    /** The register due date when the chosen row is PERIOD or DOCUMENT_SET; null for DATE_RANGE or no chosen row. */
+    val originalDueDate: LocalDate?,
+    /** The extended date of the chosen row; null when no row is chosen. */
+    val extendedDueDate: LocalDate?,
 )
 
 /**
@@ -52,7 +56,13 @@ object EffectiveDueDate {
         }
         val best = matched.maxOfOrNull { it.first }
         val chosen = matched.lastOrNull { it.first == best }?.second
-        return EffectiveDueDateResult(chosen?.extendedDueDate ?: registerDueDate, unorderable)
+        val original = if (chosen != null && chosen.scopeKind != DATE_RANGE) registerDueDate else null
+        return EffectiveDueDateResult(
+            dueDate = chosen?.extendedDueDate ?: registerDueDate,
+            unorderable = unorderable,
+            originalDueDate = original,
+            extendedDueDate = chosen?.extendedDueDate,
+        )
     }
 
     /** Higher is narrower; [NO_MATCH] when the row does not match this document; [UNORDERABLE] when unreadable. */

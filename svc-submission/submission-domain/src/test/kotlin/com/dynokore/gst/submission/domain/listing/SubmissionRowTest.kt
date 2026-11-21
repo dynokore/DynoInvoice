@@ -31,6 +31,8 @@ class SubmissionRowTest {
         submittedAt = null,
         acknowledgedAt = null,
         acknowledgementId = null,
+        originalDueDate = null,
+        extendedDueDate = null,
     )
 
     private fun SubmissionRow.on(

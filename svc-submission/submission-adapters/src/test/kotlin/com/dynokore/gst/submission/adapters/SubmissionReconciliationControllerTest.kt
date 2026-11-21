@@ -108,6 +108,8 @@ class SubmissionReconciliationControllerTest {
         submittedAt = Instant.parse("2026-11-02T00:00:00Z"),
         acknowledgedAt = null,
         acknowledgementId = null,
+        originalDueDate = null,
+        extendedDueDate = null,
         acknowledgementDeadline = ackDeadline,
     )
 

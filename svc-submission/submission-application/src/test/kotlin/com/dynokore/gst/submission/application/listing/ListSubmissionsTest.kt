@@ -139,6 +139,8 @@ class ListSubmissionsTest {
         submittedAt = if (state == LifecycleState.QUEUED) null else Instant.parse("2026-11-02T00:00:00Z"),
         acknowledgedAt = if (acknowledged) Instant.parse("2026-11-03T00:00:00Z") else null,
         acknowledgementId = if (acknowledged) "ACK-$docUuid-$version" else null,
+        originalDueDate = null,
+        extendedDueDate = null,
     )
 
     private val d1v1 =

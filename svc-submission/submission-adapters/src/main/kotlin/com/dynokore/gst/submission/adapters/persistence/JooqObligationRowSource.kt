@@ -5,6 +5,7 @@ import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.application.compliance.DocumentCoverage
 import com.dynokore.gst.submission.application.compliance.ObligationRowSource
 import com.dynokore.gst.submission.application.extension.EffectiveDueDate
+import com.dynokore.gst.submission.application.extension.EffectiveDueDateResult
 import com.dynokore.gst.submission.application.extension.ExtensionInput
 import com.dynokore.gst.submission.domain.metrics.ObligationRow
 import com.dynokore.gst.submission.domain.metrics.RowKind
@@ -125,7 +126,15 @@ internal fun effectiveDueDate(
     docUuid: String,
     transactionDate: LocalDate?,
     rows: List<ExtensionInput>,
-): LocalDate {
+): LocalDate = effectiveDueDateResult(registerDueDate, docUuid, transactionDate, rows).dueDate
+
+/** The resolver result with the same log of unorderable rows as [effectiveDueDate]. */
+internal fun effectiveDueDateResult(
+    registerDueDate: LocalDate,
+    docUuid: String,
+    transactionDate: LocalDate?,
+    rows: List<ExtensionInput>,
+): EffectiveDueDateResult {
     val result = EffectiveDueDate.resolve(registerDueDate, docUuid, transactionDate, rows)
     if (result.unorderable.isNotEmpty()) {
         extensionLog.log(
@@ -134,5 +143,5 @@ internal fun effectiveDueDate(
             result.unorderable.size,
         )
     }
-    return result.dueDate
+    return result
 }

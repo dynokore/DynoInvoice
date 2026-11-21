@@ -81,6 +81,7 @@ class JooqSubmissionRowSource(
         val ackId = r.get(version.ACKNOWLEDGEMENT_ID)
         val number = r.get(entry.DOCUMENT_NUMBER)
         val unpairedAcknowledgement = (ackAt == null) != (ackId == null)
+        val due = resolveDue(r, txDate, extensions)
         val incomplete = type == null || txDate == null || number == null
         return if (incomplete || unpairedAcknowledgement) {
             null
@@ -90,13 +91,9 @@ class JooqSubmissionRowSource(
                 version = checkNotNull(r.get(version.VERSION)),
                 submissionType = SubmissionKind.valueOf(checkNotNull(type)),
                 state = LifecycleState.valueOf(checkNotNull(r.get(version.STATE))),
-                dueDate =
-                    effectiveDueDate(
-                        checkNotNull(r.get(entry.DUE_DATE)),
-                        checkNotNull(r.get(version.DOC_UUID)),
-                        txDate,
-                        extensions,
-                    ),
+                dueDate = due.dueDate,
+                originalDueDate = due.originalDueDate,
+                extendedDueDate = due.extendedDueDate,
                 documentNumber = checkNotNull(number),
                 documentTypeCode = checkNotNull(r.get(entry.DOCUMENT_TYPE_CODE)),
                 direction = Direction.valueOf(checkNotNull(r.get(entry.DIRECTION))),
@@ -113,4 +110,15 @@ class JooqSubmissionRowSource(
             )
         }
     }
+
+    private fun resolveDue(
+        r: Record,
+        txDate: java.time.LocalDate?,
+        extensions: List<ExtensionInput>,
+    ) = effectiveDueDateResult(
+        checkNotNull(r.get(entry.DUE_DATE)),
+        checkNotNull(r.get(version.DOC_UUID)),
+        txDate,
+        extensions,
+    )
 }

@@ -104,4 +104,43 @@ class EffectiveDueDateTest {
         result.dueDate shouldBe register
         result.unorderable shouldBe bad
     }
+
+    @Test
+    fun `INV-AC-26238 a PERIOD row gives the register date as original and the row date as extended`() {
+        val r = effective(d3, tx1, listOf(period))
+        r.originalDueDate shouldBe register
+        r.extendedDueDate shouldBe LocalDate.of(2026, 5, 14)
+        r.dueDate shouldBe LocalDate.of(2026, 5, 14)
+    }
+
+    @Test
+    fun `INV-AC-26238 a DOCUMENT_SET row gives the register date as original and the row date as extended`() {
+        val r = effective(d1, tx1, listOf(period, set))
+        r.originalDueDate shouldBe register
+        r.extendedDueDate shouldBe LocalDate.of(2026, 5, 20)
+    }
+
+    @Test
+    fun `INV-AC-26238 a DATE_RANGE row gives no original date`() {
+        val r = effective(d2, tx2, listOf(range))
+        r.originalDueDate shouldBe null
+        r.extendedDueDate shouldBe LocalDate.of(2026, 6, 1)
+    }
+
+    @Test
+    fun `INV-AC-26238 a filing due date only row gives neither date and the register due date`() {
+        val r = effective(d3, tx1, listOf(filing))
+        r.originalDueDate shouldBe null
+        r.extendedDueDate shouldBe null
+        r.dueDate shouldBe register
+        r.unorderable.shouldBeEmpty()
+    }
+
+    @Test
+    fun `INV-AC-26238 no row gives neither date and the register due date`() {
+        val r = effective(d1, tx1, emptyList())
+        r.originalDueDate shouldBe null
+        r.extendedDueDate shouldBe null
+        r.dueDate shouldBe register
+    }
 }

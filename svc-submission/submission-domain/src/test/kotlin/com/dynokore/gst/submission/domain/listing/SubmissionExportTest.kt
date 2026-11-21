@@ -45,6 +45,8 @@ class SubmissionExportTest {
         submittedAt = null,
         acknowledgedAt = null,
         acknowledgementId = null,
+        originalDueDate = null,
+        extendedDueDate = null,
     )
 
     private val three =
@@ -57,6 +59,8 @@ class SubmissionExportTest {
                 submittedAt = Instant.parse("2026-10-02T00:00:00Z"),
                 acknowledgedAt = Instant.parse("2026-10-02T00:01:00Z"),
                 acknowledgementId = "ACK-1",
+                originalDueDate = null,
+                extendedDueDate = null,
             ),
         )
 

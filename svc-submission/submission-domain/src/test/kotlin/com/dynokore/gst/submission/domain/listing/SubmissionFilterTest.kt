@@ -40,6 +40,8 @@ class SubmissionFilterTest {
         submittedAt = null,
         acknowledgedAt = if (extra.acked) Instant.EPOCH else null,
         acknowledgementId = if (extra.acked) "A-$uuid" else null,
+        originalDueDate = null,
+        extendedDueDate = null,
     )
 
     private val r1 =

@@ -30,6 +30,8 @@ data class SubmissionRow(
     val submittedAt: Instant?,
     val acknowledgedAt: Instant?,
     val acknowledgementId: String?,
+    val originalDueDate: LocalDate?,
+    val extendedDueDate: LocalDate?,
     val acknowledgementDeadline: Instant? = null,
 ) {
     init {

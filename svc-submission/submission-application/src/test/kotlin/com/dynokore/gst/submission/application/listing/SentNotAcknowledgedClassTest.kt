@@ -97,6 +97,8 @@ class SentNotAcknowledgedClassTest {
         submittedAt = null,
         acknowledgedAt = if (state == LifecycleState.ACKNOWLEDGED) Instant.parse("2026-03-01T00:00:00Z") else null,
         acknowledgementId = if (state == LifecycleState.ACKNOWLEDGED) "ACK-$doc-$version" else null,
+        originalDueDate = null,
+        extendedDueDate = null,
         acknowledgementDeadline = stored,
     )
 
