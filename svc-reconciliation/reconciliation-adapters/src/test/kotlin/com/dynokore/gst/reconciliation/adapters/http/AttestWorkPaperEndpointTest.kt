@@ -20,6 +20,7 @@ import com.dynokore.gst.reconciliation.application.workpaper.SealWorkPaper
 import com.dynokore.gst.reconciliation.application.workpaper.SealedRef
 import com.dynokore.gst.reconciliation.application.workpaper.SealedWorkPapers
 import com.dynokore.gst.reconciliation.application.workpaper.SingleAttestationPolicy
+import com.dynokore.gst.reconciliation.application.workpaper.SoleAttester
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAnnotation
 import com.dynokore.gst.reconciliation.application.workpaper.StoredAttestation
 import com.dynokore.gst.reconciliation.application.workpaper.WorkPaperSource
@@ -28,6 +29,7 @@ import com.dynokore.gst.reconciliation.application.workpaper.export.RelaxedContr
 import com.dynokore.gst.reconciliation.application.workpaper.export.WorkPaperRenderer
 import com.dynokore.gst.reconciliation.contract.model.AttestWorkPaperRequest
 import com.dynokore.gst.reconciliation.contract.model.Attestation
+import com.dynokore.gst.reconciliation.contract.model.AttestationSoleAttester
 import com.dynokore.platform.auditlog.AuditEntry
 import com.dynokore.platform.auditlog.AuditedOperations
 import com.dynokore.platform.outboxandqueue.EntityRef
@@ -62,6 +64,7 @@ import java.nio.file.Paths
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 
@@ -148,12 +151,15 @@ class AttestWorkPaperEndpointTest {
             ): Boolean = false
         }
 
+    private var preparer = "U1"
+    private var soleOptionRecorded = false
+
     private val useCase =
         AttestWorkPaper(
             reader,
             GetWorkPaper(reader, noAnnotations, attestations),
-            RunPreparers { _, _ -> "U1" },
-            SingleAttestationPolicy { _, _, _ -> null },
+            RunPreparers { _, _ -> preparer },
+            SingleAttestationPolicy { _, _, on -> if (soleOptionRecorded) SoleAttester(preparer, on) else null },
             attestations,
             writer,
             Clock.fixed(now, ZoneOffset.UTC),
@@ -335,6 +341,34 @@ class AttestWorkPaperEndpointTest {
         inserts.map { it.third.attestedBy } shouldBe listOf("U2")
         sealed shouldBe listOf(tenantId.toString() to r1.toString())
         events shouldBe listOf("decide", "seal")
+    }
+
+    @Test
+    fun `INV-AC-1975 a sole-operator self-approval carries the fact and the work-paper states it`() {
+        preparer = "U2"
+        soleOptionRecorded = true
+        val response = call("U2", r1, flag = true)
+        response.statusCode.value() shouldBe 200
+        val body = response.body as Attestation
+        body.attestedBy shouldBe "U2"
+        val expected = AttestationSoleAttester("U2", LocalDate.parse("2026-11-19"))
+        body.soleAttester shouldBe expected
+        inserts.map { it.third.soleAttester } shouldBe listOf(SoleAttester("U2", LocalDate.parse("2026-11-19")))
+        val paper = controller(principal("U2")).getWorkPaper(r1).body!!
+        paper.attestation!!.soleAttester shouldBe expected
+        paper.attestation!!.attestedBy shouldBe "U2"
+    }
+
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
+    @Test
+    fun `INV-AC-1975 without the recorded option the self-approval is refused and the work-paper has no sole attester`() {
+        preparer = "U2"
+        soleOptionRecorded = false
+        val response = call("U2", r1, flag = true)
+        assertPeriod(response, PeriodErrorCode.ATTESTATION_SEPARATION_OF_DUTIES)
+        PeriodErrorCode.ATTESTATION_SEPARATION_OF_DUTIES.code shouldBe "PER-017"
+        inserts shouldBe emptyList()
+        controller(principal("U2")).getWorkPaper(r1).body!!.attestation shouldBe null
     }
 
     @Test

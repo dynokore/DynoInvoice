@@ -44,8 +44,17 @@ class JooqWorkPaperSource(
                 )
             }
         view.attestation?.let {
-            doc["attestation"] =
-                linkedMapOf<String, Any?>("attestedBy" to it.attestedBy, "attestedAt" to it.attestedAt.toString())
+            val attestation = linkedMapOf<String, Any?>()
+            attestation["attestedAt"] = it.attestedAt.toString()
+            attestation["attestedBy"] = it.attestedBy
+            it.soleAttester?.let { sole ->
+                attestation["soleAttester"] =
+                    linkedMapOf<String, Any?>(
+                        "acknowledgedBy" to sole.acknowledgedBy,
+                        "acknowledgedOn" to sole.acknowledgedOn.toString(),
+                    )
+            }
+            doc["attestation"] = attestation
         }
         doc["supportingDocuments"] = view.supportingDocuments
         doc["unexplainedResidual"] = view.unexplainedResidual

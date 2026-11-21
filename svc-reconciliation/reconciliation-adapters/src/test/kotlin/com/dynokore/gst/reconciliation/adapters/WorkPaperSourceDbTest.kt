@@ -103,11 +103,14 @@ class WorkPaperSourceDbTest : RunStoreDbFixture() {
     private fun attest(
         tenant: UUID,
         run: String,
+        sole: Boolean = false,
     ) = ReconciliationDb.superuser().use { c ->
         c
             .prepareStatement(
-                "insert into reconciliation.work_paper_attestation (tenant_id, run_id, attested_by, attested_at) " +
-                    "values (?, ?, 'user-A', '2026-11-19T09:30:00Z')",
+                "insert into reconciliation.work_paper_attestation (tenant_id, run_id, attested_by, attested_at" +
+                    (if (sole) ", sole_attester_acknowledged_by, sole_attester_acknowledged_on" else "") +
+                    ") values (?, ?, 'user-A', '2026-11-19T09:30:00Z'" +
+                    (if (sole) ", 'user-A', '2026-11-19'" else "") + ")",
             ).use {
                 it.setObject(1, tenant)
                 it.setString(2, run)
@@ -186,6 +189,20 @@ class WorkPaperSourceDbTest : RunStoreDbFixture() {
         tree["attestation"]["attestedBy"].asString() shouldBe "user-A"
         tree["attestation"]["attestedAt"].asString() shouldBe "2026-11-19T09:30:00Z"
         sortedKeys(tree) shouldBe true
+    }
+
+    @Test
+    fun `INV-AC-1975 the sealed work-paper states the sole attester when the attestation holds one`() {
+        val t1 = UUID.randomUUID()
+        val run = storedRun(t1)
+        attest(t1, run, sole = true)
+        val first = load(t1, run)!!.canonicalJson
+        val sole = json.readTree(first)["attestation"]["soleAttester"]
+        sole.propertyNames().toList() shouldBe listOf("acknowledgedBy", "acknowledgedOn")
+        sole["acknowledgedBy"].asString() shouldBe "user-A"
+        sole["acknowledgedOn"].asString() shouldBe "2026-11-19"
+        first.contentEquals(load(t1, run)!!.canonicalJson) shouldBe true
+        sortedKeys(json.readTree(first)) shouldBe true
     }
 
     @Test

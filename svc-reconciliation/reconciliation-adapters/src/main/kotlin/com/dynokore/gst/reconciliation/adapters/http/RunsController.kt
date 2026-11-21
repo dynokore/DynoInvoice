@@ -227,9 +227,7 @@ open class RunsController(
             unexplainedResidual = BigDecimal(view.unexplainedResidual),
             supportingDocuments = view.supportingDocuments,
             attestation =
-                view.attestation?.let {
-                    Attestation(attestedBy = it.attestedBy, attestedAt = it.attestedAt.atOffset(ZoneOffset.UTC))
-                },
+                view.attestation?.let(::attestation),
             unmappedLines =
                 view.unmappedLines.map {
                     UnmappedLine(UUID.fromString(it.docUuid), it.version, it.lineNumber, it.taxCode)
