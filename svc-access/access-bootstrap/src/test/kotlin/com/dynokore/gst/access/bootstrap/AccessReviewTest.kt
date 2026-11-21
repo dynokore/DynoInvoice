@@ -303,6 +303,13 @@ class AccessReviewTest {
 
     // ---- INV-AC-16621: a campaign of three grants closes only with an outcome per grant -------------------------
 
+    private class ThreeGrants(
+        val ref: String,
+        val own: String,
+        val first: String,
+        val second: String,
+    )
+
     @Test
     fun `INV-AC-16621 three grants close only on a second officer's outcome for the reviewer's own`() =
         AccessReviewEnv.run { env ->
@@ -311,58 +318,76 @@ class AccessReviewTest {
             val first = env.seed(VIEWERS[0], Role.AUDITOR)
             val second = env.seed(VIEWERS[1], Role.AUDITOR)
             val campaign = env.open()
-            // the second officer and tenant admin are seeded after the snapshot, so they are not in the campaign
+            // the second officer is seeded after the snapshot, so is not in the campaign
             env.seed(OFFICER_2, Role.SECURITY_OFFICER)
-            val grants = env.campaignGrants(campaign.reviewRef)
-            assertThat(grants.keys).containsExactlyInAnyOrder(own, first, second)
+            assertThat(env.campaignGrants(campaign.reviewRef).keys).containsExactlyInAnyOrder(own, first, second)
             assertThat(env.grantsHeldBy(campaign.reviewRef, OFFICER_1)).containsExactly(own)
+            val g = ThreeGrants(campaign.reviewRef, own, first, second)
             val changedBefore = env.authorityChangedRows()
-
-            // (a) after two outcomes on the other grants the campaign is OPEN, nothing has taken effect
-            assertThat(env.close(campaign.reviewRef, OFFICER_1, first to "REVOKED").status).isEqualTo(Status.OPEN)
-            assertThat(env.close(campaign.reviewRef, OFFICER_1, second to "REVOKED").status).isEqualTo(Status.OPEN)
-            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(2)
-            assertThat(env.grantStatus(first)).isEqualTo("ACTIVE")
-            assertThat(env.grantStatus(second)).isEqualTo("ACTIVE")
-            assertThat(env.authorityChangedRows()).isEqualTo(changedBefore)
-
-            // (b) the outcome on the reviewer's own grant is refused: ApiRefusal ACCESS_DENIED, 403 SRT-004
-            val refused = env.refusal { env.close(campaign.reviewRef, OFFICER_1, own to "CONFIRMED") }
-            env.denied(refused)
-            assertThat(refused.code.code).isEqualTo("SRT-004")
-            assertThat(env.statusOf(refused)).isEqualTo(403)
-            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(2)
-            assertThat(
-                env.count(
-                    "select count(*) from access.review_outcome where tenant_id = ? and campaign_ref = ? " +
-                        "and grant_ref = ?",
-                    env.tenant.value,
-                    campaign.reviewRef,
-                    own,
-                ),
-            ).isZero()
-
-            // (c) another caller holding access-review.run records it: CLOSED, both revocations applied by that close
-            assertThat(env.close(campaign.reviewRef, OFFICER_2, own to "CONFIRMED").status).isEqualTo(Status.CLOSED)
-            val revokedOutcomes =
-                env.count(
-                    "select count(*) from access.review_outcome where tenant_id = ? and campaign_ref = ? " +
-                        "and decision = 'REVOKE'",
-                    env.tenant.value,
-                    campaign.reviewRef,
-                )
-            assertThat(revokedOutcomes).isEqualTo(2)
-            assertThat(env.grantStatus(first)).isEqualTo("REVOKED")
-            assertThat(env.grantStatus(second)).isEqualTo("REVOKED")
-            assertThat(env.grantStatus(own)).isEqualTo("ACTIVE")
-            assertThat(env.authorityChangedRows()).isEqualTo(changedBefore + revokedOutcomes)
-            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(3)
-
-            // (d) a caller for whom access-review.run is decided deny is refused on every outcome call
-            val rows = env.outcomeRows(campaign.reviewRef)
-            grants.keys.forEach { grant ->
-                env.denied(env.refusal { env.close(campaign.reviewRef, ADMIN, grant to "CONFIRMED") })
-            }
-            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(rows)
+            env.afterTwoOutcomes(g, changedBefore)
+            env.ownGrantRefused(g)
+            env.closedBySecondOfficer(g, changedBefore)
+            env.deniedCallerRefused(g)
         }
+
+    /** (a) two outcomes on the other grants: OPEN, nothing has taken effect. */
+    private fun AccessReviewEnv.afterTwoOutcomes(
+        g: ThreeGrants,
+        changedBefore: Int,
+    ) {
+        assertThat(close(g.ref, OFFICER_1, g.first to "REVOKED").status).isEqualTo(Status.OPEN)
+        assertThat(close(g.ref, OFFICER_1, g.second to "REVOKED").status).isEqualTo(Status.OPEN)
+        assertThat(outcomeRows(g.ref)).isEqualTo(2)
+        assertThat(grantStatus(g.first)).isEqualTo("ACTIVE")
+        assertThat(grantStatus(g.second)).isEqualTo("ACTIVE")
+        assertThat(authorityChangedRows()).isEqualTo(changedBefore)
+    }
+
+    /** (b) the outcome on the reviewer's own grant: ApiRefusal ACCESS_DENIED, 403 SRT-004, no outcome row. */
+    private fun AccessReviewEnv.ownGrantRefused(g: ThreeGrants) {
+        val refused = refusal { close(g.ref, OFFICER_1, g.own to "CONFIRMED") }
+        denied(refused)
+        assertThat(refused.code.code).isEqualTo("SRT-004")
+        assertThat(statusOf(refused)).isEqualTo(403)
+        assertThat(outcomeRows(g.ref)).isEqualTo(2)
+        assertThat(
+            count(
+                "select count(*) from access.review_outcome where tenant_id = ? and campaign_ref = ? " +
+                    "and grant_ref = ?",
+                tenant.value,
+                g.ref,
+                g.own,
+            ),
+        ).isZero()
+    }
+
+    /** (c) another caller holding access-review.run: CLOSED, both revocations applied by that one close. */
+    private fun AccessReviewEnv.closedBySecondOfficer(
+        g: ThreeGrants,
+        changedBefore: Int,
+    ) {
+        assertThat(close(g.ref, OFFICER_2, g.own to "CONFIRMED").status).isEqualTo(Status.CLOSED)
+        val revoked =
+            count(
+                "select count(*) from access.review_outcome where tenant_id = ? and campaign_ref = ? " +
+                    "and decision = 'REVOKE'",
+                tenant.value,
+                g.ref,
+            )
+        assertThat(revoked).isEqualTo(2)
+        assertThat(grantStatus(g.first)).isEqualTo("REVOKED")
+        assertThat(grantStatus(g.second)).isEqualTo("REVOKED")
+        assertThat(grantStatus(g.own)).isEqualTo("ACTIVE")
+        assertThat(authorityChangedRows()).isEqualTo(changedBefore + revoked)
+        assertThat(outcomeRows(g.ref)).isEqualTo(3)
+    }
+
+    /** (d) a caller for whom access-review.run is decided deny is refused on every outcome call. */
+    private fun AccessReviewEnv.deniedCallerRefused(g: ThreeGrants) {
+        val rows = outcomeRows(g.ref)
+        listOf(g.own, g.first, g.second).forEach { grant ->
+            denied(refusal { close(g.ref, ADMIN, grant to "CONFIRMED") })
+        }
+        assertThat(outcomeRows(g.ref)).isEqualTo(rows)
+    }
 }
