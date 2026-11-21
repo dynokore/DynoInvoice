@@ -98,7 +98,7 @@ openapi.yaml	DeletionStatus.partitionId	NONE
 openapi.yaml	DeletionStatus.state	NONE
 openapi.yaml	DeletionStatus.startedAt	NONE
 openapi.yaml	DeletionStatus.completedAt	NONE
-openapi.yaml	DeletionStatus.result	NONE
+openapi.yaml	DeletionStatus.result	IDENTIFYING
 openapi.yaml	DeletionStatus.error	NONE
 openapi.yaml	RecordSecurityCaseRequest.reviewReference	NONE
 openapi.yaml	RecordSecurityCaseRequest.auditLogEntryIds	NONE
