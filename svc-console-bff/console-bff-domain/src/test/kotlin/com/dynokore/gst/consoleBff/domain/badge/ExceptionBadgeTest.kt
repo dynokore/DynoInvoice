@@ -51,6 +51,18 @@ class ExceptionBadgeTest {
     }
 
     @Test
+    fun `INV-AC-1995 an MDM-001 group is uncounted while an MDM-002 group counts`() {
+        count(item("MDM-001"), item("MDM-002")) shouldBe 1
+        count(item("MDM-001")) shouldBe 0
+    }
+
+    @Test
+    fun `INV-AC-2062 a PER-011 group counts as needing action and an MDM-001 group does not`() {
+        count(item("PER-011", "Onboarding"), item("MDM-001")) shouldBe 1
+        count(item("MDM-001")) shouldBe 0
+    }
+
+    @Test
     fun `INV-AC-15817 manual HOLD counts`() {
         count(item("ING-017")) shouldBe 1
     }
