@@ -23,6 +23,7 @@ data class DecisionEntry(
     val ruleId: String,
     val packVersions: List<PackVersionRef>,
     val inputs: List<TraceInput>,
+    val assertionText: String? = null,
 )
 
 /** What the store holds for (tenant, document, version): a trace that fits the contract, or one that does not. */

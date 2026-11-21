@@ -17,7 +17,9 @@ class DecisionTraceContentTest {
         rule: String = "R1",
         packs: String = "[$pack]",
         inputs: String = "[$input]",
-    ) = """{"code":"$code","ruleId":"$rule","packVersions":$packs,"inputs":$inputs,"extra":1}"""
+        assertionText: String? = null,
+    ) = """{"code":"$code","ruleId":"$rule","packVersions":$packs,"inputs":$inputs,"extra":1""" +
+        (if (assertionText == null) "" else ""","assertionText":$assertionText""") + "}"
 
     private fun parse(json: String) = DecisionTraceContent.parse(at, json.toByteArray())
 
@@ -79,5 +81,49 @@ class DecisionTraceContentTest {
             .single()
             .businessTermId shouldBe "IBT-123"
         parse(wrap(entry(inputs = "[]"))).shouldBeInstanceOf<StoredDecisionTrace.Valid>()
+    }
+
+    private val sentence = "Total tax amount must equal the sum of the tax category amounts"
+
+    @Test
+    fun `INV-AC-27152 an entry with assertionText is read with that text`() {
+        val v = parse(wrap(entry(assertionText = "\"$sentence\""))).shouldBeInstanceOf<StoredDecisionTrace.Valid>()
+        v.decisions.single().assertionText shouldBe "Total tax amount must equal the sum of the tax category amounts"
+    }
+
+    @Test
+    fun `INV-AC-27152 an entry without assertionText is read with a null text`() {
+        val v = parse(wrap(entry())).shouldBeInstanceOf<StoredDecisionTrace.Valid>()
+        v.decisions.single().assertionText shouldBe null
+    }
+
+    @Test
+    fun `INV-AC-27152 an assertionText that is not a string makes the whole content Malformed`() {
+        parse(wrap(entry(assertionText = "5"))) shouldBe StoredDecisionTrace.Malformed
+        parse(wrap(entry(assertionText = "null"))) shouldBe StoredDecisionTrace.Malformed
+        parse(wrap(entry(assertionText = "{}"))) shouldBe StoredDecisionTrace.Malformed
+    }
+
+    @Test
+    fun `INV-AC-27152 an empty assertionText makes the whole content Malformed`() {
+        parse(wrap(entry(assertionText = "\"\""))) shouldBe StoredDecisionTrace.Malformed
+    }
+
+    @Test
+    fun `INV-AC-27152 an assertionText of 501 characters makes the whole content Malformed`() {
+        parse(wrap(entry(assertionText = "\"" + "x".repeat(501) + "\""))) shouldBe StoredDecisionTrace.Malformed
+    }
+
+    @Test
+    fun `INV-AC-27152 an assertionText of 500 characters is read unchanged`() {
+        val text = "x".repeat(500)
+        val v = parse(wrap(entry(assertionText = "\"$text\""))).shouldBeInstanceOf<StoredDecisionTrace.Valid>()
+        v.decisions.single().assertionText shouldBe text
+    }
+
+    @Test
+    fun `INV-AC-27152 a second entry with a broken assertionText makes the content Malformed, the first being valid`() {
+        parse(wrap(entry(assertionText = "\"$sentence\""), entry(code = "RUL-002", assertionText = "5"))) shouldBe
+            StoredDecisionTrace.Malformed
     }
 }

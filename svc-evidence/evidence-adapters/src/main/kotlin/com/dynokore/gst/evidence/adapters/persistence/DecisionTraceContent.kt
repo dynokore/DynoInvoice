@@ -23,6 +23,7 @@ object DecisionTraceContent {
     private const val VERSION_MAX = 40
     private const val NAME_MAX = 100
     private const val VALUE_MAX = 500
+    private const val ASSERTION_TEXT_MAX = 500
 
     fun parse(
         recordedAt: Instant,
@@ -53,9 +54,13 @@ object DecisionTraceContent {
         val rule = text(n, "ruleId", 1, RULE_MAX)
         val packs = list(n, "packVersions", 1)?.map { pack(it) }
         val inputs = list(n, "inputs", 0)?.map { input(it) }
+        val assertionNode = if (n.isObject) n.get("assertionText") else null
+        val assertionText = if (assertionNode == null) null else text(n, "assertionText", 1, ASSERTION_TEXT_MAX)
         val whole = code != null && rule != null && packs != null && inputs != null
-        return if (whole && packs.none { it == null } && inputs.none { it == null }) {
-            DecisionEntry(code, rule, packs.filterNotNull(), inputs.filterNotNull())
+        val textOk = assertionNode == null || assertionText != null
+        val partsOk = whole && textOk
+        return if (partsOk && packs.none { it == null } && inputs.none { it == null }) {
+            DecisionEntry(code, rule, packs.filterNotNull(), inputs.filterNotNull(), assertionText)
         } else {
             null
         }
