@@ -71,7 +71,7 @@ class IntakeTypeCheckBoundaryTest {
     private val ing006 = Problems.renderIngestion(IngestionErrorCode.AGGREGATE_TYPE_NOT_PERMITTED, CORRELATION)
 
     @Test
-    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // CS-50: the INV-AC token makes this case name exceed 120 chars; a backticked name cannot wrap
     fun `INV-AC-447 INV-AC-8640 ordinary B2B invoices offered to the aggregate intake are refused with ING-006 and no override`() {
         listOf("B2B", "INVOICE", "pos", "POS ", "").forEach { offered ->
             val response = call(offered)
@@ -130,7 +130,7 @@ class IntakeTypeCheckBoundaryTest {
         }
     }
 
-    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength") // CS-50: the INV-AC token makes this case name exceed 120 chars; a backticked name cannot wrap
     @Test
     fun `INV-AC-1572 INV-AC-8641 an aggregate whose underlying detail holds a B2B invoice is blocked with ING-006, terminal`() {
         val verdict = AggregateIntakeCheck.checkDetail(listOf("POS", "B2B", "POS"))
