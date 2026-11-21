@@ -127,7 +127,8 @@ class RateStraddleTest {
     }
 
     @Test
-    fun `INV-AC-746 a linked credit note takes rate and code from the original's date and names both dates`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-746 a linked credit note takes rate and code from the original's date and names both dates INV-AC-14485`() {
         val result = creditNote(creditDate, "INV-100", invoiceDate).coded()
         val coded = result.document.lines.single()
         coded.rate.compareTo(BigDecimal("9")) shouldBe 0
@@ -151,7 +152,8 @@ class RateStraddleTest {
     }
 
     @Test
-    fun `INV-AC-746 a credit note before the change linked to an original after it resolves at the original's date`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-746 a credit note before the change linked to an original after it resolves at the original's date INV-AC-14485`() {
         val result = creditNote(before, "INV-100", change.plusDays(3)).coded()
         result.document.lines
             .single()
@@ -168,7 +170,8 @@ class RateStraddleTest {
     }
 
     @Test
-    fun `INV-AC-746 only rate and code move to the original's date, the own date stays the credit note's`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-746 only rate and code move to the original's date, the own date stays the credit note's INV-AC-14485`() {
         // scope, MDE, Schematron, period and due date are resolved by the caller at the own date, which the trace keeps
         val result = creditNote(creditDate, "INV-100", invoiceDate).coded()
         result.trace.ownDate.value shouldBe creditDate
@@ -179,7 +182,8 @@ class RateStraddleTest {
     }
 
     @Test
-    fun `INV-AC-747 a blank-linked credit note after the change resolves by its own date and notes the straddle`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-747 a blank-linked credit note after the change resolves by its own date and notes the straddle INV-AC-14486`() {
         val result = creditNote(creditDate).coded()
         result.document.lines
             .single()
@@ -198,7 +202,7 @@ class RateStraddleTest {
     }
 
     @Test
-    fun `INV-AC-747 a blank-linked credit note before the change resolves by its own date too`() {
+    fun `INV-AC-747 a blank-linked credit note before the change resolves by its own date too INV-AC-14486`() {
         val result = creditNote(before).coded()
         result.document.lines
             .single()
@@ -217,12 +221,13 @@ class RateStraddleTest {
     }
 
     @Test
-    fun `INV-AC-747 a blank number is treated as no preceding document, not as an unknown original`() {
+    fun `INV-AC-747 a blank number is treated as no preceding document, not as an unknown original INV-AC-14486`() {
         creditNote(creditDate, "  ").coded().trace.basis shouldBe RateDateBasis.OWN_DATE_BLANK_LINKED
     }
 
     @Test
-    fun `INV-AC-1819 a credit note naming an unknown original without its date raises RUL-008 and takes no rate`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-1819 a credit note naming an unknown original without its date raises RUL-008 and takes no rate INV-AC-14485`() {
         val result = creditNote(creditDate, "INV-NEVER").shouldBeInstanceOf<CreditNoteCodingResult.UnknownOriginal>()
         result.code shouldBe ErrorCode.RUL_008
         result.precedingDocumentNumber shouldBe "INV-NEVER"

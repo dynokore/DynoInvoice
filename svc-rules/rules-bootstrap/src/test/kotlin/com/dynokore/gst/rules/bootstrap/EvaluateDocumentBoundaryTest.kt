@@ -353,7 +353,8 @@ class EvaluateDocumentBoundaryTest(
         date?.let { ""","precedingDocumentDate":"$it"""" }.orEmpty()
 
     @Test
-    fun `INV-AC-746 a credit note across a rate change takes rate and code from the original, verdict from its own`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-746 a credit note across a rate change takes rate and code from the original, verdict from its own INV-AC-14485`() {
         scope.dates.clear()
         val linked = evaluate("CHG", "2026-10-10", AS_CREDIT_NOTE + link("INV-1", "2026-09-20"))
         linked.text("categoryCode") shouldBe "SR"
@@ -391,7 +392,8 @@ class EvaluateDocumentBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-747 a credit note with both preceding fields blank resolves by its own date, with the note`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-747 a credit note with both preceding fields blank resolves by its own date, with the note INV-AC-14486`() {
         val own = evaluate("CHG", "2026-10-10", AS_CREDIT_NOTE)
         own.text("categoryCode") shouldBe "ZR"
         own.version("MAPPING") shouldBe "m2"
@@ -418,7 +420,8 @@ class EvaluateDocumentBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1819 a credit note with a number and no date is RUL-008, and coded once the date is given`() {
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-26036: the task fixes this long test name
+    fun `INV-AC-1819 a credit note with a number and no date is RUL-008, and coded once the date is given INV-AC-14485`() {
         val unknown = evaluate("CHG", "2026-10-10", AS_CREDIT_NOTE + link("INV-9", null))
         unknown.text("code") shouldBe "RUL-008"
         unknown.text("severity") shouldBe "BLOCK"
