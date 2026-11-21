@@ -615,7 +615,7 @@ class SampleExchangeIT {
     }
 
     @Test
-    fun `INV-AC-19914 the boot jar holds exactly one staged schema entry with the bundle maxItems`() {
+    fun `INV-AC-19914 the boot jar holds the two staged schema entries, the dry-run one with the bundle maxItems`() {
         val entry =
             "BOOT-INF/classes/gst/contracts/service-runtime/schemas/" +
                 "pack-dry-run-sample-recorded-payload.schema.json"
@@ -627,7 +627,13 @@ class SampleExchangeIT {
                     .map { it.name }
                     .filter { it.endsWith(".schema.json") }
                     .toList()
-            names shouldBe listOf(entry)
+            // the staged entries are the dry-run page schema and the reprocessing page schema (INV-T-24003), no other
+            names.sorted() shouldBe
+                listOf(
+                    entry,
+                    "BOOT-INF/classes/gst/contracts/service-runtime/schemas/" +
+                        "pack-reprocessing-population-recorded-payload.schema.json",
+                )
             val text = jar.getInputStream(jar.getEntry(entry)).use { it.readBytes().decodeToString() }
             val staged = SampleExchangeKit.mapper.readTree(text)
             staged

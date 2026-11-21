@@ -56,9 +56,12 @@ tasks.withType<Test>().configureEach {
 // The page limit of the dry-run sample is read from the one contract file at run time: exactly this entry of the
 // pinned bundle is staged into the classpath resources (contract-first, no committed copy, no literal number).
 val sampleSchemaEntry = "service-runtime/schemas/pack-dry-run-sample-recorded-payload.schema.json"
+val reprocessingSchemaEntry = "service-runtime/schemas/pack-reprocessing-population-recorded-payload.schema.json"
 val stageSampleSchema by tasks.registering(Sync::class) {
     into(layout.buildDirectory.dir("generated/sample-schema/resources"))
-    into("gst/contracts") { from(zipTree(contractsBundle.singleFile)) { include(sampleSchemaEntry) } }
+    into("gst/contracts") {
+        from(zipTree(contractsBundle.singleFile)) { include(sampleSchemaEntry, reprocessingSchemaEntry) }
+    }
     includeEmptyDirs = false
 }
 sourceSets.main { resources.srcDir(stageSampleSchema.map { it.destinationDir }) }

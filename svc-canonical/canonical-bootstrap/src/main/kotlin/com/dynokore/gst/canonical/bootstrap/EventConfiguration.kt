@@ -32,9 +32,14 @@ object CanonicalEvents {
             "NetDerivationRefused" to "gst.canonical.net-derivation-refused.v1",
         ).associate { (name, topic) -> "$TYPE_PREFIX$name.v1" to topic }
 
-    /** The platform event canonical-svc emits besides its own (INV-REQ-772 b1): one page of the dry-run sample. */
+    /** The platform event canonical-svc emits besides its own (INV-REQ-772 b1): one page of the dry-run sample, and
+     * (INV-REQ-1003) one page of the population of a reprocessing run. */
     val platformTopicByType: Map<String, String> =
-        mapOf("com.dynokore.gst.platform.PackDryRunSampleRecorded.v1" to "gst.platform.pack-dry-run-sample-recorded.v1")
+        mapOf(
+            "com.dynokore.gst.platform.PackDryRunSampleRecorded.v1" to "gst.platform.pack-dry-run-sample-recorded.v1",
+            "com.dynokore.gst.platform.PackReprocessingPopulationRecorded.v1" to
+                "gst.platform.pack-reprocessing-population-recorded.v1",
+        )
 
     val entries: List<CatalogueEntry> =
         (topicByType + platformTopicByType).map { (type, topic) ->
