@@ -111,11 +111,26 @@ class ReadPermissionContractTest {
         check(offences.any { it.contains("exception.views") }) { "$offences" }
     }
 
+    @Test
+    fun `INV-AC-26281 GET v1 portfolio maps to period-readiness view and is no longer unmapped`() {
+        val portfolio =
+            CatalogueReadPermissions.ENTRIES.filter {
+                it.operationId == "getPortfolio" || it.pathTemplate == "/v1/portfolio"
+            }
+        check(portfolio.size == 1) { "expected exactly one portfolio entry: $portfolio" }
+        val e = portfolio.single()
+        check(e.method == "GET") { "method: ${e.method}" }
+        check(e.pathTemplate == "/v1/portfolio") { "path template: ${e.pathTemplate}" }
+        check(e.operationId == "getPortfolio") { "operation id: ${e.operationId}" }
+        check(e.permissionKey == "period-readiness.view") { "key: ${e.permissionKey}" }
+        check("period-readiness.view" in allKeys()) { "key not in the generated map of the pinned catalogue" }
+        check("getPortfolio" !in EXPECTED_UNMAPPED) { "getPortfolio is still listed as unmapped" }
+    }
+
     private companion object {
         /** GET operations of the contract that have no permission decision yet (the filter refuses their routes). */
         val EXPECTED_UNMAPPED: Set<String> =
             setOf(
-                "getPortfolio",
                 "getExceptionDecisionTrace",
                 "getOverridePreview",
                 "searchDocuments",
