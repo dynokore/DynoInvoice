@@ -112,6 +112,44 @@ class UpstreamContractVerifierTest {
         elements(empty, FeedKind.EVENT_STREAM) shouldBe ContractElement.entries - ContractElement.BATCH_MANIFEST
     }
 
+    @Test
+    fun `INV-AC-2411 an event with no lines fails the contract test with one line tax violation on each feed`() {
+        FeedKind.entries.forEach { feed ->
+            UpstreamContractVerifier.verify(complete, feed) shouldBe emptyList()
+            val violations = UpstreamContractVerifier.verify(complete.copy(lines = emptyList()), feed)
+            violations.size shouldBe 1
+            violations.single().element shouldBe ContractElement.LINE_TAX_ATTRIBUTES
+        }
+    }
+
+    @Test
+    fun `INV-AC-2411 an event whose lines carry no tax attributes fails with one violation on each feed`() {
+        FeedKind.entries.forEach { feed ->
+            UpstreamContractVerifier.verify(complete, feed) shouldBe emptyList()
+            val bare =
+                UpstreamContractVerifier.verify(
+                    complete.copy(lines = listOf(UpstreamLine(null, null, null))),
+                    feed,
+                )
+            bare.size shouldBe 1
+            bare.single().element shouldBe ContractElement.LINE_TAX_ATTRIBUTES
+            val blankAmount =
+                UpstreamContractVerifier.verify(
+                    complete.copy(lines = listOf(UpstreamLine("SR", "9", "  "))),
+                    feed,
+                )
+            blankAmount.size shouldBe 1
+            blankAmount.single().element shouldBe ContractElement.LINE_TAX_ATTRIBUTES
+            val twoLines =
+                UpstreamContractVerifier.verify(
+                    complete.copy(lines = listOf(UpstreamLine("SR", "9", "9.00"), UpstreamLine(" ", "9", "9.00"))),
+                    feed,
+                )
+            twoLines.size shouldBe 1
+            twoLines.single().element shouldBe ContractElement.LINE_TAX_ATTRIBUTES
+        }
+    }
+
     private fun each(
         e: UpstreamEvent,
         element: ContractElement,
