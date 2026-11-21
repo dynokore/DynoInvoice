@@ -11,6 +11,7 @@ dependencies {
     testImplementation(libs.snakeyaml)
     testImplementation(project(":submission-bootstrap"))
     testImplementation(project(":submission-application"))
+    testImplementation(project(":submission-domain"))
     testImplementation(platform(libs.platform.bom))
     testImplementation(libs.platform.outboxAndQueue.api)
     testImplementation(libs.platform.tenancyKernel.api)
