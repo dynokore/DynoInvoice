@@ -4,6 +4,7 @@ import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 class PullWindowPlannerTest {
     private val now = Instant.parse("2026-03-10T00:00:00Z")
@@ -21,6 +22,13 @@ class PullWindowPlannerTest {
     @Test
     fun `INV-AC-14106 look-back 7 starts a week before the watermark and ends at now`() {
         plan() shouldBe PullWindow.Planned(Instant.parse("2026-03-01T00:00:00Z"), now)
+    }
+
+    @Test
+    fun `INV-AC-2281 a pull with the default look-back of 7 days re-reads what changed in the previous 7 days`() {
+        val planned = plan(days = 7, b = LookBackBounds(1, 60)) as PullWindow.Planned
+        planned.from shouldBe watermark.postingTimestamp.minus(7, ChronoUnit.DAYS)
+        planned.until shouldBe now
     }
 
     @Test
