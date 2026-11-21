@@ -19,7 +19,8 @@ the AuthorityChanged feed of every service's authority replica, and the token ve
 ## Repository gates (`./gradlew check`)
 
 - **`acKeyCoverage`** (root, `gradle/gates/ac-key-coverage.gradle.kts`): `ac-keys.tsv` lists the acceptance criteria
-  of this service's tasks (criterion, task, wave). Fails when the table is missing, empty or malformed, when a wave-2 row
+  of this service's tasks (criterion, task, wave and an optional `module` cell; a row with a module cell is
+  proven only by cases in that module directory). Fails when the table is missing, empty or malformed, when a wave-2 row
   has no test whose name contains its key as a whole token, or when a test name holds a key that is in no row.
   Every later task of this service appends the rows of its own `ac_refs` and deferred criteria.
 - **`operations.tsv`** (`OperationsTableTest`): every operationId and channel of the contract with the task that
