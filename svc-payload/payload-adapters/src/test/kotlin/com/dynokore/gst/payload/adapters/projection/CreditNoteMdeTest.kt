@@ -5,6 +5,7 @@ import com.dynokore.gst.payload.domain.MdeCompleteness
 import com.dynokore.gst.payload.domain.MdeResult
 import com.dynokore.gst.payload.domain.SpecificationFamily
 import com.dynokore.gst.payload.domain.SubmissionType
+import com.dynokore.gst.payload.domain.ValidationVerdict
 import com.dynokore.gst.payload.domain.header.DocumentHeaderInput
 import com.dynokore.gst.payload.domain.party.IdentityTriple
 import com.dynokore.gst.payload.domain.party.PartyIdentifierInput
@@ -88,5 +89,17 @@ class CreditNoteMdeTest {
         val failures = TableConformanceGate.check(build("381", null), "381", FixtureValueMap.gateRows("381"))
         failures.isNotEmpty() shouldBe true
         failures.joinToString("\n") shouldContain "IBT-022"
+    }
+
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
+    @Test
+    fun `INV-AC-1817 a credit note without an Invoice Note gets the verdict Blocked with PAY-001 and the same content as an invoice gets Passed`() {
+        val credit = ValidationVerdict.of(emptyList(), check(build("381", null), "381"))
+        credit shouldBe ValidationVerdict.Blocked(emptyList(), listOf("IBT-022"), emptyList())
+        (credit as ValidationVerdict.Blocked).codes() shouldBe listOf("PAY-001")
+        val invoice = ValidationVerdict.of(emptyList(), check(build("380", null), "380"))
+        invoice shouldBe ValidationVerdict.Passed(emptyList())
+        val noted = ValidationVerdict.of(emptyList(), check(build("381", "Thanks"), "381"))
+        noted shouldBe ValidationVerdict.Passed(emptyList())
     }
 }
