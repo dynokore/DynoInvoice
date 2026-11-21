@@ -508,6 +508,7 @@ class MappingPackBoundaryTest(
     }
 
     @Test
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
     fun `INV-AC-1652 INV-AC-15988 a version signed off by another user is activated and its approval record is exported`() {
         val label = label()
         val packId = fullFlow(label, "2026-01-01")
