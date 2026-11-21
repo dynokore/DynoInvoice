@@ -90,6 +90,10 @@ openapi.yaml	AuditPackExport.expectedRetrievalSeconds	NONE
 openapi.yaml	DeletionResult.partitionId	NONE
 openapi.yaml	DeletionResult.status	NONE
 openapi.yaml	DeletionResult.deletedAt	NONE
+openapi.yaml	DeletionResult.noticeWindowDays	NONE
+openapi.yaml	DeletionResult.windowAcknowledgement	IDENTIFYING
+openapi.yaml	WindowAcknowledgement.userId	IDENTIFYING
+openapi.yaml	WindowAcknowledgement.soleOperator	NONE
 openapi.yaml	DeletionStatus.partitionId	NONE
 openapi.yaml	DeletionStatus.state	NONE
 openapi.yaml	DeletionStatus.startedAt	NONE
