@@ -4,7 +4,9 @@ import com.dynokore.gst.masterdata.adapters.persistence.JooqHeldDocuments
 import com.dynokore.gst.masterdata.application.held.HeldDocumentFact
 import com.dynokore.gst.masterdata.application.held.HeldDocumentRow
 import com.dynokore.gst.masterdata.application.held.HeldDocumentRule
+import com.dynokore.gst.masterdata.application.held.HeldDocumentRule.NO_REASON
 import com.dynokore.gst.masterdata.application.held.HeldKind
+import com.dynokore.gst.masterdata.application.held.ReasonMark
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
@@ -86,7 +88,8 @@ class HeldDocumentsStoreTest {
         BoundaryFixture.asSuperuser { c ->
             c
                 .prepareStatement(
-                    "select doc_uuid, docsequence, held, entity, party_ref from masterdata.held_document " +
+                    "select doc_uuid, docsequence, held, entity, party_ref, identity_docsequence " +
+                        "from masterdata.held_document " +
                         "where tenant_id = ?::uuid",
                 ).use { s ->
                     s.setString(1, tenant.value.toString())
@@ -102,6 +105,8 @@ class HeldDocumentsStoreTest {
                                         rs.getBoolean(3),
                                         rs.getString(4),
                                         rs.getString(5),
+                                        rs.getLong(6).takeUnless { rs.wasNull() },
+                                        marks(tenant, doc),
                                     ),
                                 )
                             }
@@ -109,6 +114,35 @@ class HeldDocumentsStoreTest {
                     }
                 }
         }
+
+    private fun marks(
+        tenant: TenantId,
+        doc: UUID,
+    ): Map<String, ReasonMark> =
+        BoundaryFixture.asSuperuser { c ->
+            c
+                .prepareStatement(
+                    "select reason, docsequence, held from masterdata.held_document_reason " +
+                        "where tenant_id = ?::uuid and doc_uuid = ?::uuid",
+                ).use { s ->
+                    s.setString(1, tenant.value.toString())
+                    s.setString(2, doc.toString())
+                    s.executeQuery().use { rs ->
+                        buildMap {
+                            while (rs.next()) put(rs.getString(1), ReasonMark(rs.getLong(2), rs.getBoolean(3)))
+                        }
+                    }
+                }
+        }
+
+    /** The row of facts without reasons: one stand-in mark at [seq]; the identity sequence is [seq]. */
+    private fun row(
+        d: UUID,
+        seq: Long,
+        held: Boolean,
+        entity: String?,
+        party: String?,
+    ) = HeldDocumentRow(d, seq, held, entity, party, seq, mapOf(NO_REASON to ReasonMark(seq, held)))
 
     private fun scalar(sql: String): List<String> =
         BoundaryFixture.asSuperuser { c ->
@@ -145,14 +179,14 @@ class HeldDocumentsStoreTest {
             env.apply(t1, listOf(firstOrder[5]))
             assertThat(rows(t1).getValue(d3)).isEqualTo(repeated)
             env.apply(t1, listOf(released(d1, 2)))
-            assertThat(rows(t1).getValue(d1)).isEqualTo(HeldDocumentRow(d1, 2, false, "E1", "P1"))
+            assertThat(rows(t1).getValue(d1)).isEqualTo(row(d1, 2, false, "E1", "P1").copy(identityDocsequence = 1))
             env.apply(t1, listOf(held(d1, 1, "E1", "P1")))
-            assertThat(rows(t1).getValue(d1)).isEqualTo(HeldDocumentRow(d1, 2, false, "E1", "P1"))
-            assertThat(rows(t1).keys).containsExactlyInAnyOrder(d1, d2, d3, d4)
-            assertThat(rows(t1)).doesNotContainKey(d5)
+            assertThat(rows(t1).getValue(d1)).isEqualTo(row(d1, 2, false, "E1", "P1").copy(identityDocsequence = 1))
+            assertThat(rows(t1).keys).containsExactlyInAnyOrder(d1, d2, d3, d4, d5)
+            assertThat(rows(t1).getValue(d5)).isEqualTo(row(d5, 1, true, "E1", null))
             // a release on a row of another entity keeps the entity (it is not overwritten)
             env.apply(t1, listOf(released(d4, 2)))
-            assertThat(rows(t1).getValue(d4)).isEqualTo(HeldDocumentRow(d4, 2, false, "E2", "P1"))
+            assertThat(rows(t1).getValue(d4)).isEqualTo(row(d4, 2, false, "E2", "P1").copy(identityDocsequence = 1))
         }
 
     @Test
@@ -161,23 +195,24 @@ class HeldDocumentsStoreTest {
             val t1 = TenantId(UUID.randomUUID())
             val other = TenantId(UUID.randomUUID())
             env.apply(t1, firstOrder)
-            env.apply(other, firstOrder.filter { it.docUuid != d5 }.reversed())
+            env.apply(other, firstOrder.reversed())
             assertThat(rows(other)).isEqualTo(rows(t1))
-            assertThat(rows(other)).hasSize(4)
+            assertThat(rows(other)).hasSize(5)
         }
 
     @Test
-    fun `INV-AC-21332 a later hold without party clears the party and a hold without party on no row writes nothing`() =
+    fun `INV-AC-21332 a later hold without party clears the party and a hold without party on no row is stored`() =
         on { env, _ ->
             val t1 = TenantId(UUID.randomUUID())
             env.apply(t1, firstOrder)
             env.apply(t1, listOf(held(d2, 2, "E1", null), held(d6, 1, "E1", null)))
-            assertThat(rows(t1).getValue(d2)).isEqualTo(HeldDocumentRow(d2, 2, true, "E1", null))
+            assertThat(rows(t1).getValue(d2)).isEqualTo(row(d2, 2, true, "E1", null))
             assertThat(env.heldFor(t1, "E1", "P2")).isEmpty()
-            assertThat(rows(t1)).doesNotContainKeys(d5, d6)
+            assertThat(rows(t1).getValue(d5)).isEqualTo(row(d5, 1, true, "E1", null))
+            assertThat(rows(t1).getValue(d6)).isEqualTo(row(d6, 1, true, "E1", null))
             // an equal or lower sequence does not clear the party again or restore it
             env.apply(t1, listOf(held(d2, 2, "E1", "P2"), held(d2, 1, "E1", "P2")))
-            assertThat(rows(t1).getValue(d2)).isEqualTo(HeldDocumentRow(d2, 2, true, "E1", null))
+            assertThat(rows(t1).getValue(d2)).isEqualTo(row(d2, 2, true, "E1", null))
         }
 
     @Test

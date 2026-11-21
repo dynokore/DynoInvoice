@@ -148,16 +148,16 @@ class HeldDocumentFeedTest {
         }
 
     @Test
-    fun `INV-AC-21335 a hold without a party on no row writes no row and a higher docsequence wins`() =
+    fun `INV-AC-21335 a hold without a party on no row writes a row and a higher docsequence wins`() =
         run { env ->
             env.hold(env.heldData(env.d2, 2))
-            assertThat(env.rows()).doesNotContainKey(env.d2)
+            assertThat(env.rows()).containsOnly(entry(env.d2, 2L to true))
             env.hold(env.heldData(env.d1, 1, partyRef = env.party))
             env.release(env.releasedData(env.d1, 2))
             assertThat(env.heldFor(env.t1)).isEmpty()
-            assertThat(env.rows()).containsOnly(entry(env.d1, 2L to false))
+            assertThat(env.rows()).containsOnly(entry(env.d2, 2L to true), entry(env.d1, 2L to false))
             env.hold(env.heldData(env.d1, 1, partyRef = env.party))
-            assertThat(env.rows()).containsOnly(entry(env.d1, 2L to false))
+            assertThat(env.rows()).containsOnly(entry(env.d2, 2L to true), entry(env.d1, 2L to false))
         }
 
     @Test

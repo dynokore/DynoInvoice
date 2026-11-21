@@ -33,6 +33,9 @@ object ConsumedHeldDocumentEvents {
             DOCUMENT_RELEASED to DOCUMENT_RELEASED_TOPIC,
         )
 
+    /** The hold reason of a document blocked by RUL-011; the only spelling of it (exact, case-sensitive match). */
+    const val RUL_011 = "RUL-011"
+
     /** The published bound of entityRef and partyRef. */
     const val REF_MAX = 40
 }

@@ -22,43 +22,58 @@ data class HeldDocumentFact(
     }
 }
 
-/** The replica row of one document of the bound tenant; a released row is a tombstone that keeps its sequence. */
+/** The last sequence and state of one hold reason of one document: held, or released. */
+data class ReasonMark(
+    val docsequence: Long,
+    val held: Boolean,
+)
+
+/**
+ * The replica row of one document of the bound tenant. [marks] keeps the last-writer-wins state of each reason by
+ * sequence; [held] is true exactly while some mark is held; [docsequence] is the highest sequence seen; [entity] and
+ * [partyRef] come from the hold with the highest sequence, which is [identityDocsequence] (null when no hold was seen).
+ */
 data class HeldDocumentRow(
     val docUuid: UUID,
     val docsequence: Long,
     val held: Boolean,
     val entity: String?,
     val partyRef: String?,
-    /** True exactly while the latest fact by sequence is a hold whose reasons contain [HeldDocumentRule.RUL_011]. */
-    val rul011: Boolean = false,
+    val identityDocsequence: Long?,
+    val marks: Map<String, ReasonMark>,
 )
 
-/** Idempotent, order-insensitive apply by the per-document sequence (last writer by sequence wins). */
+/**
+ * Idempotent, commutative apply (a convergent replica): a fact replaces the mark of each reason it names only when its
+ * sequence is higher, a hold replaces entity and party only when its sequence is higher than the identity sequence.
+ * Any order of the same facts, or a repeat, ends in the same row.
+ */
 object HeldDocumentRule {
-    /** The hold reason of a document blocked by RUL-011; the only spelling (exact, case-sensitive match). */
-    const val RUL_011 = "RUL-011"
+    /** The reason a fact without reasons stands for (the handlers never produce one: the contract needs a reason). */
+    const val NO_REASON = ""
 
-    /** The row to store, or null when nothing changes (stale or repeated event, or a hold without party on no row). */
+    /** The row to store, or null when nothing changes (a stale or repeated fact). */
     fun next(
         current: HeldDocumentRow?,
         fact: HeldDocumentFact,
     ): HeldDocumentRow? {
-        val stale = current != null && current.docsequence >= fact.docsequence
-        val bareHold = fact.kind == HeldKind.HELD && fact.partyRef == null && current == null
-        val names = RUL_011 in fact.reasons
-        val kept = !names && current?.rul011 == true
-        return when {
-            stale || bareHold -> {
-                null
-            }
-
-            fact.kind == HeldKind.HELD -> {
-                HeldDocumentRow(fact.docUuid, fact.docsequence, true, fact.entity, fact.partyRef, names)
-            }
-
-            else -> {
-                HeldDocumentRow(fact.docUuid, fact.docsequence, false, current?.entity, current?.partyRef, kept)
-            }
+        val isHold = fact.kind == HeldKind.HELD
+        val marks = current?.marks.orEmpty().toMutableMap()
+        for (reason in fact.reasons.ifEmpty { setOf(NO_REASON) }) {
+            val known = marks[reason]?.docsequence ?: 0L
+            if (known < fact.docsequence) marks[reason] = ReasonMark(fact.docsequence, isHold)
         }
+        val newIdentity = isHold && (current?.identityDocsequence ?: 0L) < fact.docsequence
+        val result =
+            HeldDocumentRow(
+                fact.docUuid,
+                maxOf(current?.docsequence ?: 0L, fact.docsequence),
+                marks.values.any { it.held },
+                if (newIdentity) fact.entity else current?.entity,
+                if (newIdentity) fact.partyRef else current?.partyRef,
+                if (newIdentity) fact.docsequence else current?.identityDocsequence,
+                marks,
+            )
+        return result.takeIf { it != current }
     }
 }
