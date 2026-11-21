@@ -256,4 +256,28 @@ class ExceptionQueueDbTest {
         count("select count(*) from console_bff.exception") shouldBe before
         count("select count(*) from console_bff.deferral where tenant_id = '$tenantA'") shouldBe 0
     }
+
+    @Test
+    fun `INV-AC-25898 a deferred exception keeps its due date and open state and only the deferred read returns it`() {
+        seed()
+        val openRows = "select count(*) from console_bff.exception where tenant_id = '$tenantA' and state = 'OPEN'"
+        val dueRows =
+            "select count(*) from console_bff.period_due_date where tenant_id = '$tenantA' and " +
+                "entity_ref = 'E-001' and period_ref = '2026-Q1' and due_date = date '2026-11-21'"
+        val openBefore = count(openRows)
+        val before = drain(tenantA, both, deferred = false).filter { it.row.exceptionId == id(2) }
+        before.size shouldBe 1
+        before.single().dueDate shouldBe LocalDate.parse("2026-11-21")
+        before.single().row.state shouldBe ItemState.OPEN
+
+        deferral(tenantA, "E-001", "DOCUMENT", "doc-2")
+
+        val deferred = drain(tenantA, both, deferred = true).filter { it.row.exceptionId == id(2) }
+        deferred.size shouldBe 1
+        deferred.single().dueDate shouldBe LocalDate.parse("2026-11-21")
+        deferred.single().row.state shouldBe ItemState.OPEN
+        ids(drain(tenantA, both, deferred = false)).contains(id(2)) shouldBe false
+        count(dueRows) shouldBe 1
+        count(openRows) shouldBe openBefore
+    }
 }
