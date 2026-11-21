@@ -109,8 +109,8 @@ class MigrationDdlTest {
         const val QUEUE_HEADER =
             "-- Generated: QueueSchema.ddl(\"rules\", \"rules_runtime\", \"rules_sys\") of outbox-and-queue " +
                 "(INV-T-4978, TPL-12),\n" +
-                "-- committed as text; MigrationDdlTest fails when it differs. The work queue and the lane rate window " +
-                "of the\n" +
+                "-- committed as text; MigrationDdlTest fails when it differs. The work queue and the lane rate " +
+                "window of the\n" +
                 "-- reprocessing lane (INV-REQ-1004); the run and the resubmission list follow the generated text.\n"
         val TESTMODE_COLUMN = Regex(",\\s*testmode boolean not null default false")
         const val FEFF_CODE = 0xFEFF

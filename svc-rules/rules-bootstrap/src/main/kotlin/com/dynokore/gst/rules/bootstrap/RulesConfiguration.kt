@@ -3,7 +3,6 @@ package com.dynokore.gst.rules.bootstrap
 import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
 import com.dynokore.gst.rules.adapters.clients.HttpPackFeedProbe
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
-import com.dynokore.gst.rules.adapters.events.ReprocessingEvents
 import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
 import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
@@ -11,6 +10,7 @@ import com.dynokore.gst.rules.adapters.events.PackReadinessAcknowledgedHandler
 import com.dynokore.gst.rules.adapters.events.PackReadinessEvents
 import com.dynokore.gst.rules.adapters.events.PeriodRecordsChangedEvents
 import com.dynokore.gst.rules.adapters.events.PeriodRecordsChangedHandler
+import com.dynokore.gst.rules.adapters.events.ReprocessingEvents
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.events.StoredLastCompletePeriodPort
 import com.dynokore.gst.rules.adapters.packs.ClasspathTrustAnchors
@@ -89,10 +89,10 @@ import com.dynokore.gst.rules.application.PackActionAuthority
 import com.dynokore.gst.rules.application.PackApprovalDecisionPort
 import com.dynokore.gst.rules.application.PackBundleNotFoundException
 import com.dynokore.gst.rules.application.PackContentsCheck
+import com.dynokore.gst.rules.application.PackCorrectionPermissionPort
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
 import com.dynokore.gst.rules.application.PackCurrencyStore
 import com.dynokore.gst.rules.application.PackDocumentEvaluation
-import com.dynokore.gst.rules.application.PackCorrectionPermissionPort
 import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.PackFeedPoller

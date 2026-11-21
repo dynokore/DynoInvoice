@@ -31,12 +31,12 @@ import com.dynokore.gst.rules.application.MappingPackAuthoring
 import com.dynokore.gst.rules.application.MappingPackResult
 import com.dynokore.gst.rules.application.PackActionCommand
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
+import com.dynokore.gst.rules.application.RefusalReason
 import com.dynokore.gst.rules.application.ReprocessPopulation
 import com.dynokore.gst.rules.application.ReprocessPopulationResult
 import com.dynokore.gst.rules.application.ReprocessingRunState
 import com.dynokore.gst.rules.application.RollbackPack
 import com.dynokore.gst.rules.application.RollbackPackResult
-import com.dynokore.gst.rules.application.RefusalReason
 import com.dynokore.gst.rules.contract.api.MappingPacksApi
 import com.dynokore.gst.rules.contract.api.RegulatoryPacksApi
 import com.dynokore.gst.rules.contract.model.AcceptSourceClassEntryRequest
@@ -55,17 +55,17 @@ import com.dynokore.gst.rules.contract.model.MappingImportRecordPage
 import com.dynokore.gst.rules.contract.model.MappingImportRecordRejectedRowsInner
 import com.dynokore.gst.rules.contract.model.MappingPack
 import com.dynokore.gst.rules.contract.model.RegulatoryPack
+import com.dynokore.gst.rules.contract.model.ReprocessingRun
 import com.dynokore.gst.rules.domain.pack.PackStatus
 import com.dynokore.gst.rules.domain.pack.SourceClass
 import com.dynokore.gst.rules.domain.resolution.TransactionDate
 import com.dynokore.platform.serviceruntime.http.ClosedErrorCode
-import com.dynokore.platform.serviceruntime.replica.StructureReplica
-import com.dynokore.gst.rules.contract.model.ReprocessingRun
-import org.springframework.beans.factory.ObjectProvider
 import com.dynokore.platform.serviceruntime.logging.CorrelationContext
+import com.dynokore.platform.serviceruntime.replica.StructureReplica
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.ObjectProvider
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpStatus
@@ -546,13 +546,25 @@ open class PacksController(
         val result = rollback.execute(packType, bad, effectiveFrom, actor(), REGULATORY_PACK_ROLLBACK)
         val row =
             when (result) {
-                is RollbackPackResult.Created -> result.row
-                is RollbackPackResult.Repeated -> result.row
-                RollbackPackResult.Denied ->
+                is RollbackPackResult.Created -> {
+                    result.row
+                }
+
+                is RollbackPackResult.Repeated -> {
+                    result.row
+                }
+
+                RollbackPackResult.Denied -> {
                     throw closed(ClosedErrorCode.ACCESS_DENIED, "the rollback is not permitted")
-                RollbackPackResult.NotFound -> throw closed(ClosedErrorCode.NOT_FOUND, null)
-                is RollbackPackResult.Refused ->
+                }
+
+                RollbackPackResult.NotFound -> {
+                    throw closed(ClosedErrorCode.NOT_FOUND, null)
+                }
+
+                is RollbackPackResult.Refused -> {
                     throw closed(ClosedErrorCode.CONTRACT_VIOLATION, result.reason::class.simpleName)
+                }
             }
         return ResponseEntity.ok(RegulatoryPackArmingMapping.armed(packType, row.version, row.effectiveFrom))
     }
@@ -568,7 +580,8 @@ open class PacksController(
         idempotencyKey: UUID,
     ): ResponseEntity<ReprocessingRun> {
         val replica =
-            structure.ifAvailable?.takeIf { it.isSynced() } ?: throw unavailable("the entity structure is not available")
+            structure.ifAvailable?.takeIf { it.isSynced() }
+                ?: throw unavailable("the entity structure is not available")
         val entities =
             replica
                 .entitiesOf(tenants.current())
@@ -583,12 +596,21 @@ open class PacksController(
             }
         val run =
             when (result) {
-                is ReprocessPopulationResult.Started -> result.run
-                is ReprocessPopulationResult.Resumed -> result.run
-                ReprocessPopulationResult.Denied ->
+                is ReprocessPopulationResult.Started -> {
+                    result.run
+                }
+
+                is ReprocessPopulationResult.Resumed -> {
+                    result.run
+                }
+
+                ReprocessPopulationResult.Denied -> {
                     throw closed(ClosedErrorCode.ACCESS_DENIED, "the reprocessing is not permitted")
-                ReprocessPopulationResult.NoSupersedingPackArmed ->
+                }
+
+                ReprocessPopulationResult.NoSupersedingPackArmed -> {
                     throw closed(ClosedErrorCode.STALE_AGGREGATE, "no superseding pack is armed")
+                }
             }
         val status =
             if (run.state == ReprocessingRunState.COMPLETE) {

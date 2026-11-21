@@ -103,7 +103,13 @@ open class CorrectionHarness(
     context: ApplicationContext,
     policy: PolicyReplica,
 ) : ArmingHarness(port, replica, clock, context, policy) {
-    protected val type = "CORR_" + UUID.randomUUID().toString().take(8).uppercase()
+    protected val type =
+        "CORR_" +
+            UUID
+                .randomUUID()
+                .toString()
+                .take(8)
+                .uppercase()
     protected val d0: LocalDate = LocalDate.parse("2026-06-01")
     protected val earlier = "e" + UUID.randomUUID().toString().take(5)
     protected val bad = "b" + UUID.randomUUID().toString().take(5)
@@ -202,13 +208,25 @@ open class CorrectionHarness(
 
     protected fun artefactBytes(version: PackVersion): List<String> =
         inTenant {
-            val a = PersistedPackRegistry(context.getBean(DSLContext::class.java), context.getBean(TenantContext::class.java)).artefactOf(version)!!
+            val registry =
+                PersistedPackRegistry(
+                    context.getBean(DSLContext::class.java),
+                    context.getBean(TenantContext::class.java),
+                )
+            val a = registry.artefactOf(version)!!
             listOf(String(a.manifest), String(a.checksums), a.signature.joinToString(","), String(a.contents))
         }
 
     protected fun packVersion(label: String) =
         PackVersion(
-            PackManifest(PackId("$type-pack"), PackType(type), PackVersionLabel(label), LocalDate.parse("2026-01-01"), null, "1.0.0"),
+            PackManifest(
+                PackId("$type-pack"),
+                PackType(type),
+                PackVersionLabel(label),
+                LocalDate.parse("2026-01-01"),
+                null,
+                "1.0.0",
+            ),
             null,
         )
 
@@ -216,7 +234,13 @@ open class CorrectionHarness(
 }
 
 @SpringBootTest(
-    classes = [PolicyFixtures::class, ImportFixtures::class, ArmingFixtures::class, CorrectionFixtures::class, RulesApplication::class],
+    classes = [
+        PolicyFixtures::class,
+        ImportFixtures::class,
+        ArmingFixtures::class,
+        CorrectionFixtures::class,
+        RulesApplication::class,
+    ],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
 class PackCorrectionIT(
@@ -233,7 +257,7 @@ class PackCorrectionIT(
     }
 
     @Test
-    fun `INV-AC-23932 rollbackPack arms the superseding pack from the bad pack's date and refuses any other date with nothing stored`() {
+    fun `INV-AC-23932 rollbackPack arms the superseding pack from the bad pack's date and refuses another date`() {
         seedBadPack()
         grantRollback("u-roll")
         val badBefore = registryRow(bad)
@@ -246,9 +270,15 @@ class PackCorrectionIT(
         registryRow(earlier) shouldBe earlierBefore
         scalar("select count(*) from rules.pack_registry where pack_type = ?", type) shouldBe "3"
         val label = "$bad-rollback"
-        scalar("select effective_from::text || '/' || status || '/' || artefact_version from rules.pack_registry where pack_type = ? and pack_version = ?", type, label) shouldBe
+        scalar(
+            "select effective_from::text || '/' || status || '/' || artefact_version from rules.pack_registry " +
+                "where pack_type = ? and pack_version = ?",
+            type,
+            label,
+        ) shouldBe
             "$d0/ARMED/$earlier"
-        // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later registered_at)
+        // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later
+        // registered_at)
         val mid = LocalDate.parse("2026-08-01")
         resolvedAt(mid)!!.version.value shouldBe label
         resolvedAt(d0)!!.version.value shouldBe label
@@ -265,7 +295,11 @@ class PackCorrectionIT(
             snapshot() shouldBe before
         }
         // look-alike: the label of another version is not the superseding row
-        scalar("select count(*) from rules.pack_registry where pack_type = ? and pack_version = ?", type, "$bad-rollbacks") shouldBe "0"
+        scalar(
+            "select count(*) from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            "$bad-rollbacks",
+        ) shouldBe "0"
     }
 
     @Test
@@ -273,18 +307,26 @@ class PackCorrectionIT(
         seedBadPack()
         grantRollback("u-roll")
         rollback("u-roll").statusCode() shouldBe 200
-        scalar("select status || '/' || effective_from from rules.pack_registry where pack_type = ? and pack_version = ?", type, bad) shouldBe "ARMED/$d0"
+        scalar(
+            "select status || '/' || effective_from from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            bad,
+        ) shouldBe "ARMED/$d0"
         // a repeat of the same call stores no second row
         rollback("u-roll").statusCode() shouldBe 200
         scalar("select count(*) from rules.pack_registry where pack_type = ?", type) shouldBe "3"
     }
 
     @Test
-    fun `INV-AC-1055 correction part the superseding reversal is effective-dated from the original date, not the clock`() {
+    fun `INV-AC-1055 correction part the superseding reversal is effective-dated from the original date`() {
         seedBadPack()
         grantRollback("u-roll")
         rollback("u-roll").statusCode() shouldBe 200
-        scalar("select effective_from::text from rules.pack_registry where pack_type = ? and pack_version = ?", type, "$bad-rollback") shouldBe d0.toString()
+        scalar(
+            "select effective_from::text from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            "$bad-rollback",
+        ) shouldBe d0.toString()
     }
 
     @Test
@@ -310,7 +352,8 @@ class PackCorrectionIT(
 
     @Test
     fun `INV-AC-23932 the permission constants equal the x-operation permission of the pinned contract`() {
-        val contract = String(PacksController::class.java.getResourceAsStream("/contract/openapi.yaml")!!.readAllBytes())
+        val contract =
+            String(PacksController::class.java.getResourceAsStream("/contract/openapi.yaml")!!.readAllBytes())
         contract shouldContain "permission: ${PacksController.REGULATORY_PACK_ROLLBACK}"
         contract shouldContain "permission: ${PacksController.REGULATORY_PACK_REPROCESS}"
         PacksController.REGULATORY_PACK_ROLLBACK shouldBe "regulatory-pack.rollback"

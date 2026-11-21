@@ -256,7 +256,12 @@ class ReprocessingPageRecordedHandler(
                 pageNumber = pageNumber,
                 position = position,
                 docUuid = docUuid,
-                periodRef = node.get("periodRef")?.takeIf { it.isString }?.asString().orEmpty(),
+                periodRef =
+                    node
+                        .get("periodRef")
+                        ?.takeIf { it.isString }
+                        ?.asString()
+                        .orEmpty(),
                 entityRef = entity,
                 transactionDate = date(node, "transactionDate") ?: bad("transactionDate is missing"),
                 internalTaxCode = text(node, "internalTaxCode", MAX_TEXT),
@@ -295,7 +300,11 @@ class ReprocessingPageRecordedHandler(
         name: String,
         max: Int,
     ): String =
-        node.get(name)?.takeIf { it.isString }?.asString()?.takeIf { it.isNotEmpty() && it.length <= max }
+        node
+            .get(name)
+            ?.takeIf { it.isString }
+            ?.asString()
+            ?.takeIf { it.isNotEmpty() && it.length <= max }
             ?: bad("$name is missing, empty or too long")
 
     private fun parse(text: String): JsonNode =
@@ -368,7 +377,9 @@ class ReprocessingWorker(
                     queue.complete(item)
                 }
             }
-        } catch (@Suppress("TooGenericExceptionCaught") e: RuntimeException) {
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: RuntimeException,
+        ) {
             // the worker barrier: the item is released
             log.warn("reprocessing item {} released after a failure", item.seq, e)
             scope.bind(item.tenant, WORKLOAD) { scope.transactions.inTransaction { queue.release(item) } }

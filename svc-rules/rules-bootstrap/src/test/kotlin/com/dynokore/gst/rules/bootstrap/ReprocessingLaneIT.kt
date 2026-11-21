@@ -19,7 +19,13 @@ private const val LIMIT = 3
 private const val POPULATION = 8
 
 @SpringBootTest(
-    classes = [PolicyFixtures::class, ImportFixtures::class, ArmingFixtures::class, CorrectionFixtures::class, RulesApplication::class],
+    classes = [
+        PolicyFixtures::class,
+        ImportFixtures::class,
+        ArmingFixtures::class,
+        CorrectionFixtures::class,
+        RulesApplication::class,
+    ],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
 class ReprocessingLaneIT(
@@ -40,7 +46,7 @@ class ReprocessingLaneIT(
     }
 
     @Test
-    fun `INV-AC-23934 every item of the run is on the reprocessing lane and the live document is claimed first within the limit`() {
+    fun `INV-AC-23934 every item of the run is on the reprocessing lane and the live document goes first`() {
         // the window row is platform-wide and shared with the other classes of this database: start from none
         exec("delete from rules.lane_rate_window")
         val id = startRun()
@@ -53,7 +59,10 @@ class ReprocessingLaneIT(
             tenant.toString(),
         )
         scalar("select count(*) from rules.work_queue where lane = 'LIVE' and partition_key <> 'live-doc'") shouldBe "0"
-        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?", type) shouldBe POPULATION.toString()
+        scalar(
+            "select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?",
+            type,
+        ) shouldBe POPULATION.toString()
         val queue = context.getBean(WorkQueue::class.java)
         val window = ArrayList<Lane>()
         while (true) window += (queue.claimNext() ?: break).lane

@@ -7,9 +7,10 @@ import org.junit.jupiter.api.Test
 import org.springframework.mock.env.MockEnvironment
 import java.time.Duration
 
-/** The limit of lane REPROCESSING has no default in code (INV-REQ-1004): absent, zero, negative or look-alike keys refuse. */
+/** The limit of lane REPROCESSING has no default in code (INV-REQ-1004): a bad or look-alike key refuses. */
 class ReprocessingLaneLimitsTest {
-    private fun env(vararg p: Pair<String, String>) = MockEnvironment().also { e -> p.forEach { e.setProperty(it.first, it.second) } }
+    private fun env(vararg p: Pair<String, String>) =
+        MockEnvironment().also { e -> p.forEach { e.setProperty(it.first, it.second) } }
 
     private val permits = ReprocessingConfiguration.PERMITS
     private val window = ReprocessingConfiguration.WINDOW

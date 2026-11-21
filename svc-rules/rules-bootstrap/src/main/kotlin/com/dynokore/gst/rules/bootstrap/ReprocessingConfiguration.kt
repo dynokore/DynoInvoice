@@ -30,6 +30,7 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -201,6 +202,6 @@ class ReprocessingWorkerScheduling(
 
     private companion object {
         const val TICK_MILLIS = 1_000L
-        val log = LoggerFactory.getLogger(ReprocessingWorkerScheduling::class.java)
+        val log: Logger = LoggerFactory.getLogger(ReprocessingWorkerScheduling::class.java)
     }
 }

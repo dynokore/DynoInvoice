@@ -80,14 +80,12 @@ class JooqPackCorrectionStore(
                     .and(PACK_REGISTRY.TENANT_ID.eq(TenantId.PLATFORM.value))
                     .and(PACK_REGISTRY.STATUS.eq(ARMED))
                     .and(
-                        if (superseding) PACK_REGISTRY.ARTEFACT_VERSION.isNotNull else PACK_REGISTRY.ARTEFACT_VERSION.isNull,
-                    )
-                    .orderBy(
+                        PACK_REGISTRY.ARTEFACT_VERSION.let { if (superseding) it.isNotNull else it.isNull },
+                    ).orderBy(
                         PACK_REGISTRY.EFFECTIVE_FROM.desc(),
                         PACK_REGISTRY.REGISTERED_AT.desc(),
                         PACK_REGISTRY.ID.desc(),
-                    )
-                    .limit(1)
+                    ).limit(1)
                     .fetchOne(PACK_REGISTRY.PACK_VERSION)
             }
         }
