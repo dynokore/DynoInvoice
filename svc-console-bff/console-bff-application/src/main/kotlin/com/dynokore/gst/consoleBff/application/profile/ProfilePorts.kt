@@ -12,6 +12,7 @@ data class ProfileValue(
     val options: List<String>,
     val otherwiseOption: String? = null,
     val conditionConstraint: String? = null,
+    val needsAcknowledgement: List<String> = emptyList(),
 )
 
 data class ProfileDefinition(
@@ -71,6 +72,15 @@ sealed interface ProfileApplyResult {
 
     data class Failed(
         val reason: String,
+        val written: List<ProfileValueChange> = emptyList(),
+    ) : ProfileApplyResult
+
+    data class AcknowledgementRequired(
+        val variationPoints: List<String>,
+    ) : ProfileApplyResult
+
+    data class ConditionUndecided(
+        val variationPoint: String,
     ) : ProfileApplyResult
 }
 

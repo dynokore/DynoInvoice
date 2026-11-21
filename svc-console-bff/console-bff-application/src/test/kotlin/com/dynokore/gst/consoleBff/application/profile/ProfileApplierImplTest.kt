@@ -8,10 +8,12 @@ class ProfileApplierImplTest {
     private val vp01 =
         ProfileValue("VP-01", listOf("CUSTOMER_OIDC"), "PLATFORM_IDENTITY", "VP-01.DIRECTORY_CONNECTED")
     private val vp20 = ProfileValue("VP-20", listOf("DAILY_WINDOW"))
+    private val vp01Ack = vp01.copy(needsAcknowledgement = listOf("CUSTOMER_OIDC"))
 
     private class Fixture(
         values: List<ProfileValue>,
         fact: Boolean? = true,
+        factFor: (String) -> Boolean? = { fact },
         current: Map<String, String> = mapOf("VP-01" to "PLATFORM_IDENTITY"),
         failOn: String? = null,
     ) {
@@ -19,27 +21,31 @@ class ProfileApplierImplTest {
         val writes = mutableListOf<List<Any>>()
         val records = mutableListOf<List<Any>>()
         private val profile = ProfileDefinition("PRF-2", 1, ProfileStatus.AVAILABLE, values)
+        private val applier =
+            ProfileApplierImpl(
+                { _, _, c -> factFor(c) },
+                { _, _, vp -> current[vp] },
+                { _, _, _, _, vp, option, ref, v ->
+                    calls += "write"
+                    writes += listOf(vp, option, ref, v)
+                    if (vp == failOn) PolicyWriteResult.Rejected("down") else PolicyWriteResult.Success
+                },
+                { _, scope, _, ref, v ->
+                    calls += "record"
+                    records += listOf(scope, ref, v)
+                    PolicyWriteResult.Success
+                },
+            )
         val useCase =
             ApplyOperatingProfile(
                 { _, _, _, _ -> true },
                 { _, _ -> profile },
-                { _, _, _ -> fact },
+                { _, _, c -> factFor(c) },
                 { _, _, vp -> current[vp] },
-                ProfileApplierImpl(
-                    { _, _, _ -> fact },
-                    { _, _, vp -> current[vp] },
-                    { _, _, _, _, vp, option, ref, v ->
-                        calls += "write"
-                        writes += listOf(vp, option, ref, v)
-                        if (vp == failOn) PolicyWriteResult.Rejected("down") else PolicyWriteResult.Success
-                    },
-                    { _, scope, _, ref, v ->
-                        calls += "record"
-                        records += listOf(scope, ref, v)
-                        PolicyWriteResult.Success
-                    },
-                ),
+                applier,
             )
+
+        fun result() = applier.apply(ProfileApplyCommand("t1", "u1", "ENT-1", ProfileScope.TENANT, profile))
 
         fun apply() =
             useCase.execute(
@@ -72,24 +78,50 @@ class ProfileApplierImplTest {
     }
 
     @Test
-    fun `an undecided condition writes and records nothing`() {
-        val f = Fixture(listOf(vp01), fact = null)
-        f.apply().shouldBeInstanceOf<ApplyOperatingProfileOutcome.Unavailable>()
+    fun `an undecided second value is ConditionUndecided with nothing written even if the first changes`() {
+        val vp02 = ProfileValue("VP-02", listOf("A"), "B", "VP-02.C")
+        val f = Fixture(listOf(vp20, vp02), factFor = { if (it == "VP-02.C") null else true })
+        f.apply() shouldBe ApplyOperatingProfileOutcome.ConditionUndecided("VP-02")
         f.calls shouldBe emptyList()
     }
 
     @Test
-    fun `a failing first write stops the later write and the record`() {
+    fun `a failing first write lists no earlier write and stops`() {
         val f = Fixture(listOf(vp01, vp20), failOn = "VP-01")
-        f.apply().shouldBeInstanceOf<ApplyOperatingProfileOutcome.Unavailable>()
+        f.result().shouldBeInstanceOf<ProfileApplyResult.Failed>().written shouldBe emptyList()
         f.calls shouldBe listOf("write")
     }
 
     @Test
-    fun `a failure at the second write lists the first write and records nothing`() {
+    fun `a failure at the second write lists exactly the first write and records nothing`() {
         val f = Fixture(listOf(vp01, vp20), failOn = "VP-20")
-        val out = f.apply() as ApplyOperatingProfileOutcome.Unavailable
-        out.reason shouldBe "write failed at VP-20: down; written: VP-01"
+        f.result().shouldBeInstanceOf<ProfileApplyResult.Failed>().written shouldBe
+            listOf(ProfileValueChange("VP-01", "PLATFORM_IDENTITY", "CUSTOMER_OIDC"))
         f.calls shouldBe listOf("write", "write")
+        f.apply().shouldBeInstanceOf<ApplyOperatingProfileOutcome.Unavailable>()
+    }
+
+    @Test
+    fun `a value whose option needs acknowledgement writes and records nothing`() {
+        val f = Fixture(listOf(vp01Ack))
+        f.apply() shouldBe ApplyOperatingProfileOutcome.AcknowledgementRequired(listOf("VP-01"))
+        f.calls shouldBe emptyList()
+    }
+
+    @Test
+    fun `an empty or look-alike acknowledgement list does not block the write`() {
+        listOf(emptyList(), listOf("CUSTOMER_OIDC2")).forEach {
+            val f = Fixture(listOf(vp01.copy(needsAcknowledgement = it)))
+            f.apply().shouldBeInstanceOf<ApplyOperatingProfileOutcome.Applied>()
+            f.calls shouldBe listOf("write", "record")
+        }
+    }
+
+    @Test
+    fun `the acknowledgement check uses the resolved otherwise option`() {
+        val f = Fixture(listOf(vp01Ack), fact = false, current = mapOf("VP-01" to "X"))
+        f.apply().shouldBeInstanceOf<ApplyOperatingProfileOutcome.Applied>()
+        val g = Fixture(listOf(vp01.copy(needsAcknowledgement = listOf("PLATFORM_IDENTITY"))), fact = false)
+        g.apply() shouldBe ApplyOperatingProfileOutcome.AcknowledgementRequired(listOf("VP-01"))
     }
 }

@@ -7,30 +7,30 @@ class ProfileApplierImpl(
     private val writer: PolicyWriter,
     private val recorder: AppliedProfileRecorder,
 ) : ProfileApplier {
-    override fun apply(command: ProfileApplyCommand): ProfileApplyResult =
-        try {
-            applyChecked(command)
+    override fun apply(command: ProfileApplyCommand): ProfileApplyResult {
+        val written = mutableListOf<ProfileValueChange>()
+        return try {
+            if (command.profile.status == ProfileStatus.AVAILABLE) {
+                applyAvailable(command, written)
+            } else {
+                ProfileApplyResult.Failed("profile is not available")
+            }
         } catch (
             @Suppress("TooGenericExceptionCaught") e: Exception,
         ) {
-            ProfileApplyResult.Failed("port failure: ${e.javaClass.simpleName}")
-        }
-
-    private fun applyChecked(command: ProfileApplyCommand): ProfileApplyResult {
-        val profile = command.profile
-        return when {
-            profile.status != ProfileStatus.AVAILABLE -> {
-                ProfileApplyResult.Failed("profile is not available")
-            }
-
-            else -> {
-                when (val resolved = resolve(command)) {
-                    is Resolved.Undecided -> ProfileApplyResult.Failed("undecided: ${resolved.variationPoint}")
-                    is Resolved.Pending -> writeAll(command, resolved.changes)
-                }
-            }
+            ProfileApplyResult.Failed("port failure: ${e.javaClass.simpleName}", written.toList())
         }
     }
+
+    private fun applyAvailable(
+        command: ProfileApplyCommand,
+        written: MutableList<ProfileValueChange>,
+    ): ProfileApplyResult =
+        when (val resolved = resolve(command)) {
+            is Resolved.Undecided -> ProfileApplyResult.ConditionUndecided(resolved.variationPoint)
+            is Resolved.NeedsAcknowledgement -> ProfileApplyResult.AcknowledgementRequired(resolved.variationPoints)
+            is Resolved.Pending -> writeAll(command, resolved.changes, written)
+        }
 
     private sealed interface Resolved {
         data class Pending(
@@ -40,25 +40,33 @@ class ProfileApplierImpl(
         data class Undecided(
             val variationPoint: String,
         ) : Resolved
+
+        data class NeedsAcknowledgement(
+            val variationPoints: List<String>,
+        ) : Resolved
     }
 
+    /** Resolves every value first; the acknowledgement check needs the resolved option. */
     private fun resolve(command: ProfileApplyCommand): Resolved {
         val pending = mutableListOf<ProfileValueChange>()
+        val acknowledge = mutableListOf<String>()
         for (value in command.profile.values) {
             val proposed = proposedOption(command, value) ?: return Resolved.Undecided(value.variationPoint)
+            if (proposed.split(",").any { it in value.needsAcknowledgement }) {
+                acknowledge += value.variationPoint
+            }
             val current = currentValues.current(command.tenantId, command.entityRef, value.variationPoint)
             if (current != proposed) pending += ProfileValueChange(value.variationPoint, current, proposed)
         }
-        return Resolved.Pending(pending)
+        return if (acknowledge.isEmpty()) Resolved.Pending(pending) else Resolved.NeedsAcknowledgement(acknowledge)
     }
 
     private fun writeAll(
         command: ProfileApplyCommand,
         pending: List<ProfileValueChange>,
+        written: MutableList<ProfileValueChange>,
     ): ProfileApplyResult {
         val profile = command.profile
-        val written = mutableListOf<ProfileValueChange>()
-        var failure: String? = null
         for (change in pending) {
             val result =
                 writer.set(
@@ -72,21 +80,21 @@ class ProfileApplierImpl(
                     profile.version,
                 )
             if (result is PolicyWriteResult.Rejected) {
-                failure = "write failed at ${change.variationPoint}: ${result.reason}"
-                break
+                return ProfileApplyResult.Failed(
+                    "write failed at ${change.variationPoint}: ${result.reason}",
+                    written.toList(),
+                )
             }
             written += change
         }
-        if (failure == null) {
-            val recorded =
-                recorder.record(command.tenantId, command.scope, command.entityRef, profile.profileRef, profile.version)
-            if (recorded is PolicyWriteResult.Rejected) failure = "record failed: ${recorded.reason}"
+        val recorded =
+            recorder.record(command.tenantId, command.scope, command.entityRef, profile.profileRef, profile.version)
+        return if (recorded is PolicyWriteResult.Rejected) {
+            ProfileApplyResult.Failed("record failed: ${recorded.reason}", written.toList())
+        } else {
+            ProfileApplyResult.Applied(written.toList())
         }
-        return failure?.let { ProfileApplyResult.Failed("$it; written: ${names(written)}") }
-            ?: ProfileApplyResult.Applied(written)
     }
-
-    private fun names(changes: List<ProfileValueChange>) = changes.joinToString(",") { it.variationPoint }
 
     /** Null when the condition is not decidable or no otherwise option exists: no guess. */
     private fun proposedOption(

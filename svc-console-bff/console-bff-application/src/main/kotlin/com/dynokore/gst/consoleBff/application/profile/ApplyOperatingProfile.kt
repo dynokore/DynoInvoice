@@ -35,6 +35,10 @@ sealed interface ApplyOperatingProfileOutcome {
         val variationPoint: String,
     ) : ApplyOperatingProfileOutcome
 
+    data class AcknowledgementRequired(
+        val variationPoints: List<String>,
+    ) : ApplyOperatingProfileOutcome
+
     data class Invalid(
         val reason: String,
     ) : ApplyOperatingProfileOutcome
@@ -138,6 +142,14 @@ class ApplyOperatingProfile(
             ) {
                 is ProfileApplyResult.Applied -> {
                     ApplyOperatingProfileOutcome.Applied(profile.profileRef, profile.version, result.changes)
+                }
+
+                is ProfileApplyResult.AcknowledgementRequired -> {
+                    ApplyOperatingProfileOutcome.AcknowledgementRequired(result.variationPoints)
+                }
+
+                is ProfileApplyResult.ConditionUndecided -> {
+                    ApplyOperatingProfileOutcome.ConditionUndecided(result.variationPoint)
                 }
 
                 is ProfileApplyResult.Failed -> {
