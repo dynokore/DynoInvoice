@@ -320,6 +320,7 @@ class CreditNoteHoldDbTest {
     }
 
     @Test
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // the ruled case name is one line
     fun `INV-AC-1827 workers polling while a credit note is AWAITING_PRECEDING never claim it and claim it once it is QUEUED`(
         @TempDir dir: Path,
     ) = run(dir) {
