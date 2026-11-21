@@ -55,26 +55,20 @@ class ReprocessingConfiguration {
     @Bean
     fun laneLimits(environment: Environment): LaneLimits = laneLimitsOf(environment)
 
-    /**
-     * The queue of lane REPROCESSING, held in its own type: a bean of type [WorkQueue] would be picked up by the
-     * platform's replay delivery, which would then claim reprocessing items as replay items.
-     */
     @Bean
-    fun reprocessingWorkQueue(
+    fun workQueue(
         scope: TenantScope,
         dsl: DSLContext,
         limits: LaneLimits,
         clock: Clock,
-    ): ReprocessingWorkQueue =
-        ReprocessingWorkQueue(
-            JdbcWorkQueue(
-                scope,
-                dsl,
-                SCHEMA,
-                LaneRateLimiter(scope, dsl, SCHEMA, limits),
-                clock,
-                QueueingReprocessingPort.CONSUMER,
-            ),
+    ): WorkQueue =
+        JdbcWorkQueue(
+            scope,
+            dsl,
+            SCHEMA,
+            LaneRateLimiter(scope, dsl, SCHEMA, limits),
+            clock,
+            QueueingReprocessingPort.CONSUMER,
         )
 
     @Bean
@@ -118,10 +112,10 @@ class ReprocessingConfiguration {
         permission: PackCorrectionPermissionPort,
         runs: JooqReprocessingStore,
         requests: ReprocessingEvents,
-        queue: ReprocessingWorkQueue,
+        queue: WorkQueue,
         packs: SupersedingPackPort,
     ): ReprocessPopulation =
-        ReprocessPopulation(permission, runs, requests, QueueingReprocessingPort(queue.queue), runs, packs)
+        ReprocessPopulation(permission, runs, requests, QueueingReprocessingPort(queue), runs, packs)
 
     /**
      * rules-svc is the subscriber of `gst.platform.pack-reprocessing-population-recorded.v1` (platform-contracts
@@ -153,10 +147,10 @@ class ReprocessingConfiguration {
 
     @Bean
     fun reprocessingWorker(
-        queue: ReprocessingWorkQueue,
+        queue: WorkQueue,
         scope: TenantScope,
         useCase: ReprocessPopulation,
-    ): ReprocessingWorker = ReprocessingWorker(queue.queue, scope, useCase)
+    ): ReprocessingWorker = ReprocessingWorker(queue, scope, useCase)
 
     /**
      * The one worker loop: a short tick that drains what the lane limit lets through. `rules.reprocessing.worker=false`
@@ -211,8 +205,3 @@ class ReprocessingWorkerScheduling(
         val log: Logger = LoggerFactory.getLogger(ReprocessingWorkerScheduling::class.java)
     }
 }
-
-/** The work queue of lane REPROCESSING; not a [WorkQueue] bean, so the platform's replay delivery skips it. */
-class ReprocessingWorkQueue(
-    val queue: WorkQueue,
-)

@@ -110,7 +110,7 @@ open class CorrectionHarness(
                 .toString()
                 .take(8)
                 .uppercase()
-    protected val d0: LocalDate = LocalDate.now(clock).minusDays(30)
+    protected val d0: LocalDate = LocalDate.parse("2026-06-01")
     protected val earlier = "e" + UUID.randomUUID().toString().take(5)
     protected val bad = "b" + UUID.randomUUID().toString().take(5)
 
@@ -165,7 +165,7 @@ open class CorrectionHarness(
 
     /** The earlier pack (with its artefact) and the bad pack that superseded it, armed from [d0]. */
     protected fun seedBadPack() {
-        seedArmed(earlier, d0.minusDays(150), null, artefact = true)
+        seedArmed(earlier, LocalDate.parse("2026-01-01"), null, artefact = true)
         seedArmed(bad, d0, earlier, artefact = false)
     }
 
@@ -223,7 +223,7 @@ open class CorrectionHarness(
                 PackId("$type-pack"),
                 PackType(type),
                 PackVersionLabel(label),
-                d0.minusDays(150),
+                LocalDate.parse("2026-01-01"),
                 null,
                 "1.0.0",
             ),
@@ -279,7 +279,7 @@ class PackCorrectionIT(
             "$d0/ARMED/$earlier"
         // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later
         // registered_at)
-        val mid = d0.plusDays(60)
+        val mid = LocalDate.parse("2026-08-01")
         resolvedAt(mid)!!.version.value shouldBe label
         resolvedAt(d0)!!.version.value shouldBe label
         resolvedAt(d0.minusDays(1))!!.version.value shouldBe earlier

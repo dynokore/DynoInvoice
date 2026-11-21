@@ -591,8 +591,7 @@ class EvaluateDocumentBoundaryTest(
             owner
                 .fetchRows(
                     "select table_name from information_schema.tables " +
-                        "where table_schema = 'rules' and table_type = 'BASE TABLE' " +
-                        "and table_name <> 'lane_rate_window' order by 1",
+                        "where table_schema = 'rules' and table_type = 'BASE TABLE' order by 1",
                 ).map { it["table_name"] as String }
         return tables.associateWith { table ->
             listOf(TENANT_A, platform).flatMap { tenant ->

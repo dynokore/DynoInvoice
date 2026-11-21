@@ -62,7 +62,7 @@ private const val ENGINE = "2.0.0"
 private const val FAMILY = "SCHEMATRON"
 private const val TABLES_SQL =
     "select table_name from information_schema.tables where table_schema = 'rules' " +
-        "and table_type = 'BASE TABLE' and table_name <> 'lane_rate_window' order by 1"
+        "and table_type = 'BASE TABLE' order by 1"
 private val OTHER_KEYS = listOf("regulatory-pack.author", "filing.confirm", "regulatory-pack.approve")
 private const val CONTENTS = """{"rules":[]}"""
 
