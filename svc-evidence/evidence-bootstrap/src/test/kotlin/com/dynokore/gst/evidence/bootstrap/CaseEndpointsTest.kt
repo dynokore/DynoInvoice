@@ -181,7 +181,7 @@ class CaseEndpointsTest {
     private fun instant(text: String): Instant = OffsetDateTime.parse(text).toInstant()
 
     @Test
-    fun `INV-AC-11698 the permit principal records a case and recordedAt equals the stored opened_at`() {
+    fun `INV-AC-11698 the permit principal records a case and recordedAt equals the stored opened_at INV-AC-1410`() {
         val t = tenant(RECORDER to "case.recorder")
         val ids = listOf(UUID.randomUUID(), UUID.randomUUID())
         val answer = record(RECORDER, t, request("REVIEW-9", ids, "keys revoked", exposed = true))
@@ -201,7 +201,7 @@ class CaseEndpointsTest {
     }
 
     @Test
-    fun `INV-AC-11698 breachAssessmentOpened equals personalDataExposed both ways`() {
+    fun `INV-AC-11698 breachAssessmentOpened equals personalDataExposed both ways INV-AC-1410`() {
         val t = tenant(RECORDER to "case.recorder")
         record(RECORDER, t, request(exposed = false)).body.get("breachAssessmentOpened").asBoolean() shouldBe false
         record(RECORDER, t, request(exposed = true)).body.get("breachAssessmentOpened").asBoolean() shouldBe true
@@ -257,7 +257,7 @@ class CaseEndpointsTest {
     }
 
     @Test
-    fun `INV-AC-11698 auditLogEntryIds come back in the order sent with duplicates kept`() {
+    fun `INV-AC-11698 auditLogEntryIds come back in the order sent with duplicates kept INV-AC-1410`() {
         val t = tenant(RECORDER to "case.recorder")
         val a = UUID.randomUUID()
         val b = UUID.randomUUID()
@@ -417,7 +417,7 @@ class CaseEndpointsTest {
     }
 
     @Test
-    fun `INV-AC-11698 the production permission matrix gives security officer both keys`() {
+    fun `INV-AC-11698 the production permission matrix gives security officer both keys INV-AC-1410`() {
         val production =
             service
                 .beansOf(OperationRoleMap::class.java)
