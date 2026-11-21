@@ -7,10 +7,12 @@ import com.dynokore.gst.submission.adapters.persistence.JooqInFlightStore
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayCandidateSource
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayRequeue
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayVersionLookup
+import com.dynokore.gst.submission.application.replay.PreviewReplayScope
 import com.dynokore.gst.submission.application.replay.ReplayActions
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionRequest
 import com.dynokore.gst.submission.application.replay.ReplayBySelectionResult
+import com.dynokore.gst.submission.application.replay.ReplayInFlightProbe
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersionRequest
 import com.dynokore.gst.submission.domain.replay.ReplayScope
@@ -138,6 +140,19 @@ class ReplayWiringTest {
             context.startupFailure.shouldBeNull()
             context.getBean(ReplayBySelection::class.java)
             context.getBean(TransactionsController::class.java)
+        }
+    }
+
+    @Test
+    fun `INV-AC-25828 the service context holds exactly one PreviewReplayScope and one ReplayInFlightProbe bean`(
+        @TempDir dir: Path,
+    ) {
+        SubmissionContext.offline(dir).run { context ->
+            context.startupFailure.shouldBeNull()
+            context.getBeansOfType(PreviewReplayScope::class.java).size shouldBe 1
+            context.getBeansOfType(ReplayInFlightProbe::class.java).size shouldBe 1
+            context.getBeansOfType(ReplayBySelection::class.java).size shouldBe 1
+            context.getBeansOfType(ReplaySingleVersion::class.java).size shouldBe 1
         }
     }
 

@@ -4,6 +4,7 @@ import com.dynokore.gst.submission.adapters.SignedBindings
 import com.dynokore.gst.submission.adapters.SubmissionDb
 import com.dynokore.gst.submission.adapters.persistence.JooqDrainResidualSource
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayCandidateSource
+import com.dynokore.gst.submission.adapters.persistence.JooqReplayInFlightProbe
 import com.dynokore.gst.submission.application.drain.ResidualCandidate
 import com.dynokore.gst.submission.application.drain.ResidualKind
 import com.dynokore.platform.tenancyjooq.TenantPredicateViolation
@@ -15,6 +16,8 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.jooq.DSLContext
+import org.jooq.ExecuteContext
+import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
@@ -207,5 +210,56 @@ class TenancyVerifiedAdaptersDbTest {
         rows.associate { it.docUuid to it.failureClass } shouldBe mapOf("a-$s" to "SUB-001", "c-$s" to null)
         rows.first { it.docUuid == "a-$s" }.queuedAt shouldBe t0
         rows.first { it.docUuid == "a-$s" }.periodRef shouldBe q1
+    }
+
+    @Test
+    fun `INV-AC-25828 the in-flight probe does not see another tenant's in-flight version through the tenancy verifier`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        carriesTenancyListeners()
+        val t = UUID.randomUUID()
+        val other = UUID.randomUUID()
+        seed { dsl, bind ->
+            bind(t)
+            version(dsl, t, "own-$s", "DEAD_LETTERED", "SUB-001")
+        }
+        seed { dsl, bind ->
+            bind(other)
+            dsl.execute(
+                "insert into submission.submission (tenant_id, doc_uuid, version, state, entity_ref) " +
+                    "values (?, ?, 2, 'QUEUED', ?)",
+                other,
+                "own-$s",
+                e1,
+            )
+        }
+        // Row level security alone hides the other tenant's row, so the predicate is proved by the statement text:
+        // the tenant is bound in the WHERE clause as well (CS-19).
+        val issued = mutableListOf<String>()
+        val listening =
+            dsl
+                .configuration()
+                .derive(
+                    object : ExecuteListener {
+                        override fun executeStart(ctx: ExecuteContext) {
+                            ctx.sql()?.let { issued.add(it) }
+                        }
+                    },
+                ).dsl()
+        val probe = JooqReplayInFlightProbe(listening, runner)
+        // The primary key of a version is (Doc UUID, version) across tenants, so the other tenant's QUEUED row is
+        // version 2 and the first tenant holds version 1 only: asked about version 1, the first tenant sees no other.
+        asTenant(t) { probe.hasOtherInFlight(TenantId(t), "own-$s", 1) } shouldBe false
+        asTenant(other) { probe.hasOtherInFlight(TenantId(other), "own-$s", 1) } shouldBe true
+        val probeSql =
+            issued
+                .map {
+                    it.lowercase().replace(
+                        "\"",
+                        "",
+                    )
+                }.filter { it.contains("from submission.submission") }
+        probeSql.isNotEmpty() shouldBe true
+        probeSql.all { it.contains(".tenant_id = cast(? as uuid)") } shouldBe true
     }
 }

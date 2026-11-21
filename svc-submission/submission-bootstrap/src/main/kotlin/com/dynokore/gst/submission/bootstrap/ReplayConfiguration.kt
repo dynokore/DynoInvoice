@@ -1,11 +1,15 @@
 package com.dynokore.gst.submission.bootstrap
 
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayCandidateSource
+import com.dynokore.gst.submission.adapters.persistence.JooqReplayInFlightProbe
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayRequeue
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayVersionLookup
 import com.dynokore.gst.submission.application.queue.InFlightStore
+import com.dynokore.gst.submission.application.register.RegisterListFactsStore
+import com.dynokore.gst.submission.application.replay.PreviewReplayScope
 import com.dynokore.gst.submission.application.replay.ReplayBySelection
 import com.dynokore.gst.submission.application.replay.ReplayCandidateSource
+import com.dynokore.gst.submission.application.replay.ReplayInFlightProbe
 import com.dynokore.gst.submission.application.replay.ReplayRequeue
 import com.dynokore.gst.submission.application.replay.ReplaySingleVersion
 import com.dynokore.gst.submission.application.replay.ReplayVersionLookup
@@ -52,4 +56,18 @@ class ReplayConfiguration {
         lookup: ReplayVersionLookup,
         requeue: ReplayRequeue,
     ): ReplaySingleVersion = ReplaySingleVersion(replica, lookup, requeue)
+
+    @Bean
+    fun replayInFlightProbe(
+        dsl: DSLContext,
+        runner: TransactionRunner,
+    ): ReplayInFlightProbe = JooqReplayInFlightProbe(dsl, runner)
+
+    @Bean
+    fun previewReplayScope(
+        replica: AuthorityReplica,
+        source: ReplayCandidateSource,
+        probe: ReplayInFlightProbe,
+        facts: RegisterListFactsStore,
+    ): PreviewReplayScope = PreviewReplayScope(replica, source, probe, facts)
 }
