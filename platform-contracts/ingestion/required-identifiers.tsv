@@ -133,3 +133,5 @@ WAIVED	enum_value	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-7
 COVERED_BY_OTHER_SOLUTION	enum_value	schemas/trigger-coverage-changed-payload.schema.json	INV-REQ-788
 # INV-T-22190: the optional stateVersion counter of the FeedHealthChanged payload (INV-REQ-792).
 stateVersion	property	schemas/feed-health-changed-payload.schema.json	INV-REQ-792
+submitTransaction.ING-023	operation_error_code	openapi.yaml	INV-REQ-1193
+submitTransaction.503	operation_response	openapi.yaml	INV-REQ-1193
