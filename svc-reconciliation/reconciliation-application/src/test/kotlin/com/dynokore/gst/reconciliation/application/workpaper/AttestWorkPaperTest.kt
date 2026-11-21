@@ -161,6 +161,16 @@ class AttestWorkPaperTest {
     }
 
     @Test
+    fun `INV-AC-2287 with the default the preparer cannot approve and a different person can`() {
+        go(actor = "U1") shouldBe AttestationResult.Refused(AttestationRefusal.SEPARATION_OF_DUTIES)
+        inserts shouldBe emptyList()
+        policyCalls shouldBe emptyList()
+        val expected = StoredAttestation("U2", now, null)
+        go(actor = "U2") shouldBe AttestationResult.Attested(expected)
+        inserts shouldBe listOf(Triple("T1", "R1", expected))
+    }
+
+    @Test
     fun `INV-AC-24429 preparer with the flag and no acknowledgement is refused`() {
         go(flag = true, actor = "U1") shouldBe AttestationResult.Refused(AttestationRefusal.SEPARATION_OF_DUTIES)
         inserts shouldBe emptyList()
