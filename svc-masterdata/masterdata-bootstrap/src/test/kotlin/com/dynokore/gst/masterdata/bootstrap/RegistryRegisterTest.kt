@@ -78,57 +78,92 @@ class RegistryRegisterTest {
     @Test
     fun `INV-AC-2323 INV-AC-26453 unreachable register retried with bounded jitter then breaker opens`() {
         RegistryStub().use { stub ->
-            runRegistry(registerUrl = stub.baseUrl) { env ->
+            runRegistry(
+                registerUrl = stub.baseUrl,
+                customize = { it.withPropertyValues("masterdata.registry.breaker-wait=PT2S") },
+            ) { env ->
                 val entity = env.entity()
-                stub.found(CACHED_UEN, "{\"uen\":\"$CACHED_UEN\",\"status\":\"REGISTERED\"}")
-                assertThat(env.lookup(entity, CACHED_UEN).status).isEqualTo("REGISTERED")
+                warmCache(env, stub, entity)
                 val afterCache = stub.gets()
                 stub.down(true)
                 val breakerWait = env.context.getBean(RegistryProperties::class.java).breakerWait
+                assertThat(breakerWait).isEqualTo(Duration.ofSeconds(2))
                 var n = 0
                 val next = { "2019%05dZ".format(Locale.ROOT, n++) }
 
-                assertThat(env.lookup(entity, next()).status).isEqualTo(REGISTER_UNAVAILABLE)
-                assertThat(stub.gets() - afterCache).isEqualTo(RegistryUseCases.RETRY_ATTEMPTS)
-                var previous = stub.gets()
-                var opened = -1
-                repeat(RegistryUseCases.BREAKER_WINDOW) {
-                    if (opened < 0) {
-                        assertThat(env.lookup(entity, next()).status).isEqualTo(REGISTER_UNAVAILABLE)
-                        if (stub.gets() == previous) opened = previous
-                        previous = stub.gets()
-                    }
-                }
-                assertThat(opened).describedAs("the breaker never opened").isGreaterThan(0)
-                assertRetryGaps(stub.times().drop(afterCache))
+                val opened = driveUntilOpen(env, stub, entity, next, afterCache)
+                val times = stub.times().drop(afterCache)
+                assertRetryGaps(times)
+                val lastCall = times.last()
 
                 repeat(OPEN_LOOKUPS) {
-                    env.advance(breakerWait.dividedBy(OPEN_LOOKUPS + 1L))
                     assertThat(env.lookup(entity, next()).status).isEqualTo(REGISTER_UNAVAILABLE)
                     assertThat(stub.gets()).isEqualTo(opened)
                 }
                 assertThat(env.lookup(entity, CACHED_UEN).status).isEqualTo("REGISTERED")
                 assertThat(stub.gets()).isEqualTo(opened)
-                env.advance(breakerWait.plusSeconds(1))
+                assertThat(Duration.ofNanos(System.nanoTime() - lastCall)).isLessThan(breakerWait)
+
+                val waitMs =
+                    breakerWait.plusSeconds(1).toMillis() - (System.nanoTime() - lastCall) / NANOS_PER_MS.toLong()
+                if (waitMs > 0) Thread.sleep(waitMs)
                 env.lookup(entity, next())
                 assertThat(stub.gets()).isGreaterThan(opened)
             }
         }
     }
 
+    /** One cached answer before the outage (the probe): one successful breaker call, counted in the window. */
+    private fun warmCache(
+        env: RegistryEnv,
+        stub: RegistryStub,
+        entity: String,
+    ) {
+        stub.found(CACHED_UEN, "{\"uen\":\"$CACHED_UEN\",\"status\":\"REGISTERED\"}")
+        assertThat(env.lookup(entity, CACHED_UEN).status).isEqualTo("REGISTERED")
+    }
+
+    /**
+     * Looks up until the register count stops rising; returns that count. The breaker opens on its
+     * BREAKER_WINDOW-th call, the warm-up being one of them: the failing calls before it split into lookups of
+     * RETRY_ATTEMPTS calls, the last one cut short when the window is not a multiple (its retry is refused).
+     */
+    private fun driveUntilOpen(
+        env: RegistryEnv,
+        stub: RegistryStub,
+        entity: String,
+        next: () -> String,
+        afterCache: Int,
+    ): Int {
+        val failing = RegistryUseCases.BREAKER_WINDOW - afterCache
+        val expected =
+            List(failing / RegistryUseCases.RETRY_ATTEMPTS) { RegistryUseCases.RETRY_ATTEMPTS } +
+                listOfNotNull((failing % RegistryUseCases.RETRY_ATTEMPTS).takeIf { it > 0 })
+        val perLookup = mutableListOf<Int>()
+        var opened = -1
+        repeat(RegistryUseCases.BREAKER_WINDOW) {
+            if (opened < 0) {
+                val before = stub.gets()
+                assertThat(env.lookup(entity, next()).status).isEqualTo(REGISTER_UNAVAILABLE)
+                if (stub.gets() == before) opened = before else perLookup += stub.gets() - before
+            }
+        }
+        assertThat(opened).describedAs("the breaker never opened").isGreaterThan(0)
+        assertThat(perLookup).describedAs("calls per lookup before the breaker opened").isEqualTo(expected)
+        return opened
+    }
+
     /** Gap 1 (first call to retry) of every lookup before the breaker opened: a lower bound, and jittered. */
     private fun assertRetryGaps(times: List<Long>) {
-        val perLookup = times.chunked(RegistryUseCases.RETRY_ATTEMPTS)
-        // only the lookup during which the breaker opened can be cut short (its retry is refused): the last one
-        assertThat(perLookup.dropLast(1)).allSatisfy { assertThat(it).hasSize(RegistryUseCases.RETRY_ATTEMPTS) }
         val gaps =
-            perLookup
-                .filter {
-                    it.size == RegistryUseCases.RETRY_ATTEMPTS
-                }.map { (it[1] - it[0]) / NANOS_PER_MS }
-        assertThat(
-            gaps.size,
-        ).describedAs("complete lookups before the breaker opened").isGreaterThanOrEqualTo(MIN_LOOKUPS)
+            times.chunked(RegistryUseCases.RETRY_ATTEMPTS).filter { it.size == RegistryUseCases.RETRY_ATTEMPTS }.map {
+                (
+                    it[1] -
+                        it[0]
+                ) /
+                    NANOS_PER_MS
+            }
+        assertThat(gaps.size).describedAs("lookups before the breaker opened").isGreaterThanOrEqualTo(MIN_LOOKUPS)
         val floorMs = (1 - RegistryUseCases.JITTER) * RegistryUseCases.RETRY_BACKOFF_MS
         assertThat(gaps).allSatisfy { assertThat(it).isGreaterThanOrEqualTo(floorMs) }
         val spread = gaps.max() - gaps.min()
