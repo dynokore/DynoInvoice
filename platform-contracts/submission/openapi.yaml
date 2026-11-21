@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.20.0
+  version: 1.21.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -97,6 +97,11 @@ paths:
         it in `entityFindings`, advisory only (INV-REQ-648, INV-Q-6323).
 
 
+        While a confirmed identity-triple correction of the entity is not fully
+        resubmitted, the response carries it in `identityTripleCorrections`
+        (INV-REQ-1006).
+
+
         The service always sends `filingDateRecorded`; false is the readiness fact "filing date not recorded" (INV-REQ-918, INV-Q-6704).
 
 
@@ -115,7 +120,7 @@ paths:
       x-caller-auth: end-user
       x-timeout: 3000
       x-error-codes: [SRT-004]
-      x-requirements: [INV-REQ-555, INV-REQ-1168, INV-REQ-814, INV-REQ-951, INV-REQ-1250]
+      x-requirements: [INV-REQ-555, INV-REQ-1168, INV-REQ-814, INV-REQ-951, INV-REQ-1250, INV-REQ-1006]
       parameters:
         - $ref: '#/components/parameters/EntityRef'
         - $ref: '#/components/parameters/PeriodRef'
@@ -166,6 +171,12 @@ paths:
                           optionKey: "ADD_WARN_CODES"
                           acknowledgedBy: "P-002"
                           acknowledgedAt: "2026-03-01T09:00:00Z"
+                    identityTripleCorrections:
+                      - changeRef: "CHG-0042"
+                        effectiveFrom: "2026-01-01"
+                        accessPointEscalation: true
+                        selectedCount: 12
+                        resubmittedCount: 5
         '403':
           $ref: '#/components/responses/Error'
         '503':
@@ -1938,7 +1949,46 @@ components:
             The service sends it only while an override for the returned
             `checkId` is recorded (overrideFilingGate, INV-REQ-72,
             INV-Q-6737).
+        identityTripleCorrections:
+          type: array
+          items:
+            $ref: '#/components/schemas/IdentityTripleCorrection'
+          description: >-
+            Present only while at least one identity-triple correction of the
+            entity is not fully resubmitted (INV-REQ-1006). It names the
+            corrections whose affected documents fall in the period of the
+            request and whose `resubmittedCount` is below `selectedCount`.
       required: [entityRef, periodRef, ready, tiers, computedAt]
+    IdentityTripleCorrection:
+      type: object
+      description: >-
+        One confirmed identity-triple correction not yet fully resubmitted
+        (INV-REQ-1006). `changeRef`, `effectiveFrom` and
+        `accessPointEscalation` are copied from the event
+        `IdentityTripleCorrected`.
+      properties:
+        changeRef:
+          type: string
+          minLength: 1
+          maxLength: 40
+        effectiveFrom:
+          type: string
+          format: date
+        accessPointEscalation:
+          type: boolean
+          description: >-
+            Copied from the event. It is only a flag shown to the user; the
+            escalation to the Access Point takes place outside the System
+            (INV-REQ-1006 behavior 3).
+        selectedCount:
+          type: integer
+          minimum: 0
+          description: The count of documents selected for reprocessing.
+        resubmittedCount:
+          type: integer
+          minimum: 0
+          description: The count of those documents already resubmitted.
+      required: [changeRef, effectiveFrom, accessPointEscalation, selectedCount, resubmittedCount]
     FilingGateOverrideRequest:
       type: object
       properties:

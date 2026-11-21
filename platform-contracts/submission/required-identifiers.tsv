@@ -269,3 +269,10 @@ originalDocUuid	property	schemas/net-derivation-requested-payload.schema.json	IN
 expectedBaseVersion	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
 creditNotes	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
 checkSubmissionBoundary.SRT-004	operation_error_code	openapi.yaml	INV-REQ-1005
+identityTripleCorrections	property	openapi.yaml	INV-REQ-1006
+ReadinessStatus.identityTripleCorrections	schema_property	openapi.yaml	INV-REQ-1006
+IdentityTripleCorrection.changeRef	schema_property	openapi.yaml	INV-REQ-1006
+IdentityTripleCorrection.effectiveFrom	schema_property	openapi.yaml	INV-REQ-1006
+IdentityTripleCorrection.accessPointEscalation	schema_property	openapi.yaml	INV-REQ-1006
+IdentityTripleCorrection.selectedCount	schema_property	openapi.yaml	INV-REQ-1006
+IdentityTripleCorrection.resubmittedCount	schema_property	openapi.yaml	INV-REQ-1006
