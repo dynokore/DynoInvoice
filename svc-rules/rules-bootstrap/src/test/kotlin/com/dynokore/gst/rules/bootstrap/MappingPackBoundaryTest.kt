@@ -508,7 +508,7 @@ class MappingPackBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1652 a version signed off by another user is activated and its approval record is exported`() {
+    fun `INV-AC-1652 INV-AC-15988 a version signed off by another user is activated and its approval record is exported`() {
         val label = label()
         val packId = fullFlow(label, "2026-01-01")
         val pack = ok(call("GET", "$PACKS/$packId?entityRef=$ENTITY"))
@@ -536,7 +536,7 @@ class MappingPackBoundaryTest(
     }
 
     @Test
-    fun `the author is refused as approver and nothing is stored`() {
+    fun `INV-AC-15988 the author is refused as approver and nothing is stored`() {
         val label = label()
         val packId = draft(label)
         ok(mapCode(packId), 201)
@@ -550,7 +550,7 @@ class MappingPackBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-1653 activating a draft or a submitted version is refused and its row is unchanged`() {
+    fun `INV-AC-1653 INV-AC-15988 activating a draft or a submitted version is refused and its row is unchanged`() {
         val label = label()
         val packId = draft(label)
         ok(mapCode(packId), 201)
@@ -587,7 +587,7 @@ class MappingPackBoundaryTest(
     ) = io.kotest.assertions.withClue(clue, block)
 
     @Test
-    fun `INV-AC-1654 no delta row refuses submit and approve`() = refusedWithoutQualifyingDelta("n0") {}
+    fun `INV-AC-1654 INV-AC-15988 no delta row refuses submit and approve`() = refusedWithoutQualifyingDelta("n0") {}
 
     @Test
     fun `INV-AC-1654 a RUNNING delta refuses submit and approve`() =
@@ -702,7 +702,7 @@ class MappingPackBoundaryTest(
     }
 
     @Test
-    fun `INV-AC-395 re-applying the recorded version after a newer one is active gives the same codes`() =
+    fun `INV-AC-395 INV-AC-15989 re-applying the recorded version after a newer one is active gives the same codes`() =
         reproducible(2027)
 
     @Test
@@ -1228,7 +1228,7 @@ class MappingPackDefaultsTest(
     }
 
     @Test
-    fun `approvePack and activateMappingPack are refused with only the defaults and nothing is stored`() {
+    fun `INV-AC-15988 approvePack and activateMappingPack are refused with only the defaults and nothing is stored`() {
         val submitted = seedPack("df-a", "SUBMITTED")
         val approved = seedPack("df-v", "APPROVED")
         deltaRow(TENANT_A, "df-a", "COMPLETE")
