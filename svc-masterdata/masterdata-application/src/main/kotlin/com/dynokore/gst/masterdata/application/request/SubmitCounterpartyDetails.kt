@@ -39,10 +39,10 @@ sealed interface SubmitOutcome {
 
 /**
  * INV-REQ-902, INV-REQ-901 b3, INV-AC-18230, INV-AC-1938. Applies SignedLinkIssued and SignedLinkInvalidated
- * idempotently, in any order ([applyIssued], [applyInvalidated]), and stores a counterparty's confirmed values as COUNTERPARTY-provided only
- * when the link evidence of the verified token matches the request of the call. The evidence reference is the request
- * and link (`link:<linkRef>/<requestId>`), so it is never empty. Values are not validated as a precondition (FR-1.5).
- */
+ * idempotently, in any order ([applyIssued], [applyInvalidated]), and stores a counterparty's confirmed
+ * values as COUNTERPARTY-provided only when the link evidence of the verified token matches the request of the
+ * call. The evidence reference is the request and link (`link:<linkRef>/<requestId>`), so it is never empty. Values
+ * are not validated as a precondition (FR-1.5).
 @Suppress("LongParameterList") // the use case composes its ports; the held-documents port is the seventh
 class SubmitCounterpartyDetails(
     private val tx: TransactionRunner,
