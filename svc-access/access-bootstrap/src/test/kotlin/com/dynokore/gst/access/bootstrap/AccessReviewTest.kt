@@ -304,7 +304,7 @@ class AccessReviewTest {
     // ---- INV-AC-16621: a campaign of three grants closes only with an outcome per grant -------------------------
 
     @Test
-    fun `INV-AC-16621 a campaign of three grants closes on the second officer's outcome for the reviewer's own grant`() =
+    fun `INV-AC-16621 three grants close only on a second officer's outcome for the reviewer's own`() =
         AccessReviewEnv.run { env ->
             // exactly three grants in the campaign: one held by the acting reviewer, two by others
             val own = env.seed(OFFICER_1, Role.SECURITY_OFFICER)
