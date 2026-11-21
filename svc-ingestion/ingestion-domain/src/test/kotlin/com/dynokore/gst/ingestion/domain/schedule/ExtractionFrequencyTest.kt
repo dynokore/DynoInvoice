@@ -16,6 +16,14 @@ class ExtractionFrequencyTest {
     ) = ExtractionFrequency.choose(option, runs, fits, available, bounds.first, bounds.second)
 
     @Test
+    fun `INV-AC-2282 a new feed extracts daily and weekly is refused while the point is planned`() {
+        ExtractionFrequency.DEFAULT.option shouldBe ExtractionOption.DAILY
+        choose(ExtractionOption.WEEKLY, available = false, fits = true) shouldBe
+            Refused(ExtractionRefusal.POINT_PLANNED)
+        ExtractionFrequency.DEFAULT.option shouldBe ExtractionOption.DAILY
+    }
+
+    @Test
     fun `INV-AC-16256 daily without a run count is the default for every combination`() {
         for (fits in listOf(true, false)) {
             for (available in listOf(true, false)) {
