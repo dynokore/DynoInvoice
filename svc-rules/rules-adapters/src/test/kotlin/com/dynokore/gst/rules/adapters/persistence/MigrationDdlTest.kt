@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.adapters.persistence
 
 import com.dynokore.platform.outboxandqueue.OutboxSchema
+import com.dynokore.platform.outboxandqueue.QueueSchema
 import com.dynokore.platform.rulepackkernel.PackRegistryMigration
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
@@ -90,7 +91,22 @@ class MigrationDdlTest {
         grantMatches("-- c\n$GRANT\n") shouldBe true
     }
 
+    private val queueFile = File("src/main/resources/db/migration/V202611171000__reprocessing_queue_and_resubmission.sql")
+
+    private fun expectedQueue(): String =
+        QUEUE_HEADER + QueueSchema.ddl(schema = "rules", runtimeRole = "rules_runtime", sysRole = "rules_sys").trimEnd() + "\n"
+
+    /** INV-T-4978: the work queue tables are the generator's text, committed; the run and list tables follow it. */
+    @Test
+    fun `the reprocessing migration starts with the DDL the pinned outbox-and-queue generates for the work queue`() {
+        escapeBlankClass(queueFile.readText(Charsets.UTF_8)).startsWith(expectedQueue()) shouldBe true
+    }
+
     private companion object {
+        const val QUEUE_HEADER =
+            "-- Generated: QueueSchema.ddl(\"rules\", \"rules_runtime\", \"rules_sys\") of outbox-and-queue (INV-T-4978, TPL-12),\n" +
+                "-- committed as text; MigrationDdlTest fails when it differs. The work queue and the lane rate window of the\n" +
+                "-- reprocessing lane (INV-REQ-1004); the run and the resubmission list follow the generated text.\n"
         val TESTMODE_COLUMN = Regex(",\\s*testmode boolean not null default false")
         const val FEFF_CODE = 0xFEFF
         val BLANK_CODE_POINTS =
