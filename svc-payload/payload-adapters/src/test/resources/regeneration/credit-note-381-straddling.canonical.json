@@ -1,0 +1,9 @@
+{"documentTypeCode":{"value":"381","classification":"NONE"},
+ "parties":{"value":{
+   "supplier":{"identifierScheme":"SG_UEN","identifierValue":"201912345A","name":"Acme"},
+   "buyer":{"identifierScheme":"SG_UEN","identifierValue":"201888888A","name":"Buyer"}},"classification":"IDENTIFYING"},
+ "documentNumber":{"value":"CN-2024-000045","classification":"NONE"},
+ "documentDate":{"value":"2024-02-01","classification":"NONE"},
+ "invoiceNote":{"value":"Thanks","classification":"NONE"},
+ "identityTriple":{"value":{"senderId":"0195:201912345A","supplierId":"201912345A","supplierGstn":"M2-1234567-8"},
+   "classification":"IDENTIFYING"}}
