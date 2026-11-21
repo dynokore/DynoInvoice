@@ -74,10 +74,7 @@ object ReadinessCounter {
         require(entries.map { it.docUuid }.toSet().size == entries.size) { "two entries share a docUuid" }
         if (!dataAvailable) return ReadinessResult.UnableToDetermine
 
-        val counted =
-            entries
-                .filter { obligationStartDate == null || !it.transactionDate.isBefore(obligationStartDate) }
-                .mapNotNull { entry -> bucketOf(entry.versions)?.let { entry to it } }
+        val counted = countedEntries(entries, obligationStartDate)
 
         fun number(bucket: Bucket) = counted.count { it.second == bucket }
         val queued = number(Bucket.QUEUED)
@@ -104,6 +101,27 @@ object ReadinessCounter {
             ReadinessResult.Blocked(counts.outstanding, counts, residual)
         }
     }
+
+    /**
+     * The count of the period by latest lifecycle state, over the same entries as [evaluate] (one helper reads both).
+     * Only states with at least one entry are present, in [LifecycleState] order.
+     */
+    fun countsByState(
+        entries: List<ReadinessEntry>,
+        obligationStartDate: LocalDate?,
+    ): Map<LifecycleState, Int> {
+        val byState = countedEntries(entries, obligationStartDate).groupingBy { it.first.versions.last() }.eachCount()
+        return LifecycleState.entries.filter { it in byState }.associateWith { byState.getValue(it) }
+    }
+
+    /** The entries in scope (not before the obligation start date, latest state has a bucket) with their bucket. */
+    private fun countedEntries(
+        entries: List<ReadinessEntry>,
+        obligationStartDate: LocalDate?,
+    ): List<Pair<ReadinessEntry, Bucket>> =
+        entries
+            .filter { obligationStartDate == null || !it.transactionDate.isBefore(obligationStartDate) }
+            .mapNotNull { entry -> bucketOf(entry.versions)?.let { entry to it } }
 
     /** A rejected latest version is acknowledged when an earlier version of the entry was acknowledged. */
     private fun rejectedBucket(versions: List<LifecycleState>): Bucket =
