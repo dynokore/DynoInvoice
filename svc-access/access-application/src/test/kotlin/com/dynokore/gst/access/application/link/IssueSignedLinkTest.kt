@@ -257,7 +257,7 @@ class IssueSignedLinkTest {
     }
 
     @Test
-    fun `INV-AC-2763 a client signatory link goes by e-mail and its passcode by SMS in a separate message never in clear`() {
+    fun `INV-AC-2763 the link goes by e-mail and the passcode by SMS in a separate message, never in clear`() {
         val logger =
             java.util.logging.Logger
                 .getLogger("")
