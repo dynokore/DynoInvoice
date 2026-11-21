@@ -41,6 +41,14 @@ class MonetaryChangeRouteTest {
     }
 
     @Test
+    fun `INV-AC-2278 the default asks the approver and offers only the credit note route`() {
+        MonetaryChangeRoute.DEFAULT.option shouldBe RouteOption.ASK_APPROVER
+        val offered = MonetaryChangeRoute.offer(MonetaryChangeRoute.DEFAULT, 0, both, false)
+        offered shouldBe setOf(CREDIT_NOTE)
+        (KEYING_CORRECTION in offered) shouldBe false
+    }
+
+    @Test
     fun `INV-AC-16254 offers while keying available`() {
         MonetaryChangeRoute.offer(ask, 0, both, true) shouldBe both
         MonetaryChangeRoute.offer(always, 0, both, true) shouldBe setOf(CREDIT_NOTE)
