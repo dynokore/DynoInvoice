@@ -46,6 +46,14 @@ class DebitNoteReviewTest {
     }
 
     @Test
+    fun `INV-AC-2303 with review selected a debit note holds with ING-024 and proceeds once released`() {
+        val debitNote = DocumentFunction.DEBIT_NOTE
+        DebitNoteReview.outcome(HOLD_FOR_REVIEW, debitNote, false) shouldBe HeldBy(DEBIT_NOTE_REVIEW_CODE)
+        DebitNoteReview.outcome(HOLD_FOR_REVIEW, debitNote, true) shouldBe Complete
+        DebitNoteReview.outcome(DebitNoteReviewOption.PACK_RULE, debitNote, false) shouldBe Complete
+    }
+
+    @Test
     fun `INV-AC-16158 the option and function enums have the pinned members`() {
         DebitNoteReviewOption.entries shouldBe listOf(DebitNoteReviewOption.PACK_RULE, HOLD_FOR_REVIEW)
         DocumentFunction.entries.size shouldBe 6
