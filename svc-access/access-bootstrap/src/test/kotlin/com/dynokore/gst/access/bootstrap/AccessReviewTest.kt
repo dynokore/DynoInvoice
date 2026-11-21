@@ -300,4 +300,69 @@ class AccessReviewTest {
             env.denied(env.refusal { env.open(tenantRef = env.other.toString()) })
             assertThat(env.campaignRows("2026Q3")).isEqualTo(1)
         }
+
+    // ---- INV-AC-16621: a campaign of three grants closes only with an outcome per grant -------------------------
+
+    @Test
+    fun `INV-AC-16621 a campaign of three grants closes on the second officer's outcome for the reviewer's own grant`() =
+        AccessReviewEnv.run { env ->
+            // exactly three grants in the campaign: one held by the acting reviewer, two by others
+            val own = env.seed(OFFICER_1, Role.SECURITY_OFFICER)
+            val first = env.seed(VIEWERS[0], Role.AUDITOR)
+            val second = env.seed(VIEWERS[1], Role.AUDITOR)
+            val campaign = env.open()
+            // the second officer and tenant admin are seeded after the snapshot, so they are not in the campaign
+            env.seed(OFFICER_2, Role.SECURITY_OFFICER)
+            val grants = env.campaignGrants(campaign.reviewRef)
+            assertThat(grants.keys).containsExactlyInAnyOrder(own, first, second)
+            assertThat(env.grantsHeldBy(campaign.reviewRef, OFFICER_1)).containsExactly(own)
+            val changedBefore = env.authorityChangedRows()
+
+            // (a) after two outcomes on the other grants the campaign is OPEN, nothing has taken effect
+            assertThat(env.close(campaign.reviewRef, OFFICER_1, first to "REVOKED").status).isEqualTo(Status.OPEN)
+            assertThat(env.close(campaign.reviewRef, OFFICER_1, second to "REVOKED").status).isEqualTo(Status.OPEN)
+            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(2)
+            assertThat(env.grantStatus(first)).isEqualTo("ACTIVE")
+            assertThat(env.grantStatus(second)).isEqualTo("ACTIVE")
+            assertThat(env.authorityChangedRows()).isEqualTo(changedBefore)
+
+            // (b) the outcome on the reviewer's own grant is refused: ApiRefusal ACCESS_DENIED, 403 SRT-004
+            val refused = env.refusal { env.close(campaign.reviewRef, OFFICER_1, own to "CONFIRMED") }
+            env.denied(refused)
+            assertThat(refused.code.code).isEqualTo("SRT-004")
+            assertThat(env.statusOf(refused)).isEqualTo(403)
+            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(2)
+            assertThat(
+                env.count(
+                    "select count(*) from access.review_outcome where tenant_id = ? and campaign_ref = ? " +
+                        "and grant_ref = ?",
+                    env.tenant.value,
+                    campaign.reviewRef,
+                    own,
+                ),
+            ).isZero()
+
+            // (c) another caller holding access-review.run records it: CLOSED, both revocations applied by that close
+            assertThat(env.close(campaign.reviewRef, OFFICER_2, own to "CONFIRMED").status).isEqualTo(Status.CLOSED)
+            val revokedOutcomes =
+                env.count(
+                    "select count(*) from access.review_outcome where tenant_id = ? and campaign_ref = ? " +
+                        "and decision = 'REVOKE'",
+                    env.tenant.value,
+                    campaign.reviewRef,
+                )
+            assertThat(revokedOutcomes).isEqualTo(2)
+            assertThat(env.grantStatus(first)).isEqualTo("REVOKED")
+            assertThat(env.grantStatus(second)).isEqualTo("REVOKED")
+            assertThat(env.grantStatus(own)).isEqualTo("ACTIVE")
+            assertThat(env.authorityChangedRows()).isEqualTo(changedBefore + revokedOutcomes)
+            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(3)
+
+            // (d) a caller for whom access-review.run is decided deny is refused on every outcome call
+            val rows = env.outcomeRows(campaign.reviewRef)
+            grants.keys.forEach { grant ->
+                env.denied(env.refusal { env.close(campaign.reviewRef, ADMIN, grant to "CONFIRMED") })
+            }
+            assertThat(env.outcomeRows(campaign.reviewRef)).isEqualTo(rows)
+        }
 }
