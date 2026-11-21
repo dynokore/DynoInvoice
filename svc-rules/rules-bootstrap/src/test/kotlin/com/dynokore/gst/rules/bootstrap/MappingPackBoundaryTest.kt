@@ -508,7 +508,7 @@ class MappingPackBoundaryTest(
     }
 
     @Test
-    @Suppress("MaxLineLength", "ktlint:standard:max-line-length")
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // INV-T-25772: the task fixes this 124-char test name
     fun `INV-AC-1652 INV-AC-15988 a version signed off by another user is activated and its approval record is exported`() {
         val label = label()
         val packId = fullFlow(label, "2026-01-01")
