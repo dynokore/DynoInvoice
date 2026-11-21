@@ -247,7 +247,7 @@ class RegistryUseCases {
             .getLogger(RegistryUseCases::class.java)
             .warn("no base URL is configured for the {} connection: its lookups degrade", connection)
 
-    private companion object {
+    internal companion object {
         const val RETRY_ATTEMPTS = 2
         const val RETRY_BACKOFF_MS = 50L
         const val RETRY_BACKOFF_MAX_MS = 500L

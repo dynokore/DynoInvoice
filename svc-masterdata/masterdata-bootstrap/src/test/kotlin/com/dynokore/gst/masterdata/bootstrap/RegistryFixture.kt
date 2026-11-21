@@ -115,6 +115,7 @@ internal class RegistryStub : AutoCloseable {
     private val answers = ConcurrentHashMap<String, Answer>()
     private val gets = AtomicInteger()
     private val writes = AtomicInteger()
+    private val times = java.util.concurrent.CopyOnWriteArrayList<Long>()
 
     @Volatile private var down = false
     private val unavailable = ConcurrentHashMap.newKeySet<String>()
@@ -122,7 +123,12 @@ internal class RegistryStub : AutoCloseable {
     private val server: HttpServer =
         HttpServer.create(InetSocketAddress("0.0.0.0", 0), 0).also { server ->
             server.createContext("/") { exchange ->
-                if (exchange.requestMethod == "GET") gets.incrementAndGet() else writes.incrementAndGet()
+                if (exchange.requestMethod == "GET") {
+                    times += System.nanoTime()
+                    gets.incrementAndGet()
+                } else {
+                    writes.incrementAndGet()
+                }
                 val value = exchange.requestURI.path.removePrefix("/lookup/")
                 delays[value]?.let { Thread.sleep(it) }
                 val answer =
@@ -175,6 +181,9 @@ internal class RegistryStub : AutoCloseable {
     }
 
     fun gets(): Int = gets.get()
+
+    /** The `System.nanoTime()` value taken when each GET arrived, in arrival order. */
+    fun times(): List<Long> = times.toList()
 
     fun writes(): Int = writes.get()
 
