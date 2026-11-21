@@ -189,7 +189,8 @@ alter table rules.pack_registry add column artefact_version text null
     constraint pack_registry_artefact_version_not_blank check (artefact_version is null or artefact_version !~ '^\s*$');
 
 create function rules.register_superseding_pack(p_id uuid, p_pack_id text, p_pack_type text, p_pack_version text,
-    p_effective_from date, p_min_engine_version text, p_supersedes text, p_artefact_version text)
+    p_effective_from date, p_min_engine_version text, p_supersedes text, p_artefact_version text,
+    p_activated_by text)
     returns uuid
 language plpgsql security definer set search_path = pg_catalog, rules, pg_temp as $$
 declare
@@ -203,18 +204,46 @@ begin
     end if;
     if p_id is null or p_effective_from is null or coalesce(p_pack_id, '') ~ '^\s*$'
         or coalesce(p_pack_type, '') ~ '^\s*$' or coalesce(p_pack_version, '') ~ '^\s*$'
-        or coalesce(p_min_engine_version, '') ~ '^\s*$' or coalesce(p_artefact_version, '') ~ '^\s*$' then
+        or coalesce(p_min_engine_version, '') ~ '^\s*$' or coalesce(p_artefact_version, '') ~ '^\s*$'
+        or coalesce(p_activated_by, '') ~ '^\s*$|[[:cntrl:]]' then
         raise exception 'every field of a superseding pack but supersedes is required and not blank' using errcode = '22023';
     end if;
     insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, effective_from,
-        effective_to, min_engine_version, supersedes, registered_by, artefact_version)
+        effective_to, min_engine_version, supersedes, registered_by, artefact_version, activated_by)
     values (p_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid, p_pack_id, p_pack_type, p_pack_version, 'REGULATORY',
-        'ARMED', p_effective_from, null, p_min_engine_version, p_supersedes, v_actor, p_artefact_version);
+        'ARMED', p_effective_from, null, p_min_engine_version, p_supersedes, v_actor, p_artefact_version, p_activated_by);
     return p_id;
 end
 $$;
 grant create on schema rules to rules_sys;
-alter function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text) owner to rules_sys;
+alter function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text, text) owner to rules_sys;
 revoke create on schema rules from rules_sys;
-revoke execute on function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text) from public;
-grant execute on function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text) to rules_runtime;
+revoke execute on function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text, text) from public;
+grant execute on function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text, text) to rules_runtime;
+
+-- The row lock of a rollback (INV-T-4978): the runtime role has no UPDATE policy on a platform row, so SELECT ... FOR UPDATE
+-- through it would silently see nothing. This sys-owned function locks the current active row of the type (the latest
+-- ARMED platform row that is not a superseding row) and returns its version, platform binding only.
+create function rules.lock_active_platform_pack(p_pack_type text)
+    returns text
+language plpgsql security definer set search_path = pg_catalog, rules, pg_temp as $$
+declare
+    v_version text;
+begin
+    if (select rules.bound_tenant()) is distinct from 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid then
+        raise exception 'the active platform pack is locked under the platform tenant only' using errcode = '42501';
+    end if;
+    select pack_version into v_version from rules.pack_registry
+        where pack_type = p_pack_type and tenant_id = 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid
+            and status = 'ARMED' and artefact_version is null
+        order by effective_from desc, registered_at desc, id desc
+        limit 1
+        for update;
+    return v_version;
+end
+$$;
+grant create on schema rules to rules_sys;
+alter function rules.lock_active_platform_pack(text) owner to rules_sys;
+revoke create on schema rules from rules_sys;
+revoke execute on function rules.lock_active_platform_pack(text) from public;
+grant execute on function rules.lock_active_platform_pack(text) to rules_runtime;

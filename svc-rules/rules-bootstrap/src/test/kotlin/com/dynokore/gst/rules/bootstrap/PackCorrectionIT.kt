@@ -256,6 +256,28 @@ class PackCorrectionIT(
         fun properties(registry: DynamicPropertyRegistry) = registerCorrection(registry)
     }
 
+    private fun assertActivationRecorded(label: String) {
+        // the acting user ID, not a role, is stored; the workload principal stays in registered_by (INV-Q-10647)
+        scalar(
+            "select activated_by from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            label,
+        ) shouldBe
+            "u-roll"
+        scalar(
+            "select activated_by from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            bad,
+        ) shouldBe
+            null
+        // RulePackActivated for the superseding row went through the outbox, once, as a platform-class event
+        scalar(
+            "select count(*)::text from rules.outbox where type = 'com.dynokore.gst.platform.RulePackActivated.v1' " +
+                "and topic = 'gst.platform.rule-pack-activated.v1' and subject = ?",
+            "$type@$label",
+        ) shouldBe "1"
+    }
+
     @Test
     fun `INV-AC-23932 rollbackPack arms the superseding pack from the bad pack's date and refuses another date`() {
         seedBadPack()
@@ -277,6 +299,7 @@ class PackCorrectionIT(
             label,
         ) shouldBe
             "$d0/ARMED/$earlier"
+        assertActivationRecorded(label)
         // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later
         // registered_at)
         val mid = d0.plusDays(60)

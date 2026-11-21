@@ -88,7 +88,8 @@ open class ReprocessingHarness(
         val items =
             docs.joinToString(",") {
                 """{"docUuid":"${it.uuid}","supersededVersion":3,"acknowledged":${it.acknowledged},""" +
-                    """"entityRef":"$entityRef","transactionDate":"${d0.plusDays(30)}","internalTaxCode":"${it.taxCode}",""" +
+                    """"entityRef":"$entityRef","transactionDate":"${d0.plusDays(30)}",""" +
+                    """"internalTaxCode":"${it.taxCode}",""" +
                     """"documentFunction":"BILL_FOR_PAYMENT","taxableValue":"10.00","gstValue":"0.90"}"""
             }
         val data =
