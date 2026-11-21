@@ -34,6 +34,17 @@ class ExceptionGroupOwnerTest {
     ) = ExceptionGroupOwner.check(option, rules, owners, available)
 
     @Test
+    fun `INV-AC-2280 a group with nothing set goes to the default owner of its code`() {
+        val catalogue = CodeOwners(mapOf("MDM-001" to "Master data", "MDM-002" to "Data quality"))
+        val first = ExceptionGroup("E1", "MDM-001", null)
+        val second = ExceptionGroup("E1", "MDM-002", null)
+        ExceptionGroupOwner.ownerOf(first, OwnerOption.DEFAULT_OWNER, emptyList(), catalogue) shouldBe "Master data"
+        ExceptionGroupOwner.ownerOf(second, OwnerOption.DEFAULT_OWNER, emptyList(), catalogue) shouldBe "Data quality"
+        val ignored = listOf(OwnerRule("E1", null, null, "Centre A"))
+        ExceptionGroupOwner.ownerOf(first, OwnerOption.DEFAULT_OWNER, ignored, catalogue) shouldBe "Master data"
+    }
+
+    @Test
     fun `INV-AC-16255 DEFAULT_OWNER gives the default owner of the code`() {
         owner(group(code = "SUB-005"), OwnerOption.DEFAULT_OWNER) shouldBe "Platform"
         owner(group(code = "SUB-004"), OwnerOption.DEFAULT_OWNER) shouldBe "Tax operations"
