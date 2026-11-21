@@ -13,6 +13,8 @@ class PayloadReadyData(
     val payloadSha256: String,
     /** The aggregate the document belongs to; null when the event carries no such member. */
     val aggregateId: String? = null,
+    /** The class of this version relative to its predecessor; null when the event carries no such member. */
+    val amendmentClass: String? = null,
 )
 
 /** Reads the event data JSON of a `PayloadReady` (the JSON library stays in the adapters, ARC-03). */

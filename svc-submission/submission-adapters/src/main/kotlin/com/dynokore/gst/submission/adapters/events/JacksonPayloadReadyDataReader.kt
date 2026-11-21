@@ -31,6 +31,7 @@ class JacksonPayloadReadyDataReader : PayloadReadyDataReader {
             payloadBytes = decode(data.text("payloadBytes")),
             payloadSha256 = data.text("payloadSha256"),
             aggregateId = if (data.has("aggregateId")) data.text("aggregateId") else null,
+            amendmentClass = if (data.has("amendmentClass")) amendmentClassOf(data) else null,
         )
     }
 
@@ -38,6 +39,14 @@ class JacksonPayloadReadyDataReader : PayloadReadyDataReader {
         val node = get(name)
         if (node == null || !node.isString || node.asString().isEmpty()) {
             throw ContractViolation("PayloadReady data member $name is missing or not a non-empty string")
+        }
+        return node.asString()
+    }
+
+    private fun amendmentClassOf(data: JsonNode): String {
+        val node = data.get("amendmentClass")
+        if (node == null || !node.isString || node.asString() !in AMENDMENT_CLASSES) {
+            throw ContractViolation("PayloadReady amendmentClass is not one of $AMENDMENT_CLASSES")
         }
         return node.asString()
     }
@@ -66,4 +75,8 @@ class JacksonPayloadReadyDataReader : PayloadReadyDataReader {
         } catch (e: IllegalArgumentException) {
             throw ContractViolation("PayloadReady payloadBytes is not base64", e)
         }
+
+    private companion object {
+        val AMENDMENT_CLASSES = listOf("NON_MONETARY", "IDENTITY", "PERIOD_SHIFTING", "MONETARY", "STRUCTURAL")
+    }
 }
