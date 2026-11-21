@@ -2,6 +2,7 @@ package com.dynokore.gst.notification.application.alerting
 
 import com.dynokore.gst.notification.domain.alerting.AcknowledgementClaim
 import com.dynokore.gst.notification.domain.alerting.AlertClass
+import com.dynokore.gst.notification.domain.alerting.POL_NOT_DISABLEABLE
 import com.dynokore.gst.notification.domain.alerting.RecordedAcknowledgement
 import com.dynokore.platform.serviceruntime.replica.AuthorityChanged
 import com.dynokore.platform.serviceruntime.replica.AuthorityRecord
@@ -18,6 +19,7 @@ import com.dynokore.platform.serviceruntime.replica.RoleGrantState
 import com.dynokore.platform.serviceruntime.resilience.Deadline
 import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Duration
@@ -218,5 +220,18 @@ class SetAlertPolicyTest {
                     .isStatic(it.modifiers) && it.name != "INSTANCE"
             }.map { it.name }
             .toSet() shouldBe setOf("SET_ALERT_POLICY", "SNOOZE_ALERT")
+    }
+
+    @Test
+    fun `INV-AC-26001 deadline never disabled, reroutable`() {
+        val refused = SetAlertPolicyResult.Refused("POL-015", "NOT_DISABLEABLE")
+        refused shouldBe SetAlertPolicyResult.Refused(POL_NOT_DISABLEABLE, "NOT_DISABLEABLE")
+        for (alertClass in listOf(AlertClass.DEADLINE, AlertClass.COVERAGE)) {
+            handle(command(listOf("jane", "tom"), alertClass = alertClass, channels = emptyList())) shouldBe refused
+            handle(command(listOf("jane", "tom"), alertClass = alertClass, channels = listOf("EMAIL"))) shouldBe
+                SetAlertPolicyResult.Accepted(null)
+        }
+        handle(command(listOf("jane", "tom"), alertClass = AlertClass.BACKLOG, channels = emptyList())) shouldNotBe
+            refused
     }
 }
