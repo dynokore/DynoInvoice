@@ -8,6 +8,7 @@ import com.dynokore.gst.rules.adapters.events.ReprocessingWorker
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.persistence.JooqPackCorrectionStore
 import com.dynokore.gst.rules.adapters.persistence.JooqReprocessingStore
+import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.PackCorrectionPermissionPort
 import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.ReprocessPopulation
@@ -88,7 +89,8 @@ class ReprocessingConfiguration {
         dsl: DSLContext,
         platform: PlatformTenantBinding,
         transactions: TransactionRunner,
-    ): JooqPackCorrectionStore = JooqPackCorrectionStore(dsl, platform, transactions)
+        events: PackEventEmitter,
+    ): JooqPackCorrectionStore = JooqPackCorrectionStore(dsl, platform, transactions, events)
 
     /** Publishes `PackReprocessingRequested` per entity in the command transaction of `reprocessPopulation`. */
     @Bean
