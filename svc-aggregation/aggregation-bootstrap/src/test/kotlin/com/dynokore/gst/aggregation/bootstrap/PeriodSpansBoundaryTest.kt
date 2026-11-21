@@ -108,10 +108,10 @@ class PeriodSpansBoundaryTest {
             }
         }
 
-        fun sendWeek() {
+        fun sendWeek(code: (LocalDate) -> String = { "SR-STD" }) {
             val items =
                 days(LocalDate.of(2022, 3, 28), LocalDate.of(2022, 4, 3)).joinToString(",") {
-                    """{"transactionRef":"T-$it","transactionDate":"$it","internalTaxCode":"SR-STD",""" +
+                    """{"transactionRef":"T-$it","transactionDate":"$it","internalTaxCode":"${code(it)}",""" +
                         """"amount":"10.00","claimableInputTax":"0.70"}"""
                 }
             scope.bind(TenantId(tenant), actor) {
@@ -160,6 +160,23 @@ class PeriodSpansBoundaryTest {
             scope.bind(TenantId(tenant), actor) {
                 CloseWindows(windows, context.getBean(PeriodBoundarySource::class.java), intake) {}
                     .execute(LocalDate.of(2022, 4, 4))
+            }
+
+        /** One row per aggregate and internal tax code: the period end, the code and the number of lines. */
+        fun lineGroups(): List<String> =
+            AggregationDb.superuser().use { connection ->
+                connection
+                    .prepareStatement(
+                        "select a.period_end || ' ' || l.internal_tax_code || ' ' || count(*) from " +
+                            "aggregation.aggregate a join aggregation.aggregate_line l on " +
+                            "l.aggregate_id = a.aggregate_id where a.tenant_id = ? group by a.aggregate_id, " +
+                            "a.period_end, l.internal_tax_code order by a.period_end, l.internal_tax_code",
+                    ).use { statement ->
+                        statement.setObject(1, tenant)
+                        statement.executeQuery().use { rows ->
+                            generateSequence { if (rows.next()) rows.getString(1) else null }.toList()
+                        }
+                    }
             }
 
         fun aggregates(): List<String> =
@@ -262,5 +279,22 @@ class PeriodSpansBoundaryTest {
             result.closed shouldBe emptyList()
             result.held.size shouldBe 1
             boundary.aggregates() shouldBe emptyList()
+        }
+
+    @Test
+    fun `INV-AC-11338 a weekly window crossing 31 Mar with the codes S and Z gives two aggregates, each with one line per distinct code of its own transactions`(
+        @TempDir dir: Path,
+    ): Unit =
+        run(dir) { boundary ->
+            boundary.sendWeek { if (it.dayOfMonth % 2 == 0) "S" else "Z" }
+            boundary.deliver(twoPeriods) shouldBe HandleOutcome.APPLIED
+            boundary.close().closed.size shouldBe 2
+            boundary.aggregates() shouldBe
+                listOf(
+                    "2022-03-28..2022-03-31 2022-03-28,2022-03-29,2022-03-30,2022-03-31",
+                    "2022-04-01..2022-04-03 2022-04-01,2022-04-02,2022-04-03",
+                )
+            boundary.lineGroups() shouldBe
+                listOf("2022-03-31 S 1", "2022-03-31 Z 1", "2022-04-03 S 1", "2022-04-03 Z 1")
         }
 }

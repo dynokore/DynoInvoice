@@ -222,7 +222,7 @@ class WindowCloseJobBoundaryTest {
     }
 
     @Test
-    fun `INV-AC-1574 the part up to 31 Mar closes on its tick, the part from 1 Apr on the tick of 3 Apr, once per tick`(
+    fun `INV-AC-1574 INV-AC-15972 the part up to 31 Mar closes on its tick, the part from 1 Apr on the tick of 3 Apr, once per tick`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, PeriodSpans.Known(spans)) { context, tenant, second ->
@@ -247,7 +247,7 @@ class WindowCloseJobBoundaryTest {
         }
 
     @Test
-    fun `a window for which no span is known stays open and nothing is created or published`(
+    fun `INV-AC-15972 a window for which no span is known stays open and nothing is created or published`(
         @TempDir dir: Path,
     ): Unit =
         run(dir, PeriodSpans.Unknown) { context, tenant, _ ->

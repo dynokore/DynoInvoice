@@ -217,7 +217,7 @@ class LateTransactionBoundaryTest {
     ).single()
 
     @Test
-    fun `INV-AC-24211 a late transaction after SubmissionDespatched is in a supplementary aggregate and A is unchanged`(
+    fun `INV-AC-24211 INV-AC-11337 a late transaction after SubmissionDespatched is in a supplementary aggregate and A is unchanged`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { boundary ->

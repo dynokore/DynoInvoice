@@ -152,7 +152,7 @@ class CadencePolicyBoundaryTest {
         }
 
     @Test
-    fun `INV-AC-2304 weekly is refused with POL-006 and the daily windows split at the period end`(
+    fun `INV-AC-2304 INV-AC-15972 weekly is refused with POL-006 and the daily windows split at the period end`(
         @TempDir dir: Path,
     ): Unit =
         run(dir) { context ->

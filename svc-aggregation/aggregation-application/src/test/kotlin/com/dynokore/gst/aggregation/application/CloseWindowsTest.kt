@@ -140,7 +140,7 @@ class CloseWindowsTest {
     }
 
     @Test
-    fun `INV-AC-1573 the default entity closes one PCP window for April as one aggregate`() {
+    fun `INV-AC-1573 INV-AC-15972 the default entity closes one PCP window for April as one aggregate`() {
         val f = Fixture(listOf(window(Cadence.MONTHLY, d(4, 10))), PeriodSpans.Known(monthly))
         val result = f.run.execute(d(4, 30))
         result.closed.size shouldBe 1
