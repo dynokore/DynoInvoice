@@ -162,6 +162,14 @@ class HandleFeedHealthChangedTest {
     }
 
     @Test
+    fun `INV-AC-26515 a stored row without a version is superseded by a versioned event, an equal one is refused`() {
+        handler.handle(t1, payload(version = null))
+        handler.handle(t1, payload("CLEARED", 1)) shouldBe FeedHealthResult.APPLIED_CLEARED
+        states.find(t1, "F", "E", "2026Q1", "WATERMARK")!!.stateVersion shouldBe 1L
+        handler.handle(t1, payload("FAILED", 1)) shouldBe FeedHealthResult.IGNORED_STALE
+    }
+
+    @Test
     @DisplayName("INV-AC-26515 no integration.engineer and no tenant.admin holder throws and writes nothing")
     fun `INV-AC-26515 no integration-engineer and no tenant-admin holder throws and writes nothing`() {
         shouldThrow<FeedHealthNotDelivered> { handler.handle(t3, payload()) }
