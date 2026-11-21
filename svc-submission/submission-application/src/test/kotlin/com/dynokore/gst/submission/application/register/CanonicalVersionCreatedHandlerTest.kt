@@ -496,4 +496,29 @@ class CanonicalVersionCreatedHandlerTest {
             )
         shouldThrow<IllegalStateException> { failing.handle(envelope()) }.message shouldBe "boom"
     }
+
+    @Test
+    fun `INV-AC-26547 INV-AC-745 the self-supply of an agent is registered out of scope`() {
+        val f = fixture(data = data("NOT_SUBMITTABLE"))
+        f.handler.handle(envelope())
+        val e = f.store.entries.single()
+        listOf(e.scopeVerdict, e.notSubmittableReason, e.inScope) shouldBe listOf("NOT_SUBMITTABLE", null, false)
+    }
+
+    @Test
+    fun `INV-AC-26547 the onward local sale of an agent is registered in scope`() {
+        val f = fixture(data = data("SUBMITTABLE"))
+        f.handler.handle(envelope())
+        val e = f.store.entries.single()
+        listOf(e.scopeVerdict, e.notSubmittableReason, e.inScope) shouldBe listOf("SUBMITTABLE", null, true)
+    }
+
+    @Test
+    fun `INV-AC-26547 a look-alike verdict is not registered`() {
+        for (verdict in listOf("NOT-SUBMITTABLE", "not_submittable", "NOT_SUBMITTABLE ")) {
+            val f = fixture(data = data(verdict))
+            shouldThrow<ContractViolation> { f.handler.handle(envelope()) }
+            f.store.entries shouldBe emptyList()
+        }
+    }
 }
