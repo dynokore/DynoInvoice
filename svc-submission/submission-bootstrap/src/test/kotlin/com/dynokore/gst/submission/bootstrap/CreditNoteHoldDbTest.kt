@@ -10,6 +10,8 @@ import com.dynokore.gst.submission.application.drain.SafetyMarginAnswer
 import com.dynokore.gst.submission.application.drain.SafetyMargins
 import com.dynokore.gst.submission.application.ordering.CreditNoteOptions
 import com.dynokore.gst.submission.application.pack.PackMargin
+import com.dynokore.gst.submission.application.queue.SentResult
+import com.dynokore.gst.submission.application.queue.SubmissionWorker
 import com.dynokore.gst.submission.application.register.RegisterEntry
 import com.dynokore.gst.submission.application.register.RegisterEntryStore
 import com.dynokore.gst.submission.domain.listing.Direction
@@ -43,6 +45,7 @@ import java.time.ZoneOffset
 import java.util.Base64
 import java.util.HexFormat
 import java.util.UUID
+import com.dynokore.platform.outboxandqueue.WorkQueue as WorkQueuePort
 
 /** The arrival hold of a credit note through the real handler over PostgreSQL (INV-AC-24521). */
 class CreditNoteHoldDbTest {
@@ -56,6 +59,9 @@ class CreditNoteHoldDbTest {
         val runner: TransactionRunner = context.getBean(TransactionRunner::class.java)
         val dsl: DSLContext = context.getBean(DSLContext::class.java)
         val handler: EventHandler = context.getBean("payloadReadyHandler", EventHandler::class.java)
+        val ack: EventHandler = context.getBean("acknowledgementReceivedHandler", EventHandler::class.java)
+        val worker: SubmissionWorker = context.getBean(SubmissionWorker::class.java)
+        val workQueue: WorkQueuePort = context.getBean(WorkQueuePort::class.java)
         val entries: RegisterEntryStore = context.getBean(RegisterEntryStore::class.java)
         val tenant: UUID = UUID.randomUUID()
 
@@ -195,6 +201,29 @@ class CreditNoteHoldDbTest {
             )
         }
 
+        /** Drops every queued item: `claimNext` is cross-tenant, so left-overs would be claimed by the polls. */
+        fun drain() {
+            while (true) {
+                val item = workQueue.claimNext() ?: break
+                tenants.bind(item.tenant, actor) { runner.inTransaction { workQueue.complete(item) } }
+            }
+        }
+
+        fun acknowledge(
+            doc: String,
+            version: Int,
+        ): HandleOutcome {
+            val event =
+                envelope(doc, version).copy(
+                    source = "/gst/transport-svc",
+                    type = "com.dynokore.gst.transport.AcknowledgementReceived.v1",
+                    dataJson =
+                        """{"adapter":"a","apNotificationId":"N-1","docUuid":"$doc","version":$version,""" +
+                            """"acknowledgementId":"ACK-$doc"}""",
+                )
+            return asTenant { ack.handle(event) }
+        }
+
         /** An original P1 that has arrived (QUEUED) and a credit note CN1 over it that has not. */
         fun pair(): Pair<String, String> {
             val p1 = UUID.randomUUID().toString()
@@ -288,5 +317,37 @@ class CreditNoteHoldDbTest {
         stateOf(cn1, 1) shouldBe null
         codes(cn1) shouldBe emptyList()
         lanes(cn1) shouldBe emptyList()
+    }
+
+    @Test
+    @Suppress("MaxLineLength", "ktlint:standard:max-line-length") // the ruled case name is one line
+    fun `INV-AC-1827 workers polling while a credit note is AWAITING_PRECEDING never claim it and claim it once it is QUEUED`(
+        @TempDir dir: Path,
+    ) = run(dir) {
+        val (p1, cn1) = pair()
+        arrive(cn1, 1) shouldBe HandleOutcome.APPLIED
+        stateOf(cn1, 1) shouldBe "AWAITING_PRECEDING"
+        setState(p1, "SENT")
+        drain()
+
+        repeat(POLLS) {
+            worker.takeNext() shouldBe null
+            stateOf(cn1, 1) shouldBe "AWAITING_PRECEDING"
+            lanes(cn1).size shouldBe 0
+        }
+
+        acknowledge(p1, 1) shouldBe HandleOutcome.APPLIED
+        stateOf(p1, 1) shouldBe "ACKNOWLEDGED"
+        stateOf(cn1, 1) shouldBe "QUEUED"
+        lanes(cn1) shouldBe listOf("LIVE")
+
+        val result = worker.takeNext() as? SentResult.Sent ?: error("expected the credit note to be claimed")
+        result.dispatch.docUuid shouldBe cn1
+        result.dispatch.version shouldBe 1
+        stateOf(cn1, 1) shouldBe "SENT"
+    }
+
+    private companion object {
+        const val POLLS = 5
     }
 }
