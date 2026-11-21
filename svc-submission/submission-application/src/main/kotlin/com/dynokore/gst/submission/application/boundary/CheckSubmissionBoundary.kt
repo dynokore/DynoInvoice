@@ -19,7 +19,7 @@ data class BoundaryVersion(
     val state: LifecycleState,
 )
 
-/** Reads the version rows of the given Doc UUIDs of one tenant; a Doc UUID with no row yields none (the adapter is slice 2). */
+/** Reads the version rows of the given Doc UUIDs of one tenant; a Doc UUID with no row yields none. */
 fun interface BoundaryVersionSource {
     fun versions(
         tenant: TenantId,
@@ -71,27 +71,38 @@ class CheckSubmissionBoundary(
     ): CheckSubmissionBoundaryResult {
         val docs = request.docUuids.distinct()
         if (docs.size > maxDocuments) return CheckSubmissionBoundaryResult.TooManyDocuments
-        val rows = source.versions(request.tenant, docs)
-        val byDoc = rows.groupBy { it.docUuid }
+        val byDoc = source.versions(request.tenant, docs).groupBy { it.docUuid }
         val entities = docs.flatMap { byDoc[it].orEmpty() }.map { it.entityRef }.distinct()
-        for (entity in entities) {
-            val decision =
-                replica.decide(
-                    AuthorizationRequest(request.tenant, request.principal, entity, ListingActions.VIEW_STATUS),
-                    deadline,
-                )
-            if (!decision.allowed || decision.reason == DecisionReason.AUTHORITY_UNAVAILABLE) {
-                return CheckSubmissionBoundaryResult.Forbidden
-            }
+        return if (entities.all { allowed(request, it, deadline) }) {
+            CheckSubmissionBoundaryResult.Done(docs.size, membersOf(docs, byDoc))
+        } else {
+            CheckSubmissionBoundaryResult.Forbidden
         }
-        val members =
-            docs.mapNotNull { doc ->
-                byDoc[doc]
-                    .orEmpty()
-                    .filter { it.state in SubmissionBoundary.SUBMITTED_STATES }
-                    .maxByOrNull { it.version }
-                    ?.let { SubmittedMember(doc, it.state) }
-            }
-        return CheckSubmissionBoundaryResult.Done(docs.size, members)
     }
+
+    /** Fail closed: a deny or an unavailable replica is not allowed. `all` stops at the first refusal. */
+    private fun allowed(
+        request: CheckSubmissionBoundaryRequest,
+        entity: String,
+        deadline: Deadline,
+    ): Boolean {
+        val decision =
+            replica.decide(
+                AuthorizationRequest(request.tenant, request.principal, entity, ListingActions.VIEW_STATUS),
+                deadline,
+            )
+        return decision.allowed && decision.reason != DecisionReason.AUTHORITY_UNAVAILABLE
+    }
+
+    private fun membersOf(
+        docs: List<UUID>,
+        byDoc: Map<UUID, List<BoundaryVersion>>,
+    ): List<SubmittedMember> =
+        docs.mapNotNull { doc ->
+            byDoc[doc]
+                .orEmpty()
+                .filter { it.state in SubmissionBoundary.SUBMITTED_STATES }
+                .maxByOrNull { it.version }
+                ?.let { SubmittedMember(doc, it.state) }
+        }
 }
