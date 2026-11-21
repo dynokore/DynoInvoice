@@ -157,4 +157,30 @@ class PreIssuanceVerdictDecisionTest {
     fun `INV-AC-13552 same input gives same output`() {
         nr(PreIssuanceSubmissionType.TYPE_2, "5.00") shouldBe nr(PreIssuanceSubmissionType.TYPE_2, "5.00")
     }
+
+    @Test
+    fun `INV-AC-26390 with no Access Point check in play the System's check blocks a wrongful GST charge`() {
+        val blocked =
+            PreIssuanceVerdictDecision.decide(
+                PreIssuanceInput(PreIssuanceSubmissionType.TYPE_1A, PreIssuanceRegisterStatus.NOT_REGISTERED, "6.00"),
+            )
+        val decidedBlock = blocked.shouldBeInstanceOf<PreIssuanceOutcome.Decided>()
+        decidedBlock.verdict shouldBe PreIssuanceVerdict.BLOCK
+        decidedBlock.reasons shouldBe
+            listOf(
+                PreIssuanceReason(
+                    PreIssuanceVerdictDecision.WRONGFUL_GST_CODE,
+                    PreIssuanceVerdictDecision.WRONGFUL_GST_FIELD,
+                    true,
+                ),
+            )
+
+        val registered =
+            PreIssuanceVerdictDecision.decide(
+                PreIssuanceInput(PreIssuanceSubmissionType.TYPE_1A, PreIssuanceRegisterStatus.REGISTERED, "6.00"),
+            )
+        val decidedPass = registered.shouldBeInstanceOf<PreIssuanceOutcome.Decided>()
+        decidedPass.verdict shouldBe PreIssuanceVerdict.PASS
+        decidedPass.reasons shouldBe emptyList()
+    }
 }
