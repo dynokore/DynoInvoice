@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
+import com.dynokore.gst.rules.adapters.events.ReprocessingEvents
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.application.EvaluateDocument
 import com.dynokore.gst.rules.application.PackEventEmitter
@@ -86,6 +87,7 @@ class Tpl18CompositionTest {
                 // the platform events of setPolicy (INV-T-18451) and the sample request (INV-T-19903)
                 listOf(
                     DryRunSampleEvents.REQUESTED,
+                    ReprocessingEvents.REQUESTED,
                     PlatformEventCatalogue.AUDIT_ENTRY_RECORDED.eventType,
                     PlatformEventCatalogue.POLICY_CHANGED.eventType,
                     PlatformEventCatalogue.EVIDENCE_ARTEFACT_RECORDED.eventType,

@@ -58,6 +58,11 @@ internal object SchemaInspection {
             // the import status and the DEP-001 state of INV-T-4976, both relational
             "pack_import",
             "pack_currency_state",
+            // the reprocessing run, its entities and pages and the resubmission list of INV-T-4978, all relational
+            "reprocessing_run",
+            "reprocessing_run_entity",
+            "reprocessing_run_page",
+            "reprocessing_resubmission",
         )
 
     /** The columns of the kernel's registry table (`PackRegistryMigration.ddl`), `pack_version` and not `version`. */

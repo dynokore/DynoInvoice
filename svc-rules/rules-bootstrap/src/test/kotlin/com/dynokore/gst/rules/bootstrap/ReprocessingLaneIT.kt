@@ -14,13 +14,18 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.ApplicationContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
-import java.time.Duration
 
 private const val LIMIT = 3
 private const val POPULATION = 8
 
 @SpringBootTest(
-    classes = [PolicyFixtures::class, ImportFixtures::class, ArmingFixtures::class, CorrectionFixtures::class, RulesApplication::class],
+    classes = [
+        PolicyFixtures::class,
+        ImportFixtures::class,
+        ArmingFixtures::class,
+        CorrectionFixtures::class,
+        RulesApplication::class,
+    ],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
 class ReprocessingLaneIT(
@@ -41,7 +46,7 @@ class ReprocessingLaneIT(
     }
 
     @Test
-    fun `INV-AC-23934 every item of the run is on the reprocessing lane and the live document is claimed first within the limit`() {
+    fun `INV-AC-23934 every item of the run is on the reprocessing lane and the live document goes first`() {
         // the window row is platform-wide and shared with the other classes of this database: start from none
         exec("delete from rules.lane_rate_window")
         val id = startRun()
@@ -54,15 +59,19 @@ class ReprocessingLaneIT(
             tenant.toString(),
         )
         scalar("select count(*) from rules.work_queue where lane = 'LIVE' and partition_key <> 'live-doc'") shouldBe "0"
-        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING'") shouldBe POPULATION.toString()
-        val queue = context.getBean(WorkQueue::class.java)
+        scalar(
+            "select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?",
+            type,
+        ) shouldBe POPULATION.toString()
+        val queue = context.getBean(ReprocessingWorkQueue::class.java).queue
         val window = ArrayList<Lane>()
         while (true) window += (queue.claimNext() ?: break).lane
         window.first() shouldBe Lane.LIVE
         window.count { it == Lane.REPROCESSING } shouldBe LIMIT
         window.size shouldBe LIMIT + 1
         // the next window allows the same number again, never more
-        clock.advance(Duration.ofMinutes(11))
+        // the window is counted on the database clock: age the stored window past its end
+        exec("update rules.lane_rate_window set window_start = window_start - interval '11 minutes'")
         val next = ArrayList<Lane>()
         while (true) next += (queue.claimNext() ?: break).lane
         next.count { it == Lane.REPROCESSING } shouldBe LIMIT

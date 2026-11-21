@@ -65,7 +65,9 @@ class CorrectionFixtures {
                 packType: String,
                 packVersion: String,
                 document: SampledDocument,
-            ) = DocumentOutcome(if (packVersion.endsWith("-rollback") && document.internalTaxCode == "CHANGE") "ZR" else "SR")
+            ) = DocumentOutcome(
+                if (packVersion.endsWith("-rollback") && document.internalTaxCode == "CHANGE") "ZR" else "SR",
+            )
 
             override fun effectiveFrom(
                 tenant: TenantId,
@@ -101,8 +103,14 @@ open class CorrectionHarness(
     context: ApplicationContext,
     policy: PolicyReplica,
 ) : ArmingHarness(port, replica, clock, context, policy) {
-    protected val type = "CORR_" + UUID.randomUUID().toString().take(8).uppercase()
-    protected val d0: LocalDate = LocalDate.parse("2026-06-01")
+    protected val type =
+        "CORR_" +
+            UUID
+                .randomUUID()
+                .toString()
+                .take(8)
+                .uppercase()
+    protected val d0: LocalDate = LocalDate.now(clock).minusDays(30)
     protected val earlier = "e" + UUID.randomUUID().toString().take(5)
     protected val bad = "b" + UUID.randomUUID().toString().take(5)
 
@@ -110,9 +118,12 @@ open class CorrectionHarness(
         fun registerCorrection(registry: DynamicPropertyRegistry) {
             register(registry)
             registry.add("gst.form") { "saas" }
-            registry.add("rules.reprocessing.worker") { "false" } // the tests drive the worker, and no tick moves a table
+            // the tests drive the worker, and no tick moves a table
+            registry.add("rules.reprocessing.worker") { "false" }
             // the holder copy is a reference table, as in application.yaml: a tenant reads the platform artefact rows
-            registry.add("inv.tenancy.reference-tables") { "rules.pack_registry,rules.pack_entry_source,rules.pack_artefact" }
+            registry.add("inv.tenancy.reference-tables") {
+                "rules.pack_registry,rules.pack_entry_source,rules.pack_artefact"
+            }
             registry.add("service-runtime.workload-identity.callers[1].service") { ALT }
             registry.add("service-runtime.workload-identity.callers[1].subject") { subjectOf(ALT) }
         }
@@ -134,14 +145,17 @@ open class CorrectionHarness(
         artefact: Boolean,
     ) {
         raw(
-            "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, effective_from, " +
-                "min_engine_version, supersedes, registered_by) values (gen_random_uuid(), '$PLATFORM', '$type-pack', '$type', " +
+            "insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, " +
+                "effective_from, " +
+                "min_engine_version, supersedes, registered_by) values (gen_random_uuid(), '$PLATFORM', " +
+                "'$type-pack', '$type', " +
                 "'$version', 'REGULATORY', 'ARMED', '$effective', '1.0.0', ${supersedes?.let { "'$it'" }}, 'seed')",
         )
         if (artefact) {
             raw(
                 "insert into rules.pack_artefact (id, pack_id, pack_type, pack_version, tenant_id, effective_from, " +
-                    "min_engine_version, manifest, checksums, signature, contents, trusted_anchor, registered_by) values " +
+                    "min_engine_version, manifest, checksums, signature, contents, trusted_anchor, " +
+                    "registered_by) values " +
                     "(gen_random_uuid(), '$type-pack', '$type', '$version', '$PLATFORM', '$effective', '1.0.0', " +
                     "'{\"version\":\"$version\"}', '{\"contents\":\"${"ab".repeat(32)}\"}', '\\x0701ff', " +
                     "'{\"rules\":[\"$version\"]}', 'anchor', 'seed')",
@@ -151,7 +165,7 @@ open class CorrectionHarness(
 
     /** The earlier pack (with its artefact) and the bad pack that superseded it, armed from [d0]. */
     protected fun seedBadPack() {
-        seedArmed(earlier, LocalDate.parse("2026-01-01"), null, artefact = true)
+        seedArmed(earlier, d0.minusDays(150), null, artefact = true)
         seedArmed(bad, d0, earlier, artefact = false)
     }
 
@@ -171,11 +185,18 @@ open class CorrectionHarness(
                 .header("Idempotency-Key", UUID.randomUUID().toString())
         if (user != null) builder.header("Authorization", "Bearer $user|$tenant|")
         if (token != null) builder.header("X-Workload-Token", token)
-        return http.send(builder.POST(HttpRequest.BodyPublishers.noBody()).build(), HttpResponse.BodyHandlers.ofString())
+        return http.send(
+            builder.POST(HttpRequest.BodyPublishers.noBody()).build(),
+            HttpResponse.BodyHandlers.ofString(),
+        )
     }
 
     protected fun registryRow(version: String): String? =
-        scalar("select to_jsonb(p)::text from rules.pack_registry p where pack_type = ? and pack_version = ?", type, version)
+        scalar(
+            "select to_jsonb(p)::text from rules.pack_registry p where pack_type = ? and pack_version = ?",
+            type,
+            version,
+        )
 
     protected fun <T> inTenant(block: () -> T): T =
         context.getBean(TenantContext::class.java).bind(tenant, "rules-test") {
@@ -187,13 +208,25 @@ open class CorrectionHarness(
 
     protected fun artefactBytes(version: PackVersion): List<String> =
         inTenant {
-            val a = PersistedPackRegistry(context.getBean(DSLContext::class.java), context.getBean(TenantContext::class.java)).artefactOf(version)!!
+            val registry =
+                PersistedPackRegistry(
+                    context.getBean(DSLContext::class.java),
+                    context.getBean(TenantContext::class.java),
+                )
+            val a = registry.artefactOf(version)!!
             listOf(String(a.manifest), String(a.checksums), a.signature.joinToString(","), String(a.contents))
         }
 
     protected fun packVersion(label: String) =
         PackVersion(
-            PackManifest(PackId("$type-pack"), PackType(type), PackVersionLabel(label), LocalDate.parse("2026-01-01"), null, "1.0.0"),
+            PackManifest(
+                PackId("$type-pack"),
+                PackType(type),
+                PackVersionLabel(label),
+                d0.minusDays(150),
+                null,
+                "1.0.0",
+            ),
             null,
         )
 
@@ -201,7 +234,13 @@ open class CorrectionHarness(
 }
 
 @SpringBootTest(
-    classes = [PolicyFixtures::class, ImportFixtures::class, ArmingFixtures::class, CorrectionFixtures::class, RulesApplication::class],
+    classes = [
+        PolicyFixtures::class,
+        ImportFixtures::class,
+        ArmingFixtures::class,
+        CorrectionFixtures::class,
+        RulesApplication::class,
+    ],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
 class PackCorrectionIT(
@@ -217,8 +256,30 @@ class PackCorrectionIT(
         fun properties(registry: DynamicPropertyRegistry) = registerCorrection(registry)
     }
 
+    private fun assertActivationRecorded(label: String) {
+        // the acting user ID, not a role, is stored; the workload principal stays in registered_by (INV-Q-10647)
+        scalar(
+            "select activated_by from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            label,
+        ) shouldBe
+            "u-roll"
+        scalar(
+            "select activated_by from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            bad,
+        ) shouldBe
+            null
+        // RulePackActivated for the superseding row went through the outbox, once, as a platform-class event
+        scalar(
+            "select count(*)::text from rules.outbox where type = 'com.dynokore.gst.platform.RulePackActivated.v1' " +
+                "and topic = 'gst.platform.rule-pack-activated.v1' and subject = ?",
+            "$type@$label",
+        ) shouldBe "1"
+    }
+
     @Test
-    fun `INV-AC-23932 rollbackPack arms the superseding pack from the bad pack's date and refuses any other date with nothing stored`() {
+    fun `INV-AC-23932 rollbackPack arms the superseding pack from the bad pack's date and refuses another date`() {
         seedBadPack()
         grantRollback("u-roll")
         val badBefore = registryRow(bad)
@@ -231,10 +292,17 @@ class PackCorrectionIT(
         registryRow(earlier) shouldBe earlierBefore
         scalar("select count(*) from rules.pack_registry where pack_type = ?", type) shouldBe "3"
         val label = "$bad-rollback"
-        scalar("select effective_from::text || '/' || status || '/' || artefact_version from rules.pack_registry where pack_type = ? and pack_version = ?", type, label) shouldBe
+        scalar(
+            "select effective_from::text || '/' || status || '/' || artefact_version from rules.pack_registry " +
+                "where pack_type = ? and pack_version = ?",
+            type,
+            label,
+        ) shouldBe
             "$d0/ARMED/$earlier"
-        // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later registered_at)
-        val mid = LocalDate.parse("2026-08-01")
+        assertActivationRecorded(label)
+        // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later
+        // registered_at)
+        val mid = d0.plusDays(60)
         resolvedAt(mid)!!.version.value shouldBe label
         resolvedAt(d0)!!.version.value shouldBe label
         resolvedAt(d0.minusDays(1))!!.version.value shouldBe earlier
@@ -250,7 +318,11 @@ class PackCorrectionIT(
             snapshot() shouldBe before
         }
         // look-alike: the label of another version is not the superseding row
-        scalar("select count(*) from rules.pack_registry where pack_type = ? and pack_version = ?", type, "$bad-rollbacks") shouldBe "0"
+        scalar(
+            "select count(*) from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            "$bad-rollbacks",
+        ) shouldBe "0"
     }
 
     @Test
@@ -258,18 +330,26 @@ class PackCorrectionIT(
         seedBadPack()
         grantRollback("u-roll")
         rollback("u-roll").statusCode() shouldBe 200
-        scalar("select status || '/' || effective_from from rules.pack_registry where pack_type = ? and pack_version = ?", type, bad) shouldBe "ARMED/$d0"
+        scalar(
+            "select status || '/' || effective_from from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            bad,
+        ) shouldBe "ARMED/$d0"
         // a repeat of the same call stores no second row
         rollback("u-roll").statusCode() shouldBe 200
         scalar("select count(*) from rules.pack_registry where pack_type = ?", type) shouldBe "3"
     }
 
     @Test
-    fun `INV-AC-1055 correction part the superseding reversal is effective-dated from the original date, not the clock`() {
+    fun `INV-AC-1055 correction part the superseding reversal is effective-dated from the original date`() {
         seedBadPack()
         grantRollback("u-roll")
         rollback("u-roll").statusCode() shouldBe 200
-        scalar("select effective_from::text from rules.pack_registry where pack_type = ? and pack_version = ?", type, "$bad-rollback") shouldBe d0.toString()
+        scalar(
+            "select effective_from::text from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            "$bad-rollback",
+        ) shouldBe d0.toString()
     }
 
     @Test
@@ -295,7 +375,8 @@ class PackCorrectionIT(
 
     @Test
     fun `INV-AC-23932 the permission constants equal the x-operation permission of the pinned contract`() {
-        val contract = String(PacksController::class.java.getResourceAsStream("/contract/openapi.yaml")!!.readAllBytes())
+        val contract =
+            String(PacksController::class.java.getResourceAsStream("/contract/openapi.yaml")!!.readAllBytes())
         contract shouldContain "permission: ${PacksController.REGULATORY_PACK_ROLLBACK}"
         contract shouldContain "permission: ${PacksController.REGULATORY_PACK_REPROCESS}"
         PacksController.REGULATORY_PACK_ROLLBACK shouldBe "regulatory-pack.rollback"

@@ -14,7 +14,10 @@ import org.jooq.DSLContext
 import org.jooq.impl.DSL
 import java.util.UUID
 
-/** The run a page event names: its key, found by the `reprocessingId` of the event under the tenant's row-level policy. */
+/**
+ * The run a page event names: its key, found by the `reprocessingId` of the event under the tenant's row-level
+ * policy.
+ */
 data class ReprocessingRunKey(
     val packType: String,
     val version: String,
@@ -28,6 +31,7 @@ data class ReprocessingRunKey(
  * hides every other tenant's rows. Nothing about a document is stored but the resubmission rows (INV-REQ-1196): a row
  * is inserted and never updated or deleted (the runtime login holds `SELECT, INSERT` on the table only).
  */
+@Suppress("TooManyFunctions") // one store of the run rows and the list: each function is one statement
 class JooqReprocessingStore(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
@@ -90,6 +94,7 @@ class JooqReprocessingStore(
      * bound tenant's, the entity was requested and the page number is new, else null (a page of another run, another
      * tenant or a repeated number enqueues nothing).
      */
+    @Suppress("ReturnCount") // one early return per refusal of the page, in the ruled order
     fun admitPage(
         reprocessingId: String,
         entityRef: String,

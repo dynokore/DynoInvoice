@@ -1088,7 +1088,6 @@ class DryRunSaturationTest(
     properties =
         [
             "rules.dry-run.sample-wait=PT37S", "rules.dry-run.parallelism=1", "rules.dry-run.retry-after=PT3S",
-            "rules.reprocessing.rate-limit.permits=1000", "rules.reprocessing.rate-limit.window=PT1S",
             IDEMPOTENCY, CALLER_0, SUBJECT_0, CALLER_1, SUBJECT_1,
         ],
 )
@@ -1309,7 +1308,8 @@ open class RegulatoryDryRunSupport(
                     st
                         .executeQuery(
                             "select table_name from information_schema.tables " +
-                                "where table_schema = 'rules' and table_type = 'BASE TABLE' order by 1",
+                                "where table_schema = 'rules' and table_type = 'BASE TABLE' " +
+                                "and table_name <> 'lane_rate_window' order by 1",
                         ).use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
                 }
             names.filter { it != TICK_TABLE }.associateWith { name ->

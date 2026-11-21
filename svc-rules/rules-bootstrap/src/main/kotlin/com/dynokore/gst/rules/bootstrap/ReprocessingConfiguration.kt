@@ -10,6 +10,7 @@ import com.dynokore.gst.rules.adapters.persistence.JooqPackCorrectionStore
 import com.dynokore.gst.rules.adapters.persistence.JooqReprocessingStore
 import com.dynokore.gst.rules.application.PackCorrectionPermissionPort
 import com.dynokore.gst.rules.application.PackEvaluationPort
+import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.ReprocessPopulation
 import com.dynokore.gst.rules.application.RollbackPack
 import com.dynokore.gst.rules.application.SupersedingPackPort
@@ -30,6 +31,7 @@ import com.dynokore.platform.tenancykernel.PlatformTenantBinding
 import com.dynokore.platform.tenancykernel.TenantContext
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import org.jooq.DSLContext
+import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -54,14 +56,27 @@ class ReprocessingConfiguration {
     @Bean
     fun laneLimits(environment: Environment): LaneLimits = laneLimitsOf(environment)
 
+    /**
+     * The queue of lane REPROCESSING, held in its own type: a bean of type [WorkQueue] would be picked up by the
+     * platform's replay delivery, which would then claim reprocessing items as replay items.
+     */
     @Bean
-    fun workQueue(
+    fun reprocessingWorkQueue(
         scope: TenantScope,
         dsl: DSLContext,
         limits: LaneLimits,
         clock: Clock,
-    ): WorkQueue =
-        JdbcWorkQueue(scope, dsl, SCHEMA, LaneRateLimiter(scope, dsl, SCHEMA, limits), clock, QueueingReprocessingPort.CONSUMER)
+    ): ReprocessingWorkQueue =
+        ReprocessingWorkQueue(
+            JdbcWorkQueue(
+                scope,
+                dsl,
+                SCHEMA,
+                LaneRateLimiter(scope, dsl, SCHEMA, limits),
+                clock,
+                QueueingReprocessingPort.CONSUMER,
+            ),
+        )
 
     @Bean
     fun jooqReprocessingStore(
@@ -74,7 +89,8 @@ class ReprocessingConfiguration {
         dsl: DSLContext,
         platform: PlatformTenantBinding,
         transactions: TransactionRunner,
-    ): JooqPackCorrectionStore = JooqPackCorrectionStore(dsl, platform, transactions)
+        events: PackEventEmitter,
+    ): JooqPackCorrectionStore = JooqPackCorrectionStore(dsl, platform, transactions, events)
 
     /** Publishes `PackReprocessingRequested` per entity in the command transaction of `reprocessPopulation`. */
     @Bean
@@ -104,10 +120,10 @@ class ReprocessingConfiguration {
         permission: PackCorrectionPermissionPort,
         runs: JooqReprocessingStore,
         requests: ReprocessingEvents,
-        queue: WorkQueue,
+        queue: ReprocessingWorkQueue,
         packs: SupersedingPackPort,
     ): ReprocessPopulation =
-        ReprocessPopulation(permission, runs, requests, QueueingReprocessingPort(queue), runs, packs)
+        ReprocessPopulation(permission, runs, requests, QueueingReprocessingPort(queue.queue), runs, packs)
 
     /**
      * rules-svc is the subscriber of `gst.platform.pack-reprocessing-population-recorded.v1` (platform-contracts
@@ -139,14 +155,15 @@ class ReprocessingConfiguration {
 
     @Bean
     fun reprocessingWorker(
-        queue: WorkQueue,
+        queue: ReprocessingWorkQueue,
         scope: TenantScope,
         useCase: ReprocessPopulation,
-    ): ReprocessingWorker = ReprocessingWorker(queue, scope, useCase)
+    ): ReprocessingWorker = ReprocessingWorker(queue.queue, scope, useCase)
 
     /**
      * The one worker loop: a short tick that drains what the lane limit lets through. `rules.reprocessing.worker=false`
-     * switches the tick off (the tests drive [ReprocessingWorker.drain] themselves); it is on when the property is absent.
+     * switches the tick off (the tests drive [ReprocessingWorker.drain] themselves); it is on when the property is
+     * absent.
      */
     @Bean
     @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
@@ -162,7 +179,7 @@ class ReprocessingConfiguration {
         const val WINDOW = "rules.reprocessing.rate-limit.window"
         private const val SCHEMA = "rules"
 
-        /** The [LaneLimits] of the environment: the entry of lane REPROCESSING only; a bad or absent value is refused. */
+        /** The [LaneLimits] of the environment: lane REPROCESSING only; a bad or absent value is refused. */
         fun laneLimitsOf(environment: Environment): LaneLimits {
             val permits =
                 environment.getRequiredProperty(PERMITS, Int::class.java).also {
@@ -186,11 +203,18 @@ class ReprocessingWorkerScheduling(
 ) {
     @Scheduled(fixedDelay = TICK_MILLIS, initialDelay = TICK_MILLIS)
     fun tick() {
-        runCatching { worker.drain() }.onFailure { log.warn("reprocessing worker tick failed: {}", it.javaClass.simpleName) }
+        runCatching { worker.drain() }.onFailure {
+            log.warn("reprocessing worker tick failed: {}", it.javaClass.simpleName)
+        }
     }
 
     private companion object {
         const val TICK_MILLIS = 1_000L
-        val log = LoggerFactory.getLogger(ReprocessingWorkerScheduling::class.java)
+        val log: Logger = LoggerFactory.getLogger(ReprocessingWorkerScheduling::class.java)
     }
 }
+
+/** The work queue of lane REPROCESSING; not a [WorkQueue] bean, so the platform's replay delivery skips it. */
+class ReprocessingWorkQueue(
+    val queue: WorkQueue,
+)
