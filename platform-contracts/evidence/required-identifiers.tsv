@@ -118,3 +118,7 @@ getPartitionDeletion.SRT-010	operation_error_code	openapi.yaml	INV-REQ-1010
 DECISION_TRACES	enum_value	openapi.yaml	INV-REQ-988
 AUDIT_LOG	enum_value	openapi.yaml	INV-REQ-988
 listRenditionSampleChecks	operation	openapi.yaml	INV-REQ-1036
+DeletionResult.noticeWindowDays	schema_property	openapi.yaml	INV-REQ-1010
+DeletionResult.windowAcknowledgement	schema_property	openapi.yaml	INV-REQ-1010
+WindowAcknowledgement.userId	schema_property	openapi.yaml	INV-REQ-1010
+WindowAcknowledgement.soleOperator	schema_property	openapi.yaml	INV-REQ-1010

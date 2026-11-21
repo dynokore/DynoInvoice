@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: evidence API
-  version: 1.18.0
+  version: 1.19.0
   description: >-
     Contract-first source of truth for evidence (API-01, STK-44). The
     `evidence-contract` module generates its server interfaces and DTOs
@@ -2337,7 +2337,29 @@ components:
         deletedAt:
           type: string
           format: date-time
+        noticeWindowDays:
+          type: integer
+          minimum: 1
+          description: >-
+            The custody holder notice window in whole days that applied to
+            this partition, recorded at notice time (INV-REQ-2462, VP-66).
+        windowAcknowledgement:
+          $ref: '#/components/schemas/WindowAcknowledgement'
       required: [partitionId, status, deletedAt]
+    WindowAcknowledgement:
+      type: object
+      description: >-
+        Recorded acknowledgement of a shortened notice window (INV-REQ-2462).
+        Carries the acting user ID, never a role.
+      properties:
+        userId:
+          type: string
+          minLength: 1
+          description: The acting user ID of the acknowledgement.
+        soleOperator:
+          type: boolean
+          description: True when it is the sole-operator acknowledgement (INV-REQ-994).
+      required: [userId]
     DeletionStatus:
       type: object
       description: >-
