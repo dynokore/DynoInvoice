@@ -206,6 +206,17 @@ class WorkPaperSourceDbTest : RunStoreDbFixture() {
     }
 
     @Test
+    fun `INV-AC-1975 a two-person attestation seals exactly attestedAt and attestedBy`() {
+        val t1 = UUID.randomUUID()
+        val run = storedRun(t1)
+        attest(t1, run)
+        val text = String(load(t1, run)!!.canonicalJson, Charsets.UTF_8)
+        val expected = "\"attestation\":{\"attestedAt\":\"2026-11-19T09:30:00Z\",\"attestedBy\":\"user-A\"}"
+        text.contains(expected) shouldBe true
+        text.contains("soleAttester") shouldBe false
+    }
+
+    @Test
     fun `INV-AC-24381 an unknown run id and another tenant return null`() {
         val t1 = UUID.randomUUID()
         val t2 = UUID.randomUUID()
