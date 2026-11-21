@@ -162,7 +162,7 @@ class EntityLifecycleHttpTest {
     }
 
     @Test
-    fun `probe goLive repeated keeps the state LIVE and writes no second outbox row`() {
+    fun `INV-AC-25888 probe goLive repeated keeps the state LIVE and writes no second outbox row`() {
         lifecycleRun { l ->
             l.env.withEntity { _, entity ->
                 lifecycleReady(l, entity)
