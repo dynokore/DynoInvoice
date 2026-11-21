@@ -170,13 +170,14 @@ internal fun lifecycleReady(
     l: Lab,
     entity: EntityResponse,
     openTenant: Boolean = true,
+    electPurchaseDateBasis: Boolean = true,
 ) {
     // INV-Q-8097 B: goLive needs an OPEN tenant. The row is set directly so that these fixtures need not nest the
     // platform binding of openTenant inside the tenant binding they run in; INV-AC-8139 calls openTenant itself.
     if (openTenant) setTenantState(l.env.tenants.current(), "OPEN")
     l.elections.usualPeople(entity)
     l.elections.mode(entity, com.dynokore.gst.tenancy.contract.model.SetIssuanceModeRequest.Mode.RELAY)
-    l.elections.elect(entity, "INVOICE_DATE")
+    if (electPurchaseDateBasis) l.elections.elect(entity, "INVOICE_DATE")
     l.elections.facts.set(entity.entityRef, "recordsPurchases", FactAnswer.FALSE)
     l.elections.facts.set(entity.entityRef, "hasForeignCurrencyDocuments", FactAnswer.FALSE)
     l.e.passed(entity)

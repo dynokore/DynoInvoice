@@ -95,6 +95,29 @@ class EntityLifecycleHttpTest {
     }
 
     @Test
+    fun `INV-AC-170 go-live is refused naming the purchase date basis until it is elected, then proceeds`() {
+        lifecycleRun { l ->
+            l.env.withEntity { _, entity ->
+                lifecycleReady(l, entity, electPurchaseDateBasis = false)
+                val before = storedState(entity)
+                val rows = profileEventRows(entity).size
+                val refused = callGoLive(l.env, entity)
+                assertThat(listOf(refused.status, refused.code)).isEqualTo(listOf(422, "POL-014"))
+                assertThat(refused.detail).contains("PURCHASE_DATE_BASIS")
+                assertThat(refused.detail).contains("required elections outstanding")
+                assertThat(refused.detail).doesNotContain("sandbox certification")
+                assertThat(storedState(entity)).isEqualTo(before)
+                assertThat(profileEventRows(entity).size).isEqualTo(rows)
+                l.elections.elect(entity, "INVOICE_DATE")
+                val live = callGoLive(l.env, entity)
+                assertThat(live.status).isEqualTo(200)
+                assertThat(live.body!!.lifecycleState).isEqualTo(EntityResponse.LifecycleState.LIVE)
+                assertThat(storedState(entity)).isEqualTo("LIVE")
+            }
+        }
+    }
+
+    @Test
     fun `INV-AC-1064 goLive whose latest certification is FAILED with s1 and s2 is refused naming both`() {
         lifecycleRun { l ->
             l.env.withEntity { _, entity ->
