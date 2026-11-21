@@ -283,6 +283,36 @@ class SubmissionWorkerDbTest {
     }
 
     @Test
+    fun `INV-AC-1827 an item of a version in AWAITING_PRECEDING is not performed and the row is unchanged`(
+        @TempDir dir: Path,
+    ) = run(dir) { boundary ->
+        val tenant = UUID.randomUUID()
+        val held = UUID.randomUUID().toString()
+        boundary.seed(tenant, held, LifecycleState.AWAITING_PRECEDING)
+        // defence in depth: a queue item that should not exist is still refused by the eligible set
+        boundary.asTenant(tenant) {
+            boundary.workQueue.enqueue(QueueEntry(held, Lane.LIVE, """{"docUuid":"$held","version":1}"""))
+        }
+        val before = boundary.stateOf(tenant, held)
+
+        val result = boundary.worker.takeNext()
+
+        (result as? SentResult.NotEligible)?.state shouldBe LifecycleState.AWAITING_PRECEDING
+        boundary.stateOf(tenant, held) shouldBe before
+        boundary.stateOf(tenant, held) shouldBe "AWAITING_PRECEDING"
+        boundary.itemStates(tenant, held) shouldBe listOf("CLAIMED")
+        boundary.attempts(tenant, held).size shouldBe 0
+        boundary.outboxRows(tenant, held).size shouldBe 0
+
+        // look-alike: a QUEUED version with its own item is performed and ends SENT
+        val ok = UUID.randomUUID().toString()
+        boundary.queued(tenant, ok)
+        boundary.stateOf(tenant, ok) shouldBe "QUEUED"
+        boundary.sentOrFail(boundary.worker.takeNext()).dispatch.docUuid shouldBe ok
+        boundary.stateOf(tenant, ok) shouldBe "SENT"
+    }
+
+    @Test
     fun `INV-AC-13067 two workers draining 20 distinct documents never return one version twice`(
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
