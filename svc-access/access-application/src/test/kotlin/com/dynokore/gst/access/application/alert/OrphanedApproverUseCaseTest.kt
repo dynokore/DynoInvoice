@@ -293,7 +293,7 @@ class OrphanedApproverUseCaseTest {
     }
 
     @Test
-    fun `INV-AC-23348 the revoke of the only approver of E1 raises one alert, E2 with a second approver none, a new grant closes it`() {
+    fun `INV-AC-23348 the revoke of the only approver raises one alert, E2 gets none, a new grant closes it`() {
         seedStandard()
         revoke("G1")
         assertEquals(listOf(alertE1), raised)

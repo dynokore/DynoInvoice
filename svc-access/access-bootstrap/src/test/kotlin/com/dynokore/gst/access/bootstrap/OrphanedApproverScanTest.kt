@@ -152,7 +152,7 @@ class OrphanedApproverScanTest {
     }
 
     @Test
-    fun `INV-AC-23348 the window end of the only approver raises one alert for E1 only and a second approver closes it`() {
+    fun `INV-AC-23348 the window end of the only approver raises one alert for E1 and a new grant closes it`() {
         BoundaryFixture.runner().run { context ->
             context.startupFailure?.let { throw it }
             val tenant = TenantId(UUID.randomUUID())
