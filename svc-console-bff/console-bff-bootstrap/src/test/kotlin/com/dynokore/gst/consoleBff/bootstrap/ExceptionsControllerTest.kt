@@ -229,4 +229,28 @@ class ExceptionsControllerTest {
         result.response.contentType shouldContain Problems.CONTENT_TYPE
         body(result)["code"].asString() shouldBe ClosedErrorCode.UNAUTHENTICATED.code
     }
+
+    @Test
+    fun `INV-AC-1940 cross-entity mode lists the entities in scope and no other`() {
+        val rows =
+            listOf(
+                row(1, "E-001"),
+                row(2, "E-001"),
+                row(3, "E-002"),
+                row(4, "E-003"),
+                row(5, "E-003"),
+                row(6, "E-0011"),
+                row(7, "e-001"),
+            ).map { QueuedException(it, null) }
+        val result = call(mvc(rows, scope = setOf("E-001", "E-002")))
+        result.response.status shouldBe 200
+        val items = body(result)["items"]
+        items.size() shouldBe 3
+        val entities = (0 until items.size()).map { items[it]["entityRef"].asString() }
+        entities.toSet() shouldBe setOf("E-001", "E-002")
+        for (excluded in listOf("E-003", "E-0011", "e-001")) (excluded in entities) shouldBe false
+        val none = call(mvc(rows, scope = emptySet()))
+        none.response.status shouldBe 200
+        body(none)["items"].size() shouldBe 0
+    }
 }
