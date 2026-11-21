@@ -43,6 +43,7 @@ sealed interface SubmitOutcome {
  * values as COUNTERPARTY-provided only when the link evidence of the verified token matches the request of the
  * call. The evidence reference is the request and link (`link:<linkRef>/<requestId>`), so it is never empty. Values
  * are not validated as a precondition (FR-1.5).
+ */
 @Suppress("LongParameterList") // the use case composes its ports; the held-documents port is the seventh
 class SubmitCounterpartyDetails(
     private val tx: TransactionRunner,
