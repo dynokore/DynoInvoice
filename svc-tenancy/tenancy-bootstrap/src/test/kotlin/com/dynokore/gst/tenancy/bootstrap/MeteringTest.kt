@@ -504,7 +504,7 @@ class MeteringTest {
     private fun Env.exceeded() = raised.events.toList()
 
     @Test
-    fun `INV-AC-9588 the first excess publishes one event, a second in the period none, the next period again`() {
+    fun `INV-AC-9588 INV-AC-921 the first excess publishes one event, a second in the period none, the next period again`() {
         run { env ->
             env.tenant { t ->
                 env.limit(t, documents = 2)
