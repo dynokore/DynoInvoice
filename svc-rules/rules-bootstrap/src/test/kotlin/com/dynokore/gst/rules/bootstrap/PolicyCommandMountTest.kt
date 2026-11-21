@@ -52,8 +52,6 @@ class PolicyCommandMountTest {
                 "rules.access-svc-url=http://127.0.0.1:1", // required (TPL-16); nothing listens there
                 "rules.fence.acknowledgement-window=PT7M", // required (INV-T-4977), no default
                 "rules.dry-run.parallelism=1", // required by the dry-run capacity (INV-T-4974)
-                "rules.reprocessing.rate-limit.permits=1000",
-                "rules.reprocessing.rate-limit.window=PT1S",
                 "rules.dry-run.sample-wait=PT1S",
                 "rules.dry-run.retry-after=PT2S",
                 "gst.instance-id=rules-svc-0",

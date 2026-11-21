@@ -203,18 +203,10 @@ class PersistedPackRegistryIT(
         java.sql.DriverManager.getConnection(pg.jdbcUrl, pg.username, pg.password).use { c ->
             c.createStatement().use {
                 it.execute("set session_replication_role = replica")
-                it.execute(
-                    "update rules.pack_artefact set created_at = '2026-01-01T00:00:00Z' " +
-                        "where pack_type = '${type.value}'",
-                )
+                it.execute("update rules.pack_artefact set created_at = '2026-01-01T00:00:00Z' where pack_type = '${type.value}'")
             }
         }
-        val greater =
-            value(
-                TenantId.PLATFORM,
-                "select pack_version from rules.pack_artefact where pack_type = ? order by id desc limit 1",
-                type.value,
-            )
+        val greater = value(TenantId.PLATFORM, "select pack_version from rules.pack_artefact where pack_type = ? order by id desc limit 1", type.value)
         asTenant { resolve(type, tenantA, date) }?.version?.value shouldBe greater
     }
 

@@ -79,13 +79,9 @@ class JooqPackCorrectionStore(
                     .where(PACK_REGISTRY.PACK_TYPE.eq(packType))
                     .and(PACK_REGISTRY.TENANT_ID.eq(TenantId.PLATFORM.value))
                     .and(PACK_REGISTRY.STATUS.eq(ARMED))
-                    .and(
-                        PACK_REGISTRY.ARTEFACT_VERSION.let { if (superseding) it.isNotNull else it.isNull },
-                    ).orderBy(
-                        PACK_REGISTRY.EFFECTIVE_FROM.desc(),
-                        PACK_REGISTRY.REGISTERED_AT.desc(),
-                        PACK_REGISTRY.ID.desc(),
-                    ).limit(1)
+                    .and(if (superseding) PACK_REGISTRY.ARTEFACT_VERSION.isNotNull else PACK_REGISTRY.ARTEFACT_VERSION.isNull)
+                    .orderBy(PACK_REGISTRY.EFFECTIVE_FROM.desc(), PACK_REGISTRY.REGISTERED_AT.desc(), PACK_REGISTRY.ID.desc())
+                    .limit(1)
                     .fetchOne(PACK_REGISTRY.PACK_VERSION)
             }
         }
@@ -96,7 +92,6 @@ class JooqPackCorrectionStore(
             version: String,
         ): CorrectionPackRow? = row(packType, version)?.let(::rowOf)
 
-        @Suppress("ReturnCount") // one early return per absent link, in order
         override fun latestSuperseded(bad: CorrectionPackRow): EarlierPack? {
             val predecessor = row(bad.packType, bad.version)?.get(PACK_REGISTRY.SUPERSEDES) ?: return null
             val earlier = row(bad.packType, predecessor) ?: return null
@@ -124,9 +119,7 @@ class JooqPackCorrectionStore(
                         DSL.`val`(copyFrom, SQLDataType.CLOB),
                     ),
                 ).fetchOne()
-            return checkNotNull(find(spec.packType, spec.version)) {
-                "the superseding row just written is not readable"
-            }
+            return checkNotNull(find(spec.packType, spec.version)) { "the superseding row just written is not readable" }
         }
 
         private fun row(

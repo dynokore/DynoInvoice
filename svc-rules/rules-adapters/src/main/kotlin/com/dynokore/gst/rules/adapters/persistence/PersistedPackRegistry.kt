@@ -35,7 +35,6 @@ import java.util.UUID
  * a tenant pack by an insert whose `registered_by` is the actor bound in the transaction (the kernel trigger refuses
  * any other value). The date of [resolve] is always the caller's, never the clock (ARC-13).
  */
-@Suppress("TooManyFunctions") // one registry port: each function is one statement
 class PersistedPackRegistry(
     private val dsl: DSLContext,
     private val tenants: TenantContext,
@@ -95,9 +94,8 @@ class PersistedPackRegistry(
     }
 
     /**
-     * The label whose artefact row serves [version]: the `artefact_version` of its registry row when it is a
-     * superseding row (INV-REQ-962), else its own label. The artefact rows stay the earlier pack's, unchanged
-     * (INV-T-4978).
+     * The label whose artefact row serves [version]: the `artefact_version` of its registry row when it is a superseding
+     * row (INV-REQ-962), else its own label. The artefact rows stay the earlier pack's, unchanged (INV-T-4978).
      */
     private fun artefactLabel(version: PackVersion): PackVersionLabel =
         dsl

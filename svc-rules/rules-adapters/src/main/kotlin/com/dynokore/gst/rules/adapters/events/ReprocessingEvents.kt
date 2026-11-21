@@ -40,8 +40,7 @@ import java.time.LocalDate
 import java.util.UUID
 
 /**
- * The two platform events of a pack reprocessing (INV-T-24001 contract, producer of the pages INV-T-24003;
- * INV-REQ-1003):
+ * The two platform events of a pack reprocessing (INV-T-24001 contract, producer of the pages INV-T-24003; INV-REQ-1003):
  * rules-svc publishes `PackReprocessingRequested` per entity through the outbox of the command's open transaction and
  * consumes `PackReprocessingPopulationRecorded` pages. rules-svc keeps no standing store of tenant transaction facts
  * (INV-REQ-1196): the facts of a document live only in its work-queue item until it is processed.
@@ -222,9 +221,7 @@ class ReprocessingPageRecordedHandler(
                 val stored = evaluation.evaluate(event.tenant, key.packType, badVersion, it.doc)
                 PopulationItem(it.doc.docUuid, it.supersededVersion.toString(), it.acknowledged, stored)
             }
-        ItemDocuments.with(facts) {
-            useCase.pageArrived(key.packType, key.version, PopulationPage(entity, last, items))
-        }
+        ItemDocuments.with(facts) { useCase.pageArrived(key.packType, key.version, PopulationPage(entity, last, items)) }
         return HandleOutcome.APPLIED
     }
 
@@ -247,8 +244,7 @@ class ReprocessingPageRecordedHandler(
         } catch (e: IllegalArgumentException) {
             throw ContractViolation("docUuid is not a UUID", e)
         }
-        val superseded =
-            node.get("supersededVersion")?.takeIf { it.isInt && it.asInt() >= 1 }?.asInt() ?: bad("supersededVersion")
+        val superseded = node.get("supersededVersion")?.takeIf { it.isInt && it.asInt() >= 1 }?.asInt() ?: bad("supersededVersion")
         val entity = text(node, "entityRef", MAX_TEXT)
         if (entity != pageEntity) bad("a page item names another entity than its page")
         val doc =
@@ -256,12 +252,7 @@ class ReprocessingPageRecordedHandler(
                 pageNumber = pageNumber,
                 position = position,
                 docUuid = docUuid,
-                periodRef =
-                    node
-                        .get("periodRef")
-                        ?.takeIf { it.isString }
-                        ?.asString()
-                        .orEmpty(),
+                periodRef = node.get("periodRef")?.takeIf { it.isString }?.asString().orEmpty(),
                 entityRef = entity,
                 transactionDate = date(node, "transactionDate") ?: bad("transactionDate is missing"),
                 internalTaxCode = text(node, "internalTaxCode", MAX_TEXT),
@@ -300,11 +291,7 @@ class ReprocessingPageRecordedHandler(
         name: String,
         max: Int,
     ): String =
-        node
-            .get(name)
-            ?.takeIf { it.isString }
-            ?.asString()
-            ?.takeIf { it.isNotEmpty() && it.length <= max }
+        node.get(name)?.takeIf { it.isString }?.asString()?.takeIf { it.isNotEmpty() && it.length <= max }
             ?: bad("$name is missing, empty or too long")
 
     private fun parse(text: String): JsonNode =
@@ -368,19 +355,12 @@ class ReprocessingWorker(
                             ),
                         )
                     ItemDocuments.with(mapOf(doc.docUuid to doc)) {
-                        useCase.process(
-                            payload.get("packType").asString(),
-                            payload.get("version").asString(),
-                            populationItem,
-                        )
+                        useCase.process(payload.get("packType").asString(), payload.get("version").asString(), populationItem)
                     }
                     queue.complete(item)
                 }
             }
-        } catch (
-            @Suppress("TooGenericExceptionCaught") e: RuntimeException,
-        ) {
-            // the worker barrier: the item is released
+        } catch (e: RuntimeException) {
             log.warn("reprocessing item {} released after a failure", item.seq, e)
             scope.bind(item.tenant, WORKLOAD) { scope.transactions.inTransaction { queue.release(item) } }
         }
@@ -396,8 +376,7 @@ class ReprocessingWorker(
             transactionDate = LocalDate.parse(p.get("transactionDate").asString()),
             internalTaxCode = p.get("internalTaxCode").asString(),
             documentFunction = p.get("documentFunction").asString(),
-            precedingDocumentDate =
-                p.get("precedingDocumentDate")?.takeUnless { it.isNull }?.let { LocalDate.parse(it.asString()) },
+            precedingDocumentDate = p.get("precedingDocumentDate")?.takeUnless { it.isNull }?.let { LocalDate.parse(it.asString()) },
             supplyType = p.get("supplyType")?.takeUnless { it.isNull }?.asString(),
             sgdValuesAbsent = p.get("sgdValuesAbsent").asBoolean(),
             taxableValue = BigDecimal(p.get("taxableValue").asString()),

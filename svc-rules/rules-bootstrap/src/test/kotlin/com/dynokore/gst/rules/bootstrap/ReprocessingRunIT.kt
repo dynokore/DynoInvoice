@@ -1,10 +1,10 @@
 package com.dynokore.gst.rules.bootstrap
 
 import com.dynokore.gst.rules.adapters.events.ReprocessingPageRecordedHandler
-import com.dynokore.gst.rules.adapters.events.ReprocessingWorker
 import com.dynokore.gst.rules.adapters.persistence.JooqReprocessingStore
 import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.ReprocessPopulation
+import com.dynokore.gst.rules.adapters.events.ReprocessingWorker
 import com.dynokore.gst.rules.served.MovableClock
 import com.dynokore.gst.rules.served.PolicyFixtures
 import com.dynokore.platform.outboxandqueue.CausationId
@@ -41,7 +41,7 @@ data class PageDoc(
     val acknowledged: Boolean,
 )
 
-/** The reprocessing harness: a correction made, entities in the structure replica, pages delivered as events. */
+/** The reprocessing harness: a correction already made, entities in the structure replica, pages delivered as events. */
 open class ReprocessingHarness(
     port: Int,
     replica: AuthorityReplica,
@@ -54,16 +54,10 @@ open class ReprocessingHarness(
 
     protected fun structure() = context.getBean(StructureReplica::class.java)
 
-    protected fun addEntity() {
+    protected fun addEntity() =
         structure().accept(
-            EntityProfileChanged(
-                tenant,
-                entity,
-                StructureNode(StructureNodeKind.ENTITY, null, false, "E", entity, emptyList(), 1),
-            ),
+            EntityProfileChanged(tenant, entity, StructureNode(StructureNodeKind.ENTITY, null, false, "E", entity, emptyList(), 1)),
         )
-        structure().onSnapshotComplete(1)
-    }
 
     /** The correction made through the served rollbackPack, the entity known, and the run started. */
     protected fun startRun(): String {
@@ -87,29 +81,16 @@ open class ReprocessingHarness(
     ): HandleOutcome {
         val items =
             docs.joinToString(",") {
-                """{"docUuid":"${it.uuid}","supersededVersion":3,"acknowledged":${it.acknowledged},""" +
-                    """"entityRef":"$entityRef","transactionDate":"2026-07-01","internalTaxCode":"${it.taxCode}",""" +
-                    """"documentFunction":"BILL_FOR_PAYMENT","taxableValue":"10.00","gstValue":"0.90"}"""
+                """{"docUuid":"${it.uuid}","supersededVersion":3,"acknowledged":${it.acknowledged},"entityRef":"$entityRef",""" +
+                    """"transactionDate":"2026-07-01","internalTaxCode":"${it.taxCode}","documentFunction":"BILL_FOR_PAYMENT",""" +
+                    """"taxableValue":"10.00","gstValue":"0.90"}"""
             }
-        val data =
-            """{"reprocessingId":"$reprocessingId","entityRef":"$entityRef","pageNumber":$number,""" +
-                """"lastPage":$last,"documents":[$items]}"""
+        val data = """{"reprocessingId":"$reprocessingId","entityRef":"$entityRef","pageNumber":$number,"lastPage":$last,"documents":[$items]}"""
         val envelope =
             Envelope(
-                EventId(UUID.randomUUID().toString()),
-                "/gst/canonical",
-                RECORDED_TYPE,
-                "reprocessing",
-                Instant.now(),
-                tenant,
-                EntityRef(entityRef),
-                null,
-                null,
-                null,
-                "canonical-svc-0",
-                CorrelationId(UUID.randomUUID().toString()),
-                CausationId(UUID.randomUUID().toString()),
-                data,
+                EventId(UUID.randomUUID().toString()), "/gst/canonical", RECORDED_TYPE, "reprocessing", Instant.now(), tenant,
+                EntityRef(entityRef), null, null, null, "canonical-svc-0",
+                CorrelationId(UUID.randomUUID().toString()), CausationId(UUID.randomUUID().toString()), data,
             )
         val handler =
             ReprocessingPageRecordedHandler(
@@ -125,25 +106,15 @@ open class ReprocessingHarness(
     protected fun resubmissionRows(): List<String> =
         superuser { c ->
             c.createStatement().use { st ->
-                st
-                    .executeQuery(
-                        "select to_jsonb(r)::text from rules.reprocessing_resubmission r " +
-                            "where pack_type = '$type' order by doc_uuid",
-                    ).use {
-                        buildList { while (it.next()) add(it.getString(1)) }
-                    }
+                st.executeQuery("select to_jsonb(r)::text from rules.reprocessing_resubmission r where pack_type = '$type' order by doc_uuid").use {
+                    buildList { while (it.next()) add(it.getString(1)) }
+                }
             }
         }
 }
 
 @SpringBootTest(
-    classes = [
-        PolicyFixtures::class,
-        ImportFixtures::class,
-        ArmingFixtures::class,
-        CorrectionFixtures::class,
-        RulesApplication::class,
-    ],
+    classes = [PolicyFixtures::class, ImportFixtures::class, ArmingFixtures::class, CorrectionFixtures::class, RulesApplication::class],
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
 )
 class ReprocessingRunIT(
@@ -160,13 +131,9 @@ class ReprocessingRunIT(
     }
 
     @Test
-    fun `INV-AC-23933 every acknowledged document the superseding pack reclassifies is listed once by Doc UUID`() {
+    fun `INV-AC-23933 every acknowledged document the superseding pack reclassifies is listed once under its own Doc UUID`() {
         val id = startRun()
-        scalar(
-            "select count(*) from rules.outbox where type = ? and tenant_id = ?::uuid",
-            REQUESTED_TYPE,
-            tenant.toString(),
-        ) shouldBe "1"
+        scalar("select count(*) from rules.outbox where event_type = ?", REQUESTED_TYPE) shouldBe "1"
         val k = List(3) { PageDoc(taxCode = "CHANGE", acknowledged = true) }
         val unchanged = PageDoc(taxCode = "SAME", acknowledged = true)
         val notSent = PageDoc(taxCode = "CHANGE", acknowledged = false)
@@ -175,12 +142,9 @@ class ReprocessingRunIT(
         deliver(id, 1, false, k + unchanged) shouldBe HandleOutcome.IGNORED
         deliver("other-$id".take(40), 2, true, listOf(notSent)) shouldBe HandleOutcome.IGNORED
         deliver(id, 2, true, listOf(notSent), entityRef = "other") shouldBe HandleOutcome.IGNORED
-        scalar(
-            "select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?",
-            type,
-        ) shouldBe "4"
+        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING'") shouldBe "4"
         deliver(id, 2, true, listOf(notSent)) shouldBe HandleOutcome.APPLIED
-        drain()
+        drain() shouldBe 5
         val rows = resubmissionRows()
         rows.size shouldBe 3
         val list = inTenant { context.getBean(JooqReprocessingStore::class.java).resubmissions(type, label) }
@@ -189,24 +153,21 @@ class ReprocessingRunIT(
         rows.toSet().size shouldBe 3
         scalar("select state from rules.reprocessing_run where pack_type = ?", type) shouldBe "COMPLETE"
         // no row is updated or deleted by a second run of the worker, and a repeated add leaves the first row
-        drain()
+        drain() shouldBe 0
         resubmissionRows() shouldBe rows
         inTenant { context.getBean(JooqReprocessingStore::class.java).add(type, label, list.first()) }
         resubmissionRows() shouldBe rows
         // the HTTP answer for the same run is 202 again, unchanged
         reprocess("u-re").statusCode() shouldBe 202
         // look-alike: a differently named table does not hold the list
-        scalar(
-            "select count(*) from information_schema.tables where table_schema = 'rules' " +
-                "and table_name = 'reprocessing_resubmissions'",
-        ) shouldBe "0"
+        scalar("select count(*) from information_schema.tables where table_schema = 'rules' and table_name = 'reprocessing_resubmissions'") shouldBe "0"
     }
 
     @Test
     fun `INV-AC-23933 an empty set of documents to resubmit gives an empty list, no row and no error`() {
         val id = startRun()
         deliver(id, 1, true, listOf(PageDoc(taxCode = "SAME", acknowledged = true))) shouldBe HandleOutcome.APPLIED
-        drain()
+        drain() shouldBe 1
         resubmissionRows() shouldBe emptyList()
         scalar("select state from rules.reprocessing_run where pack_type = ?", type) shouldBe "COMPLETE"
     }
@@ -238,13 +199,7 @@ class ReprocessingRunIT(
         addEntity()
         val before = snapshot()
         val calls = UseCaseCalls.permissionChecks.get()
-        val alt =
-            reprocess(
-                "u-re",
-                token =
-                    com.dynokore.gst.rules.served
-                        .workloadToken("console-bff-alt"),
-            )
+        val alt = reprocess("u-re", token = com.dynokore.gst.rules.served.workloadToken("console-bff-alt"))
         alt.statusCode() shouldBe 403
         alt.body() shouldContain "SRT-004"
         reprocess("u-re", token = null).statusCode() shouldBe 401
@@ -262,7 +217,7 @@ class ReprocessingRunIT(
     fun `INV-AC-6925 the affected population is reprocessed and the acknowledged documents to resubmit are returned`() {
         val id = startRun()
         deliver(id, 1, true, listOf(PageDoc(taxCode = "CHANGE", acknowledged = true))) shouldBe HandleOutcome.APPLIED
-        drain()
+        drain() shouldBe 1
         resubmissionRows().size shouldBe 1
     }
 }
