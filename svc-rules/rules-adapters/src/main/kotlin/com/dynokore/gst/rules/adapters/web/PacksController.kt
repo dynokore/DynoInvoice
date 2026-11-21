@@ -532,8 +532,11 @@ open class PacksController(
 
     /**
      * Supersedes the armed pack of [packType] by an effective-dated reversal (INV-T-4978; INV-REQ-962, INV-REQ-1002).
-     * No transaction is opened here: the registry opens its own under the platform binding. The permission decision
-     * (`regulatory-pack.rollback`) and every precondition are the use case's, and a refusal writes nothing.
+     * The request names the pack type and the date only: the registry transaction of the use case locks the current
+     * active row `FOR UPDATE`, and the date comparison and the supersede run inside it. The permission decision
+     * (`regulatory-pack.rollback`) and every precondition are the use case's, and a refusal writes nothing. The
+     * superseding row records the acting user ID and `RulePackActivated` goes out through the outbox in the same
+     * transaction.
      */
     @Suppress("ThrowsCount") // one closed refusal per outcome of the use case
     override fun rollbackPack(
@@ -542,8 +545,15 @@ open class PacksController(
         activatePackRequest: ActivatePackRequest,
     ): ResponseEntity<RegulatoryPack> {
         val effectiveFrom = activatePackRequest.effectiveFrom
-        val bad = corrections.badVersionOf(packType).orEmpty()
-        val result = rollback.execute(packType, bad, effectiveFrom, actor(), REGULATORY_PACK_ROLLBACK)
+        val actor = actor()
+        val result =
+            try {
+                corrections.correct(packType, actor) { bad ->
+                    rollback.execute(packType, bad, effectiveFrom, actor, REGULATORY_PACK_ROLLBACK)
+                }
+            } catch (_: JooqPackCorrectionStore.StaleCorrectionException) {
+                throw closed(ClosedErrorCode.STALE_AGGREGATE, "the active pack changed during the rollback")
+            }
         val row =
             when (result) {
                 is RollbackPackResult.Created -> {
