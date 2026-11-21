@@ -180,3 +180,41 @@ grant select, insert, update on rules.reprocessing_run to rules_runtime;
 grant select, insert, update on rules.reprocessing_run_entity to rules_runtime;
 grant select, insert on rules.reprocessing_run_page to rules_runtime;
 grant select, insert on rules.reprocessing_resubmission to rules_runtime;
+
+-- The superseding registry row of a pack correction (INV-T-4978; INV-REQ-962, INV-REQ-1002). It carries no artefact row
+-- of its own: artefact_version names the earlier pack whose signed artefact rows it uses, unchanged (set only on a
+-- superseding row). The row is inserted ARMED in one statement, already holding artefact_version, because an ARMED
+-- pack freezes its entries (pack_entry_source_frozen) and the bad pack row is never touched.
+alter table rules.pack_registry add column artefact_version text null
+    constraint pack_registry_artefact_version_not_blank check (artefact_version is null or artefact_version !~ '^\s*$');
+
+create function rules.register_superseding_pack(p_id uuid, p_pack_id text, p_pack_type text, p_pack_version text,
+    p_effective_from date, p_min_engine_version text, p_supersedes text, p_artefact_version text)
+    returns uuid
+language plpgsql security definer set search_path = pg_catalog, rules, pg_temp as $$
+declare
+    v_actor text := (select rules.bound_actor());
+begin
+    if (select rules.bound_tenant()) is distinct from 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid then
+        raise exception 'a superseding platform pack is registered under the platform tenant only' using errcode = '42501';
+    end if;
+    if v_actor is null or v_actor ~ '^\s*$|[[:cntrl:]]' then
+        raise exception 'the bound actor is not set: a superseding pack records its actor' using errcode = '42501';
+    end if;
+    if p_id is null or p_effective_from is null or coalesce(p_pack_id, '') ~ '^\s*$'
+        or coalesce(p_pack_type, '') ~ '^\s*$' or coalesce(p_pack_version, '') ~ '^\s*$'
+        or coalesce(p_min_engine_version, '') ~ '^\s*$' or coalesce(p_artefact_version, '') ~ '^\s*$' then
+        raise exception 'every field of a superseding pack but supersedes is required and not blank' using errcode = '22023';
+    end if;
+    insert into rules.pack_registry (id, tenant_id, pack_id, pack_type, pack_version, layer, status, effective_from,
+        effective_to, min_engine_version, supersedes, registered_by, artefact_version)
+    values (p_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid, p_pack_id, p_pack_type, p_pack_version, 'REGULATORY',
+        'ARMED', p_effective_from, null, p_min_engine_version, p_supersedes, v_actor, p_artefact_version);
+    return p_id;
+end
+$$;
+grant create on schema rules to rules_sys;
+alter function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text) owner to rules_sys;
+revoke create on schema rules from rules_sys;
+revoke execute on function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text) from public;
+grant execute on function rules.register_superseding_pack(uuid, text, text, text, date, text, text, text) to rules_runtime;

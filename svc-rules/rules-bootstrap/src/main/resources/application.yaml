@@ -57,6 +57,9 @@ gst:
   db.event-log-url: ${GST_EVENT_LOG_DB_URL:}
 rules:
   fence.acknowledgement-window: PT15M
+  # rules.reprocessing.rate-limit.permits and rules.reprocessing.rate-limit.window (ISO-8601) bound the claims of the
+  # REPROCESSING lane (INV-T-4978; INV-REQ-1004). They have no default in code and no production number is set here:
+  # the context refuses to start while either is missing, zero or negative. The deployment supplies them.
   dry-run:
     # Background capacity of dry runs (INV-T-4974): runs executed at the same time. Two keeps a console user's second
     # dry run from waiting behind the first while leaving most of the background lane to relay and consumers.

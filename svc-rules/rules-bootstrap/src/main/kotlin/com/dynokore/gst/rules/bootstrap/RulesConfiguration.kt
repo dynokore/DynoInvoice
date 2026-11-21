@@ -3,6 +3,7 @@ package com.dynokore.gst.rules.bootstrap
 import com.dynokore.gst.rules.adapters.clients.AccessSvcClient
 import com.dynokore.gst.rules.adapters.clients.HttpPackFeedProbe
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
+import com.dynokore.gst.rules.adapters.events.ReprocessingEvents
 import com.dynokore.gst.rules.adapters.events.DryRunSampleRecordedHandler
 import com.dynokore.gst.rules.adapters.events.EventHistoricalSamplePort
 import com.dynokore.gst.rules.adapters.events.OutboxPackEventEmitter
@@ -91,6 +92,7 @@ import com.dynokore.gst.rules.application.PackContentsCheck
 import com.dynokore.gst.rules.application.PackCurrencyMonitor
 import com.dynokore.gst.rules.application.PackCurrencyStore
 import com.dynokore.gst.rules.application.PackDocumentEvaluation
+import com.dynokore.gst.rules.application.PackCorrectionPermissionPort
 import com.dynokore.gst.rules.application.PackEvaluationPort
 import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.PackFeedPoller
@@ -176,6 +178,7 @@ import com.dynokore.gst.rules.domain.pack.DeploymentForm as DomainDeploymentForm
 /** The only place a use case is constructed; `application` stays annotation-free (ARC-03, TPL-18). */
 @Configuration(proxyBeanMethods = false)
 @org.springframework.scheduling.annotation.EnableScheduling
+@org.springframework.context.annotation.Import(ReprocessingConfiguration::class)
 // one bean method per wired port; the composition root is the single place (TPL-18)
 @Suppress("TooManyFunctions", "LargeClass")
 class RulesConfiguration {
@@ -195,6 +198,8 @@ class RulesConfiguration {
             RulesEventCatalogue.entries() +
                 // the sample request of a dry run (INV-T-19903): published through the outbox of the command
                 DryRunSampleEvents.requestedEntry() +
+                // the population request of a pack reprocessing (INV-T-4978)
+                ReprocessingEvents.requestedEntry() +
                 listOf(
                     PlatformEventCatalogue.AUDIT_ENTRY_RECORDED,
                     PlatformEventCatalogue.POLICY_CHANGED,
@@ -647,6 +652,16 @@ class RulesConfiguration {
         tenants: TenantContext,
     ): AcknowledgementPermissionPort =
         AcknowledgementPermissionPort { user -> decideTenantKey(replica, tenants, user, REGULATORY_PACK_ACKNOWLEDGE) }
+
+    /**
+     * The scoped keys `regulatory-pack.rollback` and `regulatory-pack.reprocess` (owner ruling 2026-11-18), decided
+     * like [armingPermissionPort] for the acting user ID and the key the caller names; never a role name.
+     */
+    @Bean
+    fun packCorrectionPermissionPort(
+        replica: ObjectProvider<AuthorityReplica>,
+        tenants: TenantContext,
+    ): PackCorrectionPermissionPort = PackCorrectionPermissionPort { user, key -> decideTenantKey(replica, tenants, user, key) }
 
     private fun decideTenantKey(
         replica: ObjectProvider<AuthorityReplica>,

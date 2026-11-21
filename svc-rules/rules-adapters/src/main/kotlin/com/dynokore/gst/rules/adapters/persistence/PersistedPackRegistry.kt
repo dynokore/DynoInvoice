@@ -2,6 +2,7 @@ package com.dynokore.gst.rules.adapters.persistence
 
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.records.PackArtefactRecord
 import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_ARTEFACT
+import com.dynokore.gst.rules.adapters.persistence.jooq.tables.references.PACK_REGISTRY
 import com.dynokore.platform.rulepackkernel.Checksum
 import com.dynokore.platform.rulepackkernel.PackArtefact
 import com.dynokore.platform.rulepackkernel.PackId
@@ -74,6 +75,8 @@ class PersistedPackRegistry(
                 .orderBy(
                     DSL.`when`(PACK_ARTEFACT.TENANT_ID.eq(TenantId.PLATFORM.value), 1).otherwise(0),
                     PACK_ARTEFACT.EFFECTIVE_FROM.desc(),
+                    PACK_ARTEFACT.CREATED_AT.desc(),
+                    PACK_ARTEFACT.ID.desc(),
                 ).limit(1)
                 .fetchOne() ?: return null
         return versionOf(row)
@@ -81,7 +84,7 @@ class PersistedPackRegistry(
 
     /** The stored signed artefact of a resolved [version], or null when none is held. Read by rules-svc only. */
     fun artefactOf(version: PackVersion): PackArtefact? {
-        val row = rowOf(version.packType, version.tenant, version.version) ?: return null
+        val row = rowOf(version.packType, version.tenant, artefactLabel(version)) ?: return null
         return PackArtefact(
             manifest = column(row.manifest, "manifest").data().toByteArray(Charsets.UTF_8),
             checksums = column(row.checksums, "checksums").data().toByteArray(Charsets.UTF_8),
@@ -89,6 +92,20 @@ class PersistedPackRegistry(
             contents = column(row.contents, "contents").data().toByteArray(Charsets.UTF_8),
         )
     }
+
+    /**
+     * The label whose artefact row serves [version]: the `artefact_version` of its registry row when it is a superseding
+     * row (INV-REQ-962), else its own label. The artefact rows stay the earlier pack's, unchanged (INV-T-4978).
+     */
+    private fun artefactLabel(version: PackVersion): PackVersionLabel =
+        dsl
+            .select(PACK_REGISTRY.ARTEFACT_VERSION)
+            .from(PACK_REGISTRY)
+            .where(PACK_REGISTRY.PACK_TYPE.eq(version.packType.value))
+            .and(PACK_REGISTRY.TENANT_ID.eq((version.tenant ?: TenantId.PLATFORM).value))
+            .and(PACK_REGISTRY.PACK_VERSION.eq(version.version.value))
+            .fetchOne(PACK_REGISTRY.ARTEFACT_VERSION)
+            ?.let(::PackVersionLabel) ?: version.version
 
     private fun registerPlatform(pack: VerifiedPack) {
         val m = pack.version.manifest

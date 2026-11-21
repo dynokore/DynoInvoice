@@ -192,6 +192,24 @@ class PersistedPackRegistryIT(
         value(tenantA, "select count(*) from rules.pack_artefact where pack_type = '${type.value}'") shouldBe 0L
     }
 
+    @Test
+    fun `INV-AC-23932 at an equal effective_from the later created_at is resolved, then the greater id`() {
+        val type = PackType("TIE_" + UUID.randomUUID().toString().take(8))
+        val date = LocalDate.parse("2026-06-01")
+        store(verified(type, "e1", "2026-01-01", null))
+        store(verified(type, "e2", "2026-01-01", null))
+        asTenant { resolve(type, tenantA, date) }?.version?.value shouldBe "e2"
+        // equal created_at: the greater id decides (triggers off for this session: a probe, not a code path)
+        java.sql.DriverManager.getConnection(pg.jdbcUrl, pg.username, pg.password).use { c ->
+            c.createStatement().use {
+                it.execute("set session_replication_role = replica")
+                it.execute("update rules.pack_artefact set created_at = '2026-01-01T00:00:00Z' where pack_type = '${type.value}'")
+            }
+        }
+        val greater = value(TenantId.PLATFORM, "select pack_version from rules.pack_artefact where pack_type = ? order by id desc limit 1", type.value)
+        asTenant { resolve(type, tenantA, date) }?.version?.value shouldBe greater
+    }
+
     companion object {
         @DynamicPropertySource
         @JvmStatic
