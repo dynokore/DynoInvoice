@@ -946,7 +946,7 @@ class MappingPackOutcomesTest(
     }
 
     @Test
-    fun `a sign-off refusal for an unaccepted entry answers 422 RUL-007 and stores nothing`() {
+    fun `INV-AC-15993 a sign-off refusal for an unaccepted entry answers 422 RUL-007 and stores nothing`() {
         val label = label()
         val packId = draft(label)
         ok(mapCode(packId, "S1", "SR", "SECONDARY"), 201)
@@ -1385,6 +1385,38 @@ class MappingPackSchemaTest(
             tenantA,
             "update rules.pack_entry_source set $set where pack_version = 'lk-1' and entry_id = 'E1' returning id",
         )
+
+    private fun classedEntry(
+        version: String,
+        entry: String,
+        sourceClass: String,
+    ) = value(
+        tenantA,
+        "insert into rules.pack_entry_source (id, tenant_id, pack_type, pack_version, entry_id, source_class, " +
+            "internal_tax_code, iras_code) values (?::uuid, ?::uuid, 'MAPPING', ?, ?, $sourceClass, ?, 'SR') " +
+            "returning id",
+        UUID.randomUUID().toString(),
+        tenantA.toString(),
+        version,
+        entry,
+        entry,
+    )
+
+    private fun entryCount() =
+        value(tenantA, "select count(*) from rules.pack_entry_source where tenant_id = ?::uuid", tenantA.toString())
+
+    @Test
+    fun `INV-AC-15993 an entry stored with no source class or with the lower-case class secondary is refused by the database check`() {
+        registry(tenantA, "sc-1", "DRAFT", "2026-01-01")
+        val before = entryCount()
+        shouldThrow<Exception> { classedEntry("sc-1", "NULLCLASS", "null") }
+        entryCount() shouldBe before
+        shouldThrow<Exception> { classedEntry("sc-1", "LOWER", "'secondary'") }
+        entryCount() shouldBe before
+        // the look-alike with a valid class is stored, so the refusal above is specific to the class
+        classedEntry("sc-1", "OK", "'PRIMARY'") shouldNotBe null
+        entryCount() shouldBe (before as Long) + 1L
+    }
 
     @Test
     fun `the entries of a SUBMITTED pack change only in accepted and those of an APPROVED pack not at all`() {

@@ -75,7 +75,7 @@ class PackLifecycleTest {
     }
 
     @Test
-    fun `INV-AC-755 signing off a mapping pack with a SECONDARY entry is blocked with RUL-007`() {
+    fun `INV-AC-755 INV-AC-15993 signing off a mapping pack with a SECONDARY entry is blocked with RUL-007`() {
         val secondary = PackEntry("ENT-8", null, SourceClass.SECONDARY)
         val blocked =
             MappingSignOff
@@ -92,13 +92,13 @@ class PackLifecycleTest {
     }
 
     @Test
-    fun `an entry without a class blocks sign-off and is never read as PRIMARY`() {
+    fun `INV-AC-15993 an entry without a class blocks sign-off and is never read as PRIMARY`() {
         val unclassified = PackEntry("ENT-1", null, null)
         MappingSignOff.attempt(listOf(unclassified)).shouldBeInstanceOf<MappingSignOff.Outcome.Blocked>()
     }
 
     @Test
-    fun `an INFERRED entry blocks sign-off with RUL-007 until it is re-sourced or accepted`() {
+    fun `INV-AC-15993 an INFERRED entry blocks sign-off with RUL-007 until it is re-sourced or accepted`() {
         val inferred = PackEntry("ENT-9", null, SourceClass.INFERRED)
         val blocked =
             MappingSignOff
