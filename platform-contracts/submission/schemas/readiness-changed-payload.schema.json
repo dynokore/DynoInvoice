@@ -32,6 +32,11 @@
         "minimum": 0
       }
     },
+    "blockedCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The readiness count of unsubmitted entries as INV-REQ-570 counts them, decided by the producer (INV-REQ-904). Absent when the producer cannot determine it; a consumer never guesses it, and a NOT_READY event without it is shown as unable to determine."
+    },
     "filingFact": {
       "type": "object",
       "description": "The filing fact, where filed (FR-AF.36).",

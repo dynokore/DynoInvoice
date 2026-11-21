@@ -1,0 +1,10 @@
+{
+  "entityRef": "E-001",
+  "period": "2026Q1",
+  "verdict": "NOT_READY",
+  "countsByState": {
+    "BLOCKED": 2,
+    "HELD": 1
+  },
+  "blockedCount": "2"
+}

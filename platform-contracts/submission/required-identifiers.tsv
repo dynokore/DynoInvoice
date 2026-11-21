@@ -276,3 +276,4 @@ IdentityTripleCorrection.effectiveFrom	schema_property	openapi.yaml	INV-REQ-1006
 IdentityTripleCorrection.accessPointEscalation	schema_property	openapi.yaml	INV-REQ-1006
 IdentityTripleCorrection.selectedCount	schema_property	openapi.yaml	INV-REQ-1006
 IdentityTripleCorrection.resubmittedCount	schema_property	openapi.yaml	INV-REQ-1006
+blockedCount	property	schemas/readiness-changed-payload.schema.json	INV-REQ-904
