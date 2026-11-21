@@ -102,6 +102,13 @@ class ReadinessChangedPayloadContractTest {
         mapper.readTree(event.dataJson).get("blockedCount").asInt() shouldBe snapshot.blockedCount
     }
 
+    @Test
+    fun `INV-AC-26601 a quote and a backslash in the entity reference parse back to the same value`() {
+        val entity = "E\"1\\x"
+        val data = ReadinessChangedPublication.data(ReadinessChangedFacts(entity, "2026Q1", snapshot, "chk-7"))
+        mapper.readTree(data).get("entityRef").asString() shouldBe entity
+    }
+
     private companion object {
         const val MESSAGE = "ReadinessChanged"
     }

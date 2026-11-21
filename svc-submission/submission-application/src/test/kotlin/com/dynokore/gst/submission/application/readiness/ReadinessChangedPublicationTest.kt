@@ -11,7 +11,6 @@ import com.dynokore.platform.tenancykernel.TenantId
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.junit.jupiter.api.Test
-import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 class ReadinessChangedPublicationTest {
@@ -106,9 +105,9 @@ class ReadinessChangedPublicationTest {
     }
 
     @Test
-    fun `INV-AC-26601 a quote and a backslash in the entity reference are escaped and parse back`() {
+    fun `INV-AC-26601 a quote and a backslash in the entity reference are escaped`() {
         val entity = "E\"1\\x"
         val data = ReadinessChangedPublication.data(facts(ready, entity))
-        ObjectMapper().readTree(data).get("entityRef").asString() shouldBe entity
+        data.substringBefore(",\"period\"") shouldBe "{\"entityRef\":\"E\\\"1\\\\x\""
     }
 }
