@@ -77,6 +77,33 @@ class RetentionRefusalTest {
         }
 
     @Test
+    fun `INV-AC-1328 seven years without a justification is refused, with one it is accepted`(
+        @TempDir dir: Path,
+    ): Unit =
+        RetentionService.start(dir).use { s ->
+            for (level in listOf("TENANT", "ENTITY")) {
+                for (tier in RetentionTier.entries) {
+                    for (missing in listOf(null, "")) {
+                        val tenant = s.newTenant()
+                        at(s, level, tenant, all(tier, 7), missing).code shouldBe "POL-005"
+                        s.stored(tenant) shouldBe 0
+                    }
+                    val tenant = s.newTenant()
+                    val answer = at(s, level, tenant, all(tier, 7), reason).accepted()
+                    answer.body.get("reason").asString() shouldBe reason
+                    s.reasons(tenant) shouldBe listOf(reason)
+                    s.years(tenant, "ENT-A", tier) shouldBe 7
+                    RetentionTier.entries.filter { it != tier }.forEach { s.years(tenant, "ENT-A", it) shouldBe 5 }
+
+                    // Probe: below the floor is POL-013, not the justification refusal.
+                    val below = s.newTenant()
+                    at(s, level, below, all(tier, 4), reason).code shouldBe "POL-013"
+                    s.stored(below) shouldBe 0
+                }
+            }
+        }
+
+    @Test
     fun `INV-AC-1713 a missing or look-alike field is refused with POL-013`(
         @TempDir dir: Path,
     ): Unit =
