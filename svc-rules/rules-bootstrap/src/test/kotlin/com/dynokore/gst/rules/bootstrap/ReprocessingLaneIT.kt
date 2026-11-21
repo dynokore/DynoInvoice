@@ -14,6 +14,7 @@ import org.springframework.boot.test.web.server.LocalServerPort
 import org.springframework.context.ApplicationContext
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import java.time.Duration
 
 private const val LIMIT = 3
 private const val POPULATION = 8
@@ -53,7 +54,7 @@ class ReprocessingLaneIT(
             tenant.toString(),
         )
         scalar("select count(*) from rules.work_queue where lane = 'LIVE' and partition_key <> 'live-doc'") shouldBe "0"
-        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?", type) shouldBe POPULATION.toString()
+        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING'") shouldBe POPULATION.toString()
         val queue = context.getBean(WorkQueue::class.java)
         val window = ArrayList<Lane>()
         while (true) window += (queue.claimNext() ?: break).lane
@@ -61,8 +62,7 @@ class ReprocessingLaneIT(
         window.count { it == Lane.REPROCESSING } shouldBe LIMIT
         window.size shouldBe LIMIT + 1
         // the next window allows the same number again, never more
-        // the window is counted on the database clock: age the stored window past its end
-        exec("update rules.lane_rate_window set window_start = window_start - interval '11 minutes'")
+        clock.advance(Duration.ofMinutes(11))
         val next = ArrayList<Lane>()
         while (true) next += (queue.claimNext() ?: break).lane
         next.count { it == Lane.REPROCESSING } shouldBe LIMIT

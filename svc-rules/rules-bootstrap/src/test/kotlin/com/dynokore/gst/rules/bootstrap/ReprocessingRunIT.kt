@@ -144,7 +144,7 @@ class ReprocessingRunIT(
         deliver(id, 1, false, k + unchanged) shouldBe HandleOutcome.IGNORED
         deliver("other-$id".take(40), 2, true, listOf(notSent)) shouldBe HandleOutcome.IGNORED
         deliver(id, 2, true, listOf(notSent), entityRef = "other") shouldBe HandleOutcome.IGNORED
-        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?", type) shouldBe "4"
+        scalar("select count(*) from rules.work_queue where lane = 'REPROCESSING'") shouldBe "4"
         deliver(id, 2, true, listOf(notSent)) shouldBe HandleOutcome.APPLIED
         drain()
         val rows = resubmissionRows()
