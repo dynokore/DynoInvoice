@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: reconciliation API
-  version: 1.9.0
+  version: 1.10.0
   description: >-
     Contract-first source of truth for reconciliation (API-01, STK-44). The
     `reconciliation-contract` module generates its server interfaces and DTOs
@@ -264,6 +264,57 @@ paths:
                     status: 503
                     code: "PER-016"
                     correlationId: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+        default:
+          $ref: '#/components/responses/Error'
+  /v1/entities/{entityRef}/periods/{periodRef}/intra-tenant-pairs:
+    get:
+      operationId: listIntraTenantPairs
+      summary: List each supply of the period with its matching purchase across two entities of the tenant
+      description: >-
+        Intra-tenant pairing view (INV-REQ-740). The view is informational:
+        a difference between the figures of the two sides is expected and is
+        never an error. The two sides are matched by the one Doc UUID across
+        two entities of the tenant; no heuristic matching. Cursor pagination
+        (API-18); no offset and no total count.
+
+
+        The permission is decided per request by the owning service on the
+        scoped key (INV-Q-10027).
+
+
+        Timeout class (INV-REQ-1204 b7, INV-Q-3476): `API gateway -> any
+        other service's public /v1 operation`, 3 s (x-timeout 3000).
+      tags: [reconciliation]
+      x-principal: reporting
+      x-caller-auth: end-user
+      x-timeout: 3000
+      x-error-codes: []
+      x-requirements: [INV-REQ-740]
+      x-operation:
+        kind: PERMISSION
+        permission: machine.reconciliation.read
+      parameters:
+        - $ref: '#/components/parameters/EntityRef'
+        - $ref: '#/components/parameters/PeriodRef'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 100
+            maximum: 500
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: One page of supply and purchase pairs.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntraTenantPairPage'
         default:
           $ref: '#/components/responses/Error'
   /internal/v1/reconciliation/entities/{entityRef}/periods/{periodRef}/runs:
@@ -839,6 +890,46 @@ components:
         nextCursor:
           type: string
       required: [items]
+    IntraTenantPairPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntraTenantPair'
+        nextCursor:
+          type: string
+      required: [items]
+    IntraTenantPair:
+      type: object
+      properties:
+        docUuid:
+          type: string
+          format: uuid
+        supply:
+          $ref: '#/components/schemas/PairSide'
+        purchase:
+          $ref: '#/components/schemas/PairSide'
+      required: [docUuid, supply, purchase]
+    PairSide:
+      type: object
+      properties:
+        entityRef:
+          type: string
+        documentVersion:
+          type: integer
+          minimum: 1
+        taxCode:
+          type: string
+        netAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+        taxAmount:
+          type: string
+          format: decimal
+          pattern: '^-?\d{1,17}(\.\d{1,2})?$'
+      required: [entityRef, documentVersion, taxCode, netAmount, taxAmount]
     WorkPaperHeader:
       type: object
       properties:

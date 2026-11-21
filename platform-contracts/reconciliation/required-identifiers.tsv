@@ -48,3 +48,11 @@ VarianceShare.varianceClass	schema_property	openapi.yaml	INV-REQ-632
 VarianceShare.amount	schema_property	openapi.yaml	INV-REQ-632
 annotateVariance.PER-019	operation_error_code	openapi.yaml	INV-REQ-957
 annotateVariance.409	operation_response	openapi.yaml	INV-REQ-957
+listIntraTenantPairs	operation	openapi.yaml	INV-REQ-740
+docUuid	property	openapi.yaml	INV-REQ-740
+supply	property	openapi.yaml	INV-REQ-740
+purchase	property	openapi.yaml	INV-REQ-740
+taxCode	property	openapi.yaml	INV-REQ-740
+netAmount	property	openapi.yaml	INV-REQ-740
+taxAmount	property	openapi.yaml	INV-REQ-740
+documentVersion	property	openapi.yaml	INV-REQ-740
