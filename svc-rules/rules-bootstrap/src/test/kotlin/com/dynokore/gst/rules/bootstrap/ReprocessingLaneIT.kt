@@ -63,7 +63,7 @@ class ReprocessingLaneIT(
             "select count(*) from rules.work_queue where lane = 'REPROCESSING' and payload->>'packType' = ?",
             type,
         ) shouldBe POPULATION.toString()
-        val queue = context.getBean(WorkQueue::class.java)
+        val queue = context.getBean(ReprocessingWorkQueue::class.java).queue
         val window = ArrayList<Lane>()
         while (true) window += (queue.claimNext() ?: break).lane
         window.first() shouldBe Lane.LIVE

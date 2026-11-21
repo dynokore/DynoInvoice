@@ -110,7 +110,7 @@ open class CorrectionHarness(
                 .toString()
                 .take(8)
                 .uppercase()
-    protected val d0: LocalDate = LocalDate.parse("2026-06-01")
+    protected val d0: LocalDate = LocalDate.now(clock).minusDays(30)
     protected val earlier = "e" + UUID.randomUUID().toString().take(5)
     protected val bad = "b" + UUID.randomUUID().toString().take(5)
 
@@ -165,7 +165,7 @@ open class CorrectionHarness(
 
     /** The earlier pack (with its artefact) and the bad pack that superseded it, armed from [d0]. */
     protected fun seedBadPack() {
-        seedArmed(earlier, LocalDate.parse("2026-01-01"), null, artefact = true)
+        seedArmed(earlier, d0.minusDays(150), null, artefact = true)
         seedArmed(bad, d0, earlier, artefact = false)
     }
 
@@ -223,7 +223,7 @@ open class CorrectionHarness(
                 PackId("$type-pack"),
                 PackType(type),
                 PackVersionLabel(label),
-                LocalDate.parse("2026-01-01"),
+                d0.minusDays(150),
                 null,
                 "1.0.0",
             ),
@@ -256,6 +256,28 @@ class PackCorrectionIT(
         fun properties(registry: DynamicPropertyRegistry) = registerCorrection(registry)
     }
 
+    private fun assertActivationRecorded(label: String) {
+        // the acting user ID, not a role, is stored; the workload principal stays in registered_by (INV-Q-10647)
+        scalar(
+            "select activated_by from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            label,
+        ) shouldBe
+            "u-roll"
+        scalar(
+            "select activated_by from rules.pack_registry where pack_type = ? and pack_version = ?",
+            type,
+            bad,
+        ) shouldBe
+            null
+        // RulePackActivated for the superseding row went through the outbox, once, as a platform-class event
+        scalar(
+            "select count(*)::text from rules.outbox where type = 'com.dynokore.gst.platform.RulePackActivated.v1' " +
+                "and topic = 'gst.platform.rule-pack-activated.v1' and subject = ?",
+            "$type@$label",
+        ) shouldBe "1"
+    }
+
     @Test
     fun `INV-AC-23932 rollbackPack arms the superseding pack from the bad pack's date and refuses another date`() {
         seedBadPack()
@@ -277,9 +299,10 @@ class PackCorrectionIT(
             label,
         ) shouldBe
             "$d0/ARMED/$earlier"
+        assertActivationRecorded(label)
         // resolution by transaction date: the superseding row, not the bad row (equal effective_from, later
         // registered_at)
-        val mid = LocalDate.parse("2026-08-01")
+        val mid = d0.plusDays(60)
         resolvedAt(mid)!!.version.value shouldBe label
         resolvedAt(d0)!!.version.value shouldBe label
         resolvedAt(d0.minusDays(1))!!.version.value shouldBe earlier

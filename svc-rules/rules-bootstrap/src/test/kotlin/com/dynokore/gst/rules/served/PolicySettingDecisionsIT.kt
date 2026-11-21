@@ -1,6 +1,7 @@
 package com.dynokore.gst.rules.served
 
 import com.dynokore.gst.rules.adapters.events.DryRunSampleEvents
+import com.dynokore.gst.rules.adapters.events.ReprocessingEvents
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.bootstrap.PostgresRules
 import com.dynokore.gst.rules.bootstrap.RulesApplication
@@ -319,9 +320,11 @@ class PolicySettingDecisionsIT(
                 PlatformEventCatalogue.EVIDENCE_ARTEFACT_RECORDED.eventType,
                 // the sample request of a dry run (INV-T-19903)
                 DryRunSampleEvents.REQUESTED,
+                // the per-entity reprocessing request (INV-T-4978)
+                ReprocessingEvents.REQUESTED,
             )
         catalogue.entries().map { it.eventType }.toSet() shouldBe RulesEventCatalogue.TOPICS.keys + platform
-        catalogue.entries().size shouldBe RulesEventCatalogue.TOPICS.size + 4
+        catalogue.entries().size shouldBe RulesEventCatalogue.TOPICS.size + 5
     }
 
     @Test

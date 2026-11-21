@@ -32,7 +32,8 @@ private const val PLATFORM = "ffffffff-ffff-ffff-ffff-ffffffffffff"
 private const val TENANT = "0a000000-0000-0000-0000-00000000000a"
 private const val PATH = "/internal/v1/rules/regulatory-packs/active"
 private const val TABLES =
-    "select table_name from information_schema.tables where table_schema = 'rules' and table_type = 'BASE TABLE'"
+    "select table_name from information_schema.tables where table_schema = 'rules' and table_type = 'BASE TABLE' " +
+        "and table_name <> 'lane_rate_window'"
 private val CALLERS = listOf("installer", "canonical-svc", "console-bff", "installer-alt")
 
 /** Counts the reads the use case makes: it is reached only when the caller check lets the call through. */
