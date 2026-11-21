@@ -146,7 +146,7 @@ class DocUuidIndependenceDbTest {
     }
 
     @Test
-    fun `INV-AC-14143 B is claimed and sent while A is SENT and unacknowledged`(
+    fun `INV-AC-14143 INV-AC-1687 B is claimed and sent while A is SENT and unacknowledged`(
         @TempDir dir: Path,
     ) = run(dir) { boundary ->
         val (tenant, a, b) = boundary.twoDocs()
