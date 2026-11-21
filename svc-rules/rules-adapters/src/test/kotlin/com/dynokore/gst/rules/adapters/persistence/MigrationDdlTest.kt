@@ -93,8 +93,10 @@ class MigrationDdlTest {
 
     private val queueFile = File("src/main/resources/db/migration/V202611171000__reprocessing_queue_and_resubmission.sql")
 
-    private fun expectedQueue(): String =
-        QUEUE_HEADER + QueueSchema.ddl(schema = "rules", runtimeRole = "rules_runtime", sysRole = "rules_sys").trimEnd() + "\n"
+    private fun expectedQueue(): String {
+        val ddl = QueueSchema.ddl(schema = "rules", runtimeRole = "rules_runtime", sysRole = "rules_sys")
+        return QUEUE_HEADER + ddl.trimEnd() + "\n"
+    }
 
     /** INV-T-4978: the work queue tables are the generator's text, committed; the run and list tables follow it. */
     @Test
