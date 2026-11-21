@@ -158,9 +158,25 @@ private class DvExtensions : PeriodExtensionStore {
 }
 
 private class DvFacts : FilingFactStore {
+    /** The (entityRef, periodRef) pairs returned as filed; empty by default. */
+    val filed = mutableSetOf<Pair<String, String>>()
+
     override fun keep(fact: FilingFact): Boolean = true
 
-    override fun forEntity(entityRef: String): Map<String, FilingFact> = emptyMap()
+    override fun forEntity(entityRef: String): Map<String, FilingFact> =
+        filed
+            .filter { it.first == entityRef }
+            .associate {
+                it.second to
+                    FilingFact(
+                        entityRef,
+                        it.second,
+                        false,
+                        Instant.parse("2026-07-20T00:00:00Z"),
+                        false,
+                        Instant.parse("2026-07-20T00:00:00Z"),
+                    )
+            }
 }
 
 private class DvPublisher : PeriodEventPublisher {
@@ -212,8 +228,10 @@ private class DvWorld {
                 entry: EntityStatusEntry,
             ) = Unit
         }
-    private val planner = PeriodPlanner(statuses, { dvPack() }, { _, _, _ -> NonBusinessDayRule.NO_MOVE })
-    val recomputation = DueDateRecomputation(structure, planner, DvHistory(), periods, extensions, DvFacts(), publisher)
+    var rule: NonBusinessDayRule = NonBusinessDayRule.NO_MOVE
+    val facts = DvFacts()
+    private val planner = PeriodPlanner(statuses, { dvPack() }, { _, _, _ -> rule })
+    val recomputation = DueDateRecomputation(structure, planner, DvHistory(), periods, extensions, facts, publisher)
     val record =
         RecordExtension(
             object : TransactionRunner {
@@ -252,6 +270,17 @@ private class DvWorld {
                         },
                 ).also { periods.insert(entity.id, it) }
         }
+    }
+
+    /** Stores the planned periods of [entity] that start on 1 Apr 2026 and 1 Jul 2026, in that order. */
+    fun storeAprJul(entity: EntityRecord): List<StoredPeriod> {
+        val starts = setOf(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 7, 1))
+        val plan =
+            (
+                planner.plan(entity, DvHistory().entries(entity.id), DV_EFFECTIVE, null, DV_EFFECTIVE, dvPack())
+                    as Plan.Periods
+            ).periods.filter { it.start in starts }.sortedBy { it.start }
+        return plan.onEach { periods.insert(entity.id, it) }
     }
 
     fun pack(entity: EntityRecord) =
@@ -323,5 +352,43 @@ class PeriodDueDateVersionTest {
         assertTrue(w.pack(w.a).isEmpty())
         assertTrue(w.publisher.published.isEmpty())
         assertEquals(0, w.periods.draws)
+    }
+
+    @Test
+    fun `INV-AC-26384 a next-working-day rule moves the unfiled period's due date and leaves a filed period`() {
+        val w = DvWorld()
+        val (aAprJun, aJulSep) = w.storeAprJul(w.a)
+        val (bAprJun, bJulSep) = w.storeAprJul(w.b)
+        w.facts.filed += "ENT-A" to aAprJun.periodRef
+        w.facts.filed += "ENT-B" to bJulSep.periodRef
+        assertEquals(LocalDate.of(2026, 7, 31), aAprJun.dueDate)
+        assertEquals(LocalDate.of(2026, 10, 31), aJulSep.dueDate)
+        assertEquals(LocalDate.of(2026, 10, 31), bJulSep.dueDate)
+        val cause = DueDateCause.VariationPoint("VP-62", LocalDate.of(2026, 7, 1))
+
+        w.rule = NonBusinessDayRule.NEXT_WORKING_DAY
+        val changes = w.recomputation.apply(w.a, LocalDate.of(2026, 7, 1), cause)
+        assertEquals(
+            listOf(
+                PeriodDueDateChange(
+                    "ENT-A",
+                    aJulSep.periodRef,
+                    LocalDate.of(2026, 10, 31),
+                    LocalDate.of(2026, 11, 2),
+                    cause,
+                ),
+            ),
+            changes,
+        )
+        val rows = w.periods.rows.getValue(w.a.id)
+        assertEquals(LocalDate.of(2026, 11, 2), rows.single { it.periodRef == aJulSep.periodRef }.dueDate)
+        assertEquals(LocalDate.of(2026, 7, 31), rows.single { it.periodRef == aAprJun.periodRef }.dueDate)
+        assertEquals(listOf(Triple("ENT-A", aJulSep.periodRef, 1L)), w.publisher.published)
+
+        assertTrue(w.recomputation.apply(w.b, LocalDate.of(2026, 7, 1), cause).isEmpty())
+        val bRows = w.periods.rows.getValue(w.b.id)
+        assertEquals(LocalDate.of(2026, 10, 31), bRows.single { it.periodRef == bJulSep.periodRef }.dueDate)
+        assertTrue(w.publisher.published.none { it.first == "ENT-B" })
+        assertEquals(bAprJun.periodRef, bRows.first { it.start == LocalDate.of(2026, 4, 1) }.periodRef)
     }
 }
