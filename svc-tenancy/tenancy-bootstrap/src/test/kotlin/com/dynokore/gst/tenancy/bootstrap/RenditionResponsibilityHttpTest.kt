@@ -225,6 +225,7 @@ class RenditionResponsibilityHttpTest {
     }
 
     @Test
+    @Suppress("ktlint:standard:max-line-length", "MaxLineLength")
     fun `INV-AC-461 INV-AC-16046 an open finding event sets every recorded class REQUESTED_AGAIN and a new record sets CURRENT`() {
         run { env, tenant, entity ->
             env.record(entity, "TAX_INVOICE")
