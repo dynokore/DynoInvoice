@@ -18,7 +18,10 @@ class AcKeyCoveragePlacementTest {
     private val header = "criterion\ttask\twave\tmodule"
     private val modules = listOf("access-bootstrap", "access-bootstrap2", "access-bootstrap-x", "access-adapters")
 
-    private class Result(val exit: Int, val lines: List<String>)
+    private class Result(
+        val exit: Int,
+        val lines: List<String>,
+    )
 
     private fun fn(name: String) = listOf("fu", "n `$name`() {}").joinToString("") + "\n"
 
@@ -40,7 +43,10 @@ class AcKeyCoveragePlacementTest {
             val out = File(dir, "gradle.out")
             val process =
                 ProcessBuilder(wrapper, "acKeyCoverage", "--no-daemon", "--console=plain", "--no-build-cache")
-                    .directory(dir).redirectErrorStream(true).redirectOutput(out).start()
+                    .directory(dir)
+                    .redirectErrorStream(true)
+                    .redirectOutput(out)
+                    .start()
             if (!process.waitFor(5, TimeUnit.MINUTES)) {
                 process.destroyForcibly()
                 error("the fixture build timed out")
@@ -154,7 +160,7 @@ class AcKeyCoveragePlacementTest {
         val empty = run(table(row("")), placed("access-bootstrap/src/test/kotlin/P.kt"))
         assertThat(empty.exit).`as`("empty cell").isNotZero()
         assertThat(empty.lines).contains(
-            badModule("INV-AC-9001\tINV-T-9001\t2", ""),
+            badModule("INV-AC-9001\tINV-T-9001\t2\t", ""),
         )
     }
 
