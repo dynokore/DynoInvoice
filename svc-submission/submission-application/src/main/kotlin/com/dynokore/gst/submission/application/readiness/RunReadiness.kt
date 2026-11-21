@@ -38,6 +38,8 @@ sealed interface ReadinessRunResult {
         val verdict: PeriodVerdict,
         val result: ReadinessResult,
         val check: StoredReadinessCheck,
+        /** Unreviewed activations of the tenant up to the period end: a fact, never read by the verdict. */
+        val unreviewedActivations: List<UnreviewedActivation> = emptyList(),
     ) : ReadinessRunResult
 
     /** The data is unavailable: no verdict is shown and no check is stored (INV-REQ-974). */
@@ -53,6 +55,7 @@ class RunReadiness(
     private val inputs: ReadinessInputSource,
     private val recorder: ReadinessCheckRecorder,
     private val clock: Clock,
+    private val unreviewed: UnreviewedActivationLookup? = null,
 ) {
     fun run(
         entityRef: String,
@@ -85,6 +88,7 @@ class RunReadiness(
                 verdict,
                 counted,
                 recorder.append(entityRef, periodRef, checkVerdict, clock.instant(), approver, heldOutcome(counted)),
+                unreviewed?.forPeriod(entityRef, periodRef).orEmpty(),
             )
         }
     }
