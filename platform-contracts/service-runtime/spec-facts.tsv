@@ -27,3 +27,5 @@ openapi.yaml	/components/schemas/ReplayState/properties/scope/$ref	equals	"#/com
 schemas/pack-dry-run-sample-recorded-payload.schema.json	/properties/documents/items/properties/supplyType/type	equals	"string"	INV-REQ-772
 schemas/pack-dry-run-sample-recorded-payload.schema.json	/properties/documents/items/properties/supplyType/x-extensible-enum	equals	["STANDARD_RATED","ZERO_RATED","EXEMPT","OUT_OF_SCOPE","IMPORTS"]	INV-REQ-772
 schemas/pack-dry-run-sample-recorded-payload.schema.json	/properties/documents/items/properties/supplyType/enum	absent	-	INV-REQ-772
+schemas/error-envelope.schema.json	/properties/mayPerform/items/enum	equals	["AGENT","CLIENT"]	INV-REQ-913
+schemas/error-envelope.schema.json	/required	equals	["type","title","status","code","correlationId"]	INV-REQ-913

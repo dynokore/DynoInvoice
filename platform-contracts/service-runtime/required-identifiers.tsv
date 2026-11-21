@@ -186,3 +186,4 @@ sgdValuesAbsent	property	schemas/pack-reprocessing-population-recorded-payload.s
 periodRef	property	schemas/pack-reprocessing-population-recorded-payload.schema.json	INV-REQ-1003
 PackReprocessingRequested	asyncapi_message	asyncapi.yaml	INV-REQ-1004
 PackReprocessingPopulationRecorded	asyncapi_message	asyncapi.yaml	INV-REQ-1003
+mayPerform	root_property	schemas/error-envelope.schema.json	INV-REQ-913

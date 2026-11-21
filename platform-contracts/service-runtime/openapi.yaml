@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: service-runtime shared contract components
-  version: 1.5.0
+  version: 1.6.0
   description: >-
     Not a service: the shared OpenAPI components every other directory's
     openapi.yaml references by relative $ref (error envelope, API-20) rather
@@ -23,6 +23,8 @@ info:
     runtime contract every service that owns variation points mounts, served by service-runtime like runJobNow:
     setPolicy sets a variation point's value at one scope, effective-dated, with a reason, and
     acknowledgeControlRelaxation records the accountable role's acknowledgement of a looser option of a CONTROL.
+    The shared error envelope gains the optional member mayPerform (party kinds AGENT, CLIENT; never a role name), present only on the
+    ACCESS_DENIED refusal of an agent operation whose scope item is missing (INV-REQ-913; INV-T-26206).
 tags:
 - name: jobs
   description: Scheduled-job controls of the shared runtime contract (INV-REQ-1138).

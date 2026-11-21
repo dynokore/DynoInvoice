@@ -37,6 +37,13 @@
       "type": "array",
       "items": { "$ref": "#/$defs/errorItem" }
     },
+    "mayPerform": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["AGENT", "CLIENT"] },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "Present only on the ACCESS_DENIED (SRT-004) refusal of an agent operation whose scope item is missing (INV-REQ-913): the party kinds that may perform the operation instead. It lists party kinds and never a role name."
+    },
     "correlationId": { "type": "string" },
     "docUuid": { "type": "string", "format": "uuid" }
   },
