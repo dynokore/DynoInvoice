@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: submission API
-  version: 1.19.0
+  version: 1.20.0
   description: >-
     Contract-first source of truth for submission (API-01, STK-44). The
     `submission-contract` module generates its server interfaces and DTOs
@@ -51,6 +51,8 @@ info:
     1.18.0 adds the internal read getLatestReadinessCheck for console-bff,
     the newest readiness check record of a period (404 SRT-005 when none);
     it is additive (INV-REQ-500, INV-T-21128).
+    1.20.0 names the permission key `submission.view-status` and the 403
+    refusal SRT-004 on checkSubmissionBoundary (INV-REQ-1005); it is additive.
   contact:
     name: submission (see CODEOWNERS)
 servers:
@@ -1419,9 +1421,11 @@ paths:
       x-caller-auth: end-user
       x-sync-edge: console-bff->submission-svc
       x-timeout: 2000
-      x-error-codes: []
+      x-error-codes: [SRT-004]
       x-requirements: [INV-REQ-959, INV-REQ-1005, INV-REQ-1018]
       x-operation:
+        kind: PERMISSION
+        permission: submission.view-status
         role: tax.operator
         scope: entity
         precondition: >-
@@ -1453,6 +1457,8 @@ paths:
                     submittedMembers:
                       - docUuid: "3fa85f64-5717-4562-b3fc-2c963f66afa6"
                         state: "SENT"
+        '403':
+          $ref: '#/components/responses/Error'
         '413':
           $ref: '#/components/responses/Error'
         default:

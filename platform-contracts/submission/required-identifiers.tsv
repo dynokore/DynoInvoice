@@ -268,3 +268,4 @@ NETTED_BY_SYSTEM	enum_value	schemas/obligation-register-entry.schema.json	INV-RE
 originalDocUuid	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
 expectedBaseVersion	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
 creditNotes	property	schemas/net-derivation-requested-payload.schema.json	INV-REQ-558
+checkSubmissionBoundary.SRT-004	operation_error_code	openapi.yaml	INV-REQ-1005
