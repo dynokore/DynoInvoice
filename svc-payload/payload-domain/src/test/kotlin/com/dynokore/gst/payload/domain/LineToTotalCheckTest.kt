@@ -39,6 +39,16 @@ class LineToTotalCheckTest {
     }
 
     @Test
+    fun `INV-AC-2283 a difference above the SGD default tolerance warns PAY-004 and the document proceeds`() {
+        val sgd = PackLineTolerance(d("0"), d("0"), LineToTotalCheck.AMOUNT)
+        val v = run(amounts("600.00", "400.01"), "1000.00", p = sgd).asVariance()
+        v.code shouldBe LineToTotalCheck.PAY_004
+        v.severity shouldBe Severity.WARN
+        v.statedTotal shouldBe d("1000.00")
+        run(amounts("600.00", "400.00"), "1000.00", p = sgd) shouldBe LineToTotalVerdict.WithinTolerance
+    }
+
+    @Test
     fun `INV-AC-13179 the stated total is used as stated and a small variance raises nothing`() {
         run(amounts("333.33", "333.33", "333.33"), "1000.00") shouldBe LineToTotalVerdict.WithinTolerance
         val v = run(amounts("500.00", "400.00"), "1000.00").asVariance()
