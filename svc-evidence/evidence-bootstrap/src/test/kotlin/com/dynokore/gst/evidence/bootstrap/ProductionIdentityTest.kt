@@ -83,7 +83,7 @@ class ProductionIdentityTest {
     @Suppress("LongParameterList")
     private fun token(
         sub: String?,
-        tenant: TenantId,
+        tenant: TenantId?,
         aud: String = AUDIENCE,
         iss: String = issuer,
         expires: Instant = Instant.now().plusSeconds(300),
@@ -95,7 +95,7 @@ class ProductionIdentityTest {
                 .subject(sub)
                 .issuer(iss)
                 .audience(aud)
-                .claim("tenant_id", tenant.toString())
+                .apply { tenant?.let { claim("tenant_id", it.toString()) } }
                 .issueTime(Date.from(Instant.now().minusSeconds(10)))
                 .expirationTime(Date.from(expires))
                 .build()
@@ -190,6 +190,83 @@ class ProductionIdentityTest {
                 .build()
         val response = client.send(request, HttpResponse.BodyHandlers.ofString())
         return response.statusCode() to mapper.readTree(response.body()).get("code")?.asString()
+    }
+
+    /** VP-66 (installation scope, planned): the body of a change to [option] holding [days] as a duration in days. */
+    private fun installationBody(
+        option: String,
+        days: Int,
+        asRole: String? = null,
+    ): String {
+        val node = mapper.createObjectNode()
+        node.put("scopeLevel", "INSTALLATION")
+        val selected = node.putArray("selected").addObject()
+        selected.put("option", option)
+        selected.put("value", days) // a duration is a number in its unit (days)
+        node.put("effectiveDate", RetentionService.today().toString())
+        node.put("reason", "legal-hold notice window change")
+        asRole?.let { node.put("asRole", it) }
+        return mapper.writeValueAsString(node)
+    }
+
+    private fun post(
+        s: RetentionService,
+        path: String,
+        body: String,
+        token: String?,
+    ): Pair<Int, String?> {
+        val port = s.bean(org.springframework.core.env.Environment::class.java).getProperty("local.server.port")
+        val request =
+            HttpRequest
+                .newBuilder(URI.create("http://localhost:$port$path"))
+                .header("X-Workload-Token", "token-console-bff")
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("Content-Type", "application/json")
+                .apply { token?.let { header("Authorization", "Bearer $it") } }
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        return response.statusCode() to mapper.readTree(response.body()).get("code")?.asString()
+    }
+
+    private fun settingRows(): Long =
+        EvidenceDb.superuser().use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery("select count(*) from evidence.config_setting").use { rows ->
+                    rows.next()
+                    rows.getLong(1)
+                }
+            }
+        }
+
+    @Test
+    fun `INV-AC-2509 a change of VP-66 away from 90 days is refused while the variation point is planned`(
+        @TempDir dir: Path,
+    ) {
+        production(dir).use { s ->
+            val operator = token("op1", null) // installation scope: a tenantless token, no grant seeded
+            val rows = settingRows()
+            val longer = installationBody("LONGER", 120)
+            val shorter = installationBody("SHORTER_ACKNOWLEDGED", 60)
+            val relaxation = installationBody("SHORTER_ACKNOWLEDGED", 60, asRole = "deployment.operator")
+            val vp66 = "/internal/v1/policies/VP-66"
+
+            post(s, vp66, longer, operator) shouldBe (422 to "POL-006")
+            settingRows() shouldBe rows
+            post(s, vp66, shorter, operator) shouldBe (422 to "POL-006")
+            settingRows() shouldBe rows
+            post(s, "$vp66/relaxations", relaxation, operator) shouldBe (422 to "POL-006")
+            settingRows() shouldBe rows
+
+            // probes, each differing from the refusal above
+            post(s, "/internal/v1/policies/VP-99", longer, operator) shouldBe (404 to "POL-001")
+            settingRows() shouldBe rows
+            post(s, vp66, longer, token("p1", s.newTenant())) shouldBe (403 to "SRT-004")
+            settingRows() shouldBe rows
+            post(s, vp66, longer, null) shouldBe (401 to "SRT-003")
+            post(s, vp66, longer, token("op1", null, signWith = otherKey)) shouldBe (401 to "SRT-003")
+            settingRows() shouldBe rows
+        }
     }
 
     private fun tiers(
