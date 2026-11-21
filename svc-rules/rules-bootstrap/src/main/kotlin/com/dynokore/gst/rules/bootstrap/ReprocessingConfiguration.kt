@@ -8,9 +8,9 @@ import com.dynokore.gst.rules.adapters.events.ReprocessingWorker
 import com.dynokore.gst.rules.adapters.events.RulesEventCatalogue
 import com.dynokore.gst.rules.adapters.persistence.JooqPackCorrectionStore
 import com.dynokore.gst.rules.adapters.persistence.JooqReprocessingStore
+import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.PackCorrectionPermissionPort
 import com.dynokore.gst.rules.application.PackEvaluationPort
-import com.dynokore.gst.rules.application.PackEventEmitter
 import com.dynokore.gst.rules.application.ReprocessPopulation
 import com.dynokore.gst.rules.application.RollbackPack
 import com.dynokore.gst.rules.application.SupersedingPackPort

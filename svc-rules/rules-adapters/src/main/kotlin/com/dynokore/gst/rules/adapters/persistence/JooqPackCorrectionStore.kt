@@ -153,7 +153,7 @@ class JooqPackCorrectionStore(
             ).limit(1)
             .fetchOne(PACK_REGISTRY.PACK_VERSION)
 
-    /** Locks the current active row of [packType] `FOR UPDATE` through the sys-owned function; returns its version. */
+    /** Locks the current active row of [packType] `FOR UPDATE` through the sys-owned function and returns its version. */
     private fun lockActive(packType: String): String? =
         dsl
             .select(
