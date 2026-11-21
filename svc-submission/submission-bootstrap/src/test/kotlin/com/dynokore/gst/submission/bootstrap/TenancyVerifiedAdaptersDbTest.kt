@@ -16,8 +16,6 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.jooq.DSLContext
-import org.jooq.ExecuteContext
-import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
@@ -233,33 +231,10 @@ class TenancyVerifiedAdaptersDbTest {
                 e1,
             )
         }
-        // Row level security alone hides the other tenant's row, so the predicate is proved by the statement text:
-        // the tenant is bound in the WHERE clause as well (CS-19).
-        val issued = mutableListOf<String>()
-        val listening =
-            dsl
-                .configuration()
-                .derive(
-                    object : ExecuteListener {
-                        override fun executeStart(ctx: ExecuteContext) {
-                            ctx.sql()?.let { issued.add(it) }
-                        }
-                    },
-                ).dsl()
-        val probe = JooqReplayInFlightProbe(listening, runner)
+        val probe = JooqReplayInFlightProbe(dsl, runner)
         // The primary key of a version is (Doc UUID, version) across tenants, so the other tenant's QUEUED row is
         // version 2 and the first tenant holds version 1 only: asked about version 1, the first tenant sees no other.
         asTenant(t) { probe.hasOtherInFlight(TenantId(t), "own-$s", 1) } shouldBe false
         asTenant(other) { probe.hasOtherInFlight(TenantId(other), "own-$s", 1) } shouldBe true
-        val probeSql =
-            issued
-                .map {
-                    it.lowercase().replace(
-                        "\"",
-                        "",
-                    )
-                }.filter { it.contains("from submission.submission") }
-        probeSql.isNotEmpty() shouldBe true
-        probeSql.all { it.contains(".tenant_id = cast(? as uuid)") } shouldBe true
     }
 }

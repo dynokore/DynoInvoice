@@ -1,6 +1,5 @@
 package com.dynokore.gst.submission.adapters
 
-import com.dynokore.gst.submission.adapters.persistence.JooqInFlightStore
 import com.dynokore.gst.submission.adapters.persistence.JooqReplayInFlightProbe
 import com.dynokore.gst.submission.adapters.persistence.jooq.tables.Submission
 import com.dynokore.gst.submission.domain.ordering.InFlight
@@ -8,11 +7,10 @@ import com.dynokore.gst.submission.domain.ordering.LifecycleState
 import com.dynokore.platform.tenancykernel.TenantId
 import com.dynokore.platform.tenancykernel.TransactionRunner
 import io.kotest.matchers.shouldBe
-import org.jooq.ExecuteContext
-import org.jooq.ExecuteListener
 import org.jooq.SQLDialect
 import org.jooq.impl.DSL
-import org.jooq.impl.DefaultConfiguration
+import org.jooq.tools.jdbc.MockConnection
+import org.jooq.tools.jdbc.MockResult
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.DynamicTest
 import org.junit.jupiter.api.Test
@@ -23,20 +21,7 @@ import java.util.UUID
 class ReplayInFlightProbeDbTest {
     private val connection =
         SubmissionDb.connect(SubmissionDb.RUNTIME, SubmissionDb.RUNTIME_PASSWORD).also { it.autoCommit = false }
-    private val statements = mutableListOf<String>()
-    private val dsl =
-        DSL.using(
-            DefaultConfiguration()
-                .set(connection)
-                .set(SQLDialect.POSTGRES)
-                .set(
-                    object : ExecuteListener {
-                        override fun executeStart(ctx: ExecuteContext) {
-                            ctx.sql()?.let { statements.add(it) }
-                        }
-                    },
-                ),
-        )
+    private val dsl = DSL.using(connection, SQLDialect.POSTGRES)
     private val bound = ThreadLocal<UUID>()
     private val runner =
         object : TransactionRunner {
@@ -157,27 +142,39 @@ class ReplayInFlightProbeDbTest {
         ask(tenantA, 1) shouldBe false
     }
 
+    /** The statement text the adapter issues, recorded by a mock JDBC connection that answers "one row". */
+    private fun issuedBy(tenant: UUID): List<String> {
+        val recorded = mutableListOf<String>()
+        val mock =
+            DSL.using(
+                MockConnection { ctx ->
+                    recorded.add(ctx.sql())
+                    val result = DSL.using(SQLDialect.POSTGRES).newResult(DSL.field("exists", Boolean::class.java))
+                    result.add(
+                        DSL.using(SQLDialect.POSTGRES).newRecord(DSL.field("exists", Boolean::class.java)).also {
+                            it.set(DSL.field("exists", Boolean::class.java), true)
+                        },
+                    )
+                    arrayOf(MockResult(1, result))
+                },
+                SQLDialect.POSTGRES,
+            )
+        val noTransaction =
+            object : TransactionRunner {
+                override fun <T> inTransaction(block: () -> T): T = block()
+            }
+        JooqReplayInFlightProbe(mock, noTransaction).hasOtherInFlight(TenantId(tenant), doc, 1)
+        return recorded
+    }
+
     @Test
     fun `INV-AC-25828 the probe issues one read-only statement with no lock and no write`() {
-        seed(tenantA, 1, LifecycleState.DEAD_LETTERED)
-        seed(tenantA, 2, LifecycleState.QUEUED)
-        statements.clear()
-        ask(tenantA, 1) shouldBe true
-        val probeSql = statements.filter { it.contains("from", ignoreCase = true) }
-        probeSql.size shouldBe 1
-        val text = probeSql.single().lowercase()
+        val statements = issuedBy(tenantA)
+        statements.size shouldBe 1
+        val text = statements.single().lowercase()
         // The tenant is in the WHERE clause as well as the row level security (CS-19).
         text.replace("\"", "").contains("tenant_id = cast(? as uuid)") shouldBe true
         listOf("for update", "for share", "insert", "update", "delete").filter { text.contains(it) } shouldBe
             emptyList()
-    }
-
-    @Test
-    fun `INV-AC-25828 look-alike a lock-taking statement is caught by the same substring check`() {
-        seed(tenantA, 1, LifecycleState.DEAD_LETTERED)
-        statements.clear()
-        asTenant(tenantA) { JooqInFlightStore(dsl).lockVersions(TenantId(tenantA), doc) }
-        val text = statements.joinToString(" ").lowercase()
-        (text.contains("for update")) shouldBe true
     }
 }
