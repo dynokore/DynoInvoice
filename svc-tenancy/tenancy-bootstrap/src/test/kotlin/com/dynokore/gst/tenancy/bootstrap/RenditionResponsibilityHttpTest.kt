@@ -177,7 +177,7 @@ class RenditionResponsibilityHttpTest {
     }
 
     @Test
-    fun `INV-AC-2008 recordRenditionResponsibility answers 201 and the stored rows equal the requests`() {
+    fun `INV-AC-2008 INV-AC-16045 recordRenditionResponsibility answers 201 and the stored rows equal the requests`() {
         run { env, _, entity ->
             val invoices = env.record(entity, "TAX_INVOICE", RenditionResponsibilityRequest.Renderer.SELF)
             val notes = env.record(entity, "CREDIT_NOTE", RenditionResponsibilityRequest.Renderer.AGENT)
@@ -198,7 +198,34 @@ class RenditionResponsibilityHttpTest {
     }
 
     @Test
-    fun `INV-AC-461 an open finding event sets every recorded class REQUESTED_AGAIN and a new record sets CURRENT`() {
+    fun `INV-AC-16045 a repeat for one class replaces that class only`() {
+        run { env, _, entity ->
+            val first = env.record(entity, "TAX_INVOICE", RenditionResponsibilityRequest.Renderer.SELF)
+            val note = env.record(entity, "CREDIT_NOTE", RenditionResponsibilityRequest.Renderer.AGENT)
+            assertThat(first.status).isEqualTo(HttpStatus.CREATED.value())
+            assertThat(note.status).isEqualTo(HttpStatus.CREATED.value())
+            val firstInvoice = env.row(entity, "TAX_INVOICE")!!
+            val noteBefore = env.row(entity, "CREDIT_NOTE")!!
+            assertThat(env.rowCount(entity)).isEqualTo(2)
+            val repeat = env.record(entity, "TAX_INVOICE", RenditionResponsibilityRequest.Renderer.AGENT)
+            assertThat(repeat.status).isEqualTo(HttpStatus.CREATED.value())
+            val invoiceAfter = env.row(entity, "TAX_INVOICE")!!
+            assertThat(invoiceAfter.renderer).isEqualTo("AGENT")
+            assertThat(invoiceAfter.state).isEqualTo("CURRENT")
+            assertThat(invoiceAfter.attestedBy).isEqualTo(ATTESTER)
+            assertThat(invoiceAfter.attestedAt).isNotNull()
+            assertThat(invoiceAfter.attestedAt).isAfterOrEqualTo(firstInvoice.attestedAt)
+            val noteAfter = env.row(entity, "CREDIT_NOTE")!!
+            assertThat(noteAfter.renderer).isEqualTo(noteBefore.renderer)
+            assertThat(noteAfter.attestedBy).isEqualTo(noteBefore.attestedBy)
+            assertThat(noteAfter.attestedAt).isEqualTo(noteBefore.attestedAt)
+            assertThat(noteAfter.state).isEqualTo(noteBefore.state)
+            assertThat(env.rowCount(entity)).isEqualTo(2)
+        }
+    }
+
+    @Test
+    fun `INV-AC-461 INV-AC-16046 an open finding event sets every recorded class REQUESTED_AGAIN and a new record sets CURRENT`() {
         run { env, tenant, entity ->
             env.record(entity, "TAX_INVOICE")
             env.record(entity, "CREDIT_NOTE")
