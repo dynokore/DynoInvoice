@@ -93,6 +93,36 @@ class RecordTransactionTest {
     }
 
     @Test
+    fun `INV-AC-1849 a higher revision with a changed line amount is handed to canonical unchanged and answered as an amendment only`() {
+        val canonical = CanonicalStub()
+        val service = RecordTransaction(canonical)
+        val body1 = """{"invoiceNo":"INV-1","lines":[{"lineAmount":"100.00"}]}"""
+        val body2 = """{"invoiceNo":"INV-1","lines":[{"lineAmount":"120.00"}]}"""
+        val first = service.execute(command("K", 1, body = body1)) as RecordingOutcome.New
+        val outcome = service.execute(command("K", 2, body = body2))
+        val handed = canonical.calls[1]
+        handed.body shouldBe body2
+        handed.sourceRevision shouldBe 2
+        handed.sourceKey shouldBe "K"
+        outcome shouldBe RecordingOutcome.Amend(first.docUuid, 2)
+        outcome.httpStatus shouldBe 200
+        // Exhaustive without else: a new RecordingOutcome member breaks compilation here.
+        val isAmendOnly =
+            when (outcome) {
+                is RecordingOutcome.Amend -> true
+                is RecordingOutcome.New -> false
+                is RecordingOutcome.Replay -> false
+                is RecordingOutcome.Stale -> false
+                is RecordingOutcome.Held -> false
+                is RecordingOutcome.Relayed -> false
+                is RecordingOutcome.Unavailable -> false
+                is RecordingOutcome.Failed -> false
+            }
+        isAmendOnly shouldBe true
+        canonical.calls.size shouldBe 2
+    }
+
+    @Test
     fun `a replay returns the Doc UUID the canonical stub returned`() {
         val docUuid = UUID.randomUUID()
         val service = RecordTransaction { CanonicalAnswer.Replay(docUuid, 1) }
