@@ -2,6 +2,7 @@ package com.dynokore.gst.masterdata.application.request
 
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
+import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.gst.masterdata.domain.counterparty.CounterpartyChange
 import com.dynokore.gst.masterdata.domain.counterparty.CounterpartyVersion
 import com.dynokore.gst.masterdata.domain.counterparty.IdentifierInput
@@ -37,7 +38,7 @@ sealed interface SubmitOutcome {
 }
 
 /**
- * INV-REQ-902, INV-REQ-901 b3, INV-AC-18230. Applies SignedLinkIssued and SignedLinkInvalidated idempotently, in any
+ * INV-REQ-902, INV-REQ-901 b3, INV-AC-18230, INV-AC-1938 (the event lists the held documents of the party). Applies SignedLinkIssued and SignedLinkInvalidated idempotently, in any
  * order ([applyIssued], [applyInvalidated]), and stores a counterparty's confirmed values as COUNTERPARTY-provided only
  * when the link evidence of the verified token matches the request of the call. The evidence reference is the request
  * and link (`link:<linkRef>/<requestId>`), so it is never empty. Values are not validated as a precondition (FR-1.5).
@@ -49,6 +50,7 @@ class SubmitCounterpartyDetails(
     private val clock: Clock,
     private val publisher: MasterDataResolvedPublisher,
     private val audit: SubmissionAudit,
+    private val held: HeldDocuments,
 ) {
     fun applyIssued(
         linkRef: String,
@@ -96,7 +98,7 @@ class SubmitCounterpartyDetails(
             val content =
                 parties.current(request.party)?.content.after(change, evidence, WriteOrigin.COUNTERPARTY_LINK, now)
             val version = parties.append(request.party, content, now)
-            publisher.publish(request.entity, version)
+            publisher.publish(request.entity, version, held.heldFor(request.entity, request.party))
             stores.requests.save(request.copy(status = RequestStatus.ANSWERED))
             audit.accepted(verified.subject, requestId)
             SubmitOutcome.Accepted(version)

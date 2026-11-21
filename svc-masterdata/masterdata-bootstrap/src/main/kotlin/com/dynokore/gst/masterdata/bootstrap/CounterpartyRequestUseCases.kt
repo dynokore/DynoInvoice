@@ -15,6 +15,7 @@ import com.dynokore.gst.masterdata.application.clientsignatory.ClientSignatoryLi
 import com.dynokore.gst.masterdata.application.clientsignatory.RecordClientSignatory
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
+import com.dynokore.gst.masterdata.application.held.HeldDocuments
 import com.dynokore.gst.masterdata.application.permission.TenantPermission
 import com.dynokore.gst.masterdata.application.request.CounterpartyRequests
 import com.dynokore.gst.masterdata.application.request.LinkBindings
@@ -201,7 +202,8 @@ class CounterpartyRequestUseCases {
         clock: Clock,
         publisher: MasterDataResolvedPublisher,
         audit: SubmissionAudit,
-    ) = SubmitCounterpartyDetails(tx, stores, parties, clock, publisher, audit)
+        held: HeldDocuments,
+    ) = SubmitCounterpartyDetails(tx, stores, parties, clock, publisher, audit, held)
 
     @Bean
     fun clientSignatories(

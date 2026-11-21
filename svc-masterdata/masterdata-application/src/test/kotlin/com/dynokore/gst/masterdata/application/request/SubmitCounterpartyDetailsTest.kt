@@ -1,5 +1,8 @@
 package com.dynokore.gst.masterdata.application.request
 
+import com.dynokore.gst.masterdata.application.held.HeldDocumentFact
+import com.dynokore.gst.masterdata.application.held.HeldKind
+import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.gst.masterdata.domain.counterparty.PostalAddress
 import com.dynokore.gst.masterdata.domain.request.CounterpartyRequest
 import com.dynokore.gst.masterdata.domain.request.LinkBinding
@@ -12,6 +15,7 @@ import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.util.UUID
 
 class SubmitCounterpartyDetailsTest {
     private val clock = MutableClock()
@@ -19,7 +23,9 @@ class SubmitCounterpartyDetailsTest {
     private val bindings = FakeBindings()
     private val parties = FakeParties()
     private val out = Recorder()
-    private val use = SubmitCounterpartyDetails(DirectTx, RequestStores(requests, bindings), parties, clock, out, out)
+    private val held = FakeHeld()
+    private val use =
+        SubmitCounterpartyDetails(DirectTx, RequestStores(requests, bindings), parties, clock, out, out, held)
     private val details =
         CounterpartyDetails("201954321B", "Acme Trading Pte Ltd", PostalAddress("1 Raffles Place", null, "048616"))
 
@@ -262,5 +268,50 @@ class SubmitCounterpartyDetailsTest {
         use.handle(principal("L1"), "REQ-1", details)
         assertEquals(listOf(PARTY), parties.versions.map { it.partyRef }.distinct())
         assertEquals(null, parties.current(other))
+    }
+
+    private fun uuid(n: Int) = UUID.fromString("00000000-0000-0000-0000-" + n.toString().padStart(12, '0'))
+
+    private fun hold(
+        n: Int,
+        entity: String,
+        party: PartyRef,
+    ) = held.apply(HeldDocumentFact(HeldKind.HELD, uuid(n), 1, entity, party.value))
+
+    @Test
+    fun `INV-AC-1938 an accepted submission lists the held documents of its entity and party in UUID order`() {
+        hold(3, "ENT-1", PARTY)
+        hold(1, "ENT-1", PARTY)
+        hold(2, "ENT-1", PARTY)
+        hold(4, "ENT-2", PARTY)
+        hold(5, "ENT-1", PartyRef("CTP-999"))
+        request("REQ-1")
+        issue("L1", "REQ-1")
+        assertInstanceOf(SubmitOutcome.Accepted::class.java, use.handle(principal("L1"), "REQ-1", details))
+        assertEquals(1, out.resolved.size)
+        assertEquals(listOf(listOf(uuid(1), uuid(2), uuid(3))), out.resolvedDocUuids)
+    }
+
+    @Test
+    fun `INV-AC-1938 a refused link and an incomplete submission release nothing and leave the held rows equal`() {
+        hold(1, "ENT-1", PARTY)
+        request("REQ-1")
+        issue("L1", "REQ-1")
+        val heldBefore = held.rows.toList()
+        refused(principal("L1x"), "REQ-1")
+        assertEquals(SubmitOutcome.Incomplete, use.handle(principal("L1"), "REQ-1", details.copy(uen = null)))
+        assertTrue(out.resolvedDocUuids.isEmpty())
+        assertTrue(out.resolved.isEmpty())
+        assertEquals(heldBefore, held.rows)
+    }
+
+    @Test
+    fun `INV-AC-1938 a party with no held document publishes an empty list`() {
+        hold(1, "ENT-1", PartyRef("CTP-999"))
+        request("REQ-1")
+        issue("L1", "REQ-1")
+        assertInstanceOf(SubmitOutcome.Accepted::class.java, use.handle(principal("L1"), "REQ-1", details))
+        assertEquals(1, out.resolved.size)
+        assertEquals(listOf(emptyList<UUID>()), out.resolvedDocUuids)
     }
 }

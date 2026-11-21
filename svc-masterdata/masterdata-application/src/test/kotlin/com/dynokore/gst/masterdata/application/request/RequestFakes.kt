@@ -2,6 +2,9 @@ package com.dynokore.gst.masterdata.application.request
 
 import com.dynokore.gst.masterdata.application.counterparty.CounterpartyRepository
 import com.dynokore.gst.masterdata.application.counterparty.MasterDataResolvedPublisher
+import com.dynokore.gst.masterdata.application.held.HeldDocumentFact
+import com.dynokore.gst.masterdata.application.held.HeldDocuments
+import com.dynokore.gst.masterdata.application.held.HeldKind
 import com.dynokore.gst.masterdata.domain.counterparty.CounterpartyContent
 import com.dynokore.gst.masterdata.domain.counterparty.CounterpartyVersion
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
@@ -122,6 +125,24 @@ internal class Recorder :
     ) {
         audits += principal to requestId
     }
+}
+
+/** Held rows by (entity, party); [heldFor] answers ascending by the UUID text, as the port promises. */
+internal class FakeHeld : HeldDocuments {
+    val rows = mutableListOf<HeldDocumentFact>()
+
+    override fun apply(fact: HeldDocumentFact) {
+        rows += fact
+    }
+
+    override fun heldFor(
+        entity: String,
+        party: PartyRef,
+    ): List<UUID> =
+        rows
+            .filter { it.kind == HeldKind.HELD && it.entity == entity && it.partyRef == party.value }
+            .map { it.docUuid }
+            .sortedBy { it.toString() }
 }
 
 internal class Limits(

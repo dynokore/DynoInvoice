@@ -1,5 +1,8 @@
 package com.dynokore.gst.masterdata.bootstrap
 
+import com.dynokore.gst.masterdata.adapters.persistence.JooqHeldDocuments
+import com.dynokore.gst.masterdata.application.held.HeldDocumentFact
+import com.dynokore.gst.masterdata.application.held.HeldKind
 import com.dynokore.gst.masterdata.application.request.CounterpartyRequests
 import com.dynokore.gst.masterdata.domain.counterparty.PartyRef
 import com.dynokore.gst.masterdata.domain.request.CounterpartyRequest
@@ -28,6 +31,7 @@ import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.assertj.AssertableWebApplicationContext
@@ -36,6 +40,7 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
+import tools.jackson.databind.json.JsonMapper
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.security.interfaces.RSAPublicKey
@@ -264,6 +269,25 @@ class CounterpartyLinkTest {
                 )
             }
 
+        val captured: CapturedEvents = context.getBean(CapturedEvents::class.java)
+
+        fun hold(facts: List<HeldDocumentFact>) =
+            inTenant {
+                tx.inTransaction {
+                    val store = JooqHeldDocuments(context.getBean(DSLContext::class.java))
+                    facts.forEach(store::apply)
+                }
+            }
+
+        fun heldRows(): String =
+            sql(
+                "select coalesce(string_agg(t::text, '|' order by t::text), '') from masterdata.held_document t " +
+                    "where tenant_id = '$tenant'::uuid",
+            )
+
+        fun resolvedEvents() =
+            captured.envelopes.filter { it.type.contains("MasterDataResolved") && it.tenant == tenant }
+
         fun binding(linkRef: String): String =
             sql(
                 "select coalesce(tenant,'-') || '/' || coalesce(request_id,'-') || '/' || coalesce(expiry::text,'-') " +
@@ -430,10 +454,58 @@ class CounterpartyLinkTest {
             assertThat(env.fingerprint()).isEqualTo(before)
         }
 
+    @Test
+    @Suppress("LongMethod") // one scenario: hold rows, submit, read the captured envelope
+    fun `INV-AC-1938 the confirmation lists the held documents of the party and stores COUNTERPARTY with evidence`() =
+        run { env ->
+            val request = env.request()
+            val link = env.linkRef()
+            env.issue(link, request.requestId)
+
+            fun uuid(n: Int) = UUID.fromString("00000000-0000-0000-0000-" + n.toString().padStart(UUID_TAIL, '0'))
+
+            fun held(
+                n: Int,
+                entity: String,
+                party: String,
+            ) = HeldDocumentFact(HeldKind.HELD, uuid(n), 1, entity, party)
+            env.hold(
+                listOf(
+                    held(3, env.entity, request.party.value),
+                    held(1, env.entity, request.party.value),
+                    held(2, env.entity, request.party.value),
+                    held(4, env.entity + "-other", request.party.value),
+                    held(5, env.entity, request.party.value + "-other"),
+                ),
+            )
+            val heldBefore = env.heldRows()
+            // a look-alike: the token of another tenant answers 401 and publishes no event
+            val events = env.resolvedEvents().size
+            val intruder = env.submit(request.requestId, env.token(link, of = TenantId(UUID.randomUUID())))
+            assertThat(intruder.first).describedAs(intruder.second).isEqualTo(401)
+            assertThat(env.resolvedEvents()).hasSize(events)
+            val (status, body) = env.submit(request.requestId, env.token(link))
+            assertThat(status).describedAs(body).isEqualTo(200)
+            val sent = env.resolvedEvents().drop(events)
+            assertThat(sent).hasSize(1)
+            val data = JsonMapper.builder().build().readTree(sent.single().dataJson)
+            val docs = data.get("docUuids").let { a -> (0 until a.size()).map { a.get(it).asString() } }
+            assertThat(docs).isEqualTo(listOf(uuid(1), uuid(2), uuid(3)).map { it.toString() })
+            val identifiers = data.get("resolvedIdentifiers")
+            assertThat(identifiers.size()).isGreaterThan(0)
+            (0 until identifiers.size()).forEach {
+                assertThat(identifiers.get(it).get("providedBy").asString()).isEqualTo("COUNTERPARTY")
+                assertThat(identifiers.get(it).get("evidenceRef").asString())
+                    .isEqualTo("link:$link/${request.requestId}")
+            }
+            assertThat(env.heldRows()).isEqualTo(heldBefore)
+        }
+
     private companion object {
         const val ISSUED = "com.dynokore.gst.access.SignedLinkIssued.v1"
         const val INVALIDATED = "com.dynokore.gst.access.SignedLinkInvalidated.v1"
         const val LINK_REF_LENGTH = 22
+        const val UUID_TAIL = 12
         const val BODY =
             """{"uen":"201954321B","legalName":"Acme Trading Pte Ltd","address":"1 Raffles Place, Singapore"}"""
     }
